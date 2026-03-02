@@ -92,6 +92,25 @@ export async function analyzeInterview(
   return data.analysis;
 }
 
+/** プロンプトプレビューを取得 */
+export async function previewPrompts(
+  transcriptionId: string,
+  speakerId: string,
+  keywords: string[],
+  questions: string[],
+): Promise<{ generateQuestionsPrompt: string; analyzePrompts: string[] }> {
+  const res = await fetch(`${BASE_URL}/interview/preview-prompts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
+  });
+  if (!res.ok) {
+    throw new Error(`プロンプト取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.prompts;
+}
+
 /** 話者名を更新 */
 export async function updateSpeakerNames(
   id: string,

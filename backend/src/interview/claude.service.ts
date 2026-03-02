@@ -15,29 +15,14 @@ export class ClaudeService {
     });
   }
 
-  /** キーワードと発話テキストから調査レポート用の質問文を生成 */
-  async generateQuestions(
+  /** 質問生成プロンプトを構築 */
+  buildGenerateQuestionsPrompt(
     keywords: string[],
-    speakerUtterances: string,
     speakerName: string,
-  ): Promise<string[]> {
-    this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
+  ): string {
+    const keywordContext = keywords.map((kw) => `- 「${kw}」`).join('\n');
 
-    // キーワードごとの会話コンテキストを構築
-    const keywordContext = keywords
-      .map((kw) => `- 「${kw}」`)
-      .join('\n');
-
-    const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      messages: [
-        {
-          role: 'user',
-          content: `以下は「${speakerName}」の会話内容です。指定されたキーワードごとに、そのキーワードに特化した調査質問を生成してください。
-
-## 会話内容
-${speakerUtterances.slice(0, 3000)}
+    return `「${speakerName}」が話題にした以下のキーワードについて、調査質問を生成してください。
 
 ## 対象キーワード
 ${keywordContext}
@@ -48,9 +33,38 @@ ${keywordContext}
 - 質問文は「〜について教えてください」「〜の最新動向は？」のような調査レポート向けの形式にしてください
 - 質問の先頭に【キーワード名】を付けてください（例: 【富岳LLM】富岳LLMの性能ベンチマーク結果について教えてください）
 - 1行に1つの質問を書いてください
-- 質問文のみを出力してください（説明や前置きは不要）`,
-        },
-      ],
+- 質問文のみを出力してください（説明や前置きは不要）`;
+  }
+
+  /** 分析プロンプトを構築（1つの質問分） */
+  buildAnalysisPrompt(
+    question: string,
+    keywords: string[],
+    speakerName: string,
+  ): string {
+    return `「${speakerName}」が話題にしたキーワード（${keywords.join('、')}）に関連する以下の質問について、Web検索を使って調査し、回答してください。
+
+## 質問
+${question}
+
+## 回答形式
+- Markdown形式で回答してください
+- 調査結果を簡潔にまとめてください（300〜500文字程度）`;
+  }
+
+  /** キーワードから調査レポート用の質問文を生成 */
+  async generateQuestions(
+    keywords: string[],
+    speakerName: string,
+  ): Promise<string[]> {
+    this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
+
+    const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
+
+    const response = await this.client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const text =
@@ -64,11 +78,10 @@ ${keywordContext}
     return questions;
   }
 
-  /** 質問文と文字起こしコンテキストでWeb検索付き分析を実行 */
+  /** 質問文でWeb検索付き分析を実行 */
   async analyze(
     questions: string[],
     keywords: string[],
-    speakerUtterances: string,
     speakerName: string,
   ): Promise<AnalysisResult[]> {
     this.logger.log(`分析開始: 質問数=${questions.length}`);
@@ -80,7 +93,6 @@ ${keywordContext}
         const result = await this.analyzeQuestion(
           question,
           keywords,
-          speakerUtterances,
           speakerName,
         );
         results.push(result);
@@ -102,9 +114,10 @@ ${keywordContext}
   private async analyzeQuestion(
     question: string,
     keywords: string[],
-    speakerUtterances: string,
     speakerName: string,
   ): Promise<AnalysisResult> {
+    const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
+
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
@@ -115,23 +128,7 @@ ${keywordContext}
           max_uses: 3,
         },
       ],
-      messages: [
-        {
-          role: 'user',
-          content: `以下の会話で「${speakerName}」が話題にしたキーワード（${keywords.join('、')}）に関連する質問について、Web検索を使って調査し、回答してください。
-
-## 会話コンテキスト（${speakerName}の発話）
-${speakerUtterances.slice(0, 2000)}
-
-## 質問
-${question}
-
-## 回答形式
-- Markdown形式で回答してください
-- 調査結果を簡潔にまとめてください（300〜500文字程度）
-- 話者の興味・関心との関連性も言及してください`,
-        },
-      ],
+      messages: [{ role: 'user', content: prompt }],
     });
 
     // レスポンスからテキストとソースURLを抽出

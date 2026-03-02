@@ -13,6 +13,11 @@ marked.use({
   },
 });
 
+interface QuestionItem {
+  text: string;
+  checked: boolean;
+}
+
 interface Props {
   transcriptionId: string;
   speakers: Speaker[];
@@ -33,7 +38,7 @@ export function InterviewPage({
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(
     new Set(),
   );
-  const [questionsText, setQuestionsText] = useState('');
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [analysis, setAnalysis] = useState<InterviewAnalysis | null>(null);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -57,6 +62,22 @@ export function InterviewPage({
     .filter((kw) => selectedKeywords.has(kw.text))
     .map((kw) => kw.text);
 
+  // チェック済み質問数
+  const checkedCount = questions.filter((q) => q.checked).length;
+
+  /** 質問のチェックをトグル */
+  const toggleQuestion = (index: number) => {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === index ? { ...q, checked: !q.checked } : q)),
+    );
+  };
+
+  /** 全選択 / 全解除 */
+  const toggleAllQuestions = () => {
+    const allChecked = questions.every((q) => q.checked);
+    setQuestions((prev) => prev.map((q) => ({ ...q, checked: !allChecked })));
+  };
+
   /** 質問文を自動生成 */
   const handleGenerateQuestions = async () => {
     if (activeKeywords.length === 0) {
@@ -66,12 +87,12 @@ export function InterviewPage({
     setGeneratingQuestions(true);
     setError(null);
     try {
-      const questions = await generateQuestions(
+      const result = await generateQuestions(
         transcriptionId,
         selectedSpeakerId,
         activeKeywords,
       );
-      setQuestionsText(questions.join('\n'));
+      setQuestions(result.map((text) => ({ text, checked: true })));
     } catch (e) {
       setError(e instanceof Error ? e.message : '質問生成に失敗しました');
     } finally {
@@ -81,13 +102,12 @@ export function InterviewPage({
 
   /** 分析を実行 */
   const handleAnalyze = async () => {
-    const questions = questionsText
-      .split('\n')
-      .map((q) => q.trim())
-      .filter((q) => q.length > 0);
+    const checkedQuestions = questions
+      .filter((q) => q.checked)
+      .map((q) => q.text);
 
-    if (questions.length === 0) {
-      setError('質問文を入力してください');
+    if (checkedQuestions.length === 0) {
+      setError('分析する質問を選択してください');
       return;
     }
 
@@ -98,7 +118,7 @@ export function InterviewPage({
         transcriptionId,
         selectedSpeakerId,
         activeKeywords,
-        questions,
+        checkedQuestions,
       );
       setAnalysis(result);
     } catch (e) {
@@ -166,17 +186,9 @@ export function InterviewPage({
           </div>
         </section>
 
-        {/* 質問生成・編集 */}
+        {/* 質問生成・選択 */}
         <section className="interview-section">
           <h2>調査質問</h2>
-          <textarea
-            className="interview-textarea"
-            placeholder="「質問を生成」ボタンで質問文を自動生成できます。手動で編集も可能です。"
-            value={questionsText}
-            onChange={(e) => setQuestionsText(e.target.value)}
-            rows={8}
-            disabled={generatingQuestions}
-          />
           <div className="interview-actions">
             <button
               className="interview-button secondary"
@@ -185,18 +197,46 @@ export function InterviewPage({
             >
               {generatingQuestions ? '生成中...' : '質問を生成'}
             </button>
-            <button
-              className="interview-button primary"
-              onClick={handleAnalyze}
-              disabled={
-                analyzing ||
-                generatingQuestions ||
-                questionsText.trim().length === 0
-              }
-            >
-              {analyzing ? '分析中...' : '分析する'}
-            </button>
           </div>
+
+          {questions.length > 0 && (
+            <div className="question-list">
+              <div className="question-list-header">
+                <button
+                  className="question-toggle-all"
+                  onClick={toggleAllQuestions}
+                >
+                  {questions.every((q) => q.checked) ? '全解除' : '全選択'}
+                </button>
+                <span className="question-list-count">
+                  {checkedCount}/{questions.length}件 選択中
+                </span>
+              </div>
+              {questions.map((q, i) => (
+                <label key={i} className="question-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={q.checked}
+                    onChange={() => toggleQuestion(i)}
+                    disabled={analyzing}
+                  />
+                  <span className="question-checkbox-text">{q.text}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {questions.length > 0 && (
+            <div className="interview-actions">
+              <button
+                className="interview-button primary"
+                onClick={handleAnalyze}
+                disabled={analyzing || generatingQuestions || checkedCount === 0}
+              >
+                {analyzing ? '分析中...' : `分析する（${checkedCount}件）`}
+              </button>
+            </div>
+          )}
         </section>
 
         {/* ローディング */}

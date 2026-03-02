@@ -19,6 +19,18 @@ export class InterviewController {
     return { questions };
   }
 
+  /** プロンプトプレビュー: POST /api/interview/preview-prompts */
+  @Post('preview-prompts')
+  async previewPrompts(@Body() dto: AnalyzeDto) {
+    const prompts = await this.interviewService.previewPrompts(
+      dto.transcriptionId,
+      dto.speakerId,
+      dto.keywords,
+      dto.questions,
+    );
+    return { prompts };
+  }
+
   /** Web検索付き分析実行: POST /api/interview/analyze */
   @Post('analyze')
   async analyze(@Body() dto: AnalyzeDto) {
