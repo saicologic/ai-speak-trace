@@ -220,7 +220,86 @@
   font-size: 0.9rem;
   line-height: 1.7;
   color: #374151;
-  white-space: pre-wrap;
+}
+
+.result-answer p {
+  margin: 0.5rem 0;
+}
+
+.result-answer p:first-child {
+  margin-top: 0;
+}
+
+.result-answer p:last-child {
+  margin-bottom: 0;
+}
+
+.result-answer h1,
+.result-answer h2,
+.result-answer h3,
+.result-answer h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 1rem 0 0.5rem;
+}
+
+.result-answer h1:first-child,
+.result-answer h2:first-child,
+.result-answer h3:first-child {
+  margin-top: 0;
+}
+
+.result-answer ul,
+.result-answer ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.result-answer li {
+  margin-bottom: 0.25rem;
+}
+
+.result-answer strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.result-answer a {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.result-answer a:hover {
+  text-decoration: underline;
+}
+
+.result-answer blockquote {
+  margin: 0.5rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid #e5e7eb;
+  background-color: #f9fafb;
+  color: #6b7280;
+}
+
+.result-answer code {
+  font-size: 0.85em;
+  background-color: #f3f4f6;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.result-answer pre {
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.result-answer pre code {
+  background-color: transparent;
+  padding: 0;
 }
 
 .result-sources {

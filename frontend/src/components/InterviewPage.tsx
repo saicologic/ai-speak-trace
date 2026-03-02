@@ -1,7 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { marked } from 'marked';
 import { generateQuestions, analyzeInterview } from '../api/client';
 import type { InterviewAnalysis, Keyword, Speaker } from '../types';
 import './InterviewPage.css';
+
+// markedの設定: リンクを新しいタブで開く
+marked.use({
+  renderer: {
+    link({ href, text }) {
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    },
+  },
+});
 
 interface Props {
   transcriptionId: string;
@@ -99,6 +109,15 @@ export function InterviewPage({
   };
 
   const selectedSpeaker = speakers.find((s) => s.id === selectedSpeakerId);
+
+  /** 分析結果のMarkdownをHTMLに変換（メモ化） */
+  const renderedResults = useMemo(() => {
+    if (!analysis) return [];
+    return analysis.results.map((result) => ({
+      ...result,
+      answerHtml: marked.parse(result.answer) as string,
+    }));
+  }, [analysis]);
 
   return (
     <div className="interview-page">
@@ -201,12 +220,15 @@ export function InterviewPage({
               </span>
             </h2>
             <div className="interview-results">
-              {analysis.results.map((result, i) => (
+              {renderedResults.map((result, i) => (
                 <div key={i} className="interview-result-card">
                   <h3 className="result-question">
                     Q{i + 1}: {result.question}
                   </h3>
-                  <div className="result-answer">{result.answer}</div>
+                  <div
+                    className="result-answer"
+                    dangerouslySetInnerHTML={{ __html: result.answerHtml }}
+                  />
                   {result.sources.length > 0 && (
                     <div className="result-sources">
                       <span className="result-sources-label">出典:</span>
