@@ -49,3 +49,9 @@ export interface TranscriptionSummary {
   audioFileName: string;
   createdAt: string;
 }
+
+/** キーワード（専門用語） */
+export interface Keyword {
+  text: string;
+  count: number;
+}

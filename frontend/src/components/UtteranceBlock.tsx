@@ -6,6 +6,7 @@ interface Props {
   utterance: Utterance;
   speaker: Speaker | undefined;
   selectedWords: Set<number>;
+  highlightedKeywords: Set<string>;
   wordIndexOffset: number;
   onWordClick: (globalIndex: number) => void;
 }
@@ -22,6 +23,7 @@ export function UtteranceBlock({
   utterance,
   speaker,
   selectedWords,
+  highlightedKeywords,
   wordIndexOffset,
   onWordClick,
 }: Props) {
@@ -51,6 +53,7 @@ export function UtteranceBlock({
               key={globalIndex}
               word={word}
               isSelected={selectedWords.has(globalIndex)}
+              highlightedKeywords={highlightedKeywords}
               onClick={() => onWordClick(globalIndex)}
             />
           );

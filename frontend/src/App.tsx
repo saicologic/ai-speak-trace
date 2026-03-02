@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AudioFileList } from './components/AudioFileList';
 import { TranscriptionList } from './components/TranscriptionList';
 import { TranscriptionView } from './components/TranscriptionView';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
+import { KeywordList } from './components/KeywordList';
 import { transcribeAudio, fetchTranscription } from './api/client';
+import { extractKeywords } from './utils/keywords';
 import type { Transcription } from './types';
 import './App.css';
 
@@ -21,6 +23,28 @@ function App() {
     string | null
   >(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('audio');
+  const [highlightedKeywords, setHighlightedKeywords] = useState<Set<string>>(
+    new Set(),
+  );
+
+  /** 文字起こしテキストからキーワードを抽出（メモ化） */
+  const keywords = useMemo(
+    () => (transcription ? extractKeywords(transcription.fullText) : []),
+    [transcription],
+  );
+
+  /** キーワードのハイライトをトグル */
+  const toggleKeywordHighlight = (keyword: string) => {
+    setHighlightedKeywords((prev) => {
+      const next = new Set(prev);
+      if (next.has(keyword)) {
+        next.delete(keyword);
+      } else {
+        next.add(keyword);
+      }
+      return next;
+    });
+  };
 
   /** 音声ファイルを選択して文字起こし実行 */
   const handleFileSelect = async (fileName: string) => {
@@ -28,6 +52,7 @@ function App() {
     setSelectedTranscriptionId(null);
     setLoading(true);
     setError(null);
+    setHighlightedKeywords(new Set());
 
     try {
       const result = await transcribeAudio(fileName);
@@ -45,6 +70,7 @@ function App() {
     setSelectedFile(null);
     setLoading(true);
     setError(null);
+    setHighlightedKeywords(new Set());
 
     try {
       const result = await fetchTranscription(id);
@@ -127,10 +153,22 @@ function App() {
                 onUpdate={setTranscription}
               />
               <AudioPlayer fileName={transcription.audioFileName} />
-              <TranscriptionView transcription={transcription} />
+              <TranscriptionView
+                transcription={transcription}
+                highlightedKeywords={highlightedKeywords}
+              />
             </>
           )}
         </section>
+        {transcription && !loading && (
+          <aside className="app-sidebar-right">
+            <KeywordList
+              keywords={keywords}
+              highlightedKeywords={highlightedKeywords}
+              onToggleKeyword={toggleKeywordHighlight}
+            />
+          </aside>
+        )}
       </main>
     </div>
   );

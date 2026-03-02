@@ -19,3 +19,9 @@
   font-style: italic;
   font-size: 0.85em;
 }
+
+.keyword-highlight {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0 1px;
+}

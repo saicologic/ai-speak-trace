@@ -5,10 +5,11 @@ import './TranscriptionView.css';
 
 interface Props {
   transcription: Transcription;
+  highlightedKeywords: Set<string>;
 }
 
 /** 文字起こし結果表示コンポーネント */
-export function TranscriptionView({ transcription }: Props) {
+export function TranscriptionView({ transcription, highlightedKeywords }: Props) {
   const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
 
   const toggleWord = (index: number) => {
@@ -53,6 +54,7 @@ export function TranscriptionView({ transcription }: Props) {
               utterance={utterance}
               speaker={speaker}
               selectedWords={selectedWords}
+              highlightedKeywords={highlightedKeywords}
               wordIndexOffset={currentOffset}
               onWordClick={toggleWord}
             />
