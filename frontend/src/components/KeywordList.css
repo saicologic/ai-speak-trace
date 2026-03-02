@@ -4,6 +4,24 @@
   height: 100%;
 }
 
+.keyword-interview-button {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #3b82f6;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.keyword-interview-button:hover {
+  background-color: #2563eb;
+}
+
 .keyword-list-header {
   display: flex;
   align-items: center;

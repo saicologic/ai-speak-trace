@@ -1,0 +1,254 @@
+.interview-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.interview-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.interview-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.interview-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.interview-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.interview-content {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+.interview-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.interview-section {
+  margin-bottom: 2rem;
+}
+
+.interview-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #1f2937;
+}
+
+.interview-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+}
+
+.interview-select {
+  width: 100%;
+  max-width: 300px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+.interview-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.interview-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.interview-keyword-tag {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.interview-keyword-tag:hover {
+  background-color: #fefce8;
+  border-color: #fde68a;
+}
+
+.interview-keyword-tag.selected {
+  background-color: #fef9c3;
+  border-color: #facc15;
+  color: #92400e;
+}
+
+.interview-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+
+.interview-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.interview-textarea:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+}
+
+.interview-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.interview-button {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.interview-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.interview-button.primary {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.interview-button.primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.interview-button.secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.interview-button.secondary:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.interview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 2rem;
+  color: #6b7280;
+}
+
+.interview-loading p {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.interview-loading-hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
+}
+
+.interview-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.interview-result-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.result-question {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 0.75rem;
+}
+
+.result-answer {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+.result-sources {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.result-sources-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.result-source-link {
+  font-size: 0.75rem;
+  color: #3b82f6;
+  text-decoration: none;
+  padding: 0.15rem 0.4rem;
+  background-color: #eff6ff;
+  border-radius: 4px;
+}
+
+.result-source-link:hover {
+  text-decoration: underline;
+  background-color: #dbeafe;
+}

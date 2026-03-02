@@ -5,12 +5,14 @@ import { TranscriptionView } from './components/TranscriptionView';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
+import { InterviewPage } from './components/InterviewPage';
 import { transcribeAudio, fetchTranscription } from './api/client';
 import { extractKeywords } from './utils/keywords';
 import type { Transcription } from './types';
 import './App.css';
 
 type SidebarTab = 'audio' | 'history';
+type Page = 'main' | 'interview';
 
 function App() {
   const [transcription, setTranscription] = useState<Transcription | null>(
@@ -26,6 +28,7 @@ function App() {
   const [highlightedKeywords, setHighlightedKeywords] = useState<Set<string>>(
     new Set(),
   );
+  const [page, setPage] = useState<Page>('main');
 
   /** 文字起こしテキストからキーワードを抽出（メモ化） */
   const keywords = useMemo(
@@ -83,6 +86,18 @@ function App() {
       setLoading(false);
     }
   };
+
+  /** インタビューページの場合 */
+  if (page === 'interview' && transcription) {
+    return (
+      <InterviewPage
+        transcriptionId={transcription.id}
+        speakers={transcription.speakers}
+        keywords={keywords}
+        onBack={() => setPage('main')}
+      />
+    );
+  }
 
   return (
     <div className="app">
@@ -166,6 +181,7 @@ function App() {
               keywords={keywords}
               highlightedKeywords={highlightedKeywords}
               onToggleKeyword={toggleKeywordHighlight}
+              onNavigateInterview={() => setPage('interview')}
             />
           </aside>
         )}

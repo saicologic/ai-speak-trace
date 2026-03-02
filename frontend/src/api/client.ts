@@ -1,4 +1,9 @@
-import type { AudioFileInfo, Transcription, TranscriptionSummary } from '../types';
+import type {
+  AudioFileInfo,
+  InterviewAnalysis,
+  Transcription,
+  TranscriptionSummary,
+} from '../types';
 
 const BASE_URL = '/api';
 
@@ -48,6 +53,43 @@ export async function fetchTranscription(
   }
   const data = await res.json();
   return data.transcription;
+}
+
+/** 調査質問文を自動生成 */
+export async function generateQuestions(
+  transcriptionId: string,
+  speakerId: string,
+  keywords: string[],
+): Promise<string[]> {
+  const res = await fetch(`${BASE_URL}/interview/generate-questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionId, speakerId, keywords }),
+  });
+  if (!res.ok) {
+    throw new Error(`質問生成に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.questions;
+}
+
+/** Web検索付きインタビュー分析を実行 */
+export async function analyzeInterview(
+  transcriptionId: string,
+  speakerId: string,
+  keywords: string[],
+  questions: string[],
+): Promise<InterviewAnalysis> {
+  const res = await fetch(`${BASE_URL}/interview/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
+  });
+  if (!res.ok) {
+    throw new Error(`分析に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.analysis;
 }
 
 /** 話者名を更新 */

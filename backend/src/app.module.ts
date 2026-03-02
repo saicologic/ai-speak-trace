@@ -5,6 +5,7 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TranscriptionModule } from './transcription/transcription.module';
+import { InterviewModule } from './interview/interview.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TranscriptionModule } from './transcription/transcription.module';
       serveRoot: '/outputs',
     }),
     TranscriptionModule,
+    InterviewModule,
   ],
   controllers: [AppController],
   providers: [AppService],

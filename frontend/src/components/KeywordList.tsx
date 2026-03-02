@@ -6,6 +6,7 @@ interface Props {
   keywords: Keyword[];
   highlightedKeywords: Set<string>;
   onToggleKeyword: (keyword: string) => void;
+  onNavigateInterview?: () => void;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -13,6 +14,7 @@ export function KeywordList({
   keywords,
   highlightedKeywords,
   onToggleKeyword,
+  onNavigateInterview,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -33,6 +35,14 @@ export function KeywordList({
 
   return (
     <div className="keyword-list">
+      {onNavigateInterview && (
+        <button
+          className="keyword-interview-button"
+          onClick={onNavigateInterview}
+        >
+          ユーザーインタビュー
+        </button>
+      )}
       <div className="keyword-list-header">
         <h2>キーワード</h2>
         <span className="keyword-list-count">{filteredKeywords.length}件</span>

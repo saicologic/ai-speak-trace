@@ -55,3 +55,21 @@ export interface Keyword {
   text: string;
   count: number;
 }
+
+/** 分析結果（1つの質問に対する回答） */
+export interface AnalysisResult {
+  question: string;
+  answer: string;
+  sources: { title: string; url: string }[];
+}
+
+/** インタビュー分析レスポンス */
+export interface InterviewAnalysis {
+  id: string;
+  transcriptionId: string;
+  speakerId: string;
+  speakerName: string;
+  keywords: string[];
+  results: AnalysisResult[];
+  createdAt: string;
+}
