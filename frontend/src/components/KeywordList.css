@@ -21,6 +21,22 @@
   color: #9ca3af;
 }
 
+.keyword-filter {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  outline: none;
+  margin-bottom: 0.5rem;
+  box-sizing: border-box;
+}
+
+.keyword-filter:focus {
+  border-color: #facc15;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2);
+}
+
 .keyword-list-hint {
   font-size: 0.7rem;
   color: #9ca3af;

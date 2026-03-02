@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import type { Keyword } from '../types';
 import './KeywordList.css';
 
@@ -13,6 +14,14 @@ export function KeywordList({
   highlightedKeywords,
   onToggleKeyword,
 }: Props) {
+  const [filter, setFilter] = useState('');
+
+  const filteredKeywords = useMemo(() => {
+    if (!filter) return keywords;
+    const lower = filter.toLowerCase();
+    return keywords.filter((kw) => kw.text.toLowerCase().includes(lower));
+  }, [keywords, filter]);
+
   if (keywords.length === 0) {
     return (
       <div className="keyword-list">
@@ -26,13 +35,20 @@ export function KeywordList({
     <div className="keyword-list">
       <div className="keyword-list-header">
         <h2>キーワード</h2>
-        <span className="keyword-list-count">{keywords.length}件</span>
+        <span className="keyword-list-count">{filteredKeywords.length}件</span>
       </div>
+      <input
+        type="text"
+        className="keyword-filter"
+        placeholder="キーワードを検索..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
       <p className="keyword-list-hint">
         クリックでハイライト切替
       </p>
       <ul className="keyword-list-items">
-        {keywords.map((keyword) => {
+        {filteredKeywords.map((keyword) => {
           const isActive = highlightedKeywords.has(keyword.text);
           return (
             <li key={keyword.text}>
