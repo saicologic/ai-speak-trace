@@ -1,0 +1,21 @@
+.word-span {
+  cursor: pointer;
+  padding: 1px 0;
+  border-radius: 2px;
+  transition: background-color 0.15s;
+}
+
+.word-span:hover {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.word-span.selected {
+  background-color: rgba(59, 130, 246, 0.3);
+  border-radius: 2px;
+}
+
+.word-audio-event {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.85em;
+}

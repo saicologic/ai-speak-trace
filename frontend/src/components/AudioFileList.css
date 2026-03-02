@@ -1,0 +1,74 @@
+.audio-file-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.audio-file-list-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.reload-button {
+  font-size: 0.75rem;
+  padding: 0.3em 0.6em;
+}
+
+.audio-file-list-error {
+  background-color: #fef2f2;
+  color: #991b1b;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.audio-file-list-empty {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.audio-file-list-items {
+  list-style: none;
+}
+
+.audio-file-list-items li {
+  margin-bottom: 0.25rem;
+}
+
+.audio-file-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  transition: all 0.15s;
+}
+
+.audio-file-item:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.audio-file-item.selected {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.audio-file-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.audio-file-size {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}

@@ -1,0 +1,8 @@
+.audio-player {
+  margin-bottom: 1.5rem;
+}
+
+.audio-player audio {
+  width: 100%;
+  border-radius: 8px;
+}

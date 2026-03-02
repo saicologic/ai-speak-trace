@@ -1,0 +1,56 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+} from '@nestjs/common';
+import { TranscriptionService } from './transcription.service';
+import { TranscribeRequestDto } from './dto/transcribe-request.dto';
+import { UpdateSpeakersDto } from './dto/update-speakers.dto';
+
+/** 文字起こしAPIコントローラー */
+@Controller()
+export class TranscriptionController {
+  constructor(
+    private readonly transcriptionService: TranscriptionService,
+  ) {}
+
+  /** 音声ファイル一覧取得: GET /api/audio-files */
+  @Get('audio-files')
+  async getAudioFiles() {
+    const files = await this.transcriptionService.getAudioFiles();
+    return { files };
+  }
+
+  /** 文字起こし実行: POST /api/transcribe */
+  @Post('transcribe')
+  async transcribe(@Body() dto: TranscribeRequestDto) {
+    const transcription = await this.transcriptionService.transcribe(
+      dto.fileName,
+    );
+    return { transcription };
+  }
+
+  /** 文字起こし結果取得: GET /api/transcriptions/:id */
+  @Get('transcriptions/:id')
+  async getTranscription(@Param('id') id: string) {
+    const transcription =
+      await this.transcriptionService.getTranscription(id);
+    return { transcription };
+  }
+
+  /** 話者名更新: PATCH /api/transcriptions/:id/speakers */
+  @Patch('transcriptions/:id/speakers')
+  async updateSpeakers(
+    @Param('id') id: string,
+    @Body() dto: UpdateSpeakersDto,
+  ) {
+    const transcription = await this.transcriptionService.updateSpeakers(
+      id,
+      dto.speakers,
+    );
+    return { transcription };
+  }
+}

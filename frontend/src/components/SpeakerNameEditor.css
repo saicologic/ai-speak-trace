@@ -1,0 +1,48 @@
+.speaker-name-editor {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.speaker-name-editor h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.speaker-name-fields {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.speaker-name-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.speaker-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.speaker-name-field input {
+  width: 120px;
+}
+
+.speaker-name-save {
+  background-color: #3b82f6;
+  color: #ffffff;
+  border: none;
+  font-size: 0.8rem;
+}
+
+.speaker-name-save:hover {
+  background-color: #2563eb;
+}

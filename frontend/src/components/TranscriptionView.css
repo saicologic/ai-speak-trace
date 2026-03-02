@@ -1,0 +1,31 @@
+.transcription-view h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #1e40af;
+}
+
+.selection-info button {
+  font-size: 0.75rem;
+  padding: 0.2em 0.5em;
+  background-color: transparent;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.utterance-list {
+  display: flex;
+  flex-direction: column;
+}
