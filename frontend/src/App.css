@@ -33,6 +33,39 @@
   border-right: 1px solid #e5e7eb;
   overflow-y: auto;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 0.5rem 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 0;
+  background-color: #f9fafb;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sidebar-tab:hover {
+  background-color: #f3f4f6;
+}
+
+.sidebar-tab.active {
+  background-color: #1a1a2e;
+  color: #ffffff;
 }
 
 .app-content {

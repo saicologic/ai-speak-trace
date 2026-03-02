@@ -126,6 +126,23 @@ export class TranscriptionService {
     return transcription;
   }
 
+  /** 文字起こし一覧を取得（サマリーのみ） */
+  async getTranscriptions(): Promise<
+    Pick<Transcription, 'id' | 'audioFileName' | 'createdAt'>[]
+  > {
+    const all = await this.store.findAll();
+    return all
+      .map((t) => ({
+        id: t.id,
+        audioFileName: t.audioFileName,
+        createdAt: t.createdAt,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+  }
+
   /** 文字起こし結果をIDで取得 */
   async getTranscription(id: string): Promise<Transcription> {
     const transcription = await this.store.findById(id);

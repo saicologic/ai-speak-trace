@@ -42,3 +42,10 @@ export interface AudioFileInfo {
   sizeBytes: number;
   lastModified: string;
 }
+
+/** 文字起こしサマリー（一覧表示用） */
+export interface TranscriptionSummary {
+  id: string;
+  audioFileName: string;
+  createdAt: string;
+}

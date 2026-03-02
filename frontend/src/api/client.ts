@@ -1,4 +1,4 @@
-import type { AudioFileInfo, Transcription } from '../types';
+import type { AudioFileInfo, Transcription, TranscriptionSummary } from '../types';
 
 const BASE_URL = '/api';
 
@@ -26,6 +26,16 @@ export async function transcribeAudio(
   }
   const data = await res.json();
   return data.transcription;
+}
+
+/** 文字起こし一覧を取得 */
+export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
+  const res = await fetch(`${BASE_URL}/transcriptions`);
+  if (!res.ok) {
+    throw new Error(`文字起こし一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.transcriptions;
 }
 
 /** 文字起こし結果を取得 */

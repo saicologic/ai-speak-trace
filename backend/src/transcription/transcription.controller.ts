@@ -33,6 +33,14 @@ export class TranscriptionController {
     return { transcription };
   }
 
+  /** 文字起こし一覧取得: GET /api/transcriptions */
+  @Get('transcriptions')
+  async getTranscriptions() {
+    const transcriptions =
+      await this.transcriptionService.getTranscriptions();
+    return { transcriptions };
+  }
+
   /** 文字起こし結果取得: GET /api/transcriptions/:id */
   @Get('transcriptions/:id')
   async getTranscription(@Param('id') id: string) {
