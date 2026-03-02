@@ -6,6 +6,8 @@ interface Props {
   keywords: Keyword[];
   highlightedKeywords: Set<string>;
   onToggleKeyword: (keyword: string) => void;
+  filterActive: boolean;
+  onToggleFilter: () => void;
   onNavigateInterview?: () => void;
 }
 
@@ -14,6 +16,8 @@ export function KeywordList({
   keywords,
   highlightedKeywords,
   onToggleKeyword,
+  filterActive,
+  onToggleFilter,
   onNavigateInterview,
 }: Props) {
   const [filter, setFilter] = useState('');
@@ -54,9 +58,19 @@ export function KeywordList({
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />
-      <p className="keyword-list-hint">
-        クリックでハイライト切替
-      </p>
+      <div className="keyword-list-actions">
+        <p className="keyword-list-hint">
+          クリックでハイライト切替
+        </p>
+        <button
+          className={`keyword-filter-button ${filterActive ? 'active' : ''}`}
+          onClick={onToggleFilter}
+          disabled={highlightedKeywords.size === 0}
+          title={highlightedKeywords.size === 0 ? 'キーワードを選択してください' : '選択中のキーワードで絞り込み'}
+        >
+          {filterActive ? 'フィルター解除' : 'フィルター'}
+        </button>
+      </div>
       <ul className="keyword-list-items">
         {filteredKeywords.map((keyword) => {
           const isActive = highlightedKeywords.has(keyword.text);

@@ -55,10 +55,44 @@
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2);
 }
 
+.keyword-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
 .keyword-list-hint {
   font-size: 0.7rem;
   color: #9ca3af;
-  margin-bottom: 0.75rem;
+}
+
+.keyword-filter-button {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #6b7280;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.keyword-filter-button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.keyword-filter-button.active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.keyword-filter-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .keyword-list-empty {

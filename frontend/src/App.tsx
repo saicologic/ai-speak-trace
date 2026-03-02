@@ -29,6 +29,7 @@ function App() {
     new Set(),
   );
   const [page, setPage] = useState<Page>('main');
+  const [filterActive, setFilterActive] = useState(false);
 
   /** 文字起こしテキストからキーワードを抽出（メモ化） */
   const keywords = useMemo(
@@ -56,6 +57,7 @@ function App() {
     setLoading(true);
     setError(null);
     setHighlightedKeywords(new Set());
+    setFilterActive(false);
 
     try {
       const result = await transcribeAudio(fileName);
@@ -74,6 +76,7 @@ function App() {
     setLoading(true);
     setError(null);
     setHighlightedKeywords(new Set());
+    setFilterActive(false);
 
     try {
       const result = await fetchTranscription(id);
@@ -171,6 +174,7 @@ function App() {
               <TranscriptionView
                 transcription={transcription}
                 highlightedKeywords={highlightedKeywords}
+                filterActive={filterActive}
               />
             </>
           )}
@@ -181,6 +185,8 @@ function App() {
               keywords={keywords}
               highlightedKeywords={highlightedKeywords}
               onToggleKeyword={toggleKeywordHighlight}
+              filterActive={filterActive}
+              onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateInterview={() => setPage('interview')}
             />
           </aside>
