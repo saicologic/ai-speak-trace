@@ -23,25 +23,31 @@ export class ClaudeService {
   ): Promise<string[]> {
     this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
 
+    // キーワードごとの会話コンテキストを構築
+    const keywordContext = keywords
+      .map((kw) => `- 「${kw}」`)
+      .join('\n');
+
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 2048,
       messages: [
         {
           role: 'user',
-          content: `以下は「${speakerName}」の会話内容です。この話者の興味・関心の傾向を深掘りするための調査質問を生成してください。
+          content: `以下は「${speakerName}」の会話内容です。指定されたキーワードごとに、そのキーワードに特化した調査質問を生成してください。
 
 ## 会話内容
-${speakerUtterances}
+${speakerUtterances.slice(0, 3000)}
 
-## 抽出されたキーワード
-${keywords.join('、')}
+## 対象キーワード
+${keywordContext}
 
 ## 指示
-- キーワードを元に、Web検索で調査するための質問文を5〜8件生成してください
-- 各質問は、話者が関心を持っているトピックについて深掘りする内容にしてください
+- 各キーワードについて1〜2件の質問を生成してください
+- 質問はそのキーワード固有の内容にしてください（他のキーワードと混ぜない）
 - 質問文は「〜について教えてください」「〜の最新動向は？」のような調査レポート向けの形式にしてください
-- 1行に1つの質問を書き、番号を付けないでください
+- 質問の先頭に【キーワード名】を付けてください（例: 【富岳LLM】富岳LLMの性能ベンチマーク結果について教えてください）
+- 1行に1つの質問を書いてください
 - 質問文のみを出力してください（説明や前置きは不要）`,
         },
       ],

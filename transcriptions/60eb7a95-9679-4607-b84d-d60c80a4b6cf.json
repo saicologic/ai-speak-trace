@@ -1,0 +1,1486 @@
+{
+  "id": "60eb7a95-9679-4607-b84d-d60c80a4b6cf",
+  "audioFileName": "sample.mp3",
+  "createdAt": "2026-03-02T07:55:34.972Z",
+  "languageCode": "jpn",
+  "fullText": "深掘りFMの第百二十一回です。今回ですね、ゲストにKotoba Technologiesの小島さんをゲストにお願いしたいと思っております。よろしくお願いします。 よろしくお願いいたします。 お願いします。今回の初めて出ていただけますので、ライトに自己紹介とか、また会社紹介含めても構いませんのでお願いしてもいいでしょうか。 あ、もちろんです。まず最初に百二十一回目というちょっと数字に驚いているというところもありまして、今回お話しさせていただくのも非常に楽しみにしてまいりました。私はですね、小島と申しまして、Kotoba Technologiesという会社の共同創業者兼CEOを務めております。Kotoba Technologies自体はですね、実は日米クロスボーダーのスタートアップとなっておりまして、アメリカのシアトルに本社がありまして、日本の大手町に子会社があって、研究チーム自体は日本に大多数いて、研究開発を行っているような会社となっております。我々、創業までかなりユニークなストーリーがありまして、このKotoba Technologiesという会社自体はですね、私、小島と笠井という者で二人で立ち上げた会社なんですけれども、二人ともそもそもアメリカの大学でPhDを取った生成AIの研究者でして、笠井自体はアメリカのシアトルにございますワシントン大学からPhDを持っていて、私はニューヨークにありますコーネル大学というところからPhDを持っております。元々二人はアメリカで研究をやっていたんですけれども、日本のAIのエコシステムに絡む、実は重大なきっかけがありまして、そのきっかけとは何かというと、富岳LLM、日本が誇る世界で一番早かったスーパーコンピューター富岳というものがあるんですね。その富岳を使って日本語に特化したLLMを学習していきましょうというプロジェクトを立ち上げたのが、実は笠井と私でして。そのプロジェクトっていうのはですね、立ち上げてからどんどん大きくなっていったと。で、私たちがこのプロジェクトから学んだこととしてはですね、日本の方々はやっぱり最先端のAI技術にすごい飢えているなと。今まで生成AIの前もですね、ディープラーニングも含めてAIの長い時代があったけれども、基本的に最先端のAIというのはアメリカであれ、ヨーロッパであれ、そういったところから流れてくることが多かったと。そういった時にですね、やっぱり日本発信でクールなAI技術が出てくるってことに皆さん非常に大きな関心を持っていて。富岳のプロジェクト自体はですね、文科省のサポートもいただきまして、アカデミアのプロジェクト中心でやっていたんですけれども、やっぱり投資家のお金を入れて、早いペースで日本のAIエコシステムに根差した技術開発をしていきたいなということを考えて、Kotoba Technologiesという会社を立ち上げました。ここまでが、ちょっとざっくりとした会社の創業のきっかけみたいな形になっております。 ありがとうございます。Kotoba Technologies自体では、この富岳LLMの今ラーニングをしているとか、そういうわけではないんですよね。 会社の創業当初はですね、富岳LLMも含めて、実はテキストに関わる生成AI、要するにLLMですね。LLMの開発をやっていたんですけれど、今は少しずつ方向性を実は変換しておりまして。どういうふうに変えたかというとですね、テキストもすごいインパクトがあって、我々としてはエキサイティングなドメインなんだけれども、やっぱりそのAIのアプリケーションが社会に根差していく時に何がボトルネックなのかっていうのを相当考えたんですね。その結果、やっぱり音声だろうということに、我々の中では今一つの仮説があって、Kotoba Technologiesとしては、創業当初、富岳LLMも含めてやっていたテキストのところから少し離れて、音声に関する生成AIを日本語およびアジアに特化させて研究開発をしております。なのでKotoba Technologiesとしてはですね、ミッションというものがあって、そのミッションが何かというと、音声の生成AIの基盤を日本およびアジアに向けて作るということを軸にして今活動しております。 ありがとうございます。",
+  "speakers": [
+    {
+      "id": "speaker_0",
+      "name": "Aさん",
+      "color": "#3B82F6"
+    },
+    {
+      "id": "speaker_1",
+      "name": "Bさん",
+      "color": "#EF4444"
+    }
+  ],
+  "words": [
+    {
+      "text": "深掘りFMの第百二十一回です。",
+      "start": 0.48,
+      "end": 4.5,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "今回ですね、",
+      "start": 4.5,
+      "end": 5.04,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "ゲストにKotoba",
+      "start": 5.04,
+      "end": 5.92,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": " ",
+      "start": 5.92,
+      "end": 5.94,
+      "type": "spacing",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "Technologiesの小島さんをゲストにお願いしたいと思っております。",
+      "start": 5.94,
+      "end": 9.36,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "よろしくお願いします。",
+      "start": 9.36,
+      "end": 10.36,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": " ",
+      "start": 10.36,
+      "end": 10.38,
+      "type": "spacing",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "よろしくお願いいたします。",
+      "start": 10.38,
+      "end": 11.83,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 11.83,
+      "end": 12,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "お願いします。",
+      "start": 12,
+      "end": 12.62,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "今回の初めて出ていただけますので、",
+      "start": 12.62,
+      "end": 14.76,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "ライトに自己紹介とか、",
+      "start": 14.76,
+      "end": 16,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "また会社紹介含めても構いませんのでお願いしてもいいでしょうか。",
+      "start": 16,
+      "end": 18.57,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": " ",
+      "start": 18.57,
+      "end": 18.58,
+      "type": "spacing",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "あ、",
+      "start": 18.58,
+      "end": 18.78,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "もちろんです。",
+      "start": 18.78,
+      "end": 19.46,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "まず最初に百二十一回目というちょっと数字に驚いているというところもありまして、",
+      "start": 19.68,
+      "end": 25.5,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "今回お話しさせていただくのも非常に楽しみにしてまいりました。",
+      "start": 25.5,
+      "end": 29.3,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "私はですね、",
+      "start": 29.3,
+      "end": 30.3,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "小島と申しまして、Kotoba",
+      "start": 30.3,
+      "end": 32.86,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 32.86,
+      "end": 32.96,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologiesという会社の共同創業者兼CEOを務めております。Kotoba",
+      "start": 32.96,
+      "end": 38.58,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 38.58,
+      "end": 38.68,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologies自体はですね、",
+      "start": 38.68,
+      "end": 40.34,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "実は日米クロスボーダーのスタートアップとなっておりまして、",
+      "start": 40.34,
+      "end": 44.12,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "アメリカのシアトルに本社がありまして、",
+      "start": 44.12,
+      "end": 46.98,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "日本の大手町に子会社があって、",
+      "start": 46.98,
+      "end": 49.84,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "研究チーム自体は日本に大多数いて、",
+      "start": 49.84,
+      "end": 53.36,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "研究開発を行っているような会社となっております。",
+      "start": 53.36,
+      "end": 56.7,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "我々、",
+      "start": 56.7,
+      "end": 57.48,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "創業までかなりユニークなストーリーがありまして、",
+      "start": 57.48,
+      "end": 60.98,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "このKotoba",
+      "start": 60.98,
+      "end": 61.48,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 61.48,
+      "end": 61.5,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologiesという会社自体はですね、",
+      "start": 61.5,
+      "end": 64.14,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "私、",
+      "start": 64.14,
+      "end": 64.379,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "小島と笠井という者で二人で立ち上げた会社なんですけれども、",
+      "start": 64.379,
+      "end": 68.26,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "二人ともそもそもアメリカの大学でPhDを取った生成AIの研究者でして、",
+      "start": 68.26,
+      "end": 73.96,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "笠井自体はアメリカのシアトルにございますワシントン大学からPhDを持っていて、",
+      "start": 73.96,
+      "end": 79.4,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "私はニューヨークにありますコーネル大学というところからPhDを持っております。",
+      "start": 79.4,
+      "end": 84.899,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "元々二人はアメリカで研究をやっていたんですけれども、",
+      "start": 84.9,
+      "end": 88.38,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "日本のAIのエコシステムに絡む、",
+      "start": 88.38,
+      "end": 91.5,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "実は重大なきっかけがありまして、",
+      "start": 91.5,
+      "end": 93.88,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "そのきっかけとは何かというと、",
+      "start": 93.88,
+      "end": 95.979,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "富岳LLM、",
+      "start": 95.98,
+      "end": 97.24,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "日本が誇る世界で一番早かったスーパーコンピューター富岳というものがあるんですね。",
+      "start": 97.24,
+      "end": 102.12,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "その富岳を使って日本語に特化したLLMを学習していきましょうというプロジェクトを立ち上げたのが、",
+      "start": 102.12,
+      "end": 108.82,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "実は笠井と私でして。",
+      "start": 108.82,
+      "end": 111.22,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "そのプロジェクトっていうのはですね、",
+      "start": 111.22,
+      "end": 112.74,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "立ち上げてからどんどん大きくなっていったと。",
+      "start": 112.74,
+      "end": 115.36,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "で、",
+      "start": 115.36,
+      "end": 115.759,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "私たちがこのプロジェクトから学んだこととしてはですね、",
+      "start": 115.76,
+      "end": 119.14,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "日本の方々はやっぱり最先端のAI技術にすごい飢えているなと。",
+      "start": 119.14,
+      "end": 123.24,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "今まで生成AIの前もですね、",
+      "start": 123.24,
+      "end": 125.32,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ディープラーニングも含めてAIの長い時代があったけれども、",
+      "start": 125.32,
+      "end": 129.5,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "基本的に最先端のAIというのはアメリカであれ、",
+      "start": 129.539,
+      "end": 132.42,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ヨーロッパであれ、",
+      "start": 132.42,
+      "end": 133.16,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "そういったところから流れてくることが多かったと。",
+      "start": 133.16,
+      "end": 135.56,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "そういった時にですね、",
+      "start": 135.56,
+      "end": 136.46,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "やっぱり日本発信でクールなAI技術が出てくるってことに皆さん非常に大きな関心を持っていて。",
+      "start": 136.46,
+      "end": 143.239,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "富岳のプロジェクト自体はですね、",
+      "start": 143.24,
+      "end": 145.299,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "文科省のサポートもいただきまして、",
+      "start": 145.3,
+      "end": 146.98,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "アカデミアのプロジェクト中心でやっていたんですけれども、",
+      "start": 146.98,
+      "end": 150.04,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "やっぱり投資家のお金を入れて、",
+      "start": 150.04,
+      "end": 152.4,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "早いペースで日本のAIエコシステムに根差した技術開発をしていきたいなということを考えて、Kotoba",
+      "start": 152.4,
+      "end": 158.96,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 159,
+      "end": 159.02,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologiesという会社を立ち上げました。",
+      "start": 159.02,
+      "end": 162.12,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ここまでが、",
+      "start": 162.12,
+      "end": 163.2,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ちょっとざっくりとした会社の創業のきっかけみたいな形になっております。",
+      "start": 163.2,
+      "end": 167.56,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 167.56,
+      "end": 167.6,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ありがとうございます。Kotoba",
+      "start": 167.6,
+      "end": 168.8,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": " ",
+      "start": 168.8,
+      "end": 168.82,
+      "type": "spacing",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "Technologies自体では、",
+      "start": 168.82,
+      "end": 170.18,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "この富岳LLMの今ラーニングをしているとか、",
+      "start": 170.18,
+      "end": 172.82,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "そういうわけではないんですよね。",
+      "start": 172.82,
+      "end": 174.16,
+      "type": "word",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": " ",
+      "start": 174.16,
+      "end": 174.26,
+      "type": "spacing",
+      "speakerId": "speaker_0"
+    },
+    {
+      "text": "会社の創業当初はですね、",
+      "start": 174.26,
+      "end": 176.52,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "富岳LLMも含めて、",
+      "start": 176.52,
+      "end": 178.7,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "実はテキストに関わる生成AI、",
+      "start": 179,
+      "end": 182.06,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "要するにLLMですね。LLMの開発をやっていたんですけれど、",
+      "start": 182.06,
+      "end": 185.54,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "今は少しずつ方向性を実は変換しておりまして。",
+      "start": 185.54,
+      "end": 189.34,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "どういうふうに変えたかというとですね、",
+      "start": 189.34,
+      "end": 191.579,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "テキストもすごいインパクトがあって、",
+      "start": 191.58,
+      "end": 193.8,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "我々としてはエキサイティングなドメインなんだけれども、",
+      "start": 193.8,
+      "end": 196.86,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "やっぱりそのAIのアプリケーションが社会に根差していく時に何がボトルネックなのかっていうのを相当考えたんですね。",
+      "start": 196.86,
+      "end": 204.9,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "その結果、",
+      "start": 204.9,
+      "end": 205.32,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "やっぱり音声だろうということに、",
+      "start": 205.32,
+      "end": 207.5,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "我々の中では今一つの仮説があって、Kotoba",
+      "start": 207.5,
+      "end": 210.72,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 210.72,
+      "end": 210.74,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologiesとしては、",
+      "start": 210.74,
+      "end": 212.46,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "創業当初、",
+      "start": 212.46,
+      "end": 213,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "富岳LLMも含めてやっていたテキストのところから少し離れて、",
+      "start": 213,
+      "end": 217.98,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "音声に関する生成AIを日本語およびアジアに特化させて研究開発をしております。",
+      "start": 217.98,
+      "end": 224.079,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "なのでKotoba",
+      "start": 224.08,
+      "end": 224.62,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 224.62,
+      "end": 224.64,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "Technologiesとしてはですね、",
+      "start": 224.64,
+      "end": 226.02,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ミッションというものがあって、",
+      "start": 226.02,
+      "end": 227.76,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "そのミッションが何かというと、",
+      "start": 227.76,
+      "end": 229.74,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "音声の生成AIの基盤を日本およびアジアに向けて作るということを軸にして今活動しております。",
+      "start": 229.74,
+      "end": 237.58,
+      "type": "word",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": " ",
+      "start": 237.58,
+      "end": 237.6,
+      "type": "spacing",
+      "speakerId": "speaker_1"
+    },
+    {
+      "text": "ありがとうございます。",
+      "start": 237.6,
+      "end": 238.38,
+      "type": "word",
+      "speakerId": "speaker_0"
+    }
+  ],
+  "utterances": [
+    {
+      "speakerId": "speaker_0",
+      "speakerName": "Aさん",
+      "start": 0.48,
+      "end": 10.38,
+      "text": "深掘りFMの第百二十一回です。今回ですね、ゲストにKotoba Technologiesの小島さんをゲストにお願いしたいと思っております。よろしくお願いします。 ",
+      "words": [
+        {
+          "text": "深掘りFMの第百二十一回です。",
+          "start": 0.48,
+          "end": 4.5,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "今回ですね、",
+          "start": 4.5,
+          "end": 5.04,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "ゲストにKotoba",
+          "start": 5.04,
+          "end": 5.92,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": " ",
+          "start": 5.92,
+          "end": 5.94,
+          "type": "spacing",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "Technologiesの小島さんをゲストにお願いしたいと思っております。",
+          "start": 5.94,
+          "end": 9.36,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "よろしくお願いします。",
+          "start": 9.36,
+          "end": 10.36,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": " ",
+          "start": 10.36,
+          "end": 10.38,
+          "type": "spacing",
+          "speakerId": "speaker_0"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_1",
+      "speakerName": "Bさん",
+      "start": 10.38,
+      "end": 12,
+      "text": "よろしくお願いいたします。 ",
+      "words": [
+        {
+          "text": "よろしくお願いいたします。",
+          "start": 10.38,
+          "end": 11.83,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 11.83,
+          "end": 12,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_0",
+      "speakerName": "Aさん",
+      "start": 12,
+      "end": 18.58,
+      "text": "お願いします。今回の初めて出ていただけますので、ライトに自己紹介とか、また会社紹介含めても構いませんのでお願いしてもいいでしょうか。 ",
+      "words": [
+        {
+          "text": "お願いします。",
+          "start": 12,
+          "end": 12.62,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "今回の初めて出ていただけますので、",
+          "start": 12.62,
+          "end": 14.76,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "ライトに自己紹介とか、",
+          "start": 14.76,
+          "end": 16,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "また会社紹介含めても構いませんのでお願いしてもいいでしょうか。",
+          "start": 16,
+          "end": 18.57,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": " ",
+          "start": 18.57,
+          "end": 18.58,
+          "type": "spacing",
+          "speakerId": "speaker_0"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_1",
+      "speakerName": "Bさん",
+      "start": 18.58,
+      "end": 167.6,
+      "text": "あ、もちろんです。まず最初に百二十一回目というちょっと数字に驚いているというところもありまして、今回お話しさせていただくのも非常に楽しみにしてまいりました。私はですね、小島と申しまして、Kotoba Technologiesという会社の共同創業者兼CEOを務めております。Kotoba Technologies自体はですね、実は日米クロスボーダーのスタートアップとなっておりまして、アメリカのシアトルに本社がありまして、日本の大手町に子会社があって、研究チーム自体は日本に大多数いて、研究開発を行っているような会社となっております。我々、創業までかなりユニークなストーリーがありまして、このKotoba Technologiesという会社自体はですね、私、小島と笠井という者で二人で立ち上げた会社なんですけれども、二人ともそもそもアメリカの大学でPhDを取った生成AIの研究者でして、笠井自体はアメリカのシアトルにございますワシントン大学からPhDを持っていて、私はニューヨークにありますコーネル大学というところからPhDを持っております。元々二人はアメリカで研究をやっていたんですけれども、日本のAIのエコシステムに絡む、実は重大なきっかけがありまして、そのきっかけとは何かというと、富岳LLM、日本が誇る世界で一番早かったスーパーコンピューター富岳というものがあるんですね。その富岳を使って日本語に特化したLLMを学習していきましょうというプロジェクトを立ち上げたのが、実は笠井と私でして。そのプロジェクトっていうのはですね、立ち上げてからどんどん大きくなっていったと。で、私たちがこのプロジェクトから学んだこととしてはですね、日本の方々はやっぱり最先端のAI技術にすごい飢えているなと。今まで生成AIの前もですね、ディープラーニングも含めてAIの長い時代があったけれども、基本的に最先端のAIというのはアメリカであれ、ヨーロッパであれ、そういったところから流れてくることが多かったと。そういった時にですね、やっぱり日本発信でクールなAI技術が出てくるってことに皆さん非常に大きな関心を持っていて。富岳のプロジェクト自体はですね、文科省のサポートもいただきまして、アカデミアのプロジェクト中心でやっていたんですけれども、やっぱり投資家のお金を入れて、早いペースで日本のAIエコシステムに根差した技術開発をしていきたいなということを考えて、Kotoba Technologiesという会社を立ち上げました。ここまでが、ちょっとざっくりとした会社の創業のきっかけみたいな形になっております。 ",
+      "words": [
+        {
+          "text": "あ、",
+          "start": 18.58,
+          "end": 18.78,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "もちろんです。",
+          "start": 18.78,
+          "end": 19.46,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "まず最初に百二十一回目というちょっと数字に驚いているというところもありまして、",
+          "start": 19.68,
+          "end": 25.5,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "今回お話しさせていただくのも非常に楽しみにしてまいりました。",
+          "start": 25.5,
+          "end": 29.3,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "私はですね、",
+          "start": 29.3,
+          "end": 30.3,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "小島と申しまして、Kotoba",
+          "start": 30.3,
+          "end": 32.86,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 32.86,
+          "end": 32.96,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologiesという会社の共同創業者兼CEOを務めております。Kotoba",
+          "start": 32.96,
+          "end": 38.58,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 38.58,
+          "end": 38.68,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologies自体はですね、",
+          "start": 38.68,
+          "end": 40.34,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "実は日米クロスボーダーのスタートアップとなっておりまして、",
+          "start": 40.34,
+          "end": 44.12,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "アメリカのシアトルに本社がありまして、",
+          "start": 44.12,
+          "end": 46.98,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "日本の大手町に子会社があって、",
+          "start": 46.98,
+          "end": 49.84,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "研究チーム自体は日本に大多数いて、",
+          "start": 49.84,
+          "end": 53.36,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "研究開発を行っているような会社となっております。",
+          "start": 53.36,
+          "end": 56.7,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "我々、",
+          "start": 56.7,
+          "end": 57.48,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "創業までかなりユニークなストーリーがありまして、",
+          "start": 57.48,
+          "end": 60.98,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "このKotoba",
+          "start": 60.98,
+          "end": 61.48,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 61.48,
+          "end": 61.5,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologiesという会社自体はですね、",
+          "start": 61.5,
+          "end": 64.14,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "私、",
+          "start": 64.14,
+          "end": 64.379,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "小島と笠井という者で二人で立ち上げた会社なんですけれども、",
+          "start": 64.379,
+          "end": 68.26,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "二人ともそもそもアメリカの大学でPhDを取った生成AIの研究者でして、",
+          "start": 68.26,
+          "end": 73.96,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "笠井自体はアメリカのシアトルにございますワシントン大学からPhDを持っていて、",
+          "start": 73.96,
+          "end": 79.4,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "私はニューヨークにありますコーネル大学というところからPhDを持っております。",
+          "start": 79.4,
+          "end": 84.899,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "元々二人はアメリカで研究をやっていたんですけれども、",
+          "start": 84.9,
+          "end": 88.38,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "日本のAIのエコシステムに絡む、",
+          "start": 88.38,
+          "end": 91.5,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "実は重大なきっかけがありまして、",
+          "start": 91.5,
+          "end": 93.88,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "そのきっかけとは何かというと、",
+          "start": 93.88,
+          "end": 95.979,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "富岳LLM、",
+          "start": 95.98,
+          "end": 97.24,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "日本が誇る世界で一番早かったスーパーコンピューター富岳というものがあるんですね。",
+          "start": 97.24,
+          "end": 102.12,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "その富岳を使って日本語に特化したLLMを学習していきましょうというプロジェクトを立ち上げたのが、",
+          "start": 102.12,
+          "end": 108.82,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "実は笠井と私でして。",
+          "start": 108.82,
+          "end": 111.22,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "そのプロジェクトっていうのはですね、",
+          "start": 111.22,
+          "end": 112.74,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "立ち上げてからどんどん大きくなっていったと。",
+          "start": 112.74,
+          "end": 115.36,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "で、",
+          "start": 115.36,
+          "end": 115.759,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "私たちがこのプロジェクトから学んだこととしてはですね、",
+          "start": 115.76,
+          "end": 119.14,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "日本の方々はやっぱり最先端のAI技術にすごい飢えているなと。",
+          "start": 119.14,
+          "end": 123.24,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "今まで生成AIの前もですね、",
+          "start": 123.24,
+          "end": 125.32,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "ディープラーニングも含めてAIの長い時代があったけれども、",
+          "start": 125.32,
+          "end": 129.5,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "基本的に最先端のAIというのはアメリカであれ、",
+          "start": 129.539,
+          "end": 132.42,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "ヨーロッパであれ、",
+          "start": 132.42,
+          "end": 133.16,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "そういったところから流れてくることが多かったと。",
+          "start": 133.16,
+          "end": 135.56,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "そういった時にですね、",
+          "start": 135.56,
+          "end": 136.46,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "やっぱり日本発信でクールなAI技術が出てくるってことに皆さん非常に大きな関心を持っていて。",
+          "start": 136.46,
+          "end": 143.239,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "富岳のプロジェクト自体はですね、",
+          "start": 143.24,
+          "end": 145.299,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "文科省のサポートもいただきまして、",
+          "start": 145.3,
+          "end": 146.98,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "アカデミアのプロジェクト中心でやっていたんですけれども、",
+          "start": 146.98,
+          "end": 150.04,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "やっぱり投資家のお金を入れて、",
+          "start": 150.04,
+          "end": 152.4,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "早いペースで日本のAIエコシステムに根差した技術開発をしていきたいなということを考えて、Kotoba",
+          "start": 152.4,
+          "end": 158.96,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 159,
+          "end": 159.02,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologiesという会社を立ち上げました。",
+          "start": 159.02,
+          "end": 162.12,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "ここまでが、",
+          "start": 162.12,
+          "end": 163.2,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "ちょっとざっくりとした会社の創業のきっかけみたいな形になっております。",
+          "start": 163.2,
+          "end": 167.56,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 167.56,
+          "end": 167.6,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_0",
+      "speakerName": "Aさん",
+      "start": 167.6,
+      "end": 174.26,
+      "text": "ありがとうございます。Kotoba Technologies自体では、この富岳LLMの今ラーニングをしているとか、そういうわけではないんですよね。 ",
+      "words": [
+        {
+          "text": "ありがとうございます。Kotoba",
+          "start": 167.6,
+          "end": 168.8,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": " ",
+          "start": 168.8,
+          "end": 168.82,
+          "type": "spacing",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "Technologies自体では、",
+          "start": 168.82,
+          "end": 170.18,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "この富岳LLMの今ラーニングをしているとか、",
+          "start": 170.18,
+          "end": 172.82,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": "そういうわけではないんですよね。",
+          "start": 172.82,
+          "end": 174.16,
+          "type": "word",
+          "speakerId": "speaker_0"
+        },
+        {
+          "text": " ",
+          "start": 174.16,
+          "end": 174.26,
+          "type": "spacing",
+          "speakerId": "speaker_0"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_1",
+      "speakerName": "Bさん",
+      "start": 174.26,
+      "end": 237.6,
+      "text": "会社の創業当初はですね、富岳LLMも含めて、実はテキストに関わる生成AI、要するにLLMですね。LLMの開発をやっていたんですけれど、今は少しずつ方向性を実は変換しておりまして。どういうふうに変えたかというとですね、テキストもすごいインパクトがあって、我々としてはエキサイティングなドメインなんだけれども、やっぱりそのAIのアプリケーションが社会に根差していく時に何がボトルネックなのかっていうのを相当考えたんですね。その結果、やっぱり音声だろうということに、我々の中では今一つの仮説があって、Kotoba Technologiesとしては、創業当初、富岳LLMも含めてやっていたテキストのところから少し離れて、音声に関する生成AIを日本語およびアジアに特化させて研究開発をしております。なのでKotoba Technologiesとしてはですね、ミッションというものがあって、そのミッションが何かというと、音声の生成AIの基盤を日本およびアジアに向けて作るということを軸にして今活動しております。 ",
+      "words": [
+        {
+          "text": "会社の創業当初はですね、",
+          "start": 174.26,
+          "end": 176.52,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "富岳LLMも含めて、",
+          "start": 176.52,
+          "end": 178.7,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "実はテキストに関わる生成AI、",
+          "start": 179,
+          "end": 182.06,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "要するにLLMですね。LLMの開発をやっていたんですけれど、",
+          "start": 182.06,
+          "end": 185.54,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "今は少しずつ方向性を実は変換しておりまして。",
+          "start": 185.54,
+          "end": 189.34,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "どういうふうに変えたかというとですね、",
+          "start": 189.34,
+          "end": 191.579,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "テキストもすごいインパクトがあって、",
+          "start": 191.58,
+          "end": 193.8,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "我々としてはエキサイティングなドメインなんだけれども、",
+          "start": 193.8,
+          "end": 196.86,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "やっぱりそのAIのアプリケーションが社会に根差していく時に何がボトルネックなのかっていうのを相当考えたんですね。",
+          "start": 196.86,
+          "end": 204.9,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "その結果、",
+          "start": 204.9,
+          "end": 205.32,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "やっぱり音声だろうということに、",
+          "start": 205.32,
+          "end": 207.5,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "我々の中では今一つの仮説があって、Kotoba",
+          "start": 207.5,
+          "end": 210.72,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 210.72,
+          "end": 210.74,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologiesとしては、",
+          "start": 210.74,
+          "end": 212.46,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "創業当初、",
+          "start": 212.46,
+          "end": 213,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "富岳LLMも含めてやっていたテキストのところから少し離れて、",
+          "start": 213,
+          "end": 217.98,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "音声に関する生成AIを日本語およびアジアに特化させて研究開発をしております。",
+          "start": 217.98,
+          "end": 224.079,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "なのでKotoba",
+          "start": 224.08,
+          "end": 224.62,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 224.62,
+          "end": 224.64,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "Technologiesとしてはですね、",
+          "start": 224.64,
+          "end": 226.02,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "ミッションというものがあって、",
+          "start": 226.02,
+          "end": 227.76,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "そのミッションが何かというと、",
+          "start": 227.76,
+          "end": 229.74,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": "音声の生成AIの基盤を日本およびアジアに向けて作るということを軸にして今活動しております。",
+          "start": 229.74,
+          "end": 237.58,
+          "type": "word",
+          "speakerId": "speaker_1"
+        },
+        {
+          "text": " ",
+          "start": 237.58,
+          "end": 237.6,
+          "type": "spacing",
+          "speakerId": "speaker_1"
+        }
+      ]
+    },
+    {
+      "speakerId": "speaker_0",
+      "speakerName": "Aさん",
+      "start": 237.6,
+      "end": 238.38,
+      "text": "ありがとうございます。",
+      "words": [
+        {
+          "text": "ありがとうございます。",
+          "start": 237.6,
+          "end": 238.38,
+          "type": "word",
+          "speakerId": "speaker_0"
+        }
+      ]
+    }
+  ]
+}
