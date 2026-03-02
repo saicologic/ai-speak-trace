@@ -10,6 +10,8 @@
 ## 技術スタック
 
 - **言語**: TypeScript（フロントエンド・バックエンド共通）
+- **フロントエンド**: Vite + React
+- **バックエンド**: NestJS
 - **AI / 音声**: ElevenLabs Scribe v2（Speech-to-Text）
 - **開発環境**: Claude Code
 
@@ -19,8 +21,8 @@
 ai-speak-trace/
 ├── CLAUDE.md
 ├── outputs/          # 音声ファイルのアップロード先
-├── frontend/         # フロントエンド
-└── backend/          # バックエンド API
+├── frontend/         # フロントエンド（Vite + React）
+└── backend/          # バックエンド API（NestJS）
 ```
 
 ## 機能要件
