@@ -23,16 +23,24 @@ function renderHighlightedText(
 ): React.ReactNode {
   if (keywords.size === 0) return text;
 
-  // スペースを含む複合キーワードは個別単語にも展開する
-  // (フレーズ分割でスペース前後が別WordSpanになるため)
+  // 複合キーワードを個別パーツにも展開する
+  // (フレーズ分割で別WordSpanになるケースに対応)
   const expanded = new Set<string>();
   for (const kw of keywords) {
     expanded.add(kw);
+    // スペース区切り (Kotoba Technologies → Kotoba, Technologies)
     if (kw.includes(' ')) {
       for (const part of kw.split(/\s+/)) {
-        if (part.length >= 2) {
-          expanded.add(part);
-        }
+        if (part.length >= 2) expanded.add(part);
+      }
+    }
+    // 文字体系の境界で分割 (富岳LLM → 富岳, LLM / AIエコシステム → AI, エコシステム)
+    const scriptParts = kw.match(
+      /[A-Za-z0-9]+|[ァ-ヴー・]+|[一-龯々]+|[ぁ-ん]+/g,
+    );
+    if (scriptParts && scriptParts.length > 1) {
+      for (const part of scriptParts) {
+        if (part.length >= 2) expanded.add(part);
       }
     }
   }
