@@ -44,7 +44,7 @@ export function KeywordList({
           className="keyword-interview-button"
           onClick={onNavigateInterview}
         >
-          ユーザーインタビュー
+          会話分析
         </button>
       )}
       <div className="keyword-list-header">

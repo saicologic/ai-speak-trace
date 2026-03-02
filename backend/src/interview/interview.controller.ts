@@ -3,7 +3,7 @@ import { InterviewService } from './interview.service';
 import { GenerateQuestionsDto } from './dto/generate-questions.dto';
 import { AnalyzeDto } from './dto/analyze.dto';
 
-/** インタビュー分析APIコントローラー */
+/** 会話分析APIコントローラー */
 @Controller('interview')
 export class InterviewController {
   constructor(private readonly interviewService: InterviewService) {}

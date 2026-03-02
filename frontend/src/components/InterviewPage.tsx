@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { marked } from 'marked';
 import { generateQuestions, analyzeInterview } from '../api/client';
-import type { InterviewAnalysis, Keyword, Speaker } from '../types';
+import { extractKeywords } from '../utils/keywords';
+import type { InterviewAnalysis, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
 
 // markedの設定: リンクを新しいタブで開く
@@ -21,15 +22,15 @@ interface QuestionItem {
 interface Props {
   transcriptionId: string;
   speakers: Speaker[];
-  keywords: Keyword[];
+  utterances: Utterance[];
   onBack: () => void;
 }
 
-/** ユーザーインタビュー分析ページ */
+/** 会話分析ページ */
 export function InterviewPage({
   transcriptionId,
   speakers,
-  keywords,
+  utterances,
   onBack,
 }: Props) {
   const [selectedSpeakerId, setSelectedSpeakerId] = useState(
@@ -43,6 +44,23 @@ export function InterviewPage({
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** 選択中の話者の発話テキストからキーワードを抽出（メモ化） */
+  const keywords = useMemo(() => {
+    const speakerText = utterances
+      .filter((u) => u.speakerId === selectedSpeakerId)
+      .map((u) => u.text)
+      .join('\n');
+    return extractKeywords(speakerText);
+  }, [utterances, selectedSpeakerId]);
+
+  /** 話者を変更したときにキーワード選択・質問をリセット */
+  const handleSpeakerChange = (speakerId: string) => {
+    setSelectedSpeakerId(speakerId);
+    setSelectedKeywords(new Set());
+    setQuestions([]);
+    setError(null);
+  };
 
   /** キーワードの選択をトグル */
   const toggleKeyword = (text: string) => {
@@ -145,7 +163,7 @@ export function InterviewPage({
         <button className="interview-back-button" onClick={onBack}>
           ← 戻る
         </button>
-        <h1>ユーザーインタビュー分析</h1>
+        <h1>会話分析</h1>
       </header>
 
       <div className="interview-content">
@@ -157,7 +175,7 @@ export function InterviewPage({
           <select
             className="interview-select"
             value={selectedSpeakerId}
-            onChange={(e) => setSelectedSpeakerId(e.target.value)}
+            onChange={(e) => handleSpeakerChange(e.target.value)}
           >
             {speakers.map((speaker) => (
               <option key={speaker.id} value={speaker.id}>

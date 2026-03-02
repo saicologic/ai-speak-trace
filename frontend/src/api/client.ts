@@ -73,7 +73,7 @@ export async function generateQuestions(
   return data.questions;
 }
 
-/** Web検索付きインタビュー分析を実行 */
+/** Web検索付き会話分析を実行 */
 export async function analyzeInterview(
   transcriptionId: string,
   speakerId: string,

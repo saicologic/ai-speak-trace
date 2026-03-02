@@ -63,7 +63,7 @@ export interface AnalysisResult {
   sources: { title: string; url: string }[];
 }
 
-/** インタビュー分析レスポンス */
+/** 会話分析レスポンス */
 export interface InterviewAnalysis {
   id: string;
   transcriptionId: string;

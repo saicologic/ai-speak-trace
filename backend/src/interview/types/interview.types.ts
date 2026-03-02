@@ -8,7 +8,7 @@ export interface AnalysisResult {
   sources: { title: string; url: string }[];
 }
 
-/** インタビュー分析レスポンス全体 */
+/** 会話分析レスポンス全体 */
 export interface InterviewAnalysis {
   /** 一意のID */
   id: string;

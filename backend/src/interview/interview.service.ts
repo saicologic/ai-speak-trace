@@ -4,7 +4,7 @@ import { ClaudeService } from './claude.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { InterviewAnalysis } from './types/interview.types';
 
-/** インタビュー分析のビジネスロジックを担当するサービス */
+/** 会話分析のビジネスロジックを担当するサービス */
 @Injectable()
 export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);

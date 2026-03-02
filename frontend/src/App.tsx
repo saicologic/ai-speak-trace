@@ -90,13 +90,13 @@ function App() {
     }
   };
 
-  /** インタビューページの場合 */
+  /** 会話分析ページの場合 */
   if (page === 'interview' && transcription) {
     return (
       <InterviewPage
         transcriptionId={transcription.id}
         speakers={transcription.speakers}
-        keywords={keywords}
+        utterances={transcription.utterances}
         onBack={() => setPage('main')}
       />
     );
