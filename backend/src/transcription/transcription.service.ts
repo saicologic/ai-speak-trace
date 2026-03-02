@@ -30,6 +30,12 @@ const DEFAULT_SPEAKER_NAMES = ['Aさん', 'Bさん'];
 /** 話者の表示色 */
 const SPEAKER_COLORS = ['#3B82F6', '#EF4444'];
 
+/** フレーズ区切りとなる句読点パターン */
+const PHRASE_BREAK_CHARS = /[。、！？!?,.\s]/;
+
+/** フレーズ区切りとなる時間間隔（秒） */
+const PHRASE_GAP_THRESHOLD = 0.5;
+
 /** 文字起こしのビジネスロジックを担当するサービス */
 @Injectable()
 export class TranscriptionService {
@@ -97,7 +103,8 @@ export class TranscriptionService {
     const result = await this.elevenLabsService.transcribe(filePath);
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
-    const words = this.convertWords(result.words);
+    const rawWords = this.convertWords(result.words);
+    const words = this.mergeWordsIntoPhrases(rawWords);
     const speakers = this.buildSpeakers(words);
     const utterances = this.groupWordsIntoUtterances(words, speakers);
 
@@ -171,6 +178,65 @@ export class TranscriptionService {
       type: w.type,
       speakerId: w.speaker_id,
     }));
+  }
+
+  /**
+   * 1文字単位の単語をフレーズ単位にマージする
+   * 日本語ではElevenLabsが1文字ずつwordを返すため、
+   * 句読点・時間間隔・話者変更をフレーズの区切りとして結合する
+   */
+  private mergeWordsIntoPhrases(
+    words: TranscriptionWord[],
+  ): TranscriptionWord[] {
+    if (words.length === 0) return [];
+
+    const phrases: TranscriptionWord[] = [];
+    let current: TranscriptionWord = { ...words[0] };
+
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+
+      // spacing や audio_event はそのまま独立して追加
+      if (word.type !== 'word') {
+        phrases.push(current);
+        phrases.push({ ...word });
+        // 次のwordで新しいフレーズを開始するためリセット
+        if (i + 1 < words.length) {
+          current = { ...words[++i] };
+        }
+        continue;
+      }
+
+      // 話者が変わったら区切る
+      if (word.speakerId !== current.speakerId) {
+        phrases.push(current);
+        current = { ...word };
+        continue;
+      }
+
+      // 前のwordの末尾が句読点なら区切る
+      if (PHRASE_BREAK_CHARS.test(current.text.slice(-1))) {
+        phrases.push(current);
+        current = { ...word };
+        continue;
+      }
+
+      // 時間的に離れていたら区切る
+      if (word.start - current.end > PHRASE_GAP_THRESHOLD) {
+        phrases.push(current);
+        current = { ...word };
+        continue;
+      }
+
+      // 同じフレーズとして結合
+      current.text += word.text;
+      current.end = word.end;
+    }
+
+    // 最後のフレーズを追加
+    phrases.push(current);
+
+    return phrases;
   }
 
   /** 単語データから話者情報を構築 */
