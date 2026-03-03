@@ -5,7 +5,11 @@ import {
   Patch,
   Param,
   Body,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TranscriptionService } from './transcription.service';
 import { TranscribeRequestDto } from './dto/transcribe-request.dto';
 import { UpdateSpeakersDto } from './dto/update-speakers.dto';
@@ -22,6 +26,20 @@ export class TranscriptionController {
   async getAudioFiles() {
     const files = await this.transcriptionService.getAudioFiles();
     return { files };
+  }
+
+  /** 音声ファイルアップロード: POST /api/audio-files */
+  @Post('audio-files')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAudioFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('ファイルが指定されていません');
+    }
+    await this.transcriptionService.uploadAudioFile(
+      file.originalname,
+      file.buffer,
+    );
+    return { fileName: file.originalname };
   }
 
   /** 音声ファイル再生URL取得: GET /api/audio-files/:fileName/url */

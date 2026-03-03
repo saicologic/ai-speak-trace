@@ -13,6 +13,9 @@ export interface AudioStorage {
 
   /** 音声ファイルの再生用URLを取得 */
   getPlaybackUrl(fileName: string): Promise<string>;
+
+  /** 音声ファイルを保存 */
+  saveFile(fileName: string, buffer: Buffer): Promise<void>;
 }
 
 /** DI用のインジェクショントークン */
