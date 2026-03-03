@@ -100,6 +100,12 @@ export async function transcribeAudio(
     body: JSON.stringify({ fileName }),
   });
   if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (body?.code === 'QUOTA_EXCEEDED') {
+      const error = new Error(body.message);
+      error.name = 'QuotaExceededError';
+      throw error;
+    }
     throw new Error(`文字起こしに失敗しました: ${res.status}`);
   }
   const data = await res.json();

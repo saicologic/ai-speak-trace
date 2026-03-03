@@ -51,6 +51,27 @@ export class ElevenLabsService {
         `ElevenLabs API エラー: ${response.status} ${errorBody}`,
       );
 
+      // クォータ超過をチェック（401レスポンスにquota_exceededが含まれる場合）
+      if (errorBody.includes('quota_exceeded')) {
+        // APIレスポンスからクレジット情報を抽出
+        let detail = '';
+        try {
+          const parsed = JSON.parse(errorBody);
+          const msg: string = parsed?.detail?.message ?? '';
+          const quota = msg.match(/quota of (\d+)/)?.[1];
+          const remaining = msg.match(/have (\d+) credits remaining/)?.[1];
+          const required = msg.match(/(\d+) credits are required/)?.[1];
+          if (quota && remaining && required) {
+            detail = `プラン上限\u3000\u3000\u3000\u3000\u3000: ${Number(quota).toLocaleString()}\n残りクレジット\u3000\u3000\u3000: ${Number(remaining).toLocaleString()}\n今回必要なクレジット: ${Number(required).toLocaleString()}`;
+          }
+        } catch {
+          // パース失敗時は詳細なしで続行
+        }
+        const error = new Error(detail || '利用枠の上限に達しました。');
+        error.name = 'QuotaExceededError';
+        throw error;
+      }
+
       switch (response.status) {
         case 401:
           throw new Error('ElevenLabs APIキーが無効です。');

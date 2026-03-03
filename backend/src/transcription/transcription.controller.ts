@@ -8,6 +8,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TranscriptionService } from './transcription.service';
@@ -62,10 +64,20 @@ export class TranscriptionController {
   /** 文字起こし実行: POST /api/transcribe */
   @Post('transcribe')
   async transcribe(@Body() dto: TranscribeRequestDto) {
-    const transcription = await this.transcriptionService.transcribe(
-      dto.fileName,
-    );
-    return { transcription };
+    try {
+      const transcription = await this.transcriptionService.transcribe(
+        dto.fileName,
+      );
+      return { transcription };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        throw new HttpException(
+          { code: 'QUOTA_EXCEEDED', message: error.message },
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
+      throw error;
+    }
   }
 
   /** 文字起こし一覧取得: GET /api/transcriptions */

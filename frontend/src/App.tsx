@@ -30,6 +30,7 @@ function App() {
   );
   const [page, setPage] = useState<Page>('main');
   const [filterActive, setFilterActive] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   /** 文字起こしテキストからキーワードを抽出（メモ化） */
   const keywords = useMemo(
@@ -63,7 +64,11 @@ function App() {
       const result = await transcribeAudio(fileName);
       setTranscription(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '文字起こしに失敗しました');
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        setQuotaError(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : '文字起こしに失敗しました');
+      }
     } finally {
       setLoading(false);
     }
@@ -104,6 +109,26 @@ function App() {
 
   return (
     <div className="app">
+      {quotaError && (
+        <div className="modal-overlay" onClick={() => setQuotaError(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>ご利用枠の上限に達しました</h3>
+            {quotaError && (
+              <p className="modal-quota-detail">{quotaError}</p>
+            )}
+            <p>
+              現在の文字起こしプランの利用枠を超えたため、処理を実行できません。プランの変更が必要です。<br />
+              <a href="https://elevenlabs.io/pricing" target="_blank" rel="noopener noreferrer">プランの詳細をご覧ください。</a>
+            </p>
+            <button
+              className="modal-close-button"
+              onClick={() => setQuotaError(null)}
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
       <header className="app-header">
         <h1>AI Speak Trace</h1>
         <p>音声データの話者分離・文字起こし</p>
