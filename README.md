@@ -25,15 +25,6 @@
 - Claude APIのWeb検索ツールを使い、各質問についてWeb検索付きの分析レポートを生成
 - 分析結果はMarkdown→HTMLで見やすく表示、出典URLも表示
 
-## 技術スタック
-
-| レイヤー | 技術 |
-|---------|------|
-| フロントエンド | Vite + React 19 + TypeScript |
-| バックエンド | NestJS 11 + TypeScript |
-| 音声文字起こし | ElevenLabs Scribe v2 API |
-| 会話分析 | Anthropic Claude API（Web検索ツール付き） |
-
 ## ディレクトリ構成
 
 ```
@@ -41,13 +32,15 @@ ai-speak-trace/
 ├── README.md
 ├── CLAUDE.md
 ├── frontend/          # フロントエンド（Vite + React）
+│   └── README.md      # フロントエンドの技術スタック・セットアップ
 └── backend/           # バックエンドAPI（NestJS）
+    ├── README.md      # バックエンドの技術スタック・セットアップ
     └── data/
         ├── outputs/          # 音声ファイルの配置先
         └── transcriptions/   # 文字起こし結果の保存先
 ```
 
-## セットアップ
+## 起動方法
 
 ### 前提条件
 
@@ -56,58 +49,9 @@ ai-speak-trace/
 - ElevenLabs APIキー
 - Anthropic APIキー
 
-### 1. リポジトリのクローン
-
-```bash
-git clone <リポジトリURL>
-cd ai-speak-trace
-```
-
-### 2. 環境変数の設定
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-`backend/.env` に以下を設定します:
-
-```env
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-STORAGE_TYPE=local
-OUTPUTS_DIR=./data/outputs
-TRANSCRIPTIONS_DIR=./data/transcriptions
-```
-
-本番（S3使用時）は以下を設定:
-
-```env
-STORAGE_TYPE=s3
-S3_BUCKET=your-bucket-name
-S3_AUDIO_PREFIX=outputs/
-S3_TRANSCRIPTIONS_PREFIX=transcriptions/
-AWS_REGION=ap-northeast-1
-```
-
-### 3. バックエンドのセットアップ
-
-```bash
-cd backend
-pnpm install
-```
-
-### 4. フロントエンドのセットアップ
-
-```bash
-cd frontend
-npm install
-```
-
-### 5. 音声ファイルの配置
-
-分析したい音声ファイルを `backend/data/outputs/` フォルダに配置してください。
-
-## 起動方法
+セットアップの詳細は各ディレクトリのREADMEを参照してください。
+- [frontend/README.md](frontend/README.md)
+- [backend/README.md](backend/README.md)
 
 ### 開発モード
 
@@ -129,7 +73,7 @@ npm run dev
 
 ブラウザで http://localhost:5173 にアクセスしてください。
 
-### 本番ビルド
+## 本番ビルド
 
 ```bash
 # バックエンド
@@ -143,41 +87,6 @@ npm run build
 ```
 
 フロントエンドのビルド結果は `frontend/dist/` に出力されます。
-
-### Vercelへのデプロイ
-
-バックエンドとフロントエンドを別々のVercelプロジェクトとしてデプロイします。
-
-#### バックエンド
-
-1. Vercelで新規プロジェクトを作成し、リポジトリを接続
-2. **Root Directory** に `backend` を指定
-3. **Environment Variables** に以下を設定:
-
-| 変数名 | 値 |
-|---|---|
-| `STORAGE_TYPE` | `s3` |
-| `S3_BUCKET` | バケット名 |
-| `S3_AUDIO_PREFIX` | `outputs/` |
-| `S3_TRANSCRIPTIONS_PREFIX` | `transcriptions/` |
-| `AWS_REGION` | `ap-northeast-1` |
-| `AWS_ACCESS_KEY_ID` | AWSアクセスキー |
-| `AWS_SECRET_ACCESS_KEY` | AWSシークレットキー |
-| `ELEVENLABS_API_KEY` | ElevenLabs APIキー |
-| `ANTHROPIC_API_KEY` | Anthropic APIキー |
-| `CORS_ORIGIN` | フロントエンドのURL（例: `https://ai-speak-trace.vercel.app`） |
-
-#### フロントエンド
-
-1. Vercelで新規プロジェクトを作成し、リポジトリを接続
-2. **Root Directory** に `frontend` を指定
-3. **Environment Variables** に以下を設定:
-
-| 変数名 | 値 |
-|---|---|
-| `VITE_API_BASE_URL` | バックエンドのプロダクションURL + `/api`（例: `https://ai-speak-trace-backend.vercel.app/api`） |
-
-> **注意**: `VITE_API_BASE_URL` にはデプロイ固有のURL（ハッシュ入り）ではなく、プロジェクトの固定プロダクションドメインを使用してください。固定ドメインはVercelダッシュボードの Settings → Domains で確認できます。
 
 ## 使い方
 
