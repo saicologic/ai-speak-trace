@@ -9,8 +9,21 @@
   "routes": [
     {
       "src": "/(.*)",
+      "methods": ["OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "https://ai-speak-trace.vercel.app",
+        "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      },
+      "status": 204
+    },
+    {
+      "src": "/(.*)",
       "dest": "dist/main.js",
-      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      "headers": {
+        "Access-Control-Allow-Origin": "https://ai-speak-trace.vercel.app"
+      }
     }
   ]
 }
