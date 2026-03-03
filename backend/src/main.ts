@@ -4,10 +4,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // フロントエンド（Vite開発サーバー）からのリクエストを許可
+  // CORSを設定（CORS_ORIGIN環境変数で本番ドメインを指定可能）
   app.enableCors({
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PATCH'],
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   });
 
