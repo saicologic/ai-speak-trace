@@ -56,6 +56,11 @@ export class TranscriptionService {
     return this.audioStorage.getPlaybackUrl(fileName);
   }
 
+  /** アップロード用署名付きURLを取得 */
+  async getUploadUrl(fileName: string): Promise<string | null> {
+    return this.audioStorage.getUploadUrl(fileName);
+  }
+
   /** 音声ファイルをアップロード */
   async uploadAudioFile(fileName: string, buffer: Buffer): Promise<void> {
     await this.audioStorage.saveFile(fileName, buffer);

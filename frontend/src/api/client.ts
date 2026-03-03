@@ -22,16 +22,52 @@ export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
   return data.files;
 }
 
-/** 音声ファイルをアップロード */
+/** アップロード用署名付きURLを取得 */
+async function getUploadUrl(fileName: string): Promise<string | null> {
+  const res = await fetch(`${BASE_URL}/audio-files/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName }),
+  });
+  if (!res.ok) {
+    console.error('[API] getUploadUrl failed:', res.status);
+    return null;
+  }
+  const data = await res.json();
+  return data.url;
+}
+
+/** 音声ファイルをアップロード（S3の場合は署名付きURLで直接アップロード） */
 export async function uploadAudioFile(file: File): Promise<string> {
   console.log('[API] uploadAudioFile:', file.name, file.size, file.type);
+
+  // 署名付きURLを取得（S3モードならURLが返る、ローカルならnull）
+  const uploadUrl = await getUploadUrl(file.name);
+
+  if (uploadUrl) {
+    // S3に直接アップロード
+    console.log('[API] uploading directly to S3');
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error('[API] S3 upload error:', res.status, body);
+      throw new Error(`S3へのアップロードに失敗しました: ${res.status}`);
+    }
+    console.log('[API] S3 upload success');
+    return file.name;
+  }
+
+  // ローカルモード: 従来のmultipartアップロード
+  console.log('[API] uploading via multipart');
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${BASE_URL}/audio-files`, {
     method: 'POST',
     body: formData,
   });
-  console.log('[API] uploadAudioFile status:', res.status);
   if (!res.ok) {
     const body = await res.text();
     console.error('[API] uploadAudioFile error body:', body);

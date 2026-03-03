@@ -60,6 +60,10 @@ export class LocalAudioStorage implements AudioStorage {
     return `/outputs/${encodeURIComponent(fileName)}`;
   }
 
+  async getUploadUrl(): Promise<string | null> {
+    return null;
+  }
+
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
     await fs.writeFile(path.join(this.baseDir, fileName), buffer);
     this.logger.log(`音声ファイル保存完了: ${fileName}`);

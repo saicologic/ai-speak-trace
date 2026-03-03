@@ -123,6 +123,21 @@ export class S3AudioStorage implements AudioStorage {
     }
   }
 
+  async getUploadUrl(fileName: string): Promise<string | null> {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: `${this.prefix}${fileName}`,
+      });
+      return await getSignedUrl(this.s3, command, { expiresIn: 900 });
+    } catch (err: any) {
+      this.logger.error(`S3アップロード用署名付きURL生成に失敗: ${fileName}`, err);
+      throw new Error(
+        `S3アップロード用署名付きURLの生成に失敗しました（${fileName}）: ${err.message}`,
+      );
+    }
+  }
+
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
     try {
       await this.s3.send(

@@ -28,6 +28,16 @@ export class TranscriptionController {
     return { files };
   }
 
+  /** アップロード用署名付きURL取得: POST /api/audio-files/upload-url */
+  @Post('audio-files/upload-url')
+  async getUploadUrl(@Body() body: { fileName: string }) {
+    if (!body.fileName) {
+      throw new BadRequestException('ファイル名が指定されていません');
+    }
+    const url = await this.transcriptionService.getUploadUrl(body.fileName);
+    return { url };
+  }
+
   /** 音声ファイルアップロード: POST /api/audio-files */
   @Post('audio-files')
   @UseInterceptors(FileInterceptor('file'))
