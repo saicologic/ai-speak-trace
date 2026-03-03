@@ -9,6 +9,8 @@ interface Props {
   filterActive: boolean;
   onToggleFilter: () => void;
   onNavigateInterview?: () => void;
+  onToggleContextMode?: () => void;
+  contextSelectMode?: boolean;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -19,6 +21,8 @@ export function KeywordList({
   filterActive,
   onToggleFilter,
   onNavigateInterview,
+  onToggleContextMode,
+  contextSelectMode,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -45,6 +49,14 @@ export function KeywordList({
           onClick={onNavigateInterview}
         >
           会話分析
+        </button>
+      )}
+      {onToggleContextMode && (
+        <button
+          className={`keyword-context-button ${contextSelectMode ? 'active' : ''}`}
+          onClick={onToggleContextMode}
+        >
+          {contextSelectMode ? '発言の文脈（選択中...）' : '発言の文脈'}
         </button>
       )}
       <div className="keyword-list-header">

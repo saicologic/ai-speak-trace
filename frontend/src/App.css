@@ -202,3 +202,27 @@
 .modal-close-button:hover {
   background-color: #2d2d4e;
 }
+
+/* 文脈分析：フローティング分析ボタン */
+.context-floating-button {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #8b5cf6;
+  color: #ffffff;
+  border: none;
+  border-radius: 24px;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+  z-index: 999;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+.context-floating-button:hover {
+  background-color: #7c3aed;
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+}

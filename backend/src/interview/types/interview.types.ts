@@ -25,3 +25,32 @@ export interface InterviewAnalysis {
   /** 作成日時（ISO 8601） */
   createdAt: string;
 }
+
+/** 発言の文脈分析結果（1つの発話に対する分析） */
+export interface UtteranceContextResult {
+  /** 発話インデックス */
+  utteranceIndex: number;
+  /** 話者ID */
+  speakerId: string;
+  /** 話者名 */
+  speakerName: string;
+  /** 発話テキスト */
+  text: string;
+  /** 直前の発話（データから抽出） */
+  previousUtterance: {
+    speakerName: string;
+    text: string;
+  } | null;
+  /** 発言の意図（LLMから） */
+  intent: string;
+  /** 話題（LLMから） */
+  topic: string;
+}
+
+/** 発言の文脈分析レスポンス全体 */
+export interface ContextAnalysisResponse {
+  /** 文字起こしID */
+  transcriptionId: string;
+  /** 分析結果 */
+  results: UtteranceContextResult[];
+}

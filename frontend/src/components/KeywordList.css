@@ -22,6 +22,29 @@
   background-color: #2563eb;
 }
 
+.keyword-context-button {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: 2px solid #8b5cf6;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #8b5cf6;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.keyword-context-button:hover {
+  background-color: #f5f3ff;
+}
+
+.keyword-context-button.active {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
+
 .keyword-list-header {
   display: flex;
   align-items: center;

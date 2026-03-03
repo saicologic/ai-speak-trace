@@ -7,10 +7,20 @@ interface Props {
   transcription: Transcription;
   highlightedKeywords: Set<string>;
   filterActive: boolean;
+  contextSelectMode?: boolean;
+  selectedUtteranceIndices?: Set<number>;
+  onToggleUtteranceSelection?: (index: number) => void;
 }
 
 /** 文字起こし結果表示コンポーネント */
-export function TranscriptionView({ transcription, highlightedKeywords, filterActive }: Props) {
+export function TranscriptionView({
+  transcription,
+  highlightedKeywords,
+  filterActive,
+  contextSelectMode,
+  selectedUtteranceIndices,
+  onToggleUtteranceSelection,
+}: Props) {
   const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
 
   const toggleWord = (index: number) => {
@@ -91,15 +101,27 @@ export function TranscriptionView({ transcription, highlightedKeywords, filterAc
           );
 
           return (
-            <UtteranceBlock
+            <div
               key={index}
-              utterance={utterance}
-              speaker={speaker}
-              selectedWords={selectedWords}
-              highlightedKeywords={highlightedKeywords}
-              wordIndexOffset={wordOffsets[index]}
-              onWordClick={toggleWord}
-            />
+              className={`utterance-select-wrapper ${contextSelectMode ? 'selectable' : ''}`}
+            >
+              {contextSelectMode && (
+                <input
+                  type="checkbox"
+                  className="utterance-checkbox"
+                  checked={selectedUtteranceIndices?.has(index) ?? false}
+                  onChange={() => onToggleUtteranceSelection?.(index)}
+                />
+              )}
+              <UtteranceBlock
+                utterance={utterance}
+                speaker={speaker}
+                selectedWords={selectedWords}
+                highlightedKeywords={highlightedKeywords}
+                wordIndexOffset={wordOffsets[index]}
+                onWordClick={toggleWord}
+              />
+            </div>
           );
         })}
       </div>

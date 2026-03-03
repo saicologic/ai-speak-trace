@@ -73,3 +73,23 @@ export interface InterviewAnalysis {
   results: AnalysisResult[];
   createdAt: string;
 }
+
+/** 発言の文脈分析結果（1つの発話） */
+export interface UtteranceContextResult {
+  utteranceIndex: number;
+  speakerId: string;
+  speakerName: string;
+  text: string;
+  previousUtterance: {
+    speakerName: string;
+    text: string;
+  } | null;
+  intent: string;
+  topic: string;
+}
+
+/** 発言の文脈分析レスポンス */
+export interface ContextAnalysisResponse {
+  transcriptionId: string;
+  results: UtteranceContextResult[];
+}
