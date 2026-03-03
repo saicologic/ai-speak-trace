@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { fetchAudioFiles } from '../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { fetchAudioFiles, uploadAudioFile } from '../api/client';
 import type { AudioFileInfo } from '../types';
 import './AudioFileList.css';
 
@@ -20,14 +20,37 @@ function formatFileSize(bytes: number): string {
 export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
   const [files, setFiles] = useState<AudioFileInfo[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = async () => {
     try {
       setFetchError(null);
       const result = await fetchAudioFiles();
       setFiles(result);
-    } catch (e) {
-      setFetchError(e instanceof Error ? e.message : '取得に失敗しました');
+    } catch {
+      setFiles([]);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      setFetchError(null);
+      await uploadAudioFile(file);
+      await loadFiles();
+    } catch (err) {
+      setFetchError(
+        err instanceof Error ? err.message : 'アップロードに失敗しました',
+      );
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -42,21 +65,32 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
         <button
           className="reload-button"
           onClick={loadFiles}
-          disabled={loading}
+          disabled={loading || uploading}
         >
           更新
         </button>
       </div>
 
+      <div className="audio-file-upload">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.mp4"
+          onChange={handleUpload}
+          disabled={loading || uploading}
+          hidden
+        />
+        <button
+          className="upload-button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading || uploading}
+        >
+          {uploading ? 'アップロード中...' : 'ファイルをアップロード'}
+        </button>
+      </div>
+
       {fetchError && (
         <div className="audio-file-list-error">{fetchError}</div>
-      )}
-
-      {files.length === 0 && !fetchError && (
-        <p className="audio-file-list-empty">
-          音声ファイルがありません。<br />
-          backend/data/outputs/ フォルダにファイルを配置してください。
-        </p>
       )}
 
       <ul className="audio-file-list-items">

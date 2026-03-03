@@ -15,6 +15,32 @@
   padding: 0.3em 0.6em;
 }
 
+.audio-file-upload {
+  margin-bottom: 0.75rem;
+}
+
+.upload-button {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.upload-button:hover {
+  background-color: #2563eb;
+}
+
+.upload-button:disabled {
+  background-color: #93c5fd;
+  cursor: not-allowed;
+}
+
 .audio-file-list-error {
   background-color: #fef2f2;
   color: #991b1b;

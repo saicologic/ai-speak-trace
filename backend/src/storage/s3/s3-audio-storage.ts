@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AudioStorage } from '../interfaces/audio-storage.interface';
@@ -118,6 +119,24 @@ export class S3AudioStorage implements AudioStorage {
       this.logger.error(`S3署名付きURL生成に失敗: ${fileName}`, err);
       throw new Error(
         `S3署名付きURLの生成に失敗しました（${fileName}）: ${err.message}`,
+      );
+    }
+  }
+
+  async saveFile(fileName: string, buffer: Buffer): Promise<void> {
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: `${this.prefix}${fileName}`,
+          Body: buffer,
+        }),
+      );
+      this.logger.log(`S3音声ファイル保存完了: ${fileName}`);
+    } catch (err: any) {
+      this.logger.error(`S3への音声ファイル保存に失敗: ${fileName}`, err);
+      throw new Error(
+        `S3への音声ファイル保存に失敗しました（${fileName}）: ${err.message}`,
       );
     }
   }
