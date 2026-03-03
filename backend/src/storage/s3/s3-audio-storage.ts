@@ -26,37 +26,51 @@ export class S3AudioStorage implements AudioStorage {
   private readonly prefix: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.s3 = new S3Client({
-      region: this.configService.get<string>('AWS_REGION', 'ap-northeast-1'),
-    });
+    const region = this.configService.get<string>('AWS_REGION', 'ap-northeast-1');
     this.bucket = this.configService.get<string>('S3_BUCKET', '');
     this.prefix = this.configService.get<string>('S3_AUDIO_PREFIX', 'outputs/');
+
+    if (!this.bucket) {
+      throw new Error(
+        'S3_BUCKET が設定されていません。backend/.env ファイルを確認してください。',
+      );
+    }
+
+    this.s3 = new S3Client({ region });
+    this.logger.log(`S3音声ストレージ初期化: bucket=${this.bucket}, prefix=${this.prefix}`);
   }
 
   async listFiles(): Promise<AudioFileInfo[]> {
-    const command = new ListObjectsV2Command({
-      Bucket: this.bucket,
-      Prefix: this.prefix,
-    });
-    const response = await this.s3.send(command);
-    const audioFiles: AudioFileInfo[] = [];
-
-    for (const obj of response.Contents ?? []) {
-      const fileName = obj.Key!.replace(this.prefix, '');
-      if (!fileName) continue;
-      const hasAudioExt = AUDIO_EXTENSIONS.some((ext) =>
-        fileName.toLowerCase().endsWith(ext),
-      );
-      if (!hasAudioExt) continue;
-
-      audioFiles.push({
-        fileName,
-        sizeBytes: obj.Size ?? 0,
-        lastModified: obj.LastModified?.toISOString() ?? '',
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: this.prefix,
       });
-    }
+      const response = await this.s3.send(command);
+      const audioFiles: AudioFileInfo[] = [];
 
-    return audioFiles;
+      for (const obj of response.Contents ?? []) {
+        const fileName = obj.Key!.replace(this.prefix, '');
+        if (!fileName) continue;
+        const hasAudioExt = AUDIO_EXTENSIONS.some((ext) =>
+          fileName.toLowerCase().endsWith(ext),
+        );
+        if (!hasAudioExt) continue;
+
+        audioFiles.push({
+          fileName,
+          sizeBytes: obj.Size ?? 0,
+          lastModified: obj.LastModified?.toISOString() ?? '',
+        });
+      }
+
+      return audioFiles;
+    } catch (err: any) {
+      this.logger.error(`S3音声ファイル一覧の取得に失敗`, err);
+      throw new Error(
+        `S3からの音声ファイル一覧取得に失敗しました（bucket: ${this.bucket}）: ${err.message}`,
+      );
+    }
   }
 
   async exists(fileName: string): Promise<boolean> {
@@ -74,23 +88,37 @@ export class S3AudioStorage implements AudioStorage {
   }
 
   async readFile(fileName: string): Promise<Buffer> {
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: `${this.prefix}${fileName}`,
-    });
-    const response = await this.s3.send(command);
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
-      chunks.push(chunk);
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: `${this.prefix}${fileName}`,
+      });
+      const response = await this.s3.send(command);
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch (err: any) {
+      this.logger.error(`S3音声ファイルの読み込みに失敗: ${fileName}`, err);
+      throw new Error(
+        `S3からの音声ファイル読み込みに失敗しました（${fileName}）: ${err.message}`,
+      );
     }
-    return Buffer.concat(chunks);
   }
 
   async getPlaybackUrl(fileName: string): Promise<string> {
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: `${this.prefix}${fileName}`,
-    });
-    return getSignedUrl(this.s3, command, { expiresIn: 900 });
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: `${this.prefix}${fileName}`,
+      });
+      return await getSignedUrl(this.s3, command, { expiresIn: 900 });
+    } catch (err: any) {
+      this.logger.error(`S3署名付きURL生成に失敗: ${fileName}`, err);
+      throw new Error(
+        `S3署名付きURLの生成に失敗しました（${fileName}）: ${err.message}`,
+      );
+    }
   }
 }
