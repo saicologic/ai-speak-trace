@@ -20,16 +20,18 @@
 ```
 ai-speak-trace/
 ├── CLAUDE.md
-├── outputs/          # 音声ファイルのアップロード先
 ├── frontend/         # フロントエンド（Vite + React）
 └── backend/          # バックエンド API（NestJS）
+    └── data/
+        ├── outputs/          # 音声ファイルの配置先
+        └── transcriptions/   # 文字起こし結果の保存先
 ```
 
 ## 機能要件
 
 ### 1. 話者分離と文字起こし
 
-- 音声ファイル（`outputs/` フォルダ内）を文字起こしする
+- 音声ファイル（`backend/data/outputs/` フォルダ内）を文字起こしする
 - ElevenLabs Scribe v2 APIを使用
 - 話者分離（Speaker Diarization）を行う
 - 話者名はデフォルトで「Aさん」「Bさん」とする
@@ -45,7 +47,7 @@ ai-speak-trace/
 ## 前提条件
 
 - 文字起こしは日本語
-- 音声ファイルはローカルの `outputs/` フォルダに事前にアップロード
+- 音声ファイルはローカルの `backend/data/outputs/` フォルダに事前に配置
 - 1つの音声ファイルに2人の会話が含まれる
 
 ## 開発ルール

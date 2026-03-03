@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { resolve } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { StorageModule } from './storage/storage.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { InterviewModule } from './interview/interview.module';
 
@@ -14,10 +15,23 @@ import { InterviewModule } from './interview/interview.module';
       isGlobal: true,
       expandVariables: true,
     }),
-    // 音声ファイルの静的配信（/outputs/filename.wav でアクセス可能）
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'outputs'),
-      serveRoot: '/outputs',
+    // ストレージモジュール（STORAGE_TYPEでローカル/S3を切り替え）
+    StorageModule.forRoot(),
+    // ローカルモード時のみ音声ファイルを静的配信
+    ServeStaticModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const storageType = configService.get<string>('STORAGE_TYPE', 'local');
+        if (storageType === 's3') {
+          return [];
+        }
+        const outputsDir = resolve(
+          configService.get<string>('OUTPUTS_DIR') ||
+            './data/outputs',
+        );
+        return [{ rootPath: outputsDir, serveRoot: '/outputs' }];
+      },
+      inject: [ConfigService],
     }),
     TranscriptionModule,
     InterviewModule,

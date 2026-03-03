@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { readFileSync, existsSync } from 'fs';
-import * as path from 'path';
 import { ElevenLabsResponse } from './types/elevenlabs.types';
 
 /** ElevenLabs Scribe v2 APIとの通信を担当するサービス */
@@ -15,25 +13,20 @@ export class ElevenLabsService {
     this.apiKey = this.configService.get<string>('ELEVENLABS_API_KEY', '');
   }
 
-  /** 音声ファイルを文字起こしする */
-  async transcribe(filePath: string): Promise<ElevenLabsResponse> {
+  /** 音声データを文字起こしする */
+  async transcribe(
+    fileBuffer: Buffer,
+    fileName: string,
+  ): Promise<ElevenLabsResponse> {
     if (!this.apiKey || this.apiKey === 'your_api_key_here') {
       throw new Error(
         'ELEVENLABS_API_KEY が設定されていません。backend/.env ファイルを確認してください。',
       );
     }
 
-    // ファイルの存在確認
-    if (!existsSync(filePath)) {
-      throw new Error(`音声ファイルが見つかりません: ${filePath}`);
-    }
-
-    const fileName = path.basename(filePath);
     this.logger.log(`文字起こし開始: ${fileName}`);
 
-    // ファイルを読み込み、ネイティブ FormData で送信
-    const fileBuffer = readFileSync(filePath);
-    const blob = new Blob([fileBuffer]);
+    const blob = new Blob([new Uint8Array(fileBuffer)]);
 
     const form = new FormData();
     form.append('file', blob, fileName);

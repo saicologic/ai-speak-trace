@@ -55,7 +55,7 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
       {files.length === 0 && !fetchError && (
         <p className="audio-file-list-empty">
           音声ファイルがありません。<br />
-          outputs/ フォルダにファイルを配置してください。
+          backend/data/outputs/ フォルダにファイルを配置してください。
         </p>
       )}
 

@@ -17,6 +17,18 @@ export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
   return data.files;
 }
 
+/** 音声ファイルの再生用URLを取得 */
+export async function fetchAudioFileUrl(fileName: string): Promise<string> {
+  const res = await fetch(
+    `${BASE_URL}/audio-files/${encodeURIComponent(fileName)}/url`,
+  );
+  if (!res.ok) {
+    throw new Error(`音声ファイルURLの取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.url;
+}
+
 /** 音声ファイルを文字起こし */
 export async function transcribeAudio(
   fileName: string,
