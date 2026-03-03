@@ -248,20 +248,24 @@ function App() {
           )}
           {transcription && !loading && (
             <>
-              <SpeakerNameEditor
-                transcriptionId={transcription.id}
-                speakers={transcription.speakers}
-                onUpdate={setTranscription}
-              />
-              <AudioPlayer fileName={transcription.audioFileName} />
-              <TranscriptionView
-                transcription={transcription}
-                highlightedKeywords={highlightedKeywords}
-                filterActive={filterActive}
-                contextSelectMode={contextSelectMode}
-                selectedUtteranceIndices={selectedUtteranceIndices}
-                onToggleUtteranceSelection={toggleUtteranceSelection}
-              />
+              <div className="app-content-fixed">
+                <AudioPlayer fileName={transcription.audioFileName} />
+              </div>
+              <div className="app-content-scroll">
+                <SpeakerNameEditor
+                  transcriptionId={transcription.id}
+                  speakers={transcription.speakers}
+                  onUpdate={setTranscription}
+                />
+                <TranscriptionView
+                  transcription={transcription}
+                  highlightedKeywords={highlightedKeywords}
+                  filterActive={filterActive}
+                  contextSelectMode={contextSelectMode}
+                  selectedUtteranceIndices={selectedUtteranceIndices}
+                  onToggleUtteranceSelection={toggleUtteranceSelection}
+                />
+              </div>
             </>
           )}
         </section>
