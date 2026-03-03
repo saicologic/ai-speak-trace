@@ -46,6 +46,12 @@ lerna-debug.log*
 .temp
 .tmp
 
+# data directories (keep .gitkeep)
+data/outputs/*
+!data/outputs/.gitkeep
+data/transcriptions/*
+!data/transcriptions/.gitkeep
+
 # Runtime data
 pids
 *.pid

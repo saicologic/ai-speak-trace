@@ -1,11 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { existsSync } from 'fs';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { ElevenLabsService } from './elevenlabs.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
+import type { AudioStorage } from '../storage/interfaces/audio-storage.interface';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 import {
   AudioFileInfo,
@@ -14,15 +12,6 @@ import {
   TranscriptionWord,
   Utterance,
 } from './types/transcription.types';
-
-/** 対応する音声・動画ファイル拡張子（ElevenLabs Scribe v2 対応フォーマット） */
-const AUDIO_EXTENSIONS = [
-  // 音声
-  '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm',
-  '.aac', '.aiff', '.opus', '.mp4',
-  // 動画（音声を抽出して文字起こし）
-  '.avi', '.mkv', '.mov', '.wmv', '.flv', '.mpeg', '.3gpp',
-];
 
 /** デフォルトの話者名 */
 const DEFAULT_SPEAKER_NAMES = ['Aさん', 'Bさん'];
@@ -40,67 +29,46 @@ const PHRASE_GAP_THRESHOLD = 0.5;
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
-  private readonly outputsDir: string;
 
   constructor(
     private readonly elevenLabsService: ElevenLabsService,
     private readonly store: TranscriptionStoreService,
-    private readonly configService: ConfigService,
-  ) {
-    this.outputsDir = path.resolve(
-      this.configService.get<string>('OUTPUTS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'outputs'),
-    );
-  }
+    @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
+  ) {}
 
-  /** outputs/ フォルダ内の音声ファイル一覧を取得 */
+  /** 音声ファイル一覧を取得 */
   async getAudioFiles(): Promise<AudioFileInfo[]> {
-    if (!existsSync(this.outputsDir)) {
-      return [];
-    }
-
-    const files = await fs.readdir(this.outputsDir);
-    const audioFiles: AudioFileInfo[] = [];
-
-    for (const fileName of files) {
-      const ext = path.extname(fileName).toLowerCase();
-      if (!AUDIO_EXTENSIONS.includes(ext)) {
-        continue;
-      }
-
-      const filePath = path.join(this.outputsDir, fileName);
-      const stat = await fs.stat(filePath);
-
-      audioFiles.push({
-        fileName,
-        sizeBytes: stat.size,
-        lastModified: stat.mtime.toISOString(),
-      });
-    }
-
-    // 更新日時の降順でソート
-    audioFiles.sort(
+    const files = await this.audioStorage.listFiles();
+    return files.sort(
       (a, b) =>
         new Date(b.lastModified).getTime() -
         new Date(a.lastModified).getTime(),
     );
+  }
 
-    return audioFiles;
+  /** 音声ファイルの再生用URLを取得 */
+  async getAudioFileUrl(fileName: string): Promise<string> {
+    if (!(await this.audioStorage.exists(fileName))) {
+      throw new NotFoundException(
+        `音声ファイルが見つかりません: ${fileName}`,
+      );
+    }
+    return this.audioStorage.getPlaybackUrl(fileName);
   }
 
   /** 音声ファイルを文字起こし */
   async transcribe(fileName: string): Promise<Transcription> {
-    const filePath = path.join(this.outputsDir, fileName);
-
-    // ファイルの存在確認
-    if (!existsSync(filePath)) {
+    if (!(await this.audioStorage.exists(fileName))) {
       throw new NotFoundException(
         `音声ファイルが見つかりません: ${fileName}`,
       );
     }
 
+    // ストレージから音声ファイルを読み込み
+    const fileBuffer = await this.audioStorage.readFile(fileName);
+
     // ElevenLabs APIで文字起こし
-    const result = await this.elevenLabsService.transcribe(filePath);
+    const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
     const rawWords = this.convertWords(result.words);
@@ -161,7 +129,6 @@ export class TranscriptionService {
   ): Promise<Transcription> {
     const transcription = await this.getTranscription(id);
 
-    // 話者名を更新
     for (const update of speakers) {
       const speaker = transcription.speakers.find((s) => s.id === update.id);
       if (speaker) {
@@ -169,7 +136,6 @@ export class TranscriptionService {
       }
     }
 
-    // 発話セグメントの話者名も連動更新
     for (const utterance of transcription.utterances) {
       const speaker = transcription.speakers.find(
         (s) => s.id === utterance.speakerId,
@@ -179,7 +145,6 @@ export class TranscriptionService {
       }
     }
 
-    // 保存
     await this.store.save(transcription);
     this.logger.log(`話者名更新完了: ${id}`);
 
@@ -213,46 +178,38 @@ export class TranscriptionService {
     for (let i = 1; i < words.length; i++) {
       const word = words[i];
 
-      // spacing や audio_event はそのまま独立して追加
       if (word.type !== 'word') {
         phrases.push(current);
         phrases.push({ ...word });
-        // 次のwordで新しいフレーズを開始するためリセット
         if (i + 1 < words.length) {
           current = { ...words[++i] };
         }
         continue;
       }
 
-      // 話者が変わったら区切る
       if (word.speakerId !== current.speakerId) {
         phrases.push(current);
         current = { ...word };
         continue;
       }
 
-      // 前のwordの末尾が句読点なら区切る
       if (PHRASE_BREAK_CHARS.test(current.text.slice(-1))) {
         phrases.push(current);
         current = { ...word };
         continue;
       }
 
-      // 時間的に離れていたら区切る
       if (word.start - current.end > PHRASE_GAP_THRESHOLD) {
         phrases.push(current);
         current = { ...word };
         continue;
       }
 
-      // 同じフレーズとして結合
       current.text += word.text;
       current.end = word.end;
     }
 
-    // 最後のフレーズを追加
     phrases.push(current);
-
     return phrases;
   }
 
@@ -276,7 +233,6 @@ export class TranscriptionService {
 
     for (const word of words) {
       if (!current || current.speakerId !== word.speakerId) {
-        // 新しい発話セグメントを開始
         const speaker = speakers.find((s) => s.id === word.speakerId);
         current = {
           speakerId: word.speakerId,
@@ -288,7 +244,6 @@ export class TranscriptionService {
         };
         utterances.push(current);
       } else {
-        // 同一話者の発話を追加
         current.end = word.end;
         current.text += word.text;
         current.words.push(word);

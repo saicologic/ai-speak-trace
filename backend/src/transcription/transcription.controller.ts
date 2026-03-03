@@ -24,6 +24,13 @@ export class TranscriptionController {
     return { files };
   }
 
+  /** 音声ファイル再生URL取得: GET /api/audio-files/:fileName/url */
+  @Get('audio-files/:fileName/url')
+  async getAudioFileUrl(@Param('fileName') fileName: string) {
+    const url = await this.transcriptionService.getAudioFileUrl(fileName);
+    return { url };
+  }
+
   /** 文字起こし実行: POST /api/transcribe */
   @Post('transcribe')
   async transcribe(@Body() dto: TranscribeRequestDto) {

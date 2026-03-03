@@ -40,10 +40,11 @@
 ai-speak-trace/
 ├── README.md
 ├── CLAUDE.md
-├── outputs/           # 音声ファイルの配置先
-├── transcriptions/    # 文字起こし結果の保存先
 ├── frontend/          # フロントエンド（Vite + React）
 └── backend/           # バックエンドAPI（NestJS）
+    └── data/
+        ├── outputs/          # 音声ファイルの配置先
+        └── transcriptions/   # 文字起こし結果の保存先
 ```
 
 ## セットアップ
@@ -73,8 +74,19 @@ cp backend/.env.example backend/.env
 ```env
 ELEVENLABS_API_KEY=your_elevenlabs_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
-OUTPUTS_DIR=../outputs
-TRANSCRIPTIONS_DIR=../transcriptions
+STORAGE_TYPE=local
+OUTPUTS_DIR=./data/outputs
+TRANSCRIPTIONS_DIR=./data/transcriptions
+```
+
+本番（S3使用時）は以下を設定:
+
+```env
+STORAGE_TYPE=s3
+S3_BUCKET=your-bucket-name
+S3_AUDIO_PREFIX=outputs/
+S3_TRANSCRIPTIONS_PREFIX=transcriptions/
+AWS_REGION=ap-northeast-1
 ```
 
 ### 3. バックエンドのセットアップ
@@ -93,7 +105,7 @@ npm install
 
 ### 5. 音声ファイルの配置
 
-分析したい音声ファイルを `outputs/` フォルダに配置してください。
+分析したい音声ファイルを `backend/data/outputs/` フォルダに配置してください。
 
 ## 起動方法
 
