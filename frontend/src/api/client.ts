@@ -9,26 +9,36 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /** 音声ファイル一覧を取得 */
 export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
+  console.log('[API] fetchAudioFiles:', `${BASE_URL}/audio-files`);
   const res = await fetch(`${BASE_URL}/audio-files`);
+  console.log('[API] fetchAudioFiles status:', res.status);
   if (!res.ok) {
+    const body = await res.text();
+    console.error('[API] fetchAudioFiles error body:', body);
     throw new Error(`音声ファイル一覧の取得に失敗しました: ${res.status}`);
   }
   const data = await res.json();
+  console.log('[API] fetchAudioFiles result:', data);
   return data.files;
 }
 
 /** 音声ファイルをアップロード */
 export async function uploadAudioFile(file: File): Promise<string> {
+  console.log('[API] uploadAudioFile:', file.name, file.size, file.type);
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${BASE_URL}/audio-files`, {
     method: 'POST',
     body: formData,
   });
+  console.log('[API] uploadAudioFile status:', res.status);
   if (!res.ok) {
-    throw new Error(`音声ファイルのアップロードに失敗しました: ${res.status}`);
+    const body = await res.text();
+    console.error('[API] uploadAudioFile error body:', body);
+    throw new Error(`音声ファイルのアップロードに失敗しました: ${res.status} ${body}`);
   }
   const data = await res.json();
+  console.log('[API] uploadAudioFile result:', data);
   return data.fileName;
 }
 
