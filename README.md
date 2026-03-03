@@ -144,6 +144,41 @@ npm run build
 
 フロントエンドのビルド結果は `frontend/dist/` に出力されます。
 
+### Vercelへのデプロイ
+
+バックエンドとフロントエンドを別々のVercelプロジェクトとしてデプロイします。
+
+#### バックエンド
+
+1. Vercelで新規プロジェクトを作成し、リポジトリを接続
+2. **Root Directory** に `backend` を指定
+3. **Environment Variables** に以下を設定:
+
+| 変数名 | 値 |
+|---|---|
+| `STORAGE_TYPE` | `s3` |
+| `S3_BUCKET` | バケット名 |
+| `S3_AUDIO_PREFIX` | `outputs/` |
+| `S3_TRANSCRIPTIONS_PREFIX` | `transcriptions/` |
+| `AWS_REGION` | `ap-northeast-1` |
+| `AWS_ACCESS_KEY_ID` | AWSアクセスキー |
+| `AWS_SECRET_ACCESS_KEY` | AWSシークレットキー |
+| `ELEVENLABS_API_KEY` | ElevenLabs APIキー |
+| `ANTHROPIC_API_KEY` | Anthropic APIキー |
+| `CORS_ORIGIN` | フロントエンドのURL（例: `https://ai-speak-trace.vercel.app`） |
+
+#### フロントエンド
+
+1. Vercelで新規プロジェクトを作成し、リポジトリを接続
+2. **Root Directory** に `frontend` を指定
+3. **Environment Variables** に以下を設定:
+
+| 変数名 | 値 |
+|---|---|
+| `VITE_API_BASE_URL` | バックエンドのプロダクションURL + `/api`（例: `https://ai-speak-trace-backend.vercel.app/api`） |
+
+> **注意**: `VITE_API_BASE_URL` にはデプロイ固有のURL（ハッシュ入り）ではなく、プロジェクトの固定プロダクションドメインを使用してください。固定ドメインはVercelダッシュボードの Settings → Domains で確認できます。
+
 ## 使い方
 
 1. ブラウザで http://localhost:5173 を開く
