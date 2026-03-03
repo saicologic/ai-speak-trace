@@ -45,11 +45,11 @@ export class TranscriptionController {
     if (!file) {
       throw new BadRequestException('ファイルが指定されていません');
     }
-    await this.transcriptionService.uploadAudioFile(
-      file.originalname,
-      file.buffer,
-    );
-    return { fileName: file.originalname };
+    // Multerはファイル名をlatin1でデコードするため、日本語ファイル名が文字化けする
+    // latin1 → utf8に再変換して正しいファイル名を復元する
+    const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    await this.transcriptionService.uploadAudioFile(fileName, file.buffer);
+    return { fileName };
   }
 
   /** 音声ファイル再生URL取得: GET /api/audio-files/:fileName/url */
