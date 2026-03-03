@@ -6,9 +6,14 @@ import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
-import { transcribeAudio, fetchTranscription } from './api/client';
+import { ContextAnalysisModal } from './components/ContextAnalysisModal';
+import {
+  transcribeAudio,
+  fetchTranscription,
+  analyzeUtteranceContext,
+} from './api/client';
 import { extractKeywords } from './utils/keywords';
-import type { Transcription } from './types';
+import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
 type SidebarTab = 'audio' | 'history';
@@ -31,12 +36,65 @@ function App() {
   const [page, setPage] = useState<Page>('main');
   const [filterActive, setFilterActive] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [contextSelectMode, setContextSelectMode] = useState(false);
+  const [selectedUtteranceIndices, setSelectedUtteranceIndices] = useState<
+    Set<number>
+  >(new Set());
+  const [contextAnalysis, setContextAnalysis] =
+    useState<ContextAnalysisResponse | null>(null);
+  const [contextAnalyzing, setContextAnalyzing] = useState(false);
 
   /** 文字起こしテキストからキーワードを抽出（メモ化） */
   const keywords = useMemo(
     () => (transcription ? extractKeywords(transcription.fullText) : []),
     [transcription],
   );
+
+  /** 発話選択のトグル */
+  const toggleUtteranceSelection = (index: number) => {
+    setSelectedUtteranceIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  /** 文脈選択モードのON/OFF */
+  const toggleContextMode = () => {
+    setContextSelectMode((prev) => {
+      if (prev) {
+        // OFFにするとき選択もクリア
+        setSelectedUtteranceIndices(new Set());
+      }
+      return !prev;
+    });
+  };
+
+  /** 選択された発話の文脈を分析 */
+  const handleAnalyzeContext = async () => {
+    if (!transcription || selectedUtteranceIndices.size === 0) return;
+    setContextAnalyzing(true);
+    try {
+      const result = await analyzeUtteranceContext(
+        transcription.id,
+        Array.from(selectedUtteranceIndices).sort((a, b) => a - b),
+      );
+      setContextAnalysis(result);
+      // 分析完了後、選択モードを解除
+      setContextSelectMode(false);
+      setSelectedUtteranceIndices(new Set());
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : '文脈分析に失敗しました',
+      );
+    } finally {
+      setContextAnalyzing(false);
+    }
+  };
 
   /** キーワードのハイライトをトグル */
   const toggleKeywordHighlight = (keyword: string) => {
@@ -200,6 +258,9 @@ function App() {
                 transcription={transcription}
                 highlightedKeywords={highlightedKeywords}
                 filterActive={filterActive}
+                contextSelectMode={contextSelectMode}
+                selectedUtteranceIndices={selectedUtteranceIndices}
+                onToggleUtteranceSelection={toggleUtteranceSelection}
               />
             </>
           )}
@@ -213,10 +274,41 @@ function App() {
               filterActive={filterActive}
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateInterview={() => setPage('interview')}
+              onToggleContextMode={toggleContextMode}
+              contextSelectMode={contextSelectMode}
             />
           </aside>
         )}
       </main>
+
+      {/* 文脈分析：フローティング分析ボタン */}
+      {contextSelectMode && selectedUtteranceIndices.size > 0 && (
+        <button
+          className="context-floating-button"
+          onClick={handleAnalyzeContext}
+        >
+          分析する（{selectedUtteranceIndices.size}件）
+        </button>
+      )}
+
+      {/* 文脈分析：ローディング */}
+      {contextAnalyzing && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="loading-spinner" />
+            <p>発言の文脈を分析中...</p>
+          </div>
+        </div>
+      )}
+
+      {/* 文脈分析：結果モーダル */}
+      {contextAnalysis && transcription && (
+        <ContextAnalysisModal
+          analysis={contextAnalysis}
+          speakers={transcription.speakers}
+          onClose={() => setContextAnalysis(null)}
+        />
+      )}
     </div>
   );
 }

@@ -39,3 +39,32 @@
   display: flex;
   flex-direction: column;
 }
+
+.utterance-select-wrapper {
+  display: flex;
+  align-items: flex-start;
+}
+
+.utterance-select-wrapper.selectable {
+  gap: 0.75rem;
+  padding: 0.25rem;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+
+.utterance-select-wrapper.selectable:hover {
+  background-color: #faf5ff;
+}
+
+.utterance-select-wrapper > .utterance-block {
+  flex: 1;
+}
+
+.utterance-checkbox {
+  margin-top: 1rem;
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  accent-color: #8b5cf6;
+}

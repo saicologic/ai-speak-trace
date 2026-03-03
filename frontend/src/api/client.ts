@@ -1,5 +1,6 @@
 import type {
   AudioFileInfo,
+  ContextAnalysisResponse,
   InterviewAnalysis,
   Transcription,
   TranscriptionSummary,
@@ -205,4 +206,21 @@ export async function updateSpeakerNames(
   }
   const data = await res.json();
   return data.transcription;
+}
+
+/** 発言の文脈を分析 */
+export async function analyzeUtteranceContext(
+  transcriptionId: string,
+  utteranceIndices: number[],
+): Promise<ContextAnalysisResponse> {
+  const res = await fetch(`${BASE_URL}/interview/analyze-context`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionId, utteranceIndices }),
+  });
+  if (!res.ok) {
+    throw new Error(`文脈分析に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.analysis;
 }

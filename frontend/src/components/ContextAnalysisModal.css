@@ -1,0 +1,161 @@
+/* 文脈分析モーダル（幅広） */
+.context-modal {
+  max-width: 720px;
+  text-align: left;
+}
+
+.context-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.context-modal-header h3 {
+  font-size: 1.1rem;
+  color: #1f2937;
+  margin: 0;
+}
+
+.context-modal-count {
+  font-size: 0.75rem;
+  color: #8b5cf6;
+  background-color: #f5f3ff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* 結果カードリスト */
+.context-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-bottom: 1.25rem;
+}
+
+/* 各カード */
+.context-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: #fafafa;
+}
+
+.context-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.context-speaker-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* 意図バッジ共通 */
+.context-intent-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* 意図別カラー */
+.intent-question {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.intent-answer {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.intent-agree {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.intent-disagree {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.intent-supplement {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.intent-proposal {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
+
+.intent-explain {
+  background-color: #e0f2fe;
+  color: #0c4a6e;
+}
+
+.intent-other {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+/* 発話テキスト */
+.context-utterance-text {
+  font-size: 0.9rem;
+  color: #1f2937;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+/* 直前の発言 */
+.context-previous {
+  font-size: 0.78rem;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.context-previous-label {
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.context-previous-speaker {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.context-previous-text {
+  color: #4b5563;
+}
+
+/* 話題 */
+.context-topic {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.context-topic-label {
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.context-topic-text {
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+/* フッター */
+.context-modal-footer {
+  text-align: center;
+}

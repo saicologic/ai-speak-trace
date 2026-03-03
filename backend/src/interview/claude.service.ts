@@ -153,4 +153,73 @@ ${question}
 
     return { question, answer, sources };
   }
+
+  /** 発言の文脈分析プロンプトを構築 */
+  buildContextAnalysisPrompt(
+    allUtterances: { speakerName: string; text: string }[],
+    targetIndices: number[],
+  ): string {
+    const conversationLines = allUtterances
+      .map((u, i) => `[${i}] ${u.speakerName}: ${u.text}`)
+      .join('\n');
+
+    const targetList = targetIndices.join(', ');
+
+    return `以下の会話の文字起こしから、指定された発話の文脈を分析してください。
+
+## 会話全文
+${conversationLines}
+
+## 分析対象の発話番号
+${targetList}
+
+## 指示
+上記の発話番号に該当する各発話について、以下の2項目を分析してください:
+- 「intent」: 発言の意図（以下のいずれか: 質問, 回答, 同意, 反論, 補足, 提案, 説明, 感想, 挨拶, その他）
+- 「topic」: その発話の話題を10〜30文字程度で簡潔に記述
+
+## 出力形式
+以下のJSON配列のみを出力してください。JSON以外は出力しないでください。
+[
+  { "index": 0, "intent": "質問", "topic": "プロジェクトの進捗状況" }
+]`;
+  }
+
+  /** 発言の文脈を分析 */
+  async analyzeContext(
+    allUtterances: { speakerName: string; text: string }[],
+    targetIndices: number[],
+  ): Promise<{ index: number; intent: string; topic: string }[]> {
+    this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
+
+    const prompt = this.buildContextAnalysisPrompt(
+      allUtterances,
+      targetIndices,
+    );
+
+    const response = await this.client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text =
+      response.content[0].type === 'text' ? response.content[0].text : '';
+
+    // JSONブロックを抽出してパース
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      this.logger.error('文脈分析のJSON抽出に失敗');
+      throw new Error('文脈分析結果のパースに失敗しました');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      index: number;
+      intent: string;
+      topic: string;
+    }[];
+
+    this.logger.log(`文脈分析完了: ${parsed.length}件`);
+    return parsed;
+  }
 }

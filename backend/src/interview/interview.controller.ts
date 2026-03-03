@@ -2,6 +2,7 @@ import { Controller, Post, Body } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { GenerateQuestionsDto } from './dto/generate-questions.dto';
 import { AnalyzeDto } from './dto/analyze.dto';
+import { AnalyzeContextDto } from './dto/analyze-context.dto';
 
 /** 会話分析APIコントローラー */
 @Controller('interview')
@@ -39,6 +40,16 @@ export class InterviewController {
       dto.speakerId,
       dto.keywords,
       dto.questions,
+    );
+    return { analysis };
+  }
+
+  /** 発言の文脈分析: POST /api/interview/analyze-context */
+  @Post('analyze-context')
+  async analyzeContext(@Body() dto: AnalyzeContextDto) {
+    const analysis = await this.interviewService.analyzeContext(
+      dto.transcriptionId,
+      dto.utteranceIndices,
     );
     return { analysis };
   }
