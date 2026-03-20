@@ -15,7 +15,7 @@ pub fn run() {
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
             // データ保存先ディレクトリを決定
-            // ~/Library/Application Support/com.saicologic.ai-speak-trace/data/
+            // ~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
             let app_data_dir = app
                 .path()
                 .app_data_dir()

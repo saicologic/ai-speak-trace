@@ -1,11 +1,14 @@
 {
   "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
+    "dev:app": "concurrently -n backend,tauri -c blue,magenta \"cd backend && npm run start:dev\" \"tauri dev\"",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "pkg:backend": "cd backend && npm run pkg:mac-arm64"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.10.1"
+    "@tauri-apps/cli": "^2.10.1",
+    "concurrently": "^9.2.1"
   }
 }

@@ -8,6 +8,7 @@ import { InterviewPage } from './components/InterviewPage';
 import { DeepSearchPage } from './components/DeepSearchPage';
 import { TranscribePage } from './components/TranscribePage';
 import { ContextAnalysisModal } from './components/ContextAnalysisModal';
+import SettingsPage from './components/SettingsPage';
 import {
   fetchTranscription,
   analyzeUtteranceContext,
@@ -16,7 +17,7 @@ import { extractKeywords } from './utils/keywords';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
-type Page = 'main' | 'transcribe' | 'interview' | 'deep-search';
+type Page = 'main' | 'transcribe' | 'interview' | 'deep-search' | 'settings';
 
 function App() {
   const [transcription, setTranscription] = useState<Transcription | null>(
@@ -146,6 +147,7 @@ function App() {
         onTranscriptionComplete={(result) => {
           setTranscription(result);
         }}
+        onNavigateSettings={() => setPage('settings')}
       />
     );
   }
@@ -159,6 +161,11 @@ function App() {
         onBack={() => setPage('main')}
       />
     );
+  }
+
+  /** 設定ページの場合 */
+  if (page === 'settings') {
+    return <SettingsPage onBack={() => setPage('main')} />;
   }
 
   return (
@@ -184,8 +191,17 @@ function App() {
         </div>
       )}
       <header className="app-header">
-        <h1>AI Speak Trace</h1>
-        <p>音声データの話者分離・文字起こし</p>
+        <div className="app-header-left">
+          <h1>AI Speak Trace</h1>
+          <p>音声データの話者分離・文字起こし</p>
+        </div>
+        <button
+          className="app-header-settings-button"
+          onClick={() => setPage('settings')}
+          title="設定"
+        >
+          設定
+        </button>
       </header>
       <main className="app-main">
         <aside className="app-sidebar">

@@ -9,8 +9,12 @@
 - ElevenLabs Scribe v2 APIを使用
 - 話者名は「Aさん」「Bさん」がデフォルト（編集可能）
 
+### Podcast文字起こし
+- macOS Podcastアプリのキャッシュから音声ファイルを自動検出
+- Podcast音声をそのまま文字起こし可能
+
 ### 文字起こし結果の閲覧
-- ブラウザ上で文字起こし結果を確認
+- アプリ上で文字起こし結果を確認
 - 単語・文章の選択、話者の識別が可能
 - 文字起こし履歴の保存・再表示
 
@@ -30,7 +34,178 @@
 - Amazon Bedrock Titan Embeddings V2によるベクトル検索（PDF）
 - 検索結果をClaudeで統合分析
 
-## 技術スタック
+---
+
+## 利用者ガイド
+
+### インストール
+
+1. `.dmg` ファイルを開く
+2. `AI Speak Trace.app` を `Applications` フォルダにドラッグ&ドロップ
+3. 初回起動時にセキュリティ警告が出た場合は「システム設定 > プライバシーとセキュリティ」から許可する
+
+### 初期設定
+
+アプリを使用するには、以下のAPIキーが必要です。
+
+| キー | 用途 | 取得先 |
+|---|---|---|
+| ElevenLabs APIキー | 音声の文字起こし | https://elevenlabs.io |
+| Anthropic APIキー | 会話分析・質問生成 | https://console.anthropic.com |
+
+アプリ内の「設定」画面からAPIキーを設定してください。
+
+### 起動
+
+`Applications` フォルダから `AI Speak Trace` をダブルクリックで起動します。
+バックエンドサーバーはアプリ内で自動的に起動します。
+
+### 使い方
+
+1. アプリを起動する
+2. 左サイドバーから音声ファイルを選択、または文字起こし履歴を選択
+3. 文字起こし結果が中央に表示される
+4. 右サイドバーのキーワード一覧からキーワードをクリックしてハイライト
+5. 「フィルター」ボタンで選択キーワードを含む発話のみに絞り込み
+6. 「会話分析」ボタンで会話分析ページに遷移
+7. 話者を選択するとその話者のキーワードが表示される
+8. キーワードを選択して「質問を生成」→ チェックボックスで質問を選択 → 「分析する」で実行
+
+### データの保存先
+
+文字起こし結果やアップロードした音声ファイルは以下に保存されます:
+
+```
+~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
+├── outputs/          # 音声ファイル
+├── transcriptions/   # 文字起こし結果
+├── documents/        # PDFファイル
+└── document-metadata/# PDFメタデータ
+```
+
+### 確認事項・トラブルシューティング
+
+| 症状 | 原因と対処 |
+|---|---|
+| 起動直後に「サーバーに接続できません」と表示される | バックエンドの起動待ち中です。自動リトライされるので数秒お待ちください |
+| 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
+| 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
+
+---
+
+## 応用編
+
+### ディープサーチ（AWS連携）
+
+ディープサーチ機能でPDFドキュメントのベクトル検索を使用するには、AWS認証情報の設定が必要です。
+
+#### 必要なAWSサービス
+- Amazon Bedrock（Titan Embeddings V2）
+- Amazon S3 Vectors
+
+#### 環境変数の設定
+
+`backend/.env` に以下を追加:
+
+```env
+AWS_REGION=ap-northeast-1
+BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+BEDROCK_EMBEDDING_DIMENSIONS=256
+```
+
+AWS認証情報は `~/.aws/credentials` または環境変数（`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`）で設定してください。
+
+---
+
+## 開発者ガイド
+
+### 前提条件
+
+- Node.js 20以上
+- npm
+- Rust（`rustup` でインストール）
+- ElevenLabs APIキー
+- Anthropic APIキー
+
+### セットアップ
+
+#### 1. 依存関係のインストール
+
+```bash
+# ルート（Tauri CLI）
+npm install
+
+# バックエンド
+cd backend
+npm install
+
+# フロントエンド
+cd frontend
+npm install
+```
+
+#### 2. 環境変数の設定
+
+`backend/.env` に以下を設定:
+
+```env
+ELEVENLABS_API_KEY=your-api-key
+ANTHROPIC_API_KEY=your-api-key
+
+# ストレージ設定（デフォルト: local）
+STORAGE_TYPE=local
+```
+
+#### 3. Rustのインストール（未インストールの場合）
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+### 開発モード起動
+
+#### まとめて起動（推奨）
+
+```bash
+# ブラウザで開発（バックエンド + フロントエンド）
+npm run dev
+# → ブラウザで http://localhost:5173 にアクセス
+
+# Tauriデスクトップアプリで開発（バックエンド + Tauri）
+npm run dev:app
+```
+
+いずれも Ctrl+C でまとめて停止できます。
+
+#### 個別に起動する場合
+
+```bash
+# ターミナル1: バックエンド（ポート3000）
+cd backend
+npm run start:dev
+
+# ターミナル2: Tauri開発モード（フロントエンドは自動起動）
+source "$HOME/.cargo/env"
+npm run tauri:dev
+```
+
+### プロダクションビルド
+
+```bash
+# 1. NestJSバイナリを生成
+npm run pkg:backend
+
+# 2. Tauriビルド（.app / .dmg を生成）
+source "$HOME/.cargo/env"
+npm run tauri:build
+```
+
+生成物:
+- `src-tauri/target/release/bundle/macos/AI Speak Trace.app`
+- `src-tauri/target/release/bundle/dmg/AI Speak Trace_0.1.0_aarch64.dmg`
+
+### 技術スタック
 
 | レイヤー | 技術 |
 |---|---|
@@ -42,7 +217,21 @@
 | ベクトル検索 | Amazon Bedrock + S3 Vectors |
 | バイナリ化 | @yao-pkg/pkg |
 
-## ディレクトリ構成
+### アーキテクチャ
+
+```
+AI Speak Trace.app (Tauri)
+├── WebView (frontend/dist)        ← Vite ビルド済みの React アプリ
+├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理
+└── Sidecar (nestjs-server)        ← NestJS を pkg でバイナリ化
+    └── HTTP API (localhost:3000)
+```
+
+- フロントエンドは WebView 内で動作し、localhost:3000 の NestJS sidecar と HTTP 通信
+- Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
+- データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
+
+### ディレクトリ構成
 
 ```
 ai-speak-trace/
@@ -66,141 +255,3 @@ ai-speak-trace/
         ├── documents/            # PDFファイルの保存先
         └── document-metadata/    # PDFメタデータの保存先
 ```
-
-## 前提条件
-
-- Node.js 20以上
-- npm
-- Rust（`rustup` でインストール）
-- ElevenLabs APIキー
-- Anthropic APIキー
-- AWS認証情報（ディープサーチ機能を使用する場合）
-
-## セットアップ
-
-### 1. 依存関係のインストール
-
-```bash
-# ルート（Tauri CLI）
-npm install
-
-# バックエンド
-cd backend
-npm install
-
-# フロントエンド
-cd frontend
-npm install
-```
-
-### 2. 環境変数の設定
-
-`backend/.env` に以下を設定:
-
-```env
-ELEVENLABS_API_KEY=your-api-key
-ANTHROPIC_API_KEY=your-api-key
-
-# ストレージ設定（デフォルト: local）
-STORAGE_TYPE=local
-
-# AWS設定（ディープサーチ機能を使用する場合）
-AWS_REGION=ap-northeast-1
-BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
-BEDROCK_EMBEDDING_DIMENSIONS=256
-```
-
-### 3. Rustのインストール（未インストールの場合）
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
-```
-
-## 起動方法
-
-### デスクトップアプリ（開発モード）
-
-バックエンドとTauriをそれぞれ起動します。
-
-```bash
-# ターミナル1: バックエンド（ポート3000）
-cd backend
-npm run start:dev
-
-# ターミナル2: Tauri開発モード（フロントエンドは自動起動）
-source "$HOME/.cargo/env"
-npm run tauri:dev
-```
-
-### Webアプリとして起動（Tauriなし）
-
-```bash
-# ターミナル1: バックエンド
-cd backend
-npm run start:dev
-
-# ターミナル2: フロントエンド
-cd frontend
-npm run dev
-```
-
-ブラウザで http://localhost:5173 にアクセスしてください。
-
-## プロダクションビルド
-
-### デスクトップアプリ（.dmg）
-
-```bash
-# 1. NestJSバイナリを生成
-npm run pkg:backend
-
-# 2. Tauriビルド（.app / .dmg を生成）
-source "$HOME/.cargo/env"
-npm run tauri:build
-```
-
-生成物:
-- `src-tauri/target/release/bundle/macos/AI Speak Trace.app`
-- `src-tauri/target/release/bundle/dmg/AI Speak Trace_0.1.0_aarch64.dmg`
-
-### Webアプリのみ
-
-```bash
-# バックエンド
-cd backend
-npm run build
-npm run start:prod
-
-# フロントエンド
-cd frontend
-npm run build
-```
-
-フロントエンドのビルド結果は `frontend/dist/` に出力されます。
-
-## 使い方
-
-1. アプリを起動する
-2. 左サイドバーから音声ファイルを選択、または文字起こし履歴を選択
-3. 文字起こし結果が中央に表示される
-4. 右サイドバーのキーワード一覧からキーワードをクリックしてハイライト
-5. 「フィルター」ボタンで選択キーワードを含む発話のみに絞り込み
-6. 「会話分析」ボタンで会話分析ページに遷移
-7. 話者を選択するとその話者のキーワードが表示される
-8. キーワードを選択して「質問を生成」→ チェックボックスで質問を選択 → 「分析する」で実行
-9. 「ディープサーチ」で会話・PDF・Webを横断検索
-
-## アーキテクチャ（デスクトップアプリ）
-
-```
-AI Speak Trace.app (Tauri)
-├── WebView (frontend/dist)        ← Vite ビルド済みの React アプリ
-├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理
-└── Sidecar (nestjs-server)        ← NestJS を pkg でバイナリ化
-    └── HTTP API (localhost:3000)
-```
-
-- フロントエンドは WebView 内で動作し、localhost:3000 の NestJS sidecar と HTTP 通信
-- Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
-- データは `~/Library/Application Support/com.saicologic.ai-speak-trace/data/` に保存

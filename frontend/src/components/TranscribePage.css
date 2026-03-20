@@ -51,6 +51,31 @@
   margin-bottom: 1.5rem;
 }
 
+.transcribe-error p {
+  margin: 0 0 0.5rem 0;
+}
+
+.transcribe-error p:last-child {
+  margin-bottom: 0;
+}
+
+.transcribe-settings-link {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.transcribe-settings-link:hover {
+  background-color: #2563eb;
+}
+
 /* セクション */
 .transcribe-section {
   background-color: #ffffff;

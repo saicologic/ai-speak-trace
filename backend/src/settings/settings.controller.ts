@@ -13,7 +13,14 @@ export class SettingsController {
 
   /** 設定を更新 */
   @Patch()
-  updateSettings(@Body() dto: { dataDir?: string }) {
+  updateSettings(
+    @Body()
+    dto: {
+      dataDir?: string;
+      elevenlabsApiKey?: string;
+      anthropicApiKey?: string;
+    },
+  ) {
     return this.settingsService.updateSettings(dto);
   }
 }

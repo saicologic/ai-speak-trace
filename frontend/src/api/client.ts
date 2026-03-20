@@ -147,6 +147,11 @@ export async function transcribeAudio(
       error.name = 'QuotaExceededError';
       throw error;
     }
+    if (body?.code === 'API_KEY_MISSING') {
+      const error = new Error(body.message);
+      error.name = 'ApiKeyMissingError';
+      throw error;
+    }
     const serverMessage = body?.message || bodyText || res.statusText;
     throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }
@@ -415,6 +420,11 @@ export async function transcribePodcastFile(
       error.name = 'QuotaExceededError';
       throw error;
     }
+    if (body?.code === 'API_KEY_MISSING') {
+      const error = new Error(body.message);
+      error.name = 'ApiKeyMissingError';
+      throw error;
+    }
     throw new Error(`Podcast文字起こしに失敗しました: ${res.status}`);
   }
   const data = await res.json();
@@ -435,7 +445,11 @@ export async function fetchSettings(): Promise<AppSettings> {
 
 /** アプリ設定を更新 */
 export async function updateSettings(
-  dto: { dataDir?: string },
+  dto: {
+    dataDir?: string;
+    elevenlabsApiKey?: string;
+    anthropicApiKey?: string;
+  },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {
     method: 'PATCH',

@@ -75,34 +75,87 @@
   border-bottom: 1px solid #f3f4f6;
 }
 
-/* パス入力 */
-.settings-path-input-group {
+/* 入力フィールド共通 */
+.settings-input-group {
   margin-bottom: 1rem;
 }
 
-.settings-path-input-group label {
-  display: block;
+.settings-input-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.85rem;
   color: #374151;
   font-weight: 500;
   margin-bottom: 0.4rem;
 }
 
-.settings-path-input {
+.settings-api-key-link {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.settings-api-key-link:hover {
+  text-decoration: underline;
+}
+
+.settings-input-with-toggle {
+  position: relative;
+}
+
+.settings-input-with-toggle .settings-input {
+  padding-right: 3.5rem;
+}
+
+.settings-toggle-visibility {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  color: #3b82f6;
+  background-color: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-toggle-visibility:hover {
+  color: #ffffff;
+  background-color: #3b82f6;
+}
+
+.settings-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 0.85rem;
-  font-family: 'SF Mono', 'Menlo', monospace;
   background-color: #ffffff;
   box-sizing: border-box;
 }
 
-.settings-path-input:focus {
+.settings-input-mono {
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.settings-input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* APIキーステータス表示 */
+.settings-api-key-status {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: #059669;
+  font-family: 'SF Mono', 'Menlo', monospace;
 }
 
 /* サブディレクトリ表示 */
@@ -190,4 +243,5 @@
   border: 1px solid #fde68a;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
+  margin-bottom: 1.5rem;
 }

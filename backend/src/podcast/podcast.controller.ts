@@ -82,6 +82,20 @@ export class PodcastController {
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
+      // APIキー未設定エラー
+      if (
+        error instanceof Error &&
+        error.message.includes('ELEVENLABS_API_KEY が設定されていません')
+      ) {
+        throw new HttpException(
+          {
+            code: 'API_KEY_MISSING',
+            message:
+              'ElevenLabs APIキーが設定されていません。設定画面からAPIキーを設定してください。',
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
       throw error;
     }
   }

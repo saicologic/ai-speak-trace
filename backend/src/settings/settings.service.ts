@@ -6,6 +6,8 @@ import * as path from 'path';
 /** 設定ファイルの内容 */
 interface SettingsFile {
   dataDir?: string;
+  elevenlabsApiKey?: string;
+  anthropicApiKey?: string;
 }
 
 /** API レスポンス用の設定情報 */
@@ -19,6 +21,10 @@ export interface AppSettings {
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;
+  };
+  apiKeys: {
+    elevenlabsApiKey: string;
+    anthropicApiKey: string;
   };
 }
 
@@ -63,11 +69,21 @@ export class SettingsService {
             path.join(dataDir, 'document-metadata'),
         ),
       },
+      apiKeys: {
+        elevenlabsApiKey:
+          this.configService.get<string>('ELEVENLABS_API_KEY') || '',
+        anthropicApiKey:
+          this.configService.get<string>('ANTHROPIC_API_KEY') || '',
+      },
     };
   }
 
   /** 設定を更新して settings.json に保存 */
-  updateSettings(dto: { dataDir?: string }): {
+  updateSettings(dto: {
+    dataDir?: string;
+    elevenlabsApiKey?: string;
+    anthropicApiKey?: string;
+  }): {
     settings: AppSettings;
     restartRequired: boolean;
   } {
@@ -76,6 +92,12 @@ export class SettingsService {
 
     if (dto.dataDir !== undefined) {
       updated.dataDir = dto.dataDir;
+    }
+    if (dto.elevenlabsApiKey !== undefined) {
+      updated.elevenlabsApiKey = dto.elevenlabsApiKey;
+    }
+    if (dto.anthropicApiKey !== undefined) {
+      updated.anthropicApiKey = dto.anthropicApiKey;
     }
 
     this.writeSettingsFile(updated);
@@ -134,6 +156,16 @@ export class SettingsService {
         console.log(
           `[Settings] DATA_DIR を settings.json から読み込み: ${settings.dataDir}`,
         );
+      }
+
+      // APIキーをsettings.jsonから環境変数にマージ
+      if (settings.elevenlabsApiKey && !process.env.ELEVENLABS_API_KEY) {
+        process.env.ELEVENLABS_API_KEY = settings.elevenlabsApiKey;
+        console.log('[Settings] ELEVENLABS_API_KEY を settings.json から読み込み');
+      }
+      if (settings.anthropicApiKey && !process.env.ANTHROPIC_API_KEY) {
+        process.env.ANTHROPIC_API_KEY = settings.anthropicApiKey;
+        console.log('[Settings] ANTHROPIC_API_KEY を settings.json から読み込み');
       }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);

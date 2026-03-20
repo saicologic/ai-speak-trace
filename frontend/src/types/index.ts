@@ -146,4 +146,8 @@ export interface AppSettings {
     documentsDir: string;
     documentMetadataDir: string;
   };
+  apiKeys: {
+    elevenlabsApiKey: string;
+    anthropicApiKey: string;
+  };
 }

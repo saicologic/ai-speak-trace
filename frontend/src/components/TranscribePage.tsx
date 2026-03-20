@@ -26,6 +26,7 @@ function getMimeType(fileName: string): string {
 interface TranscribePageProps {
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
+  onNavigateSettings: () => void;
 }
 
 type Step = 'select' | 'preview' | 'transcribing' | 'done';
@@ -34,11 +35,13 @@ type Step = 'select' | 'preview' | 'transcribing' | 'done';
 export function TranscribePage({
   onBack,
   onTranscriptionComplete,
+  onNavigateSettings,
 }: TranscribePageProps) {
   const [step, setStep] = useState<Step>('select');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   // previewUrl のメモリ解放
   useEffect(() => {
@@ -131,7 +134,13 @@ export function TranscribePage({
         stack,
         error: err,
       });
-      setError(`文字起こしに失敗しました: ${detail}`);
+      if (errorName === 'ApiKeyMissingError') {
+        setIsApiKeyMissing(true);
+        setError(detail);
+      } else {
+        setIsApiKeyMissing(false);
+        setError(`文字起こしに失敗しました: ${detail}`);
+      }
       setStep('preview');
     }
   };
@@ -155,7 +164,19 @@ export function TranscribePage({
       </div>
 
       <div className="transcribe-content">
-        {error && <div className="transcribe-error">{error}</div>}
+        {error && (
+          <div className="transcribe-error">
+            <p>{error}</p>
+            {isApiKeyMissing && (
+              <button
+                className="transcribe-settings-link"
+                onClick={onNavigateSettings}
+              >
+                設定画面を開く
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ステップ1: ファイル選択 */}
         {step === 'select' && (
