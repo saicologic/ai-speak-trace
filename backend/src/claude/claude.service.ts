@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
-import { AnalysisResult } from './types/interview.types';
+import { AnalysisResult } from '../interview/types/interview.types';
 
 /** Claude API連携サービス */
 @Injectable()
@@ -221,5 +221,94 @@ ${targetList}
 
     this.logger.log(`文脈分析完了: ${parsed.length}件`);
     return parsed;
+  }
+
+  /** テキストをWeb検索で調査し、Markdown形式で回答を返す */
+  async searchAndAnalyze(
+    keywords: string[],
+    context: string,
+  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+    const prompt = `以下のキーワードと文脈に基づいて、Web検索で調査し回答してください。
+
+## キーワード
+${keywords.map((kw) => `- ${kw}`).join('\n')}
+
+## 文脈
+${context}
+
+## 回答形式
+- Markdown形式で回答してください
+- 調査結果を簡潔にまとめてください（300〜500文字程度）`;
+
+    const response = await this.client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4096,
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 3,
+        },
+      ],
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    let answer = '';
+    const sources: { title: string; url: string }[] = [];
+
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        answer += block.text;
+      }
+      if (block.type === 'web_search_tool_result') {
+        for (const searchResult of (block as any).content || []) {
+          if (searchResult.type === 'web_search_result') {
+            sources.push({
+              title: searchResult.title || searchResult.url,
+              url: searchResult.url,
+            });
+          }
+        }
+      }
+    }
+
+    return { answer, sources };
+  }
+
+  /** 検索結果をまとめて分析 */
+  async analyzeSearchResults(
+    keywords: string[],
+    results: { sourceType: string; sourceName: string; text: string }[],
+  ): Promise<string> {
+    const resultsText = results
+      .map(
+        (r, i) =>
+          `[${i + 1}] (${r.sourceType}) ${r.sourceName}\n${r.text}`,
+      )
+      .join('\n\n');
+
+    const prompt = `以下のキーワードに関連する検索結果を分析し、総合的なレポートを作成してください。
+
+## キーワード
+${keywords.map((kw) => `- ${kw}`).join('\n')}
+
+## 検索結果
+${resultsText}
+
+## 指示
+- 各ソース（会話、PDF、Web）の情報を総合してまとめてください
+- 会話での議論内容とPDF資料の情報がどう関連するかを分析してください
+- Markdown形式で構造化して出力してください
+- 重要なポイントを箇条書きでまとめてください`;
+
+    const response = await this.client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    return response.content[0].type === 'text'
+      ? response.content[0].text
+      : '';
   }
 }

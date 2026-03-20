@@ -1,0 +1,733 @@
+.deepsearch-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.deepsearch-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.deepsearch-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.deepsearch-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.deepsearch-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.deepsearch-content {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+.deepsearch-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.deepsearch-section {
+  margin-bottom: 2rem;
+}
+
+.deepsearch-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #1f2937;
+}
+
+.deepsearch-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+}
+
+.deepsearch-empty {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+/* 会話選択リスト */
+.deepsearch-transcription-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.deepsearch-transcription-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.deepsearch-toggle-all {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #6b7280;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deepsearch-toggle-all:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.deepsearch-transcription-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.deepsearch-transcription-item:last-child {
+  border-bottom: none;
+}
+
+.deepsearch-transcription-item:hover {
+  background-color: #f9fafb;
+}
+
+.deepsearch-transcription-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.deepsearch-transcription-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.deepsearch-transcription-name {
+  font-size: 0.85rem;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deepsearch-transcription-date {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* キーワード入力 */
+.deepsearch-keyword-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.deepsearch-keyword-input input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: #ffffff;
+}
+
+.deepsearch-keyword-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.deepsearch-keyword-add {
+  padding: 0.5rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #f3f4f6;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.deepsearch-keyword-add:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.deepsearch-keyword-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.deepsearch-keyword-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.deepsearch-keyword-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  background-color: #fef9c3;
+  border: 1px solid #facc15;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #92400e;
+}
+
+.deepsearch-keyword-remove {
+  border: none;
+  background: none;
+  color: #92400e;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.deepsearch-keyword-remove:hover {
+  opacity: 1;
+}
+
+/* 検索オプション */
+.deepsearch-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deepsearch-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.deepsearch-option input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.deepsearch-option-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.deepsearch-option-badge.conversation {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+/* キーワードサジェスト */
+.deepsearch-suggestions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.deepsearch-suggestions-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.deepsearch-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed #93c5fd;
+  border-radius: 16px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deepsearch-suggestion-chip:hover:not(:disabled) {
+  background-color: #dbeafe;
+  border-color: #3b82f6;
+  border-style: solid;
+}
+
+.deepsearch-suggestion-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.deepsearch-suggestion-count {
+  font-size: 0.65rem;
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.deepsearch-option-badge.pdf {
+  background-color: #fce7f3;
+  color: #9d174d;
+}
+
+/* PDFドキュメント管理 */
+.deepsearch-pdf-header {
+  margin-bottom: 0.5rem;
+}
+
+.deepsearch-pdf-header h2 {
+  margin-bottom: 0;
+}
+
+.deepsearch-pdf-content {
+  margin-top: 0.5rem;
+}
+
+.deepsearch-pdf-upload {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.deepsearch-pdf-upload-button {
+  padding: 0.4rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #374151;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deepsearch-pdf-upload-button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.deepsearch-pdf-upload-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.deepsearch-pdf-reload-button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #f9fafb;
+  color: #6b7280;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deepsearch-pdf-reload-button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.deepsearch-pdf-reload-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.deepsearch-pdf-error {
+  font-size: 0.75rem;
+  color: #991b1b;
+  background-color: #fef2f2;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  margin-bottom: 0.75rem;
+}
+
+.deepsearch-pdf-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.deepsearch-pdf-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.deepsearch-pdf-item:last-child {
+  border-bottom: none;
+}
+
+.deepsearch-pdf-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.deepsearch-pdf-name {
+  font-size: 0.8rem;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deepsearch-pdf-status {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.deepsearch-pdf-status-processing {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.deepsearch-pdf-status-searchable {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.deepsearch-pdf-status-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.deepsearch-pdf-status-uploading {
+  background-color: #e0e7ff;
+  color: #3730a3;
+}
+
+.deepsearch-pdf-delete {
+  padding: 0.15rem 0.4rem;
+  border: none;
+  background: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.deepsearch-pdf-delete:hover {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* 検索ボタン・アクション */
+.deepsearch-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.deepsearch-button {
+  padding: 0.6rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deepsearch-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.deepsearch-button.primary {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.deepsearch-button.primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+/* ローディング */
+.deepsearch-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 2rem;
+  color: #6b7280;
+}
+
+.deepsearch-loading p {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.deepsearch-loading-hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
+}
+
+/* 検索結果グループ */
+.deepsearch-result-group {
+  margin-bottom: 1.5rem;
+}
+
+.deepsearch-result-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #1f2937;
+}
+
+.deepsearch-result-group-count {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.deepsearch-source-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.deepsearch-source-badge.conversation {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.deepsearch-source-badge.pdf {
+  background-color: #fce7f3;
+  color: #9d174d;
+}
+
+.deepsearch-source-badge.web {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+/* 検索結果カード */
+.deepsearch-result-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deepsearch-result-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.deepsearch-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.deepsearch-result-source {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.deepsearch-result-speaker {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  background-color: #eff6ff;
+  color: #3b82f6;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.deepsearch-result-score {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  background-color: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.deepsearch-result-text {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #374151;
+  margin: 0;
+}
+
+.deepsearch-result-url {
+  display: block;
+  font-size: 0.7rem;
+  color: #3b82f6;
+  text-decoration: none;
+  margin-top: 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deepsearch-result-url:hover {
+  text-decoration: underline;
+}
+
+/* 分析結果 */
+.deepsearch-analysis-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.deepsearch-analysis-content {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #374151;
+}
+
+.deepsearch-analysis-content p {
+  margin: 0.5rem 0;
+}
+
+.deepsearch-analysis-content p:first-child {
+  margin-top: 0;
+}
+
+.deepsearch-analysis-content p:last-child {
+  margin-bottom: 0;
+}
+
+.deepsearch-analysis-content h1,
+.deepsearch-analysis-content h2,
+.deepsearch-analysis-content h3,
+.deepsearch-analysis-content h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 1rem 0 0.5rem;
+}
+
+.deepsearch-analysis-content h1:first-child,
+.deepsearch-analysis-content h2:first-child,
+.deepsearch-analysis-content h3:first-child {
+  margin-top: 0;
+}
+
+.deepsearch-analysis-content ul,
+.deepsearch-analysis-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.deepsearch-analysis-content li {
+  margin-bottom: 0.25rem;
+}
+
+.deepsearch-analysis-content strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.deepsearch-analysis-content a {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.deepsearch-analysis-content a:hover {
+  text-decoration: underline;
+}
+
+.deepsearch-analysis-content blockquote {
+  margin: 0.5rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid #e5e7eb;
+  background-color: #f9fafb;
+  color: #6b7280;
+}
+
+.deepsearch-analysis-content code {
+  font-size: 0.85em;
+  background-color: #f3f4f6;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.deepsearch-analysis-content pre {
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.deepsearch-analysis-content pre code {
+  background-color: transparent;
+  padding: 0;
+}

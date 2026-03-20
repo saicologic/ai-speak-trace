@@ -1,6 +1,9 @@
 import type {
   AudioFileInfo,
   ContextAnalysisResponse,
+  DeepSearchAnalysis,
+  DeepSearchResponse,
+  DocumentInfo,
   InterviewAnalysis,
   Transcription,
   TranscriptionSummary,
@@ -223,4 +226,90 @@ export async function analyzeUtteranceContext(
   }
   const data = await res.json();
   return data.analysis;
+}
+
+// === PDFドキュメント管理 ===
+
+/** PDFドキュメント一覧を取得 */
+export async function fetchDocuments(): Promise<DocumentInfo[]> {
+  const res = await fetch(`${BASE_URL}/documents`);
+  if (!res.ok) {
+    throw new Error(`ドキュメント一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.documents;
+}
+
+/** PDFをアップロード */
+export async function uploadDocument(file: File): Promise<DocumentInfo> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE_URL}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`PDFのアップロードに失敗しました: ${res.status} ${body}`);
+  }
+  const data = await res.json();
+  return data.document;
+}
+
+/** ドキュメントの処理ステータスを取得 */
+export async function fetchDocumentStatus(
+  id: string,
+): Promise<DocumentInfo> {
+  const res = await fetch(`${BASE_URL}/documents/${id}/status`);
+  if (!res.ok) {
+    throw new Error(`ステータスの取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.document;
+}
+
+/** ドキュメントを削除 */
+export async function deleteDocument(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/documents/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`ドキュメントの削除に失敗しました: ${res.status}`);
+  }
+}
+
+// === ディープサーチ ===
+
+/** ディープサーチ実行 */
+export async function deepSearch(
+  keywords: string[],
+  transcriptionIds: string[],
+  includePdfs: boolean,
+  includeWeb: boolean,
+): Promise<DeepSearchResponse> {
+  const res = await fetch(`${BASE_URL}/deep-search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords, transcriptionIds, includePdfs, includeWeb }),
+  });
+  if (!res.ok) {
+    throw new Error(`ディープサーチに失敗しました: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** ディープサーチ結果をClaude分析 */
+export async function analyzeDeepSearchResults(
+  keywords: string[],
+  results: { sourceType: string; sourceName: string; text: string; url?: string }[],
+): Promise<DeepSearchAnalysis> {
+  const res = await fetch(`${BASE_URL}/deep-search/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords, results }),
+  });
+  if (!res.ok) {
+    throw new Error(`分析に失敗しました: ${res.status}`);
+  }
+  return res.json();
 }

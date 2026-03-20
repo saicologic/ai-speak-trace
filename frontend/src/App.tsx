@@ -6,6 +6,7 @@ import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
+import { DeepSearchPage } from './components/DeepSearchPage';
 import { ContextAnalysisModal } from './components/ContextAnalysisModal';
 import {
   transcribeAudio,
@@ -17,7 +18,7 @@ import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
 type SidebarTab = 'audio' | 'history';
-type Page = 'main' | 'interview';
+type Page = 'main' | 'interview' | 'deep-search';
 
 function App() {
   const [transcription, setTranscription] = useState<Transcription | null>(
@@ -165,6 +166,17 @@ function App() {
     );
   }
 
+  /** ディープサーチページの場合 */
+  if (page === 'deep-search') {
+    return (
+      <DeepSearchPage
+        initialTranscriptionId={transcription?.id}
+        initialKeywords={Array.from(highlightedKeywords)}
+        onBack={() => setPage('main')}
+      />
+    );
+  }
+
   return (
     <div className="app">
       {quotaError && (
@@ -278,6 +290,7 @@ function App() {
               filterActive={filterActive}
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateInterview={() => setPage('interview')}
+              onNavigateDeepSearch={() => setPage('deep-search')}
               onToggleContextMode={toggleContextMode}
               contextSelectMode={contextSelectMode}
             />

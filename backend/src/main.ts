@@ -20,7 +20,7 @@ async function bootstrap() {
         callback(new Error(`CORS not allowed: ${origin}`));
       }
     },
-    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   });
 
