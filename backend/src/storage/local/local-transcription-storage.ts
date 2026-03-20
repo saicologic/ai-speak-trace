@@ -13,9 +13,10 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
   private readonly storeDir: string;
 
   constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.storeDir = path.resolve(
       this.configService.get<string>('TRANSCRIPTIONS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'transcriptions'),
+        path.join(dataDir, 'transcriptions'),
     );
 
     if (!existsSync(this.storeDir)) {

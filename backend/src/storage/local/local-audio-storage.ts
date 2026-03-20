@@ -20,9 +20,10 @@ export class LocalAudioStorage implements AudioStorage {
   private readonly baseDir: string;
 
   constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.baseDir = path.resolve(
       this.configService.get<string>('OUTPUTS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'outputs'),
+        path.join(dataDir, 'outputs'),
     );
     this.logger.log(`音声ファイルディレクトリ: ${this.baseDir}`);
   }

@@ -9,6 +9,7 @@ import { TranscriptionModule } from './transcription/transcription.module';
 import { InterviewModule } from './interview/interview.module';
 import { DocumentModule } from './document/document.module';
 import { DeepSearchModule } from './deep-search/deep-search.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -27,9 +28,10 @@ import { DeepSearchModule } from './deep-search/deep-search.module';
         if (storageType === 's3') {
           return [];
         }
+        const dataDir = configService.get<string>('DATA_DIR') || './data';
         const outputsDir = resolve(
           configService.get<string>('OUTPUTS_DIR') ||
-            './data/outputs',
+            `${dataDir}/outputs`,
         );
         return [{ rootPath: outputsDir, serveRoot: '/outputs' }];
       },
@@ -39,6 +41,7 @@ import { DeepSearchModule } from './deep-search/deep-search.module';
     InterviewModule,
     DocumentModule,
     DeepSearchModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

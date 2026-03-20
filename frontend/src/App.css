@@ -239,3 +239,27 @@
   background-color: #7c3aed;
   box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
 }
+
+/* 設定ボタン（サイドバー下部） */
+.sidebar-settings {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sidebar-settings-button {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  color: #6b7280;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sidebar-settings-button:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}

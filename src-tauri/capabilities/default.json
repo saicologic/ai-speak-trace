@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "デフォルトパーミッション",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-spawn",
+    "shell:allow-execute",
+    "shell:default"
+  ]
+}

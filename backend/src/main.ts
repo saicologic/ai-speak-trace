@@ -1,5 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { SettingsService } from './settings/settings.service';
+
+// NestJS 起動前に settings.json の値を process.env にマージ
+SettingsService.loadSettingsIntoEnv();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -7,7 +11,7 @@ async function bootstrap() {
   // CORSを設定（CORS_ORIGIN環境変数でカンマ区切りで複数オリジン指定可能）
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-    : ['http://localhost:5173'];
+    : ['http://localhost:5173', 'tauri://localhost'];
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || corsOrigins.includes(origin)) {

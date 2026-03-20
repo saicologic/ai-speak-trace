@@ -1,4 +1,5 @@
 import type {
+  AppSettings,
   AudioFileInfo,
   ContextAnalysisResponse,
   DeepSearchAnalysis,
@@ -9,7 +10,11 @@ import type {
   TranscriptionSummary,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Tauri環境では直接localhost:3000のsidecarに接続、Web環境ではプロキシ経由
+const isTauri = !!(window as any).__TAURI_INTERNALS__;
+const BASE_URL = isTauri
+  ? 'http://localhost:3000/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
 
 /** 音声ファイル一覧を取得 */
 export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
@@ -310,6 +315,33 @@ export async function analyzeDeepSearchResults(
   });
   if (!res.ok) {
     throw new Error(`分析に失敗しました: ${res.status}`);
+  }
+  return res.json();
+}
+
+// === 設定 ===
+
+/** アプリ設定を取得 */
+export async function fetchSettings(): Promise<AppSettings> {
+  const res = await fetch(`${BASE_URL}/settings`);
+  if (!res.ok) {
+    throw new Error(`設定の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.settings;
+}
+
+/** アプリ設定を更新 */
+export async function updateSettings(
+  dto: { dataDir?: string },
+): Promise<{ settings: AppSettings; restartRequired: boolean }> {
+  const res = await fetch(`${BASE_URL}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  if (!res.ok) {
+    throw new Error(`設定の更新に失敗しました: ${res.status}`);
   }
   return res.json();
 }

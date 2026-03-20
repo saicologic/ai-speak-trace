@@ -1,1 +1,5 @@
 .env*.local
+
+# Tauri
+src-tauri/target/
+src-tauri/binaries/nestjs-server*
