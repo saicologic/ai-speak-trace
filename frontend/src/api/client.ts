@@ -13,10 +13,37 @@ import type {
 // Tauriデスクトップアプリ: sidecarのバックエンドに直接接続
 const BASE_URL = 'http://localhost:3000/api';
 
+// リトライ設定（sidecar起動待ち用）
+const RETRY_MAX = 5;
+const RETRY_INITIAL_DELAY_MS = 500;
+
+/** ネットワークエラー時にリトライ付きでfetchを実行する */
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < RETRY_MAX; attempt++) {
+    try {
+      return await fetch(input, init);
+    } catch (err) {
+      lastError = err;
+      // ネットワークエラー（サーバー未起動など）の場合のみリトライ
+      const delay = RETRY_INITIAL_DELAY_MS * 2 ** attempt;
+      console.warn(
+        `[API] 接続失敗 (${attempt + 1}/${RETRY_MAX}), ${delay}ms後にリトライ:`,
+        err,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
 /** 音声ファイル一覧を取得 */
 export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
   console.log('[API] fetchAudioFiles:', `${BASE_URL}/audio-files`);
-  const res = await fetch(`${BASE_URL}/audio-files`);
+  const res = await fetchWithRetry(`${BASE_URL}/audio-files`);
   console.log('[API] fetchAudioFiles status:', res.status);
   if (!res.ok) {
     const body = await res.text();
@@ -103,23 +130,11 @@ export async function transcribeAudio(
   const url = `${BASE_URL}/transcribe`;
   console.log('[API] transcribeAudio 開始:', { url, fileName });
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName }),
-    });
-  } catch (fetchError) {
-    // ネットワークエラー（接続拒否、タイムアウト、CORSなど）
-    const detail = fetchError instanceof Error
-      ? `${fetchError.name}: ${fetchError.message}`
-      : String(fetchError);
-    console.error('[API] transcribeAudio ネットワークエラー:', detail, fetchError);
-    throw new Error(
-      `文字起こしリクエストの送信に失敗しました（サーバーに接続できません）: ${detail}`,
-    );
-  }
+  const res = await fetchWithRetry(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName }),
+  });
 
   console.log('[API] transcribeAudio レスポンス:', { status: res.status, statusText: res.statusText });
 
@@ -142,11 +157,20 @@ export async function transcribeAudio(
 
 /** 文字起こし一覧を取得 */
 export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
-  const res = await fetch(`${BASE_URL}/transcriptions`);
+  const url = `${BASE_URL}/transcriptions`;
+  console.log('[API] fetchTranscriptions 開始:', url);
+
+  const res = await fetchWithRetry(url);
+
+  console.log('[API] fetchTranscriptions レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
-    throw new Error(`文字起こし一覧の取得に失敗しました: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    console.error('[API] fetchTranscriptions エラーレスポンス:', { status: res.status, body });
+    throw new Error(`文字起こし一覧の取得に失敗しました: ${res.status} ${body}`);
   }
   const data = await res.json();
+  console.log('[API] fetchTranscriptions 完了:', { count: data.transcriptions?.length });
   return data.transcriptions;
 }
 
@@ -154,11 +178,20 @@ export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
 export async function fetchTranscription(
   id: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcriptions/${id}`);
+  const url = `${BASE_URL}/transcriptions/${id}`;
+  console.log('[API] fetchTranscription 開始:', { url, id });
+
+  const res = await fetchWithRetry(url);
+
+  console.log('[API] fetchTranscription レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
-    throw new Error(`文字起こし結果の取得に失敗しました: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    console.error('[API] fetchTranscription エラーレスポンス:', { status: res.status, body });
+    throw new Error(`文字起こし結果の取得に失敗しました: ${res.status} ${body}`);
   }
   const data = await res.json();
+  console.log('[API] fetchTranscription 完了:', { id: data.transcription?.id });
   return data.transcription;
 }
 
@@ -352,7 +385,7 @@ export async function fetchPodcastFiles(): Promise<{
   exists: boolean;
   files: PodcastFileInfo[];
 }> {
-  const res = await fetch(`${BASE_URL}/podcast-files`);
+  const res = await fetchWithRetry(`${BASE_URL}/podcast-files`);
   if (!res.ok) {
     throw new Error(`Podcastファイル一覧の取得に失敗しました: ${res.status}`);
   }
@@ -392,7 +425,7 @@ export async function transcribePodcastFile(
 
 /** アプリ設定を取得 */
 export async function fetchSettings(): Promise<AppSettings> {
-  const res = await fetch(`${BASE_URL}/settings`);
+  const res = await fetchWithRetry(`${BASE_URL}/settings`);
   if (!res.ok) {
     throw new Error(`設定の取得に失敗しました: ${res.status}`);
   }

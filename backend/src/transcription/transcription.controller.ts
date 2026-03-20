@@ -97,17 +97,35 @@ export class TranscriptionController {
   /** 文字起こし一覧取得: GET /api/transcriptions */
   @Get('transcriptions')
   async getTranscriptions() {
-    const transcriptions =
-      await this.transcriptionService.getTranscriptions();
-    return { transcriptions };
+    console.log('[transcriptions] 一覧取得リクエスト受信');
+    try {
+      const transcriptions =
+        await this.transcriptionService.getTranscriptions();
+      console.log('[transcriptions] 一覧取得完了:', transcriptions.length, '件');
+      return { transcriptions };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : '';
+      console.error('[transcriptions] 一覧取得エラー:', { message: errMsg, stack: errStack });
+      throw error;
+    }
   }
 
   /** 文字起こし結果取得: GET /api/transcriptions/:id */
   @Get('transcriptions/:id')
   async getTranscription(@Param('id') id: string) {
-    const transcription =
-      await this.transcriptionService.getTranscription(id);
-    return { transcription };
+    console.log('[transcriptions] 個別取得リクエスト受信: id=', id);
+    try {
+      const transcription =
+        await this.transcriptionService.getTranscription(id);
+      console.log('[transcriptions] 個別取得完了: id=', id);
+      return { transcription };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : '';
+      console.error('[transcriptions] 個別取得エラー:', { id, message: errMsg, stack: errStack });
+      throw error;
+    }
   }
 
   /** 話者名更新: PATCH /api/transcriptions/:id/speakers */

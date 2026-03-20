@@ -116,8 +116,10 @@ export class TranscriptionService {
   async getTranscriptions(): Promise<
     Pick<Transcription, 'id' | 'audioFileName' | 'createdAt'>[]
   > {
+    this.logger.log('getTranscriptions 開始');
     const all = await this.store.findAll();
-    return all
+    this.logger.log(`getTranscriptions: store.findAll() から ${all.length} 件取得`);
+    const result = all
       .map((t) => ({
         id: t.id,
         audioFileName: t.audioFileName,
@@ -127,6 +129,8 @@ export class TranscriptionService {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
+    this.logger.log(`getTranscriptions 完了: ${result.length} 件返却`);
+    return result;
   }
 
   /** 文字起こし結果をIDで取得 */
