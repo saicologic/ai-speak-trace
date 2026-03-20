@@ -9,6 +9,7 @@ interface Props {
   filterActive: boolean;
   onToggleFilter: () => void;
   onNavigateInterview?: () => void;
+  onNavigateDeepSearch?: () => void;
   onToggleContextMode?: () => void;
   contextSelectMode?: boolean;
 }
@@ -21,6 +22,7 @@ export function KeywordList({
   filterActive,
   onToggleFilter,
   onNavigateInterview,
+  onNavigateDeepSearch,
   onToggleContextMode,
   contextSelectMode,
 }: Props) {
@@ -49,6 +51,14 @@ export function KeywordList({
           onClick={onNavigateInterview}
         >
           会話分析
+        </button>
+      )}
+      {onNavigateDeepSearch && (
+        <button
+          className="keyword-deepsearch-button"
+          onClick={onNavigateDeepSearch}
+        >
+          ディープサーチ
         </button>
       )}
       {onToggleContextMode && (

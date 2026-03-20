@@ -93,3 +93,43 @@ export interface ContextAnalysisResponse {
   transcriptionId: string;
   results: UtteranceContextResult[];
 }
+
+/** PDFドキュメント情報 */
+export interface DocumentInfo {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  status: 'uploading' | 'processing' | 'searchable' | 'error';
+  chunkCount: number;
+  errorMessage?: string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+/** 検索ソース種類 */
+export type SearchSourceType = 'conversation' | 'pdf' | 'web';
+
+/** ディープサーチ結果アイテム */
+export interface DeepSearchResultItem {
+  sourceType: SearchSourceType;
+  sourceName: string;
+  sourceId: string;
+  text: string;
+  score?: number;
+  speakerName?: string;
+  url?: string;
+}
+
+/** ディープサーチレスポンス */
+export interface DeepSearchResponse {
+  keywords: string[];
+  results: DeepSearchResultItem[];
+  searchedAt: string;
+}
+
+/** ディープサーチ分析レスポンス */
+export interface DeepSearchAnalysis {
+  searchResults: DeepSearchResultItem[];
+  analysis: string;
+  analyzedAt: string;
+}

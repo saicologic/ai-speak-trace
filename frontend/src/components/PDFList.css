@@ -1,0 +1,135 @@
+.pdf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pdf-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pdf-list-header h2 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.pdf-list-upload {
+  margin-bottom: 0.5rem;
+}
+
+.pdf-list-error {
+  font-size: 0.75rem;
+  color: #991b1b;
+  background-color: #fef2f2;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+.pdf-list-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+}
+
+.pdf-list-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #ffffff;
+}
+
+.pdf-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-item-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-item-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.pdf-item-size {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.pdf-item-status {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.pdf-status-processing {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.pdf-status-searchable {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.pdf-status-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.pdf-status-uploading {
+  background-color: #e0e7ff;
+  color: #3730a3;
+}
+
+.pdf-item-error {
+  font-size: 0.65rem;
+  color: #991b1b;
+}
+
+.pdf-item-delete {
+  padding: 0.15rem 0.4rem;
+  border: none;
+  background: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.pdf-item-delete:hover {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.pdf-list-empty {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-align: center;
+  padding: 1rem;
+}

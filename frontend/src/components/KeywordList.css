@@ -22,6 +22,24 @@
   background-color: #2563eb;
 }
 
+.keyword-deepsearch-button {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: 2px solid #10b981;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #10b981;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.keyword-deepsearch-button:hover {
+  background-color: #ecfdf5;
+}
+
 .keyword-context-button {
   width: 100%;
   padding: 0.5rem;

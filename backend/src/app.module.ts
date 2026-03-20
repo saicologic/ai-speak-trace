@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { StorageModule } from './storage/storage.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { InterviewModule } from './interview/interview.module';
+import { DocumentModule } from './document/document.module';
+import { DeepSearchModule } from './deep-search/deep-search.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { InterviewModule } from './interview/interview.module';
     }),
     TranscriptionModule,
     InterviewModule,
+    DocumentModule,
+    DeepSearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

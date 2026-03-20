@@ -2,10 +2,13 @@ import { DynamicModule, Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AUDIO_STORAGE } from './interfaces/audio-storage.interface';
 import { TRANSCRIPTION_STORAGE } from './interfaces/transcription-storage.interface';
+import { DOCUMENT_STORAGE } from './interfaces/document-storage.interface';
 import { LocalAudioStorage } from './local/local-audio-storage';
 import { LocalTranscriptionStorage } from './local/local-transcription-storage';
+import { LocalDocumentStorage } from './local/local-document-storage';
 import { S3AudioStorage } from './s3/s3-audio-storage';
 import { S3TranscriptionStorage } from './s3/s3-transcription-storage';
+import { S3DocumentStorage } from './s3/s3-document-storage';
 
 /** S3モードに必要な環境変数を検証する */
 function validateS3Config(configService: ConfigService): void {
@@ -65,8 +68,23 @@ export class StorageModule {
           },
           inject: [ConfigService],
         },
+        {
+          provide: DOCUMENT_STORAGE,
+          useFactory: (configService: ConfigService) => {
+            const storageType = configService.get<string>(
+              'STORAGE_TYPE',
+              'local',
+            );
+            if (storageType === 's3') {
+              validateS3Config(configService);
+              return new S3DocumentStorage(configService);
+            }
+            return new LocalDocumentStorage(configService);
+          },
+          inject: [ConfigService],
+        },
       ],
-      exports: [AUDIO_STORAGE, TRANSCRIPTION_STORAGE],
+      exports: [AUDIO_STORAGE, TRANSCRIPTION_STORAGE, DOCUMENT_STORAGE],
     };
   }
 }
