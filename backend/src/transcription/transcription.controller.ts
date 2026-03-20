@@ -44,13 +44,16 @@ export class TranscriptionController {
   @Post('audio-files')
   @UseInterceptors(FileInterceptor('file'))
   async uploadAudioFile(@UploadedFile() file: Express.Multer.File) {
+    console.log('[upload] リクエスト受信', file ? `size=${file.size}, name=${file.originalname}` : 'file=null');
     if (!file) {
       throw new BadRequestException('ファイルが指定されていません');
     }
     // Multerはファイル名をlatin1でデコードするため、日本語ファイル名が文字化けする
     // latin1 → utf8に再変換して正しいファイル名を復元する
     const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    console.log('[upload] 保存開始:', fileName);
     await this.transcriptionService.uploadAudioFile(fileName, file.buffer);
+    console.log('[upload] 保存完了:', fileName);
     return { fileName };
   }
 
@@ -64,12 +67,23 @@ export class TranscriptionController {
   /** 文字起こし実行: POST /api/transcribe */
   @Post('transcribe')
   async transcribe(@Body() dto: TranscribeRequestDto) {
+    console.log('[transcribe] リクエスト受信:', dto.fileName);
     try {
       const transcription = await this.transcriptionService.transcribe(
         dto.fileName,
       );
+      console.log('[transcribe] 完了:', dto.fileName);
       return { transcription };
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : '';
+      const errName = error instanceof Error ? error.name : 'Unknown';
+      console.error('[transcribe] エラー詳細:', {
+        name: errName,
+        message: errMsg,
+        stack: errStack,
+        fileName: dto.fileName,
+      });
       if (error instanceof Error && error.name === 'QuotaExceededError') {
         throw new HttpException(
           { code: 'QUOTA_EXCEEDED', message: error.message },

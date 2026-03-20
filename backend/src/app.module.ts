@@ -10,6 +10,7 @@ import { InterviewModule } from './interview/interview.module';
 import { DocumentModule } from './document/document.module';
 import { DeepSearchModule } from './deep-search/deep-search.module';
 import { SettingsModule } from './settings/settings.module';
+import { PodcastModule } from './podcast/podcast.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SettingsModule } from './settings/settings.module';
     DocumentModule,
     DeepSearchModule,
     SettingsModule,
+    PodcastModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -66,6 +66,7 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
+    await fs.mkdir(this.baseDir, { recursive: true });
     await fs.writeFile(path.join(this.baseDir, fileName), buffer);
     this.logger.log(`音声ファイル保存完了: ${fileName}`);
   }

@@ -11,6 +11,6 @@ import { TranscriptionStoreService } from './transcription-store.service';
     ElevenLabsService,
     TranscriptionStoreService,
   ],
-  exports: [TranscriptionStoreService],
+  exports: [TranscriptionStoreService, TranscriptionService],
 })
 export class TranscriptionModule {}

@@ -10,11 +10,8 @@ import type {
   TranscriptionSummary,
 } from '../types';
 
-// Tauri環境では直接localhost:3000のsidecarに接続、Web環境ではプロキシ経由
-const isTauri = !!(window as any).__TAURI_INTERNALS__;
-const BASE_URL = isTauri
-  ? 'http://localhost:3000/api'
-  : (import.meta.env.VITE_API_BASE_URL || '/api');
+// Tauriデスクトップアプリ: sidecarのバックエンドに直接接続
+const BASE_URL = 'http://localhost:3000/api';
 
 /** 音声ファイル一覧を取得 */
 export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
@@ -103,21 +100,43 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
 export async function transcribeAudio(
   fileName: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName }),
-  });
+  const url = `${BASE_URL}/transcribe`;
+  console.log('[API] transcribeAudio 開始:', { url, fileName });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName }),
+    });
+  } catch (fetchError) {
+    // ネットワークエラー（接続拒否、タイムアウト、CORSなど）
+    const detail = fetchError instanceof Error
+      ? `${fetchError.name}: ${fetchError.message}`
+      : String(fetchError);
+    console.error('[API] transcribeAudio ネットワークエラー:', detail, fetchError);
+    throw new Error(
+      `文字起こしリクエストの送信に失敗しました（サーバーに接続できません）: ${detail}`,
+    );
+  }
+
+  console.log('[API] transcribeAudio レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
     const body = await res.json().catch(() => null);
+    const bodyText = await res.text().catch(() => '');
+    console.error('[API] transcribeAudio エラーレスポンス:', { status: res.status, body, bodyText });
     if (body?.code === 'QUOTA_EXCEEDED') {
       const error = new Error(body.message);
       error.name = 'QuotaExceededError';
       throw error;
     }
-    throw new Error(`文字起こしに失敗しました: ${res.status}`);
+    const serverMessage = body?.message || bodyText || res.statusText;
+    throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }
   const data = await res.json();
+  console.log('[API] transcribeAudio 完了:', { id: data.transcription?.id });
   return data.transcription;
 }
 
@@ -317,6 +336,56 @@ export async function analyzeDeepSearchResults(
     throw new Error(`分析に失敗しました: ${res.status}`);
   }
   return res.json();
+}
+
+// === Podcastファイル ===
+
+/** Podcastキャッシュファイル情報 */
+export interface PodcastFileInfo {
+  fileName: string;
+  sizeBytes: number;
+  lastModified: string;
+}
+
+/** Podcastキャッシュファイル一覧を取得 */
+export async function fetchPodcastFiles(): Promise<{
+  exists: boolean;
+  files: PodcastFileInfo[];
+}> {
+  const res = await fetch(`${BASE_URL}/podcast-files`);
+  if (!res.ok) {
+    throw new Error(`Podcastファイル一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  console.log('[API] fetchPodcastFiles:', data);
+  return data;
+}
+
+/** Podcastファイルのストリーミング再生URLを取得 */
+export function getPodcastFileStreamUrl(fileName: string): string {
+  return `${BASE_URL}/podcast-files/${encodeURIComponent(fileName)}/stream`;
+}
+
+/** Podcastファイルを文字起こし */
+export async function transcribePodcastFile(
+  fileName: string,
+): Promise<Transcription> {
+  const res = await fetch(`${BASE_URL}/podcast-transcribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (body?.code === 'QUOTA_EXCEEDED') {
+      const error = new Error(body.message);
+      error.name = 'QuotaExceededError';
+      throw error;
+    }
+    throw new Error(`Podcast文字起こしに失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.transcription;
 }
 
 // === 設定 ===

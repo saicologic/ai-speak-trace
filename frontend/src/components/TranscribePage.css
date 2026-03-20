@@ -1,0 +1,266 @@
+.transcribe-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.transcribe-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.transcribe-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.transcribe-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.transcribe-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.transcribe-content {
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+.transcribe-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+/* セクション */
+.transcribe-section {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.transcribe-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+}
+
+/* ファイル選択ボタン */
+.transcribe-select-button {
+  width: 100%;
+  padding: 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #374151;
+  background-color: #fafbfc;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 0.75rem;
+}
+
+.transcribe-select-button:hover {
+  border-color: #93c5fd;
+  background-color: #eff6ff;
+  color: #1f2937;
+}
+
+.transcribe-formats {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+/* ファイル情報 */
+.transcribe-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.transcribe-file-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #166534;
+  word-break: break-all;
+}
+
+.transcribe-file-change {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.transcribe-file-change:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+/* プレビュー用オーディオプレイヤー */
+.transcribe-preview-player {
+  margin-bottom: 1rem;
+}
+
+.transcribe-preview-player audio {
+  width: 100%;
+}
+
+/* 文字起こし実行ボタン */
+.transcribe-start-button {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.transcribe-start-button:hover {
+  background-color: #2563eb;
+}
+
+/* 処理中 */
+.transcribe-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1rem;
+}
+
+.transcribe-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: transcribe-spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes transcribe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.transcribe-processing-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.transcribe-processing-hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+/* 完了 */
+.transcribe-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+.transcribe-done-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.transcribe-done-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #166534;
+  margin-bottom: 0.25rem;
+}
+
+.transcribe-done-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.transcribe-done-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.transcribe-back-to-main {
+  padding: 0.6rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: #1a1a2e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.transcribe-back-to-main:hover {
+  background-color: #2d2d4e;
+}
+
+.transcribe-another {
+  padding: 0.6rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.transcribe-another:hover {
+  background-color: #f3f4f6;
+}

@@ -15,7 +15,8 @@
         "title": "AI Speak Trace",
         "width": 1200,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled": false
       }
     ]
   },

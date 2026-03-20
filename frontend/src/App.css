@@ -68,6 +68,25 @@
   color: #ffffff;
 }
 
+/* 文字起こしアクションボタン */
+.sidebar-tab-action {
+  background-color: #3b82f6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-tab-action:hover {
+  background-color: #2563eb;
+}
+
+/* サイドバーセクションタイトル */
+.sidebar-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
 .app-content {
   flex: 1;
   overflow: hidden;

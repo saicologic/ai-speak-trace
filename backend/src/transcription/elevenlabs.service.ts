@@ -37,13 +37,24 @@ export class ElevenLabsService {
     form.append('timestamps_granularity', 'word');
     form.append('tag_audio_events', 'true');
 
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': this.apiKey,
-      },
-      body: form,
-    });
+    let response: Response;
+    try {
+      this.logger.log(`ElevenLabs APIリクエスト送信: ${this.apiUrl}`);
+      response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': this.apiKey,
+        },
+        body: form,
+      });
+      this.logger.log(`ElevenLabs APIレスポンス受信: status=${response.status}`);
+    } catch (fetchError) {
+      const detail = fetchError instanceof Error
+        ? `${fetchError.name}: ${fetchError.message}`
+        : String(fetchError);
+      this.logger.error(`ElevenLabs API 通信エラー: ${detail}`, fetchError instanceof Error ? fetchError.stack : '');
+      throw new Error(`ElevenLabs APIへの接続に失敗しました: ${detail}`);
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();

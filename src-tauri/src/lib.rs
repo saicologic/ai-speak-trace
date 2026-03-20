@@ -10,6 +10,8 @@ struct SidecarState(Mutex<Option<CommandChild>>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
             // データ保存先ディレクトリを決定
@@ -27,11 +29,28 @@ pub fn run() {
 
             // sidecar（NestJSサーバー）を環境変数付きで起動
             let shell = app.shell();
+            // ~/Library/Application Support/... から ~ を逆算
+            let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
+                // app_data_dir = /Users/<user>/Library/Application Support/<bundle_id>
+                app_data_dir
+                    .ancestors()
+                    .find(|p| *p != std::path::Path::new("/") && p.join("Library").exists())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            });
+
+            // Podcastキャッシュフォルダのパスを明示的に渡す
+            let podcast_cache_dir = std::path::PathBuf::from(&home_dir)
+                .join("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache");
+            println!("[tauri] PODCAST_CACHE_DIR={}", podcast_cache_dir.display());
+
             let sidecar = shell
                 .sidecar("nestjs-server")
                 .expect("nestjs-server sidecar バイナリが見つかりません")
+                .env("HOME", &home_dir)
                 .env("DATA_DIR", data_dir.to_string_lossy().to_string())
-                .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string());
+                .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
+                .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
 
             let (mut rx, child) = sidecar
                 .spawn()
