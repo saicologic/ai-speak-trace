@@ -4,17 +4,13 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORSを設定（CORS_ORIGIN環境変数でカンマ区切りで複数オリジン指定可能、*.vercel.appも許可）
+  // CORSを設定（CORS_ORIGIN環境変数でカンマ区切りで複数オリジン指定可能）
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
     : ['http://localhost:5173'];
   app.enableCors({
     origin: (origin, callback) => {
-      if (
-        !origin ||
-        corsOrigins.includes(origin) ||
-        /\.vercel\.app$/.test(origin)
-      ) {
+      if (!origin || corsOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS not allowed: ${origin}`));
