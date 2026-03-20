@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
 import { SettingsService } from './settings.service';
+import { exec } from 'child_process';
 
 @Controller('settings')
 export class SettingsController {
@@ -22,5 +23,14 @@ export class SettingsController {
     },
   ) {
     return this.settingsService.updateSettings(dto);
+  }
+
+  /** データフォルダをFinderで開く */
+  @Post('open-folder')
+  openFolder() {
+    const settings = this.settingsService.getSettings();
+    const dataDir = settings.paths.dataDir;
+    exec(`open "${dataDir}"`);
+    return { ok: true };
   }
 }

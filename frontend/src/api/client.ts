@@ -443,6 +443,11 @@ export async function fetchSettings(): Promise<AppSettings> {
   return data.settings;
 }
 
+/** データフォルダをFinderで開く */
+export async function openDataFolder(): Promise<void> {
+  await fetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
+}
+
 /** アプリ設定を更新 */
 export async function updateSettings(
   dto: {

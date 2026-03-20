@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchSettings, updateSettings } from '../api/client';
+import { fetchSettings, updateSettings, openDataFolder } from '../api/client';
 import type { AppSettings } from '../types';
 import './SettingsPage.css';
 
@@ -13,7 +13,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [dataDir, setDataDir] = useState('');
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -31,7 +30,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       .then((s) => {
         if (cancelled) return;
         setSettings(s);
-        setDataDir(s.paths.dataDir);
         if (s.apiKeys?.elevenlabsApiKey) {
           setElevenlabsApiKey(s.apiKeys.elevenlabsApiKey);
         }
@@ -58,14 +56,10 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
     // 変更があった項目だけDTOに含める
     const dto: {
-      dataDir?: string;
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
     } = {};
 
-    if (settings && dataDir !== settings.paths.dataDir) {
-      dto.dataDir = dataDir;
-    }
     if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
       dto.elevenlabsApiKey = elevenlabsApiKey;
     }
@@ -92,17 +86,16 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   // 変更があるか判定
   const hasChanges = settings
-    ? dataDir !== settings.paths.dataDir ||
-      elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
+    ? elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
       anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '')
     : false;
 
-  // dataDirからサブディレクトリのパスを計算
+  // サブディレクトリ（相対パス表示）
   const subDirs = [
-    { label: '音声ファイル', path: `${dataDir}/outputs` },
-    { label: '文字起こし', path: `${dataDir}/transcriptions` },
-    { label: 'PDFドキュメント', path: `${dataDir}/documents` },
-    { label: 'メタデータ', path: `${dataDir}/document-metadata` },
+    { label: '音声ファイル', path: 'outputs/' },
+    { label: '文字起こし', path: 'transcriptions/' },
+    { label: 'PDFドキュメント', path: 'documents/' },
+    { label: 'メタデータ', path: 'document-metadata/' },
   ];
 
   return (
@@ -210,20 +203,19 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
             {/* データ保存先 */}
             <div className="settings-section">
-              <h2>データ保存先</h2>
+              <div className="settings-section-header">
+                <h2>データ保存先</h2>
+                <button
+                  type="button"
+                  className="settings-open-folder-button"
+                  onClick={() => openDataFolder()}
+                >
+                  フォルダを表示
+                </button>
+              </div>
 
-              <div className="settings-input-group">
-                <label>データディレクトリ</label>
-                <input
-                  type="text"
-                  className="settings-input settings-input-mono"
-                  value={dataDir}
-                  onChange={(e) => {
-                    setDataDir(e.target.value);
-                    setShowSuccess(false);
-                    setShowRestart(false);
-                  }}
-                />
+              <div className="settings-datadir-path">
+                {settings.paths.dataDir}
               </div>
 
               <div className="settings-subdirs">

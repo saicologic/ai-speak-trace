@@ -75,6 +75,50 @@
   border-bottom: 1px solid #f3f4f6;
 }
 
+/* セクションヘッダー（タイトル + ボタン横並び） */
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-section-header h2 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* フォルダを表示ボタン */
+.settings-open-folder-button {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #3b82f6;
+  background-color: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.settings-open-folder-button:hover {
+  color: #ffffff;
+  background-color: #3b82f6;
+}
+
+/* データディレクトリのパス表示 */
+.settings-datadir-path {
+  font-size: 0.8rem;
+  color: #374151;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  word-break: break-all;
+}
+
 /* 入力フィールド共通 */
 .settings-input-group {
   margin-bottom: 1rem;
