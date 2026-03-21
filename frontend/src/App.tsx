@@ -209,6 +209,9 @@ function App() {
           setActiveJobId(jobId);
           setPage('job-progress');
         }}
+        onJobsDeleted={(deletedIds) => {
+          setResumableJobs((prev) => prev.filter((j) => !deletedIds.includes(j.id)));
+        }}
       />
     );
   }

@@ -307,6 +307,16 @@ export async function fetchResumableJobs(): Promise<ChunkedJobDetail[]> {
   }
 }
 
+/** ジョブを削除 */
+export async function deleteChunkedJob(jobId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/transcribe/jobs/${jobId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`ジョブの削除に失敗しました: ${res.status}`);
+  }
+}
+
 /** ジョブ詳細を取得（テキスト含む） */
 export async function fetchJobDetail(
   jobId: string,

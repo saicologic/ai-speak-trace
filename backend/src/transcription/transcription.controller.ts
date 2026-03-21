@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -215,6 +216,18 @@ export class TranscriptionController {
 
     const fileStream = createReadStream(chunkPath);
     return new StreamableFile(fileStream);
+  }
+
+  /** ジョブ削除: DELETE /api/transcribe/jobs/:jobId */
+  @Delete('transcribe/jobs/:jobId')
+  async deleteJob(@Param('jobId') jobId: string) {
+    const job = await this.transcriptionService.getJobDetail(jobId);
+    if (!job) {
+      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
+    }
+    await this.transcriptionService.deleteJob(jobId);
+    console.log('[transcribe/jobs] ジョブ削除完了:', jobId);
+    return { success: true };
   }
 
   /** チャンクジョブの再開: POST /api/transcribe/resume */

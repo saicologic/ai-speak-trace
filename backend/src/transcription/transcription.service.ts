@@ -219,6 +219,11 @@ export class TranscriptionService {
     return this.chunkedTranscriptionService.getJobStatus(jobId);
   }
 
+  /** ジョブを削除 */
+  async deleteJob(jobId: string): Promise<void> {
+    return this.chunkedTranscriptionService.deleteJob(jobId);
+  }
+
   /** チャンクファイルのベースディレクトリを取得 */
   getChunksBaseDir(): string {
     return this.chunkedTranscriptionService.getChunksBaseDir();

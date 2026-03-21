@@ -115,11 +115,19 @@ export class ChunkedJobStoreService {
     );
   }
 
-  /** ジョブを削除 */
+  /** ジョブとチャンク音声ファイルを削除 */
   async delete(jobId: string): Promise<void> {
+    // ジョブJSONファイルを削除
     const filePath = path.join(this.storeDir, `${jobId}.json`);
     if (existsSync(filePath)) {
       await fs.unlink(filePath);
+    }
+
+    // チャンク音声ディレクトリを削除
+    const chunksDir = path.join(this.getChunksBaseDir(), jobId);
+    if (existsSync(chunksDir)) {
+      await fs.rm(chunksDir, { recursive: true, force: true });
+      this.logger.log(`チャンク音声ディレクトリを削除: ${chunksDir}`);
     }
   }
 }

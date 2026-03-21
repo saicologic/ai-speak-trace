@@ -222,6 +222,11 @@ export class ChunkedTranscriptionService {
     await this.jobStore.save(job);
   }
 
+  /** ジョブを削除 */
+  async deleteJob(jobId: string): Promise<void> {
+    await this.jobStore.delete(jobId);
+  }
+
   /** チャンクファイルのベースディレクトリを取得 */
   getChunksBaseDir(): string {
     return this.jobStore.getChunksBaseDir();
