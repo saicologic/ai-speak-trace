@@ -58,7 +58,8 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async getPlaybackUrl(fileName: string): Promise<string> {
-    return `/outputs/${encodeURIComponent(fileName)}`;
+    const port = process.env.BACKEND_PORT ?? 3100;
+    return `http://localhost:${port}/outputs/${encodeURIComponent(fileName)}`;
   }
 
   async getUploadUrl(): Promise<string | null> {
