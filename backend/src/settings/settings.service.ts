@@ -8,6 +8,8 @@ interface SettingsFile {
   dataDir?: string;
   elevenlabsApiKey?: string;
   anthropicApiKey?: string;
+  enableDeepSearch?: boolean;
+  enableContextAnalysis?: boolean;
 }
 
 /** API レスポンス用の設定情報 */
@@ -26,6 +28,8 @@ export interface AppSettings {
     elevenlabsApiKey: string;
     anthropicApiKey: string;
   };
+  enableDeepSearch: boolean;
+  enableContextAnalysis: boolean;
 }
 
 @Injectable()
@@ -75,6 +79,8 @@ export class SettingsService {
         anthropicApiKey:
           this.configService.get<string>('ANTHROPIC_API_KEY') || '',
       },
+      enableDeepSearch: this.readSettingsFile().enableDeepSearch ?? false,
+      enableContextAnalysis: this.readSettingsFile().enableContextAnalysis ?? false,
     };
   }
 
@@ -83,6 +89,8 @@ export class SettingsService {
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
+    enableDeepSearch?: boolean;
+    enableContextAnalysis?: boolean;
   }): {
     settings: AppSettings;
     restartRequired: boolean;
@@ -104,6 +112,12 @@ export class SettingsService {
       updated.anthropicApiKey = dto.anthropicApiKey;
       process.env.ANTHROPIC_API_KEY = dto.anthropicApiKey;
       apiKeyChanged = true;
+    }
+    if (dto.enableDeepSearch !== undefined) {
+      updated.enableDeepSearch = dto.enableDeepSearch;
+    }
+    if (dto.enableContextAnalysis !== undefined) {
+      updated.enableContextAnalysis = dto.enableContextAnalysis;
     }
 
     this.writeSettingsFile(updated);

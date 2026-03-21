@@ -20,6 +20,8 @@ export class SettingsController {
       dataDir?: string;
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
+      enableDeepSearch?: boolean;
+      enableContextAnalysis?: boolean;
     },
   ) {
     return this.settingsService.updateSettings(dto);

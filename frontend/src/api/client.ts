@@ -456,6 +456,8 @@ export async function updateSettings(
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
+    enableDeepSearch?: boolean;
+    enableContextAnalysis?: boolean;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {
