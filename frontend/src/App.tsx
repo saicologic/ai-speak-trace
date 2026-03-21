@@ -187,7 +187,7 @@ function App() {
         jobId={activeJobId}
         onBack={() => {
           setActiveJobId(null);
-          setPage('main');
+          setPage('resumable-jobs');
         }}
         onTranscriptionComplete={(result) => {
           setTranscription(result);
