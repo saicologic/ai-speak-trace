@@ -179,6 +179,16 @@ npm run build
 
 生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
 
+### プロダクションビルドのデバッグ
+
+ターミナルからアプリを直接起動すると、バックエンド（sidecar）のログやエラーが表示されます:
+
+```bash
+./src-tauri/target/release/bundle/macos/AI\ Speak\ Trace.app/Contents/MacOS/ai-speak-trace
+```
+
+アプリ起動後、`Cmd + Option + I` で DevTools を開き、フロントエンドのエラーを確認できます。
+
 ### 技術スタック
 
 | レイヤー | 技術 |
