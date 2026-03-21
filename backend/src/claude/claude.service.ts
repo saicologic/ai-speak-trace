@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { AnalysisResult } from '../interview/types/interview.types';
 
@@ -7,11 +6,13 @@ import { AnalysisResult } from '../interview/types/interview.types';
 @Injectable()
 export class ClaudeService {
   private readonly logger = new Logger(ClaudeService.name);
-  private readonly client: Anthropic;
 
-  constructor(private readonly configService: ConfigService) {
-    this.client = new Anthropic({
-      apiKey: this.configService.get<string>('ANTHROPIC_API_KEY'),
+  constructor() {}
+
+  /** Anthropicクライアントを取得（設定画面からの変更を即時反映） */
+  private getClient(): Anthropic {
+    return new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
     });
   }
 
@@ -61,7 +62,7 @@ ${question}
 
     const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
 
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
@@ -118,7 +119,7 @@ ${question}
   ): Promise<AnalysisResult> {
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       tools: [
@@ -197,7 +198,7 @@ ${targetList}
       targetIndices,
     );
 
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
@@ -240,7 +241,7 @@ ${context}
 - Markdown形式で回答してください
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       tools: [
@@ -301,7 +302,7 @@ ${resultsText}
 - Markdown形式で構造化して出力してください
 - 重要なポイントを箇条書きでまとめてください`;
 
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],

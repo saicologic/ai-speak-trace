@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { uploadAudioFile, transcribeAudio } from '../api/client';
+import { uploadAudioFile, transcribeAudio, BASE_URL } from '../api/client';
 import type { Transcription } from '../types';
 import './TranscribePage.css';
 
@@ -114,7 +114,7 @@ export function TranscribePage({
     try {
       // 0. サーバーの疎通確認
       try {
-        await fetch('http://localhost:3000/api/audio-files');
+        await fetch(`${BASE_URL}/audio-files`);
       } catch {
         throw new Error('バックエンドサーバーに接続できません。sidecarが起動しているか確認してください。');
       }

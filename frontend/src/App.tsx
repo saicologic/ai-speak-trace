@@ -207,7 +207,7 @@ function App() {
         <aside className="app-sidebar">
           <div className="sidebar-tabs">
             <button
-              className="sidebar-tab sidebar-tab-action"
+              className="sidebar-tab-action"
               onClick={() => setPage('transcribe')}
             >
               音声ファイルの文字起こし

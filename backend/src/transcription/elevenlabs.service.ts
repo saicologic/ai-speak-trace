@@ -1,16 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ElevenLabsResponse } from './types/elevenlabs.types';
 
 /** ElevenLabs Scribe v2 APIとの通信を担当するサービス */
 @Injectable()
 export class ElevenLabsService {
   private readonly logger = new Logger(ElevenLabsService.name);
-  private readonly apiKey: string;
   private readonly apiUrl = 'https://api.elevenlabs.io/v1/speech-to-text';
 
-  constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('ELEVENLABS_API_KEY', '');
+  constructor() {}
+
+  /** 現在のAPIキーを取得（設定画面からの変更を即時反映） */
+  private getApiKey(): string {
+    return process.env.ELEVENLABS_API_KEY || '';
   }
 
   /** 音声データを文字起こしする */
@@ -18,7 +19,7 @@ export class ElevenLabsService {
     fileBuffer: Buffer,
     fileName: string,
   ): Promise<ElevenLabsResponse> {
-    if (!this.apiKey || this.apiKey === 'your_api_key_here') {
+    if (!this.getApiKey() || this.getApiKey() === 'your_api_key_here') {
       throw new Error(
         'ELEVENLABS_API_KEY が設定されていません。backend/.env ファイルを確認してください。',
       );
@@ -43,7 +44,7 @@ export class ElevenLabsService {
       response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
-          'xi-api-key': this.apiKey,
+          'xi-api-key': this.getApiKey(),
         },
         body: form,
       });

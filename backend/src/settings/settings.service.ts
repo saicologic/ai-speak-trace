@@ -49,7 +49,7 @@ export class SettingsService {
     return {
       appVersion: '0.1.0',
       storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
-      port: Number(this.configService.get('PORT', '3000')),
+      port: Number(this.configService.get('BACKEND_PORT', '3100')),
       paths: {
         dataDir,
         outputsDir: path.resolve(
@@ -93,19 +93,29 @@ export class SettingsService {
     if (dto.dataDir !== undefined) {
       updated.dataDir = dto.dataDir;
     }
+    let apiKeyChanged = false;
+
     if (dto.elevenlabsApiKey !== undefined) {
       updated.elevenlabsApiKey = dto.elevenlabsApiKey;
+      process.env.ELEVENLABS_API_KEY = dto.elevenlabsApiKey;
+      apiKeyChanged = true;
     }
     if (dto.anthropicApiKey !== undefined) {
       updated.anthropicApiKey = dto.anthropicApiKey;
+      process.env.ANTHROPIC_API_KEY = dto.anthropicApiKey;
+      apiKeyChanged = true;
     }
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
 
+    if (apiKeyChanged) {
+      this.logger.log('APIキーを即時反映しました（再起動不要）');
+    }
+
     return {
       settings: this.getSettings(),
-      restartRequired: true,
+      restartRequired: false,
     };
   }
 

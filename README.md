@@ -90,6 +90,17 @@
 | 起動直後に「サーバーに接続できません」と表示される | バックエンドの起動待ち中です。自動リトライされるので数秒お待ちください |
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
+| `EADDRINUSE: address already in use :::3100` | `npm run kill` を実行してから再起動してください。または `.env` の `BACKEND_PORT` を別のポートに変更してください |
+
+### バックエンドポートの変更
+
+バックエンドのポート番号はルートの `.env` ファイルで一元管理しています（デフォルト: 3100）。
+
+```env
+BACKEND_PORT=3100
+```
+
+ポート 3100 が他のツールと競合する場合は、この値を変更してください。`.env` を変更するだけでバックエンド・フロントエンド・kill コマンドすべてに反映されます。
 
 ---
 
@@ -181,7 +192,7 @@ npm run dev:app
 #### 個別に起動する場合
 
 ```bash
-# ターミナル1: バックエンド（ポート3000）
+# ターミナル1: バックエンド（ポート3100）
 cd backend
 npm run start:dev
 
@@ -224,10 +235,10 @@ AI Speak Trace.app (Tauri)
 ├── WebView (frontend/dist)        ← Vite ビルド済みの React アプリ
 ├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理
 └── Sidecar (nestjs-server)        ← NestJS を pkg でバイナリ化
-    └── HTTP API (localhost:3000)
+    └── HTTP API (localhost:3100)
 ```
 
-- フロントエンドは WebView 内で動作し、localhost:3000 の NestJS sidecar と HTTP 通信
+- フロントエンドは WebView 内で動作し、localhost:3100 の NestJS sidecar と HTTP 通信
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
 

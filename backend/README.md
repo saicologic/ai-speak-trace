@@ -56,7 +56,7 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 pnpm run start:dev
 ```
 
-http://localhost:3000 で起動します。APIは `/api` プレフィックス付きです。
+http://localhost:3100 で起動します。APIは `/api` プレフィックス付きです。
 
 ### ビルド
 

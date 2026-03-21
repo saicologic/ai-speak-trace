@@ -93,3 +93,15 @@ ai-speak-trace/
 
 - コードおよびコメントは日本語で記述する
 - コミットメッセージは日本語で記述する
+
+## PRテストプラン
+
+PRのTest planは以下の形式で記載する。`npm run dev:app` で起動し、Tauriウィンドウ上で確認する。
+
+```markdown
+## Test plan
+
+`npm run dev:app` で起動し、Tauriウィンドウ上で以下を確認:
+
+- [ ] （変更内容に応じた確認項目を記載）
+```

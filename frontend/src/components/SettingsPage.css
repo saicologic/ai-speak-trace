@@ -289,3 +289,22 @@
   border-radius: 6px;
   margin-bottom: 1.5rem;
 }
+
+.settings-restart-button {
+  margin-left: auto;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #92400e;
+  background-color: #ffffff;
+  border: 1px solid #92400e;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.settings-restart-button:hover {
+  color: #ffffff;
+  background-color: #92400e;
+}

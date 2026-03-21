@@ -1,6 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SettingsService } from './settings/settings.service';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// ルートの.envからポート設定を読み込み
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // NestJS 起動前に settings.json の値を process.env にマージ
 SettingsService.loadSettingsIntoEnv();
@@ -27,6 +32,6 @@ async function bootstrap() {
   // APIプレフィックスを設定
   app.setGlobalPrefix('api');
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.BACKEND_PORT ?? 3100);
 }
 bootstrap();

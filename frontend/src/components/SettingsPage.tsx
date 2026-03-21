@@ -16,7 +16,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
-  const [showRestart, setShowRestart] = useState(false);
   const [showElevenlabsKey, setShowElevenlabsKey] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
 
@@ -74,9 +73,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       setElevenlabsApiKey(result.settings.apiKeys?.elevenlabsApiKey || '');
       setAnthropicApiKey(result.settings.apiKeys?.anthropicApiKey || '');
       setShowSuccess(true);
-      if (result.restartRequired) {
-        setShowRestart(true);
-      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -116,12 +112,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
           <div className="settings-success">設定を保存しました。</div>
         )}
 
-        {showRestart && (
-          <div className="settings-restart-notice">
-            変更を反映するにはアプリの再起動が必要です
-          </div>
-        )}
-
         {settings && (
           <>
             {/* APIキー設定 */}
@@ -148,7 +138,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     onChange={(e) => {
                       setElevenlabsApiKey(e.target.value);
                       setShowSuccess(false);
-                      setShowRestart(false);
                     }}
                     placeholder="APIキーを入力"
                   />
@@ -184,7 +173,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     onChange={(e) => {
                       setAnthropicApiKey(e.target.value);
                       setShowSuccess(false);
-                      setShowRestart(false);
                     }}
                     placeholder="APIキーを入力"
                   />

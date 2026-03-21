@@ -1,5 +1,6 @@
 .env*.local
 node_modules/
+settings.json
 
 # Tauri
 src-tauri/target/

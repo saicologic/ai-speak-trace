@@ -10,8 +10,10 @@ import type {
   TranscriptionSummary,
 } from '../types';
 
+declare const __BACKEND_PORT__: string;
+
 // Tauriデスクトップアプリ: sidecarのバックエンドに直接接続
-const BASE_URL = 'http://localhost:3000/api';
+export const BASE_URL = `http://localhost:${__BACKEND_PORT__}/api`;
 
 // リトライ設定（sidecar起動待ち用）
 const RETRY_MAX = 5;

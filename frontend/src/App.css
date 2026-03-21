@@ -56,41 +56,21 @@
 }
 
 .sidebar-tabs {
-  display: flex;
-  gap: 0;
   margin-bottom: 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.sidebar-tab {
-  flex: 1;
-  padding: 0.5rem 0;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: none;
-  border-radius: 0;
-  background-color: #f9fafb;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sidebar-tab:hover {
-  background-color: #f3f4f6;
-}
-
-.sidebar-tab.active {
-  background-color: #1a1a2e;
-  color: #ffffff;
 }
 
 /* 文字起こしアクションボタン */
 .sidebar-tab-action {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   background-color: #3b82f6;
   color: #ffffff;
-  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
 
 .sidebar-tab-action:hover {
