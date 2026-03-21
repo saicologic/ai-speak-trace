@@ -40,15 +40,27 @@
 
 ### インストール
 
-1. `.dmg` ファイルを開く
+#### 1. ダウンロード
+
+[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `AI.Speak.Trace.dmg` をダウンロードしてください。
+
+#### 2. アプリの配置
+
+1. ダウンロードした `AI.Speak.Trace.dmg` をダブルクリックで開く
 2. `AI Speak Trace.app` を `Applications` フォルダにドラッグ&ドロップ
-3. 初回起動時に「壊れているため開けません」と表示された場合、ターミナルで以下を実行してください:
+
+#### 3. 初回起動の準備
+
+コード署名されていないアプリのため、初回起動前にターミナルで以下を実行してください:
 
 ```bash
 xattr -cr /Applications/AI\ Speak\ Trace.app
 ```
 
-※ コード署名されていないアプリのため、macOS Gatekeeper による制限を手動で解除する必要があります。
+実行後、`Applications` フォルダから `AI Speak Trace` をダブルクリックで起動できます。
+
+> **なぜこの操作が必要？**
+> macOS Gatekeeper がコード署名のないアプリをブロックするため、手動で制限を解除する必要があります。
 
 ### 初期設定
 
@@ -97,6 +109,17 @@ xattr -cr /Applications/AI\ Speak\ Trace.app
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
 | `EADDRINUSE: address already in use :::3100` | `npm run kill` を実行してから再起動してください。または `.env` の `BACKEND_PORT` を別のポートに変更してください |
+
+---
+
+## サポートのお願い
+
+現在このアプリはコード署名されていないため、初回起動時にターミナルでの操作が必要です。
+Apple Developer Program（年額 $99）に加入することで、コード署名・公証（Notarization）が可能になり、ダウンロード後すぐに起動できるようになります。
+
+皆さまのご支援でコード署名の実現を目指しています。
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa?logo=github)](https://github.com/sponsors/saicologic)
 
 ---
 
