@@ -27,3 +27,15 @@ export interface ElevenLabsResponse {
   /** トランスクリプションID */
   transcription_id: string;
 }
+
+/** ElevenLabs サブスクリプション情報（クレジット確認用） */
+export interface ElevenLabsCreditInfo {
+  /** 使用済みクレジット数 */
+  characterCount: number;
+  /** クレジット上限 */
+  characterLimit: number;
+  /** 残りクレジット数 */
+  remainingCredits: number;
+  /** クレジットリセット日時（ISO文字列） */
+  nextResetDate: string;
+}

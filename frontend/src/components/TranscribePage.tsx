@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { uploadAudioFile, transcribeAudio, BASE_URL } from '../api/client';
+import {
+  uploadAudioFile,
+  transcribeAudio,
+  fetchActiveJob,
+  resumeTranscription,
+  checkCredits,
+  BASE_URL,
+} from '../api/client';
+import type { ChunkedJobStatus, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
 import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
 const PODCAST_CACHE_RELATIVE =
   'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache';
+
+/** チャンク進捗ポーリング間隔（ミリ秒） */
+const CHUNK_POLL_INTERVAL_MS = 2000;
+
+/** 1分あたりの推定クレジット消費量 */
+const CREDITS_PER_MINUTE = 40;
 
 /** ファイルサイズを読みやすい形式にフォーマット */
 function formatFileSize(bytes: number): string {
@@ -63,6 +77,7 @@ interface TranscribePageProps {
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
   onNavigateSettings: () => void;
+  onChunkedJobStarted?: (jobId: string) => void;
 }
 
 type Step = 'select' | 'preview' | 'transcribing' | 'done';
@@ -72,6 +87,7 @@ export function TranscribePage({
   onBack,
   onTranscriptionComplete,
   onNavigateSettings,
+  onChunkedJobStarted,
 }: TranscribePageProps) {
   const [step, setStep] = useState<Step>('select');
   const [file, setFile] = useState<File | null>(null);
@@ -81,6 +97,21 @@ export function TranscribePage({
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [audioDurationSec, setAudioDurationSec] = useState<number | null>(null);
+  const [chunkProgress, setChunkProgress] = useState<ChunkedJobStatus | null>(null);
+  const [failedJobId, setFailedJobId] = useState<string | null>(null);
+  const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
+  const [creditCheckLoading, setCreditCheckLoading] = useState(false);
+  const [creditCheckError, setCreditCheckError] = useState<string | null>(null);
+
+  // 推定必要クレジット数（音声の長さから算出）
+  const estimatedCredits = audioDurationSec !== null
+    ? Math.ceil((audioDurationSec / 60) * CREDITS_PER_MINUTE)
+    : null;
+
+  // クレジット十分かどうか
+  const isCreditSufficient = creditInfo !== null && estimatedCredits !== null
+    ? creditInfo.remainingCredits >= estimatedCredits
+    : true; // 情報が取得できていない場合はブロックしない
 
   // previewUrl のメモリ解放
   useEffect(() => {
@@ -100,6 +131,58 @@ export function TranscribePage({
     }, 1000);
     return () => clearInterval(interval);
   }, [step]);
+
+  // プレビューステップでクレジット残量を確認
+  useEffect(() => {
+    if (step !== 'preview') {
+      setCreditInfo(null);
+      setCreditCheckError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const doCheck = async () => {
+      setCreditCheckLoading(true);
+      setCreditCheckError(null);
+      try {
+        const info = await checkCredits();
+        if (!cancelled) setCreditInfo(info);
+      } catch (err) {
+        if (!cancelled) {
+          // APIキー未設定は既存フローで処理されるのでスキップ
+          if (err instanceof Error && err.name === 'ApiKeyMissingError') {
+            return;
+          }
+          setCreditCheckError(
+            err instanceof Error ? err.message : 'クレジット情報の取得に失敗しました',
+          );
+        }
+      } finally {
+        if (!cancelled) setCreditCheckLoading(false);
+      }
+    };
+    doCheck();
+    return () => { cancelled = true; };
+  }, [step]);
+
+  // 文字起こし中のチャンク進捗ポーリング
+  // チャンクジョブが検出されたらJobProgressPageに遷移
+  useEffect(() => {
+    if (step !== 'transcribing' || !file) return;
+    let navigated = false;
+    const interval = setInterval(async () => {
+      const job = await fetchActiveJob(file.name);
+      if (job) {
+        setChunkProgress(job);
+        // チャンクジョブが開始されたらJobProgressPageに遷移
+        if (!navigated && job.totalChunks > 1 && onChunkedJobStarted) {
+          navigated = true;
+          onChunkedJobStarted(job.id);
+        }
+      }
+    }, CHUNK_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [step, file, onChunkedJobStarted]);
 
   /** Tauri環境でのファイル選択（ネイティブダイアログ） */
   const handleTauriFileSelect = async () => {
@@ -172,6 +255,8 @@ export function TranscribePage({
   const handleTranscribe = async () => {
     if (!file) return;
     setError('');
+    setChunkProgress(null);
+    setFailedJobId(null);
     setStep('transcribing');
     try {
       // 0. サーバーの疎通確認
@@ -198,6 +283,10 @@ export function TranscribePage({
       });
       setIsApiKeyMissing(false);
       setIsQuotaExceeded(false);
+      // チャンクジョブIDを保持（再開用）
+      if (chunkProgress?.id) {
+        setFailedJobId(chunkProgress.id);
+      }
       if (errorName === 'ApiKeyMissingError') {
         setIsApiKeyMissing(true);
         setError(detail);
@@ -206,6 +295,36 @@ export function TranscribePage({
         setError(detail);
       } else {
         setError(`文字起こしに失敗しました: ${detail}`);
+      }
+      setStep('preview');
+    }
+  };
+
+  /** 失敗したチャンクジョブを再開 */
+  const handleResume = async () => {
+    if (!failedJobId) return;
+    setError('');
+    setChunkProgress(null);
+    setStep('transcribing');
+    try {
+      const result = await resumeTranscription(failedJobId);
+      onTranscriptionComplete(result);
+      setFailedJobId(null);
+      setStep('done');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const errorName = err instanceof Error ? err.name : 'Unknown';
+      console.error('[TranscribePage] 再開エラー:', { name: errorName, message: detail });
+      setIsApiKeyMissing(false);
+      setIsQuotaExceeded(false);
+      if (chunkProgress?.id) {
+        setFailedJobId(chunkProgress.id);
+      }
+      if (errorName === 'QuotaExceededError') {
+        setIsQuotaExceeded(true);
+        setError(detail);
+      } else {
+        setError(`文字起こしの再開に失敗しました: ${detail}`);
       }
       setStep('preview');
     }
@@ -221,6 +340,11 @@ export function TranscribePage({
     setIsApiKeyMissing(false);
     setIsQuotaExceeded(false);
     setAudioDurationSec(null);
+    setChunkProgress(null);
+    setFailedJobId(null);
+    setCreditInfo(null);
+    setCreditCheckLoading(false);
+    setCreditCheckError(null);
   };
 
   return (
@@ -250,6 +374,14 @@ export function TranscribePage({
                 onClick={onNavigateSettings}
               >
                 設定画面を開く
+              </button>
+            )}
+            {failedJobId && !isApiKeyMissing && (
+              <button
+                className="transcribe-resume-button"
+                onClick={handleResume}
+              >
+                途中から再開する
               </button>
             )}
           </div>
@@ -291,12 +423,56 @@ export function TranscribePage({
                 （推定処理時間: 約{formatDuration(estimateProcessingTime(audioDurationSec))}）
               </p>
             )}
+            {/* クレジット情報 */}
+            {creditCheckLoading && (
+              <p className="transcribe-credit-loading">クレジット情報を確認中...</p>
+            )}
+            {creditCheckError && (
+              <p className="transcribe-credit-error">
+                クレジット確認エラー: {creditCheckError}
+              </p>
+            )}
+            {creditInfo && (
+              <div className={`transcribe-credit-info ${!isCreditSufficient ? 'transcribe-credit-insufficient' : ''}`}>
+                <div className="transcribe-credit-row">
+                  <span>残りクレジット</span>
+                  <span>{creditInfo.remainingCredits.toLocaleString()} / {creditInfo.characterLimit.toLocaleString()}</span>
+                </div>
+                {estimatedCredits !== null && (
+                  <div className="transcribe-credit-row">
+                    <span>推定必要クレジット</span>
+                    <span>{estimatedCredits.toLocaleString()}</span>
+                  </div>
+                )}
+                {!isCreditSufficient && (
+                  <div className="transcribe-credit-warning">
+                    <p>クレジットが不足しています。</p>
+                    <a
+                      href="https://elevenlabs.io/subscription"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transcribe-credit-link"
+                    >
+                      ElevenLabsダッシュボードでプランを確認
+                    </a>
+                    {creditInfo.nextResetDate && (
+                      <p className="transcribe-credit-reset">
+                        次回リセット: {new Date(creditInfo.nextResetDate).toLocaleDateString('ja-JP', {
+                          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="transcribe-preview-player">
               <audio controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
             </div>
             <button
               className="transcribe-start-button"
               onClick={handleTranscribe}
+              disabled={!isCreditSufficient}
             >
               文字起こしを実行
             </button>
@@ -308,17 +484,43 @@ export function TranscribePage({
           <div className="transcribe-section">
             <div className="transcribe-processing">
               <div className="transcribe-spinner" />
-              <p className="transcribe-processing-text">
-                文字起こし中... {formatElapsedTime(elapsedSeconds)} 経過
-              </p>
-              {audioDurationSec !== null ? (
-                <p className="transcribe-processing-hint">
-                  推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
-                </p>
+              {chunkProgress && chunkProgress.totalChunks > 1 ? (
+                <>
+                  <p className="transcribe-processing-text">
+                    {chunkProgress.status === 'splitting'
+                      ? '音声ファイルを分割中...'
+                      : chunkProgress.status === 'merging'
+                        ? '結果をマージ中...'
+                        : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
+                    {' '}{formatElapsedTime(elapsedSeconds)} 経過
+                  </p>
+                  <div className="transcribe-progress-bar">
+                    <div
+                      className="transcribe-progress-fill"
+                      style={{
+                        width: `${(chunkProgress.completedChunks.length / chunkProgress.totalChunks) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="transcribe-processing-hint">
+                    完了: {chunkProgress.completedChunks.length}/{chunkProgress.totalChunks} チャンク
+                  </p>
+                </>
               ) : (
-                <p className="transcribe-processing-hint">
-                  音声の長さやファイルサイズにより数分かかる場合があります。
-                </p>
+                <>
+                  <p className="transcribe-processing-text">
+                    文字起こし中... {formatElapsedTime(elapsedSeconds)} 経過
+                  </p>
+                  {audioDurationSec !== null ? (
+                    <p className="transcribe-processing-hint">
+                      推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
+                    </p>
+                  ) : (
+                    <p className="transcribe-processing-hint">
+                      音声の長さやファイルサイズにより数分かかる場合があります。
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

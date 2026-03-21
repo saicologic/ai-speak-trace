@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ElevenLabsResponse } from './types/elevenlabs.types';
+import { ElevenLabsCreditInfo, ElevenLabsResponse } from './types/elevenlabs.types';
 
 /** 全体のタイムアウト（ミリ秒）: 30分
  * ElevenLabsはリアルタイムの20〜50倍速で処理するため、
@@ -98,6 +98,48 @@ export class ElevenLabsService {
     );
 
     return result;
+  }
+
+  /** ElevenLabsのクレジット残量を確認する */
+  async checkCredits(): Promise<ElevenLabsCreditInfo> {
+    const apiKey = this.getApiKey();
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      throw new Error(
+        'ELEVENLABS_API_KEY が設定されていません。backend/.env ファイルを確認してください。',
+      );
+    }
+
+    const response = await fetch(
+      'https://api.elevenlabs.io/v1/user/subscription',
+      { headers: this.authHeaders },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      this.logger.error(
+        `ElevenLabs Subscription API エラー: ${response.status} ${errorBody}`,
+      );
+      if (response.status === 401) {
+        throw new Error('ElevenLabs APIキーが無効です。');
+      }
+      throw new Error(
+        `クレジット情報の取得に失敗しました (${response.status})`,
+      );
+    }
+
+    const data = await response.json();
+    const characterCount: number = data.character_count ?? 0;
+    const characterLimit: number = data.character_limit ?? 0;
+    const nextResetUnix: number = data.next_character_count_reset_unix ?? 0;
+
+    return {
+      characterCount,
+      characterLimit,
+      remainingCredits: characterLimit - characterCount,
+      nextResetDate: nextResetUnix
+        ? new Date(nextResetUnix * 1000).toISOString()
+        : '',
+    };
   }
 
   /** エラーレスポンスを解析してスローする */

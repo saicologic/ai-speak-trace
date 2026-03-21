@@ -1,10 +1,12 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { ElevenLabsService } from './elevenlabs.service';
+import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 import type { AudioStorage } from '../storage/interfaces/audio-storage.interface';
 import { ElevenLabsWord } from './types/elevenlabs.types';
+import { ChunkedTranscriptionJob } from './types/chunked-job.types';
 import {
   AudioFileInfo,
   Speaker,
@@ -35,6 +37,7 @@ export class TranscriptionService {
 
   constructor(
     private readonly elevenLabsService: ElevenLabsService,
+    private readonly chunkedTranscriptionService: ChunkedTranscriptionService,
     private readonly store: TranscriptionStoreService,
     @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
   ) {}
@@ -96,11 +99,38 @@ export class TranscriptionService {
       );
     }
 
-    // ElevenLabs APIで文字起こし
-    const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
+    // 音声の長さに応じて処理を分岐
+    let elWords: ElevenLabsWord[];
+    let fullText: string;
+    let languageCode: string;
+
+    const { needs: needsChunking } =
+      await this.chunkedTranscriptionService.needsChunking(fileBuffer, fileName);
+
+    let chunkedJob: ChunkedTranscriptionJob | null = null;
+
+    if (needsChunking) {
+      // 10分超: チャンク分割して順番に文字起こし
+      this.logger.log(`チャンク分割モードで文字起こし: ${fileName}`);
+      const chunkedResult =
+        await this.chunkedTranscriptionService.startChunkedTranscription(
+          fileBuffer,
+          fileName,
+        );
+      elWords = chunkedResult.mergedWords;
+      fullText = chunkedResult.mergedText;
+      languageCode = chunkedResult.languageCode;
+      chunkedJob = chunkedResult.job;
+    } else {
+      // 10分以下: 従来通り一括で文字起こし
+      const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
+      elWords = result.words;
+      fullText = result.text;
+      languageCode = result.language_code;
+    }
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
-    const rawWords = this.convertWords(result.words);
+    const rawWords = this.convertWords(elWords);
     const words = this.mergeWordsIntoPhrases(rawWords);
     const speakers = this.buildSpeakers(words);
     const utterances = this.groupWordsIntoUtterances(words, speakers);
@@ -110,8 +140,8 @@ export class TranscriptionService {
       id: uuidv4(),
       audioFileName: fileName,
       createdAt: new Date().toISOString(),
-      languageCode: result.language_code,
-      fullText: result.text,
+      languageCode,
+      fullText,
       speakers,
       words,
       utterances,
@@ -119,9 +149,79 @@ export class TranscriptionService {
 
     // 結果を保存
     await this.store.save(transcription);
+
+    // チャンクジョブにtranscriptionIdを記録（JobProgressPageからの完了検知用）
+    if (chunkedJob) {
+      chunkedJob.transcriptionId = transcription.id;
+      await this.chunkedTranscriptionService.saveJob(chunkedJob);
+    }
+
     this.logger.log(`文字起こしパイプライン完了: ${fileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`);
 
     return transcription;
+  }
+
+  /** 失敗したチャンクジョブを途中から再開 */
+  async resumeTranscription(jobId: string): Promise<Transcription> {
+    const startTime = Date.now();
+    const elapsedSec = () => Math.round((Date.now() - startTime) / 1000);
+
+    this.logger.log(`文字起こし再開: jobId=${jobId}`);
+
+    const { mergedWords, mergedText, languageCode, job } =
+      await this.chunkedTranscriptionService.resumeChunkedTranscription(jobId);
+
+    // ElevenLabsのレスポンスをアプリ内部型に変換
+    const rawWords = this.convertWords(mergedWords);
+    const words = this.mergeWordsIntoPhrases(rawWords);
+    const speakers = this.buildSpeakers(words);
+    const utterances = this.groupWordsIntoUtterances(words, speakers);
+
+    const transcription: Transcription = {
+      id: uuidv4(),
+      audioFileName: job.audioFileName,
+      createdAt: new Date().toISOString(),
+      languageCode,
+      fullText: mergedText,
+      speakers,
+      words,
+      utterances,
+    };
+
+    await this.store.save(transcription);
+
+    // チャンクジョブにtranscriptionIdを記録
+    job.transcriptionId = transcription.id;
+    await this.chunkedTranscriptionService.saveJob(job);
+
+    this.logger.log(`文字起こし再開完了: ${job.audioFileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`);
+
+    return transcription;
+  }
+
+  /** チャンクジョブの進捗を取得 */
+  async getChunkedJobStatus(jobId: string): Promise<ChunkedTranscriptionJob | null> {
+    return this.chunkedTranscriptionService.getJobStatus(jobId);
+  }
+
+  /** ファイル名で進行中のチャンクジョブを検索 */
+  async findActiveJob(fileName: string): Promise<ChunkedTranscriptionJob | null> {
+    return this.chunkedTranscriptionService.findActiveJobByFileName(fileName);
+  }
+
+  /** 再開可能なジョブ一覧を取得 */
+  async getResumableJobs(): Promise<ChunkedTranscriptionJob[]> {
+    return this.chunkedTranscriptionService.getResumableJobs();
+  }
+
+  /** ジョブ詳細を取得（completedChunksのテキスト含む） */
+  async getJobDetail(jobId: string): Promise<ChunkedTranscriptionJob | null> {
+    return this.chunkedTranscriptionService.getJobStatus(jobId);
+  }
+
+  /** チャンクファイルのベースディレクトリを取得 */
+  getChunksBaseDir(): string {
+    return this.chunkedTranscriptionService.getChunksBaseDir();
   }
 
   /** 文字起こし一覧を取得（サマリーのみ） */

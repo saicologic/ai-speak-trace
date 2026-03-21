@@ -5,14 +5,22 @@ import {
   Patch,
   Param,
   Body,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  NotFoundException,
   HttpException,
   HttpStatus,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import * as path from 'path';
+import { existsSync, createReadStream } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TranscriptionService } from './transcription.service';
+import { ElevenLabsService } from './elevenlabs.service';
 import { TranscribeRequestDto } from './dto/transcribe-request.dto';
 import { UpdateSpeakersDto } from './dto/update-speakers.dto';
 
@@ -21,7 +29,37 @@ import { UpdateSpeakersDto } from './dto/update-speakers.dto';
 export class TranscriptionController {
   constructor(
     private readonly transcriptionService: TranscriptionService,
+    private readonly elevenLabsService: ElevenLabsService,
   ) {}
+
+  /** クレジット残量確認: GET /api/credits/check */
+  @Get('credits/check')
+  async checkCredits() {
+    try {
+      const creditInfo = await this.elevenLabsService.checkCredits();
+      return { creditInfo };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[credits/check] エラー:', errMsg);
+      if (
+        error instanceof Error &&
+        error.message.includes('ELEVENLABS_API_KEY が設定されていません')
+      ) {
+        throw new HttpException(
+          {
+            code: 'API_KEY_MISSING',
+            message:
+              'ElevenLabs APIキーが設定されていません。設定画面からAPIキーを設定してください。',
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+      throw new HttpException(
+        { code: 'CREDIT_CHECK_FAILED', message: errMsg },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
 
   /** 音声ファイル一覧取得: GET /api/audio-files */
   @Get('audio-files')
@@ -109,6 +147,103 @@ export class TranscriptionController {
               'ElevenLabs APIキーが設定されていません。設定画面からAPIキーを設定してください。',
           },
           HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** 進行中のチャンクジョブ状態取得: GET /api/transcribe/jobs/active?fileName=xxx */
+  @Get('transcribe/jobs/active')
+  async getActiveJob(@Query('fileName') fileName: string) {
+    if (!fileName) {
+      throw new BadRequestException('fileNameが指定されていません');
+    }
+    const job = await this.transcriptionService.findActiveJob(fileName);
+    return { job };
+  }
+
+  /** 再開可能なジョブ一覧取得: GET /api/transcribe/jobs */
+  @Get('transcribe/jobs')
+  async getResumableJobs() {
+    const jobs = await this.transcriptionService.getResumableJobs();
+    return { jobs };
+  }
+
+  /** ジョブ詳細取得: GET /api/transcribe/jobs/:jobId */
+  @Get('transcribe/jobs/:jobId')
+  async getJobDetail(@Param('jobId') jobId: string) {
+    const job = await this.transcriptionService.getJobDetail(jobId);
+    if (!job) {
+      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
+    }
+    return { job };
+  }
+
+  /** チャンク音声配信: GET /api/transcribe/jobs/:jobId/chunks/:chunkIndex/audio */
+  @Get('transcribe/jobs/:jobId/chunks/:chunkIndex/audio')
+  async getChunkAudio(
+    @Param('jobId') jobId: string,
+    @Param('chunkIndex') chunkIndex: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const job = await this.transcriptionService.getJobDetail(jobId);
+    if (!job) {
+      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
+    }
+
+    const idx = parseInt(chunkIndex, 10);
+    const ext = path.extname(job.audioFileName) || '.m4a';
+    const chunkFileName = `chunk_${String(idx).padStart(3, '0')}${ext}`;
+    const chunksBaseDir = this.transcriptionService.getChunksBaseDir();
+    const chunkPath = path.join(chunksBaseDir, jobId, chunkFileName);
+
+    if (!existsSync(chunkPath)) {
+      throw new NotFoundException(
+        `チャンク音声ファイルが見つかりません: ${chunkFileName}`,
+      );
+    }
+
+    const mimeTypes: Record<string, string> = {
+      '.mp3': 'audio/mpeg',
+      '.m4a': 'audio/mp4',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.flac': 'audio/flac',
+    };
+    res.set('Content-Type', mimeTypes[ext] || 'audio/mpeg');
+
+    const fileStream = createReadStream(chunkPath);
+    return new StreamableFile(fileStream);
+  }
+
+  /** チャンクジョブの再開: POST /api/transcribe/resume */
+  @Post('transcribe/resume')
+  async resumeTranscription(@Body() body: { jobId: string }) {
+    if (!body.jobId) {
+      throw new BadRequestException('jobIdが指定されていません');
+    }
+    console.log('[transcribe/resume] リクエスト受信:', body.jobId);
+    try {
+      const transcription = await this.transcriptionService.resumeTranscription(
+        body.jobId,
+      );
+      console.log('[transcribe/resume] 完了:', body.jobId);
+      return { transcription };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errName = error instanceof Error ? error.name : 'Unknown';
+      console.error('[transcribe/resume] エラー:', { name: errName, message: errMsg });
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        throw new HttpException(
+          { code: 'QUOTA_EXCEEDED', message: error.message },
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
+      if (error instanceof Error && error.name === 'TranscriptionTimeoutError') {
+        throw new HttpException(
+          { code: 'TRANSCRIPTION_TIMEOUT', message: error.message },
+          HttpStatus.REQUEST_TIMEOUT,
         );
       }
       throw error;

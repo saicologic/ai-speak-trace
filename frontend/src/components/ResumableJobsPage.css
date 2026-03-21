@@ -1,0 +1,184 @@
+.resumable-jobs-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.resumable-jobs-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.resumable-jobs-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.resumable-jobs-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.resumable-jobs-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.resumable-jobs-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* クレジット情報（ページ上部） */
+.resumable-jobs-credit {
+  margin-bottom: 1rem;
+}
+
+.resumable-jobs-credit-loading {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.resumable-jobs-credit-info {
+  display: flex;
+  justify-content: space-between;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.resumable-jobs-credit-insufficient {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.resumable-jobs-empty {
+  text-align: center;
+  color: #6b7280;
+  padding: 3rem 0;
+  font-size: 0.95rem;
+}
+
+.resumable-jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.resumable-job-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+
+.resumable-job-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
+}
+
+.resumable-job-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.resumable-job-card-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resumable-job-card-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.resumable-job-card-status--failed {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.resumable-job-card-status--interrupted {
+  background-color: #fffbeb;
+  color: #d97706;
+}
+
+.resumable-job-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.resumable-job-card-progress-bar {
+  flex: 1;
+  height: 6px;
+  background-color: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.resumable-job-card-progress-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.resumable-job-card-progress-text {
+  font-size: 0.8rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.resumable-job-card-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.resumable-job-card-credit {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #6b7280;
+  padding-top: 0.25rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.resumable-job-card-credit-insufficient {
+  color: #dc2626;
+  font-weight: 600;
+}
