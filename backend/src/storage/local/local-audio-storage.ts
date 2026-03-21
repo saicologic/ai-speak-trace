@@ -20,9 +20,10 @@ export class LocalAudioStorage implements AudioStorage {
   private readonly baseDir: string;
 
   constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.baseDir = path.resolve(
       this.configService.get<string>('OUTPUTS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'outputs'),
+        path.join(dataDir, 'outputs'),
     );
     this.logger.log(`音声ファイルディレクトリ: ${this.baseDir}`);
   }
@@ -57,7 +58,8 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async getPlaybackUrl(fileName: string): Promise<string> {
-    return `/outputs/${encodeURIComponent(fileName)}`;
+    const port = process.env.BACKEND_PORT ?? 3100;
+    return `http://localhost:${port}/outputs/${encodeURIComponent(fileName)}`;
   }
 
   async getUploadUrl(): Promise<string | null> {
@@ -65,6 +67,7 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
+    await fs.mkdir(this.baseDir, { recursive: true });
     await fs.writeFile(path.join(this.baseDir, fileName), buffer);
     this.logger.log(`音声ファイル保存完了: ${fileName}`);
   }

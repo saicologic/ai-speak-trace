@@ -69,17 +69,24 @@ export class TranscriptionService {
 
   /** 音声ファイルを文字起こし */
   async transcribe(fileName: string): Promise<Transcription> {
+    this.logger.log(`文字起こし開始: ${fileName}`);
+
     if (!(await this.audioStorage.exists(fileName))) {
+      this.logger.error(`音声ファイルが見つかりません: ${fileName}`);
       throw new NotFoundException(
         `音声ファイルが見つかりません: ${fileName}`,
       );
     }
 
     // ストレージから音声ファイルを読み込み
+    this.logger.log(`音声ファイル読み込み開始: ${fileName}`);
     const fileBuffer = await this.audioStorage.readFile(fileName);
+    this.logger.log(`音声ファイル読み込み完了: ${fileName} (${fileBuffer.length} bytes)`);
 
     // ElevenLabs APIで文字起こし
+    this.logger.log(`ElevenLabs API呼び出し開始: ${fileName}`);
     const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
+    this.logger.log(`ElevenLabs API呼び出し完了: ${fileName} (${result.words.length} 単語)`);
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
     const rawWords = this.convertWords(result.words);
@@ -109,8 +116,10 @@ export class TranscriptionService {
   async getTranscriptions(): Promise<
     Pick<Transcription, 'id' | 'audioFileName' | 'createdAt'>[]
   > {
+    this.logger.log('getTranscriptions 開始');
     const all = await this.store.findAll();
-    return all
+    this.logger.log(`getTranscriptions: store.findAll() から ${all.length} 件取得`);
+    const result = all
       .map((t) => ({
         id: t.id,
         audioFileName: t.audioFileName,
@@ -120,6 +129,8 @@ export class TranscriptionService {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
+    this.logger.log(`getTranscriptions 完了: ${result.length} 件返却`);
+    return result;
   }
 
   /** 文字起こし結果をIDで取得 */

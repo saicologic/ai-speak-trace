@@ -1,4 +1,5 @@
 import type {
+  AppSettings,
   AudioFileInfo,
   ContextAnalysisResponse,
   DeepSearchAnalysis,
@@ -9,12 +10,42 @@ import type {
   TranscriptionSummary,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+declare const __BACKEND_PORT__: string;
+
+// Tauriデスクトップアプリ: sidecarのバックエンドに直接接続
+export const BASE_URL = `http://localhost:${__BACKEND_PORT__}/api`;
+
+// リトライ設定（sidecar起動待ち用）
+const RETRY_MAX = 5;
+const RETRY_INITIAL_DELAY_MS = 500;
+
+/** ネットワークエラー時にリトライ付きでfetchを実行する */
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < RETRY_MAX; attempt++) {
+    try {
+      return await fetch(input, init);
+    } catch (err) {
+      lastError = err;
+      // ネットワークエラー（サーバー未起動など）の場合のみリトライ
+      const delay = RETRY_INITIAL_DELAY_MS * 2 ** attempt;
+      console.warn(
+        `[API] 接続失敗 (${attempt + 1}/${RETRY_MAX}), ${delay}ms後にリトライ:`,
+        err,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
 
 /** 音声ファイル一覧を取得 */
 export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
   console.log('[API] fetchAudioFiles:', `${BASE_URL}/audio-files`);
-  const res = await fetch(`${BASE_URL}/audio-files`);
+  const res = await fetchWithRetry(`${BASE_URL}/audio-files`);
   console.log('[API] fetchAudioFiles status:', res.status);
   if (!res.ok) {
     const body = await res.text();
@@ -98,31 +129,55 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
 export async function transcribeAudio(
   fileName: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcribe`, {
+  const url = `${BASE_URL}/transcribe`;
+  console.log('[API] transcribeAudio 開始:', { url, fileName });
+
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName }),
   });
+
+  console.log('[API] transcribeAudio レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
     const body = await res.json().catch(() => null);
+    const bodyText = await res.text().catch(() => '');
+    console.error('[API] transcribeAudio エラーレスポンス:', { status: res.status, body, bodyText });
     if (body?.code === 'QUOTA_EXCEEDED') {
       const error = new Error(body.message);
       error.name = 'QuotaExceededError';
       throw error;
     }
-    throw new Error(`文字起こしに失敗しました: ${res.status}`);
+    if (body?.code === 'API_KEY_MISSING') {
+      const error = new Error(body.message);
+      error.name = 'ApiKeyMissingError';
+      throw error;
+    }
+    const serverMessage = body?.message || bodyText || res.statusText;
+    throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }
   const data = await res.json();
+  console.log('[API] transcribeAudio 完了:', { id: data.transcription?.id });
   return data.transcription;
 }
 
 /** 文字起こし一覧を取得 */
 export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
-  const res = await fetch(`${BASE_URL}/transcriptions`);
+  const url = `${BASE_URL}/transcriptions`;
+  console.log('[API] fetchTranscriptions 開始:', url);
+
+  const res = await fetchWithRetry(url);
+
+  console.log('[API] fetchTranscriptions レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
-    throw new Error(`文字起こし一覧の取得に失敗しました: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    console.error('[API] fetchTranscriptions エラーレスポンス:', { status: res.status, body });
+    throw new Error(`文字起こし一覧の取得に失敗しました: ${res.status} ${body}`);
   }
   const data = await res.json();
+  console.log('[API] fetchTranscriptions 完了:', { count: data.transcriptions?.length });
   return data.transcriptions;
 }
 
@@ -130,11 +185,20 @@ export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
 export async function fetchTranscription(
   id: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcriptions/${id}`);
+  const url = `${BASE_URL}/transcriptions/${id}`;
+  console.log('[API] fetchTranscription 開始:', { url, id });
+
+  const res = await fetchWithRetry(url);
+
+  console.log('[API] fetchTranscription レスポンス:', { status: res.status, statusText: res.statusText });
+
   if (!res.ok) {
-    throw new Error(`文字起こし結果の取得に失敗しました: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    console.error('[API] fetchTranscription エラーレスポンス:', { status: res.status, body });
+    throw new Error(`文字起こし結果の取得に失敗しました: ${res.status} ${body}`);
   }
   const data = await res.json();
+  console.log('[API] fetchTranscription 完了:', { id: data.transcription?.id });
   return data.transcription;
 }
 
@@ -310,6 +374,97 @@ export async function analyzeDeepSearchResults(
   });
   if (!res.ok) {
     throw new Error(`分析に失敗しました: ${res.status}`);
+  }
+  return res.json();
+}
+
+// === Podcastファイル ===
+
+/** Podcastキャッシュファイル情報 */
+export interface PodcastFileInfo {
+  fileName: string;
+  sizeBytes: number;
+  lastModified: string;
+}
+
+/** Podcastキャッシュファイル一覧を取得 */
+export async function fetchPodcastFiles(): Promise<{
+  exists: boolean;
+  files: PodcastFileInfo[];
+}> {
+  const res = await fetchWithRetry(`${BASE_URL}/podcast-files`);
+  if (!res.ok) {
+    throw new Error(`Podcastファイル一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  console.log('[API] fetchPodcastFiles:', data);
+  return data;
+}
+
+/** Podcastファイルのストリーミング再生URLを取得 */
+export function getPodcastFileStreamUrl(fileName: string): string {
+  return `${BASE_URL}/podcast-files/${encodeURIComponent(fileName)}/stream`;
+}
+
+/** Podcastファイルを文字起こし */
+export async function transcribePodcastFile(
+  fileName: string,
+): Promise<Transcription> {
+  const res = await fetch(`${BASE_URL}/podcast-transcribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (body?.code === 'QUOTA_EXCEEDED') {
+      const error = new Error(body.message);
+      error.name = 'QuotaExceededError';
+      throw error;
+    }
+    if (body?.code === 'API_KEY_MISSING') {
+      const error = new Error(body.message);
+      error.name = 'ApiKeyMissingError';
+      throw error;
+    }
+    throw new Error(`Podcast文字起こしに失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.transcription;
+}
+
+// === 設定 ===
+
+/** アプリ設定を取得 */
+export async function fetchSettings(): Promise<AppSettings> {
+  const res = await fetchWithRetry(`${BASE_URL}/settings`);
+  if (!res.ok) {
+    throw new Error(`設定の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.settings;
+}
+
+/** データフォルダをFinderで開く */
+export async function openDataFolder(): Promise<void> {
+  await fetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
+}
+
+/** アプリ設定を更新 */
+export async function updateSettings(
+  dto: {
+    dataDir?: string;
+    elevenlabsApiKey?: string;
+    anthropicApiKey?: string;
+  },
+): Promise<{ settings: AppSettings; restartRequired: boolean }> {
+  const res = await fetch(`${BASE_URL}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  if (!res.ok) {
+    throw new Error(`設定の更新に失敗しました: ${res.status}`);
   }
   return res.json();
 }

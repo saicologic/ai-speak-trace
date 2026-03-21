@@ -1,0 +1,22 @@
+[package]
+name = "ai-speak-trace"
+version = "0.0.0"
+description = "音声データの話者分離・文字起こしデスクトップアプリ"
+authors = ["saicologic"]
+edition = "2021"
+
+[lib]
+name = "ai_speak_trace_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-process = "2.3.1"

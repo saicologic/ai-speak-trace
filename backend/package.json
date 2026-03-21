@@ -17,8 +17,18 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "pkg": "npm run build && pkg .",
+    "pkg:mac-arm64": "npm run build && pkg . --targets node20-macos-arm64 --output ../src-tauri/binaries/nestjs-server-aarch64-apple-darwin",
+    "pkg:mac-x64": "npm run build && pkg . --targets node20-macos-x64 --output ../src-tauri/binaries/nestjs-server-x86_64-apple-darwin"
   },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [],
+    "targets": ["node20-macos-arm64"],
+    "outputPath": "../src-tauri/binaries"
+  },
+  "bin": "dist/main.js",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1001.0",
@@ -49,6 +59,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^9.0.8",
+    "@yao-pkg/pkg": "^6.14.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

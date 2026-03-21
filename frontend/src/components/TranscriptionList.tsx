@@ -27,10 +27,14 @@ export function TranscriptionList({ selectedId, onSelect, loading }: Props) {
   const loadItems = async () => {
     try {
       setFetchError(null);
+      console.log('[TranscriptionList] 履歴一覧の取得を開始');
       const result = await fetchTranscriptions();
+      console.log('[TranscriptionList] 履歴一覧の取得完了:', result.length, '件');
       setItems(result);
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : '取得に失敗しました');
+      const msg = e instanceof Error ? e.message : '取得に失敗しました';
+      console.error('[TranscriptionList] 履歴一覧の取得エラー:', msg, e);
+      setFetchError(msg);
     }
   };
 

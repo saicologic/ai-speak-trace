@@ -8,16 +8,34 @@
   background-color: #1a1a2e;
   color: #ffffff;
   padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.app-header h1 {
+.app-header-left h1 {
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
 }
 
-.app-header p {
+.app-header-left p {
   font-size: 0.85rem;
   color: #a0a0b8;
+}
+
+.app-header-settings-button {
+  padding: 0.4rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.app-header-settings-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .app-main {
@@ -38,34 +56,33 @@
 }
 
 .sidebar-tabs {
-  display: flex;
-  gap: 0;
   margin-bottom: 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
 }
 
-.sidebar-tab {
-  flex: 1;
-  padding: 0.5rem 0;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: none;
-  border-radius: 0;
-  background-color: #f9fafb;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sidebar-tab:hover {
-  background-color: #f3f4f6;
-}
-
-.sidebar-tab.active {
-  background-color: #1a1a2e;
+/* 文字起こしアクションボタン */
+.sidebar-tab-action {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background-color: #3b82f6;
   color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.sidebar-tab-action:hover {
+  background-color: #2563eb;
+}
+
+/* サイドバーセクションタイトル */
+.sidebar-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
 }
 
 .app-content {
@@ -238,4 +255,28 @@
 .context-floating-button:hover {
   background-color: #7c3aed;
   box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+}
+
+/* 設定ボタン（サイドバー下部） */
+.sidebar-settings {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sidebar-settings-button {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  color: #6b7280;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sidebar-settings-button:hover {
+  background-color: #f3f4f6;
+  color: #374151;
 }

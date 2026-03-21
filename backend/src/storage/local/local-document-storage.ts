@@ -14,13 +14,14 @@ export class LocalDocumentStorage implements DocumentStorage {
   private readonly metadataDir: string;
 
   constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.fileDir = path.resolve(
       this.configService.get<string>('DOCUMENTS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'documents'),
+        path.join(dataDir, 'documents'),
     );
     this.metadataDir = path.resolve(
       this.configService.get<string>('DOCUMENT_METADATA_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'document-metadata'),
+        path.join(dataDir, 'document-metadata'),
     );
 
     if (!existsSync(this.fileDir)) {

@@ -133,3 +133,21 @@ export interface DeepSearchAnalysis {
   analysis: string;
   analyzedAt: string;
 }
+
+/** アプリ設定 */
+export interface AppSettings {
+  appVersion: string;
+  storageType: string;
+  port: number;
+  paths: {
+    dataDir: string;
+    outputsDir: string;
+    transcriptionsDir: string;
+    documentsDir: string;
+    documentMetadataDir: string;
+  };
+  apiKeys: {
+    elevenlabsApiKey: string;
+    anthropicApiKey: string;
+  };
+}

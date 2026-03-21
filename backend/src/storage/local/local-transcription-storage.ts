@@ -13,9 +13,10 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
   private readonly storeDir: string;
 
   constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.storeDir = path.resolve(
       this.configService.get<string>('TRANSCRIPTIONS_DIR') ||
-        path.join(__dirname, '..', '..', '..', 'data', 'transcriptions'),
+        path.join(dataDir, 'transcriptions'),
     );
 
     if (!existsSync(this.storeDir)) {
@@ -37,10 +38,16 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
   }
 
   async findAll(): Promise<Transcription[]> {
-    if (!existsSync(this.storeDir)) return [];
+    this.logger.log(`findAll 開始: storeDir=${this.storeDir}`);
+
+    if (!existsSync(this.storeDir)) {
+      this.logger.warn(`保存ディレクトリが存在しません: ${this.storeDir}`);
+      return [];
+    }
 
     const files = await fs.readdir(this.storeDir);
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
+    this.logger.log(`findAll: ${jsonFiles.length}個のJSONファイルを検出 (ディレクトリ内ファイル総数: ${files.length})`);
     const transcriptions: Transcription[] = [];
 
     for (const file of jsonFiles) {
@@ -55,6 +62,7 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
       }
     }
 
+    this.logger.log(`findAll 完了: ${transcriptions.length}件の文字起こしを返却`);
     return transcriptions;
   }
 }

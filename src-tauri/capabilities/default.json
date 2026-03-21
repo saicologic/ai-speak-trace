@@ -1,0 +1,16 @@
+{
+  "identifier": "default",
+  "description": "デフォルトパーミッション",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-spawn",
+    "shell:allow-execute",
+    "shell:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "fs:allow-home-read-recursive",
+    "fs:allow-download-read-recursive",
+    "process:allow-restart"
+  ]
+}

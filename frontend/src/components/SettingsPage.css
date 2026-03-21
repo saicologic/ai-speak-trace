@@ -1,0 +1,310 @@
+.settings-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.settings-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.settings-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.settings-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.settings-content {
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+.settings-loading {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.settings-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+/* セクション */
+.settings-section {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* セクションヘッダー（タイトル + ボタン横並び） */
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-section-header h2 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* フォルダを表示ボタン */
+.settings-open-folder-button {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #3b82f6;
+  background-color: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.settings-open-folder-button:hover {
+  color: #ffffff;
+  background-color: #3b82f6;
+}
+
+/* データディレクトリのパス表示 */
+.settings-datadir-path {
+  font-size: 0.8rem;
+  color: #374151;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  word-break: break-all;
+}
+
+/* 入力フィールド共通 */
+.settings-input-group {
+  margin-bottom: 1rem;
+}
+
+.settings-input-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #374151;
+  font-weight: 500;
+  margin-bottom: 0.4rem;
+}
+
+.settings-api-key-link {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.settings-api-key-link:hover {
+  text-decoration: underline;
+}
+
+.settings-input-with-toggle {
+  position: relative;
+}
+
+.settings-input-with-toggle .settings-input {
+  padding-right: 3.5rem;
+}
+
+.settings-toggle-visibility {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  color: #3b82f6;
+  background-color: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-toggle-visibility:hover {
+  color: #ffffff;
+  background-color: #3b82f6;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background-color: #ffffff;
+  box-sizing: border-box;
+}
+
+.settings-input-mono {
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* APIキーステータス表示 */
+.settings-api-key-status {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: #059669;
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+/* サブディレクトリ表示 */
+.settings-subdirs {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.settings-subdirs-title {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.settings-subdir-item {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0;
+}
+
+.settings-subdir-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.settings-subdir-path {
+  font-size: 0.8rem;
+  color: #374151;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 保存ボタン */
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.settings-save-button {
+  padding: 0.6rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.settings-save-button:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.settings-save-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 成功・警告メッセージ */
+.settings-success {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-restart-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #92400e;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.settings-restart-button {
+  margin-left: auto;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #92400e;
+  background-color: #ffffff;
+  border: 1px solid #92400e;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.settings-restart-button:hover {
+  color: #ffffff;
+  background-color: #92400e;
+}
