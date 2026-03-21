@@ -59,6 +59,20 @@
   margin-bottom: 0;
 }
 
+.transcribe-error-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.transcribe-error-detail {
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 0.8rem;
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
 .transcribe-settings-link {
   display: inline-block;
   padding: 0.4rem 1rem;
@@ -138,6 +152,12 @@
   word-break: break-all;
 }
 
+.transcribe-file-size {
+  font-size: 0.8rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
 .transcribe-file-change {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
@@ -152,6 +172,12 @@
 .transcribe-file-change:hover {
   background-color: #f3f4f6;
   color: #374151;
+}
+
+.transcribe-audio-duration {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
 }
 
 /* プレビュー用オーディオプレイヤー */

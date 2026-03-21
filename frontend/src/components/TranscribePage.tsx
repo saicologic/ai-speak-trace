@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { uploadAudioFile, transcribeAudio, BASE_URL } from '../api/client';
 import type { Transcription } from '../types';
 import './TranscribePage.css';
@@ -6,6 +6,42 @@ import './TranscribePage.css';
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
 const PODCAST_CACHE_RELATIVE =
   'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache';
+
+/** ファイルサイズを読みやすい形式にフォーマット */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+/** 秒数を mm:ss 形式にフォーマット */
+function formatElapsedTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/** 音声の長さを「X時間Y分」「X分Y秒」形式にフォーマット */
+function formatDuration(seconds: number): string {
+  if (seconds >= 3600) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return m > 0 ? `${h}時間${m}分` : `${h}時間`;
+  }
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+}
+
+/**
+ * 推定処理時間を計算（秒）
+ * ElevenLabsはリアルタイムの20〜50倍速で処理する。
+ * アップロード時間も考慮して控えめに20倍速で見積もる。
+ */
+function estimateProcessingTime(audioDurationSec: number): number {
+  return Math.ceil(audioDurationSec / 20);
+}
 
 /** 拡張子からMIMEタイプを推定 */
 function getMimeType(fileName: string): string {
@@ -42,6 +78,9 @@ export function TranscribePage({
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [audioDurationSec, setAudioDurationSec] = useState<number | null>(null);
 
   // previewUrl のメモリ解放
   useEffect(() => {
@@ -49,6 +88,18 @@ export function TranscribePage({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  // 文字起こし中の経過時間カウンター
+  useEffect(() => {
+    if (step !== 'transcribing') {
+      setElapsedSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step]);
 
   /** Tauri環境でのファイル選択（ネイティブダイアログ） */
   const handleTauriFileSelect = async () => {
@@ -101,6 +152,17 @@ export function TranscribePage({
     }
   };
 
+  /** audioメタデータ読み込み時に長さを取得 */
+  const handleLoadedMetadata = useCallback(
+    (e: React.SyntheticEvent<HTMLAudioElement>) => {
+      const duration = e.currentTarget.duration;
+      if (duration && isFinite(duration)) {
+        setAudioDurationSec(duration);
+      }
+    },
+    [],
+  );
+
   /** ファイル選択ボタンのクリック処理 */
   const handleSelectClick = () => {
     handleTauriFileSelect();
@@ -134,11 +196,15 @@ export function TranscribePage({
         stack,
         error: err,
       });
+      setIsApiKeyMissing(false);
+      setIsQuotaExceeded(false);
       if (errorName === 'ApiKeyMissingError') {
         setIsApiKeyMissing(true);
         setError(detail);
+      } else if (errorName === 'QuotaExceededError') {
+        setIsQuotaExceeded(true);
+        setError(detail);
       } else {
-        setIsApiKeyMissing(false);
         setError(`文字起こしに失敗しました: ${detail}`);
       }
       setStep('preview');
@@ -152,6 +218,9 @@ export function TranscribePage({
     setFile(null);
     setPreviewUrl('');
     setError('');
+    setIsApiKeyMissing(false);
+    setIsQuotaExceeded(false);
+    setAudioDurationSec(null);
   };
 
   return (
@@ -166,7 +235,15 @@ export function TranscribePage({
       <div className="transcribe-content">
         {error && (
           <div className="transcribe-error">
-            <p>{error}</p>
+            {isQuotaExceeded ? (
+              <>
+                <p className="transcribe-error-title">クレジット不足</p>
+                <p className="transcribe-error-detail">{error}</p>
+                <p>ElevenLabsのクレジットが不足しています。プランをアップグレードするか、クレジットが回復するまでお待ちください。</p>
+              </>
+            ) : (
+              <p>{error}</p>
+            )}
             {isApiKeyMissing && (
               <button
                 className="transcribe-settings-link"
@@ -200,6 +277,7 @@ export function TranscribePage({
             <h2>音声ファイルの確認</h2>
             <div className="transcribe-file-info">
               <span className="transcribe-file-name">{file.name}</span>
+              <span className="transcribe-file-size">({formatFileSize(file.size)})</span>
               <button
                 className="transcribe-file-change"
                 onClick={handleReset}
@@ -207,8 +285,14 @@ export function TranscribePage({
                 変更
               </button>
             </div>
+            {audioDurationSec !== null && (
+              <p className="transcribe-audio-duration">
+                音声の長さ: {formatDuration(audioDurationSec)}
+                （推定処理時間: 約{formatDuration(estimateProcessingTime(audioDurationSec))}）
+              </p>
+            )}
             <div className="transcribe-preview-player">
-              <audio controls src={previewUrl} />
+              <audio controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
             </div>
             <button
               className="transcribe-start-button"
@@ -224,11 +308,18 @@ export function TranscribePage({
           <div className="transcribe-section">
             <div className="transcribe-processing">
               <div className="transcribe-spinner" />
-              <p className="transcribe-processing-text">文字起こし中...</p>
-              <p className="transcribe-processing-hint">
-                アップロードと文字起こしを実行しています。
-                音声の長さにより数十秒かかる場合があります。
+              <p className="transcribe-processing-text">
+                文字起こし中... {formatElapsedTime(elapsedSeconds)} 経過
               </p>
+              {audioDurationSec !== null ? (
+                <p className="transcribe-processing-hint">
+                  推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
+                </p>
+              ) : (
+                <p className="transcribe-processing-hint">
+                  音声の長さやファイルサイズにより数分かかる場合があります。
+                </p>
+              )}
             </div>
           </div>
         )}

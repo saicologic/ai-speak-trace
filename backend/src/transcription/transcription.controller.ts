@@ -90,6 +90,13 @@ export class TranscriptionController {
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
+      // タイムアウトエラー
+      if (error instanceof Error && error.name === 'TranscriptionTimeoutError') {
+        throw new HttpException(
+          { code: 'TRANSCRIPTION_TIMEOUT', message: error.message },
+          HttpStatus.REQUEST_TIMEOUT,
+        );
+      }
       // APIキー未設定エラー
       if (
         error instanceof Error &&

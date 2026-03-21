@@ -25,6 +25,9 @@ const PHRASE_BREAK_CHARS = /[。、！？!?,.\s]/;
 /** フレーズ区切りとなる時間間隔（秒） */
 const PHRASE_GAP_THRESHOLD = 0.5;
 
+/** ファイルサイズ上限（3GB）: ElevenLabs APIのローカルアップロード上限 */
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024 * 1024;
+
 /** 文字起こしのビジネスロジックを担当するサービス */
 @Injectable()
 export class TranscriptionService {
@@ -69,7 +72,10 @@ export class TranscriptionService {
 
   /** 音声ファイルを文字起こし */
   async transcribe(fileName: string): Promise<Transcription> {
-    this.logger.log(`文字起こし開始: ${fileName}`);
+    const startTime = Date.now();
+    const elapsedSec = () => Math.round((Date.now() - startTime) / 1000);
+
+    this.logger.log(`文字起こしパイプライン開始: ${fileName}`);
 
     if (!(await this.audioStorage.exists(fileName))) {
       this.logger.error(`音声ファイルが見つかりません: ${fileName}`);
@@ -79,20 +85,26 @@ export class TranscriptionService {
     }
 
     // ストレージから音声ファイルを読み込み
-    this.logger.log(`音声ファイル読み込み開始: ${fileName}`);
     const fileBuffer = await this.audioStorage.readFile(fileName);
-    this.logger.log(`音声ファイル読み込み完了: ${fileName} (${fileBuffer.length} bytes)`);
+    const fileSizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(1);
+    this.logger.log(`音声ファイル読み込み完了: ${fileName} (${fileSizeMB} MB)`);
+
+    // ファイルサイズ上限チェック（ElevenLabs APIのローカルアップロード上限: 3GB）
+    if (fileBuffer.length > MAX_FILE_SIZE_BYTES) {
+      throw new Error(
+        `ファイルサイズが上限（3GB）を超えています（${fileSizeMB} MB）。音声ファイルを分割してください。`,
+      );
+    }
 
     // ElevenLabs APIで文字起こし
-    this.logger.log(`ElevenLabs API呼び出し開始: ${fileName}`);
     const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
-    this.logger.log(`ElevenLabs API呼び出し完了: ${fileName} (${result.words.length} 単語)`);
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
     const rawWords = this.convertWords(result.words);
     const words = this.mergeWordsIntoPhrases(rawWords);
     const speakers = this.buildSpeakers(words);
     const utterances = this.groupWordsIntoUtterances(words, speakers);
+    this.logger.log(`データ変換完了: ${rawWords.length} 単語 → ${words.length} フレーズ, ${speakers.length} 名, ${utterances.length} セグメント`);
 
     const transcription: Transcription = {
       id: uuidv4(),
@@ -107,7 +119,7 @@ export class TranscriptionService {
 
     // 結果を保存
     await this.store.save(transcription);
-    this.logger.log(`文字起こし完了: ${fileName} (ID: ${transcription.id})`);
+    this.logger.log(`文字起こしパイプライン完了: ${fileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`);
 
     return transcription;
   }

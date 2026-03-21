@@ -141,20 +141,31 @@ export async function transcribeAudio(
   console.log('[API] transcribeAudio レスポンス:', { status: res.status, statusText: res.statusText });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const bodyText = await res.text().catch(() => '');
-    console.error('[API] transcribeAudio エラーレスポンス:', { status: res.status, body, bodyText });
+    // レスポンスボディはストリームなので一度だけ読む
+    const rawText = await res.text().catch(() => '');
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = JSON.parse(rawText);
+    } catch {
+      // JSONパース失敗時はrawTextをそのまま使う
+    }
+    console.error('[API] transcribeAudio エラーレスポンス:', { status: res.status, body, rawText });
     if (body?.code === 'QUOTA_EXCEEDED') {
-      const error = new Error(body.message);
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
       error.name = 'QuotaExceededError';
       throw error;
     }
+    if (body?.code === 'TRANSCRIPTION_TIMEOUT') {
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
+      error.name = 'TranscriptionTimeoutError';
+      throw error;
+    }
     if (body?.code === 'API_KEY_MISSING') {
-      const error = new Error(body.message);
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
       error.name = 'ApiKeyMissingError';
       throw error;
     }
-    const serverMessage = body?.message || bodyText || res.statusText;
+    const serverMessage = (typeof body?.message === 'string' ? body.message : null) || rawText || res.statusText;
     throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }
   const data = await res.json();
