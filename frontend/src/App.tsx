@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TranscriptionList } from './components/TranscriptionList';
 import { TranscriptionView } from './components/TranscriptionView';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
@@ -12,6 +12,7 @@ import SettingsPage from './components/SettingsPage';
 import {
   fetchTranscription,
   analyzeUtteranceContext,
+  fetchSettings,
 } from './api/client';
 import { extractKeywords } from './utils/keywords';
 import type { Transcription, ContextAnalysisResponse } from './types';
@@ -41,6 +42,18 @@ function App() {
   const [contextAnalysis, setContextAnalysis] =
     useState<ContextAnalysisResponse | null>(null);
   const [contextAnalyzing, setContextAnalyzing] = useState(false);
+  const [enableDeepSearch, setEnableDeepSearch] = useState(false);
+  const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+
+  /** 起動時にベータ機能の設定を読み込み */
+  useEffect(() => {
+    fetchSettings()
+      .then((s) => {
+        setEnableDeepSearch(s.enableDeepSearch ?? false);
+        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+      })
+      .catch(() => {});
+  }, []);
 
   /** 文字起こしテキストからキーワードを抽出（メモ化） */
   const keywords = useMemo(
@@ -165,7 +178,16 @@ function App() {
 
   /** 設定ページの場合 */
   if (page === 'settings') {
-    return <SettingsPage onBack={() => setPage('main')} />;
+    return <SettingsPage onBack={() => {
+      // 設定変更を反映するために再読み込み
+      fetchSettings()
+        .then((s) => {
+          setEnableDeepSearch(s.enableDeepSearch ?? false);
+          setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        })
+        .catch(() => {});
+      setPage('main');
+    }} />;
   }
 
   return (
@@ -265,8 +287,8 @@ function App() {
               filterActive={filterActive}
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateInterview={() => setPage('interview')}
-              onNavigateDeepSearch={() => setPage('deep-search')}
-              onToggleContextMode={toggleContextMode}
+              onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
+              onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
               contextSelectMode={contextSelectMode}
             />
           </aside>

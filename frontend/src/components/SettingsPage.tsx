@@ -18,6 +18,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showElevenlabsKey, setShowElevenlabsKey] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [enableDeepSearch, setEnableDeepSearch] = useState(false);
+  const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
 
   // 設定を読み込み
   useEffect(() => {
@@ -35,6 +37,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
         if (s.apiKeys?.anthropicApiKey) {
           setAnthropicApiKey(s.apiKeys.anthropicApiKey);
         }
+        setEnableDeepSearch(s.enableDeepSearch ?? false);
+        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -57,6 +61,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     const dto: {
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
+      enableDeepSearch?: boolean;
+      enableContextAnalysis?: boolean;
     } = {};
 
     if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
@@ -65,6 +71,12 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     if (anthropicApiKey !== (settings?.apiKeys?.anthropicApiKey || '')) {
       dto.anthropicApiKey = anthropicApiKey;
     }
+    if (enableDeepSearch !== (settings?.enableDeepSearch ?? false)) {
+      dto.enableDeepSearch = enableDeepSearch;
+    }
+    if (enableContextAnalysis !== (settings?.enableContextAnalysis ?? false)) {
+      dto.enableContextAnalysis = enableContextAnalysis;
+    }
 
     try {
       const result = await updateSettings(dto);
@@ -72,6 +84,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       // 保存後に入力値を新しい設定値に同期
       setElevenlabsApiKey(result.settings.apiKeys?.elevenlabsApiKey || '');
       setAnthropicApiKey(result.settings.apiKeys?.anthropicApiKey || '');
+      setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
+      setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
       setShowSuccess(true);
     } catch (err: any) {
       setError(err.message);
@@ -83,7 +97,9 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   // 変更があるか判定
   const hasChanges = settings
     ? elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
-      anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '')
+      anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '') ||
+      enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
+      enableContextAnalysis !== (settings.enableContextAnalysis ?? false)
     : false;
 
   // サブディレクトリ（相対パス表示）
@@ -217,6 +233,39 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* ベータ機能 */}
+            <div className="settings-section">
+              <h2>ベータ機能</h2>
+              <label className="settings-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={enableDeepSearch}
+                  onChange={(e) => {
+                    setEnableDeepSearch(e.target.checked);
+                    setShowSuccess(false);
+                  }}
+                />
+                ディープサーチを有効にする
+              </label>
+              <p className="settings-checkbox-hint">
+                有効にすると、右サイドバーに「ディープサーチ」ボタンが表示されます。
+              </p>
+              <label className="settings-checkbox-label" style={{ marginTop: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={enableContextAnalysis}
+                  onChange={(e) => {
+                    setEnableContextAnalysis(e.target.checked);
+                    setShowSuccess(false);
+                  }}
+                />
+                発言の文脈を有効にする
+              </label>
+              <p className="settings-checkbox-hint">
+                有効にすると、右サイドバーに「発言の文脈」ボタンが表示されます。
+              </p>
             </div>
 
             <div className="settings-actions">

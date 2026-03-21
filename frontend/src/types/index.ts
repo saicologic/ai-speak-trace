@@ -150,4 +150,6 @@ export interface AppSettings {
     elevenlabsApiKey: string;
     anthropicApiKey: string;
   };
+  enableDeepSearch: boolean;
+  enableContextAnalysis: boolean;
 }
