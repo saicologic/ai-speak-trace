@@ -112,17 +112,6 @@ xattr -cr /Applications/AI\ Speak\ Trace.app
 
 ---
 
-## サポートのお願い
-
-現在このアプリはコード署名されていないため、初回起動時にターミナルでの操作が必要です。
-Apple Developer Program（年額 $99）に加入することで、コード署名・公証（Notarization）が可能になり、ダウンロード後すぐに起動できるようになります。
-
-皆さまのご支援でコード署名の実現を目指しています。
-
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa?logo=github)](https://github.com/sponsors/saicologic)
-
----
-
 ## 応用編
 
 ### ディープサーチ（AWS連携）
@@ -268,3 +257,14 @@ ai-speak-trace/
         ├── documents/            # PDFファイルの保存先
         └── document-metadata/    # PDFメタデータの保存先
 ```
+
+---
+
+## サポートのお願い
+
+現在このアプリはコード署名されていないため、初回起動時にターミナルでの操作が必要です。
+Apple Developer Program（年額 $99）に加入することで、コード署名・公証（Notarization）が可能になり、ダウンロード後すぐに起動できるようになります。
+
+皆さまのご支援でコード署名の実現を目指しています。
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa?logo=github)](https://github.com/sponsors/saicologic)
