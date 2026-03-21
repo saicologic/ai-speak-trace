@@ -164,46 +164,20 @@ source "$HOME/.cargo/env"
 
 ### 開発モード起動
 
-#### まとめて起動（推奨）
-
 ```bash
-# ブラウザで開発（バックエンド + フロントエンド）
 npm run dev
-# → ブラウザで http://localhost:5173 にアクセス
-
-# Tauriデスクトップアプリで開発（バックエンド + Tauri）
-npm run dev:app
 ```
 
 起動時に前回のバックエンドプロセスを自動終了するため、ポート競合を気にせず実行できます。
-いずれも Ctrl+C でまとめて停止できます。
-
-#### 個別に起動する場合
-
-```bash
-# ターミナル1: バックエンド（ポート3100）
-cd backend
-npm run start:dev
-
-# ターミナル2: Tauri開発モード（フロントエンドは自動起動）
-source "$HOME/.cargo/env"
-npm run tauri:dev
-```
+Ctrl+C でまとめて停止できます。
 
 ### プロダクションビルド
 
 ```bash
-# 1. NestJSバイナリを生成
-npm run pkg:backend
-
-# 2. Tauriビルド（.app / .dmg を生成）
-source "$HOME/.cargo/env"
-npm run tauri:build
+npm run build
 ```
 
-生成物:
-- `src-tauri/target/release/bundle/macos/AI Speak Trace.app`
-- `src-tauri/target/release/bundle/dmg/AI Speak Trace_0.1.0_aarch64.dmg`
+生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
 
 ### 技術スタック
 
