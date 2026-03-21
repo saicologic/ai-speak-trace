@@ -237,6 +237,28 @@
   white-space: nowrap;
 }
 
+/* チェックボックス */
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.settings-checkbox-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.settings-checkbox-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0.4rem 0 0 1.5rem;
+}
+
 /* 保存ボタン */
 .settings-actions {
   display: flex;

@@ -4,35 +4,51 @@
 
 ## サービス概要
 
-### 話者分離 & 文字起こし
-- 1つの音声ファイルに含まれる2人の会話を自動で話者分離し、日本語で文字起こし
-- ElevenLabs Scribe v2 APIを使用
-- 話者名は「Aさん」「Bさん」がデフォルト（編集可能）
+### 入力：音声ファイルのアップロード
+- アプリ内で音声ファイル（mp3, m4a, wav など）をアップロードして文字起こし
+- macOS Podcastアプリでダウンロードしたエピソード音声にも対応
 
-### Podcast文字起こし
-- macOS Podcastアプリのキャッシュから音声ファイルを自動検出
-- Podcast音声をそのまま文字起こし可能
+**Podcastの音声データを取得するには**
 
-### 文字起こし結果の閲覧
-- アプリ上で文字起こし結果を確認
-- 単語・文章の選択、話者の識別が可能
+macOSにはPodcastアプリがプリインストールされています。エピソードをダウンロードしてから、本アプリにアップロードしてください。
+
+- [Podcastでエピソードを保存する/ダウンロードする（Mac）](https://support.apple.com/ja-jp/guide/podcasts/poda4f6be01/mac)
+- [Podcastユーザガイド（Mac）](https://support.apple.com/ja-jp/guide/podcasts/welcome/mac)
+- [iTunesでポッドキャストをダウンロードする（Windows）](https://support.apple.com/ja-jp/guide/itunes/itns3125/windows)
+
+> Podcastアプリが見つからない場合は、[App Store](https://apps.apple.com/jp/app/apple-podcasts/id525463029) から再インストールできます。
+
+### 文字起こし：AIによる話者分離
+- [ElevenLabs Scribe v2](https://elevenlabs.io/docs/capabilities/speech-to-text) APIで高精度な日本語文字起こし
+- 1つの音声に含まれる2人の会話を自動で話者分離
+- 話者名は「Aさん」「Bさん」がデフォルト（後から編集可能）
+- APIキーの取得: [ElevenLabs公式サイト](https://elevenlabs.io)
+
+### 出力：キーワード抽出 & フィルター
+- 話者ごとに色分けされた文字起こし結果を閲覧
+- 専門用語・固有名詞を自動抽出してキーワード一覧に表示
+- キーワードのハイライト表示・フィルター機能で発話を絞り込み
 - 文字起こし履歴の保存・再表示
 
-### キーワード抽出 & フィルター
-- 文字起こしテキストから専門用語・固有名詞を自動抽出（右サイドバー）
-- キーワードのハイライト表示
-- 選択したキーワードで発話を絞り込むフィルター機能
-
-### 会話分析（Claude API + Web検索）
+### 深掘り：会話分析
 - 話者ごとのキーワードを自動抽出
-- 選択したキーワードからClaude APIで調査質問を自動生成
-- Claude APIのWeb検索ツールを使い、各質問についてWeb検索付きの分析レポートを生成
-- 分析結果はMarkdown→HTMLで見やすく表示、出典URLも表示
+- 選択したキーワードから[Claude API](https://docs.anthropic.com/ja/docs/welcome)（[Anthropic](https://www.anthropic.com/)のAIモデル）で調査質問を自動生成
+- Web検索付きの分析レポートを生成、出典URLも表示
 
-### ディープサーチ
+---
+
+### ベータ版
+
+以下の機能は設定画面から個別に有効化できます（デフォルトは無効）。
+
+#### 深掘り：ディープサーチ
 - 会話データ・PDFドキュメント・Web検索を横断的に検索
 - Amazon Bedrock Titan Embeddings V2によるベクトル検索（PDF）
-- 検索結果をClaudeで統合分析
+- 検索結果を[Claude API](https://docs.anthropic.com/ja/docs/welcome)で統合分析
+
+#### 深掘り：発言の文脈
+- 文字起こし結果から発言を複数選択して文脈を分析
+- 各発言の意図・トピックを[Claude API](https://docs.anthropic.com/ja/docs/welcome)で解析
 
 ---
 
@@ -40,9 +56,27 @@
 
 ### インストール
 
-1. `.dmg` ファイルを開く
+#### 1. ダウンロード
+
+[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `AI.Speak.Trace.dmg` をダウンロードしてください。
+
+#### 2. アプリの配置
+
+1. ダウンロードした `AI.Speak.Trace.dmg` をダブルクリックで開く
 2. `AI Speak Trace.app` を `Applications` フォルダにドラッグ&ドロップ
-3. 初回起動時にセキュリティ警告が出た場合は「システム設定 > プライバシーとセキュリティ」から許可する
+
+#### 3. 初回起動の準備
+
+コード署名されていないアプリのため、初回起動前にターミナルで以下を実行してください:
+
+```bash
+xattr -cr /Applications/AI\ Speak\ Trace.app
+```
+
+実行後、`Applications` フォルダから `AI Speak Trace` をダブルクリックで起動できます。
+
+> **なぜこの操作が必要？**
+> macOS Gatekeeper がコード署名のないアプリをブロックするため、手動で制限を解除する必要があります。
 
 ### 初期設定
 
@@ -91,30 +125,6 @@
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
 | `EADDRINUSE: address already in use :::3100` | `npm run kill` を実行してから再起動してください。または `.env` の `BACKEND_PORT` を別のポートに変更してください |
-
----
-
-## 応用編
-
-### ディープサーチ（AWS連携）
-
-ディープサーチ機能でPDFドキュメントのベクトル検索を使用するには、AWS認証情報の設定が必要です。
-
-#### 必要なAWSサービス
-- Amazon Bedrock（Titan Embeddings V2）
-- Amazon S3 Vectors
-
-#### 環境変数の設定
-
-`backend/.env` に以下を追加:
-
-```env
-AWS_REGION=ap-northeast-1
-BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
-BEDROCK_EMBEDDING_DIMENSIONS=256
-```
-
-AWS認証情報は `~/.aws/credentials` または環境変数（`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`）で設定してください。
 
 ---
 
@@ -198,7 +208,6 @@ npm run build
 | バックエンド | NestJS（sidecarバイナリとしてバンドル） |
 | 音声認識 | ElevenLabs Scribe v2 |
 | AI分析 | Claude API（Anthropic） |
-| ベクトル検索 | Amazon Bedrock + S3 Vectors |
 | バイナリ化 | @yao-pkg/pkg |
 
 ### アーキテクチャ
@@ -239,3 +248,9 @@ ai-speak-trace/
         ├── documents/            # PDFファイルの保存先
         └── document-metadata/    # PDFメタデータの保存先
 ```
+
+---
+
+## ライセンス
+
+[MIT License](LICENSE)
