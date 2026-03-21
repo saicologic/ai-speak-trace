@@ -1,6 +1,6 @@
 # AI Speak Trace - Backend
 
-音声ファイルの話者分離・文字起こし・会話分析を行うバックエンドAPIです。
+音声ファイルの話者分離・文字起こし・キーワード抽出・会話分析を行うバックエンドAPIです。
 
 ## 技術スタック
 
@@ -8,9 +8,9 @@
 |---------|------|-----------|
 | フレームワーク | NestJS | 11.x |
 | 言語 | TypeScript | 5.7.x |
-| 音声文字起こし | ElevenLabs Scribe v2 API | - |
-| 会話分析 | Anthropic Claude API | - |
-| ストレージ | ローカルファイル / AWS S3 | - |
+| 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/capabilities/speech-to-text) API | - |
+| 会話分析 | [Claude API](https://docs.anthropic.com/ja/docs/welcome)（[Anthropic](https://www.anthropic.com/)） | - |
+| ストレージ | ローカルファイル | - |
 | テスト | Jest | 30.x |
 | リンター | ESLint + Prettier | - |
 
@@ -19,41 +19,23 @@
 ### 依存パッケージのインストール
 
 ```bash
-pnpm install
+npm install
 ```
 
 ### 環境変数
 
-`backend/.env` に以下を設定してください。
+APIキーはアプリの「設定」画面から設定してください。
+
+ポート番号を変更したい場合は、ルートの `.env` を編集してください（デフォルト: 3100）:
 
 ```env
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-STORAGE_TYPE=local
-OUTPUTS_DIR=./data/outputs
-TRANSCRIPTIONS_DIR=./data/transcriptions
+BACKEND_PORT=3100
 ```
-
-S3ストレージを使用する場合は以下も追加してください。
-
-```env
-STORAGE_TYPE=s3
-S3_BUCKET=your-bucket-name
-S3_AUDIO_PREFIX=outputs/
-S3_TRANSCRIPTIONS_PREFIX=transcriptions/
-AWS_REGION=ap-northeast-1
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-```
-
-### 音声ファイルの配置
-
-分析したい音声ファイルを `data/outputs/` フォルダに配置してください。
 
 ### 開発サーバーの起動
 
 ```bash
-pnpm run start:dev
+npm run start:dev
 ```
 
 http://localhost:3100 で起動します。APIは `/api` プレフィックス付きです。
@@ -61,25 +43,25 @@ http://localhost:3100 で起動します。APIは `/api` プレフィックス�
 ### ビルド
 
 ```bash
-pnpm run build
-pnpm run start:prod
+npm run build
+npm run start:prod
 ```
 
 ### その他のコマンド
 
 ```bash
 # ユニットテスト
-pnpm run test
+npm run test
 
 # E2Eテスト
-pnpm run test:e2e
+npm run test:e2e
 
 # テストカバレッジ
-pnpm run test:cov
+npm run test:cov
 
 # リント
-pnpm run lint
+npm run lint
 
 # フォーマット
-pnpm run format
+npm run format
 ```
