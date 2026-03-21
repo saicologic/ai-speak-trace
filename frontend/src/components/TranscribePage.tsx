@@ -9,6 +9,7 @@ import {
 } from '../api/client';
 import type { ChunkedJobStatus, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
+import { CREDITS_PER_MINUTE, formatTime, formatDuration } from '../utils/transcription';
 import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
@@ -18,34 +19,12 @@ const PODCAST_CACHE_RELATIVE =
 /** チャンク進捗ポーリング間隔（ミリ秒） */
 const CHUNK_POLL_INTERVAL_MS = 2000;
 
-/** 1分あたりの推定クレジット消費量 */
-const CREDITS_PER_MINUTE = 40;
-
 /** ファイルサイズを読みやすい形式にフォーマット */
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-/** 秒数を mm:ss 形式にフォーマット */
-function formatElapsedTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-/** 音声の長さを「X時間Y分」「X分Y秒」形式にフォーマット */
-function formatDuration(seconds: number): string {
-  if (seconds >= 3600) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return m > 0 ? `${h}時間${m}分` : `${h}時間`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
 }
 
 /**
@@ -492,7 +471,7 @@ export function TranscribePage({
                       : chunkProgress.status === 'merging'
                         ? '結果をマージ中...'
                         : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
-                    {' '}{formatElapsedTime(elapsedSeconds)} 経過
+                    {' '}{formatTime(elapsedSeconds)} 経過
                   </p>
                   <div className="transcribe-progress-bar">
                     <div
@@ -509,7 +488,7 @@ export function TranscribePage({
               ) : (
                 <>
                   <p className="transcribe-processing-text">
-                    文字起こし中... {formatElapsedTime(elapsedSeconds)} 経過
+                    文字起こし中... {formatTime(elapsedSeconds)} 経過
                   </p>
                   {audioDurationSec !== null ? (
                     <p className="transcribe-processing-hint">

@@ -1,28 +1,13 @@
 import { useEffect, useState } from 'react';
 import { checkCredits } from '../api/client';
 import type { ChunkedJobDetail, CreditInfo } from '../api/client';
+import { formatTime, estimateCredits } from '../utils/transcription';
 import './ResumableJobsPage.css';
-
-/** 1分あたりの推定クレジット消費量 */
-const CREDITS_PER_MINUTE = 40;
 
 interface ResumableJobsPageProps {
   jobs: ChunkedJobDetail[];
   onBack: () => void;
   onSelectJob: (jobId: string) => void;
-}
-
-/** 秒数を mm:ss 形式にフォーマット */
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-/** 残りチャンクの推定必要クレジットを計算 */
-function estimateCredits(job: ChunkedJobDetail): number {
-  const remainingChunks = job.totalChunks - job.completedChunks.length;
-  return Math.ceil((remainingChunks * (job.chunkDurationSec ?? 600) / 60) * CREDITS_PER_MINUTE);
 }
 
 /** 中断中のジョブ一覧ページ */

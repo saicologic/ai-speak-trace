@@ -8,32 +8,11 @@ import {
 } from '../api/client';
 import type { ChunkedJobDetail, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
+import { formatTime, formatDuration, estimateCredits } from '../utils/transcription';
 import './JobProgressPage.css';
 
 /** ポーリング間隔（ミリ秒） */
 const POLL_INTERVAL_MS = 2000;
-
-/** 1分あたりの推定クレジット消費量 */
-const CREDITS_PER_MINUTE = 40;
-
-/** 秒数を mm:ss 形式にフォーマット */
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-/** 秒数を「X時間Y分Z秒」形式にフォーマット */
-function formatDuration(seconds: number): string {
-  if (seconds >= 3600) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return m > 0 ? `${h}時間${m}分` : `${h}時間`;
-  }
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
-}
 
 interface JobProgressPageProps {
   jobId: string;
@@ -274,8 +253,7 @@ export function JobProgressPage({
 
             {/* クレジット情報 + 再開ボタン */}
             {canResume && (() => {
-              const remainingChunks = job.totalChunks - job.completedChunks.length;
-              const estimatedCredits = Math.ceil((remainingChunks * (job.chunkDurationSec ?? 600) / 60) * CREDITS_PER_MINUTE);
+              const estimatedCredits = estimateCredits(job);
               const isCreditSufficient = creditInfo === null || creditInfo.remainingCredits >= estimatedCredits;
 
               return (
