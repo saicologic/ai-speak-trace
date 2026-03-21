@@ -178,14 +178,16 @@ function App() {
 
   /** 設定ページの場合 */
   if (page === 'settings') {
-    return <SettingsPage onBack={() => {
+    return <SettingsPage onBack={async () => {
       // 設定変更を反映するために再読み込み
-      fetchSettings()
-        .then((s) => {
-          setEnableDeepSearch(s.enableDeepSearch ?? false);
-          setEnableContextAnalysis(s.enableContextAnalysis ?? false);
-        })
-        .catch(() => {});
+      try {
+        const s = await fetchSettings();
+        setEnableDeepSearch(s.enableDeepSearch ?? false);
+        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+      } catch {
+        // 取得失敗時はログのみ（メイン画面に遷移は継続）
+        console.warn('設定の再読み込みに失敗しました');
+      }
       setPage('main');
     }} />;
   }
