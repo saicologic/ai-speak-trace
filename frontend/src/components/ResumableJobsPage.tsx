@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { checkCredits } from '../api/client';
-import type { ChunkedJobDetail, CreditInfo } from '../api/client';
-import { formatTime, estimateCredits } from '../utils/transcription';
+import type { ChunkedJobDetail } from '../api/client';
+import { formatTime } from '../utils/transcription';
 import './ResumableJobsPage.css';
 
 interface ResumableJobsPageProps {
@@ -16,24 +14,6 @@ export function ResumableJobsPage({
   onBack,
   onSelectJob,
 }: ResumableJobsPageProps) {
-  const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
-  const [creditCheckLoading, setCreditCheckLoading] = useState(false);
-
-  // ページ表示時にクレジット残量を確認
-  useEffect(() => {
-    let cancelled = false;
-    setCreditCheckLoading(true);
-    checkCredits()
-      .then((info) => {
-        if (!cancelled) setCreditInfo(info);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setCreditCheckLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
   return (
     <div className="resumable-jobs-page">
       <div className="resumable-jobs-header">
@@ -44,30 +24,13 @@ export function ResumableJobsPage({
       </div>
 
       <div className="resumable-jobs-content">
-        {/* クレジット残量 */}
-        <div className="resumable-jobs-credit">
-          {creditCheckLoading && (
-            <p className="resumable-jobs-credit-loading">クレジット情報を確認中...</p>
-          )}
-          {creditInfo && (
-            <div className={`resumable-jobs-credit-info ${creditInfo.remainingCredits <= 0 ? 'resumable-jobs-credit-insufficient' : ''}`}>
-              <span>残りクレジット</span>
-              <span>{creditInfo.remainingCredits.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-
         {jobs.length === 0 ? (
           <div className="resumable-jobs-empty">
             <p>中断中のジョブはありません</p>
           </div>
         ) : (
           <div className="resumable-jobs-list">
-            {jobs.map((job) => {
-              const estimated = estimateCredits(job);
-              const isSufficient = creditInfo === null || creditInfo.remainingCredits >= estimated;
-
-              return (
+            {jobs.map((job) => (
                 <button
                   key={job.id}
                   className="resumable-job-card"
@@ -118,15 +81,8 @@ export function ResumableJobsPage({
                       })}
                     </span>
                   </div>
-                  <div className="resumable-job-card-credit">
-                    <span>必要クレジット（推定）</span>
-                    <span className={!isSufficient ? 'resumable-job-card-credit-insufficient' : ''}>
-                      約 {estimated.toLocaleString()}
-                    </span>
-                  </div>
                 </button>
-              );
-            })}
+              ))}
           </div>
         )}
       </div>
