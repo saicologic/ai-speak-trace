@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "npm run kill && concurrently -n backend,tauri -c blue,magenta \"cd backend && npm run start:dev\" \"tauri dev\"",
-    "build": "npm run pkg:backend && tauri build",
+    "build": "npm run pkg:backend && tauri build && cd src-tauri/target/release/bundle/dmg && mv *_*_*.dmg 'AI Speak Trace.dmg'",
     "tauri": "tauri",
     "kill": ". ./.env 2>/dev/null || true; lsof -ti:${BACKEND_PORT:-3100} | xargs kill -9 || true",
     "pkg:backend": "cd backend && npm run pkg:mac-arm64"
