@@ -272,6 +272,8 @@ export function TranscribePage({
       } else if (errorName === 'QuotaExceededError') {
         setIsQuotaExceeded(true);
         setError(detail);
+      } else if (errorName === 'FfmpegMissingError') {
+        setError(detail);
       } else {
         setError(`文字起こしに失敗しました: ${detail}`);
       }

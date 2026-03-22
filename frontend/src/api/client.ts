@@ -165,6 +165,11 @@ export async function transcribeAudio(
       error.name = 'ApiKeyMissingError';
       throw error;
     }
+    if (body?.code === 'FFMPEG_MISSING') {
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
+      error.name = 'FfmpegMissingError';
+      throw error;
+    }
     const serverMessage = (typeof body?.message === 'string' ? body.message : null) || rawText || res.statusText;
     throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }

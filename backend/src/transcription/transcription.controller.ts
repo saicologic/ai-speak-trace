@@ -150,7 +150,29 @@ export class TranscriptionController {
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
-      throw error;
+      // ffmpeg未インストールエラー
+      if (
+        error instanceof Error &&
+        (error.message.includes('ffprobeが見つかりません') ||
+          error.message.includes('ffmpegがインストールされていません'))
+      ) {
+        throw new HttpException(
+          {
+            code: 'FFMPEG_MISSING',
+            message:
+              'ffmpegがインストールされていません。ターミナルで以下のコマンドを実行してください:\nbrew install ffmpeg',
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+      // その他のエラー: エラーメッセージをクライアントに返す
+      throw new HttpException(
+        {
+          code: 'TRANSCRIPTION_ERROR',
+          message: errMsg,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -259,7 +281,14 @@ export class TranscriptionController {
           HttpStatus.REQUEST_TIMEOUT,
         );
       }
-      throw error;
+      // その他のエラー: エラーメッセージをクライアントに返す
+      throw new HttpException(
+        {
+          code: 'TRANSCRIPTION_ERROR',
+          message: errMsg,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

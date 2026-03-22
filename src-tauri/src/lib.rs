@@ -49,10 +49,21 @@ pub fn run() {
                     .join("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache");
                 println!("[tauri] PODCAST_CACHE_DIR={}", podcast_cache_dir.display());
 
+                // sidecarはシェルを経由しないためPATHが最小限になる
+                // ffmpeg等の外部コマンドを利用するため、Homebrew等のパスを追加する
+                let system_path = std::env::var("PATH").unwrap_or_default();
+                let extra_paths = "/opt/homebrew/bin:/usr/local/bin";
+                let full_path = if system_path.is_empty() {
+                    extra_paths.to_string()
+                } else {
+                    format!("{}:{}", extra_paths, system_path)
+                };
+
                 let sidecar = shell
                     .sidecar("nestjs-server")
                     .expect("nestjs-server sidecar バイナリが見つかりません")
                     .env("HOME", &home_dir)
+                    .env("PATH", &full_path)
                     .env("DATA_DIR", data_dir.to_string_lossy().to_string())
                     .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
                     .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
