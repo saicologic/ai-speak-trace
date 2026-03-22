@@ -1,6 +1,8 @@
 ---
 name: creating-pr
 description: CLAUDE.mdのTest plan形式に準拠したPRを作成します。PRの作成やプルリクエストについて言及された場合に使用してください。
+disable-model-invocation: true
+argument-hint: "[補足説明]"
 ---
 
 # PR作成

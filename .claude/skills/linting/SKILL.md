@@ -1,6 +1,8 @@
 ---
 name: linting
 description: フロントエンドとバックエンドのESLintを一括実行し、結果をまとめて報告します。リントや静的解析について言及された場合に使用してください。
+disable-model-invocation: true
+argument-hint: "[frontend | backend]"
 ---
 
 # リント一括実行

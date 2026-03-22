@@ -1,6 +1,8 @@
 ---
 name: bumping-version
 description: 複数ファイルに散らばるバージョン番号を一括更新します。バージョンの変更やバージョンアップについて言及された場合に使用してください。
+disable-model-invocation: true
+argument-hint: "X.Y.Z"
 ---
 
 # バージョン一括更新

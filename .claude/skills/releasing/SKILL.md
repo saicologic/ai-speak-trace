@@ -1,6 +1,8 @@
 ---
 name: releasing
 description: リリースブランチの作成、release→mainのPR作成、gitタグとGitHub Releaseの作成を行います。リリース作業やバージョンのリリースについて言及された場合に使用してください。
+disable-model-invocation: true
+argument-hint: "[create vX.Y.Z | pr | tag vX.Y.Z]"
 ---
 
 # リリースブランチ管理

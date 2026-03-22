@@ -1,6 +1,8 @@
 ---
 name: building
 description: バックエンドバイナリのパッケージングからTauriアプリのビルド、DMG生成までを一括実行します。ビルドやアプリのパッケージングについて言及された場合に使用してください。
+disable-model-invocation: true
+argument-hint: "[check]"
 ---
 
 # フルビルド
