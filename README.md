@@ -224,6 +224,25 @@ AI Speak Trace.app (Tauri)
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
 
+### Claude Code スキル
+
+開発でよく使う操作を Claude Code のカスタムスキルとして定義しています。`/` メニューから呼び出せます。
+
+| コマンド | 説明 |
+|---------|------|
+| `/releasing create vX.Y.Z` | mainからリリースブランチを作成 |
+| `/releasing pr` | release → main のPRを作成 |
+| `/releasing tag vX.Y.Z` | git tag + GitHub Release を作成 |
+| `/creating-pr` | CLAUDE.md準拠のTest plan付きPRを作成 |
+| `/building` | バックエンドpkg → Tauriビルド → DMG生成 |
+| `/building check` | ビルド前の事前チェックのみ |
+| `/bumping-version X.Y.Z` | 3ファイルのバージョンを一括更新 |
+| `/linting` | フロントエンド・バックエンドのESLintを一括実行 |
+| `/linting frontend` | フロントエンドのみ |
+| `/linting backend` | バックエンドのみ |
+
+スキル定義ファイルは `.claude/skills/` 以下にあります。
+
 ### ディレクトリ構成
 
 ```
