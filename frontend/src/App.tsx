@@ -50,6 +50,7 @@ function App() {
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
+  const [jobAutoStart, setJobAutoStart] = useState(false);
 
   /** 起動時にベータ機能の設定を読み込み + 中断ジョブを確認 */
   useEffect(() => {
@@ -176,6 +177,7 @@ function App() {
         onNavigateSettings={() => setPage('settings')}
         onChunkedJobStarted={(jobId) => {
           setActiveJobId(jobId);
+          setJobAutoStart(true);
           setPage('job-progress');
         }}
       />
@@ -189,14 +191,17 @@ function App() {
         jobId={activeJobId}
         onBack={() => {
           setActiveJobId(null);
+          setJobAutoStart(false);
           setPage('resumable-jobs');
         }}
         onTranscriptionComplete={(result) => {
           setTranscription(result);
           setActiveJobId(null);
+          setJobAutoStart(false);
           setResumableJobs((prev) => prev.filter((j) => j.id !== activeJobId));
           setPage('main');
         }}
+        autoStart={jobAutoStart}
       />
     );
   }
@@ -209,6 +214,7 @@ function App() {
         onBack={() => setPage('main')}
         onSelectJob={(jobId) => {
           setActiveJobId(jobId);
+          setJobAutoStart(false);
           setPage('job-progress');
         }}
         onJobsDeleted={(deletedIds) => {

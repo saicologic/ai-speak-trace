@@ -18,6 +18,7 @@ interface JobProgressPageProps {
   jobId: string;
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
+  autoStart?: boolean;
 }
 
 /** チャンク分割文字起こしの処理監視画面 */
@@ -25,6 +26,7 @@ export function JobProgressPage({
   jobId,
   onBack,
   onTranscriptionComplete,
+  autoStart = false,
 }: JobProgressPageProps) {
   const [job, setJob] = useState<ChunkedJobDetail | null>(null);
   const [error, setError] = useState('');
@@ -38,6 +40,7 @@ export function JobProgressPage({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const completedRef = useRef(false);
   const initialStatusChecked = useRef(false);
+  const [needsManualStart, setNeedsManualStart] = useState(false);
 
   // ポーリングでジョブ詳細を取得
   useEffect(() => {
@@ -48,11 +51,17 @@ export function JobProgressPage({
       if (cancelled) return;
       if (detail) {
         setJob(detail);
-        // 初回取得時: statusが処理中ならタイマー開始
+        // 初回取得時: 手動開始が必要かを判定
         if (!initialStatusChecked.current) {
           initialStatusChecked.current = true;
-          const isActive = detail.status === 'initializing' || detail.status === 'splitting' || detail.status === 'transcribing' || detail.status === 'merging';
-          if (isActive) {
+          const isWaitingToStart = detail.status === 'initializing' || detail.status === 'splitting';
+          const isAlreadyProcessing = detail.status === 'transcribing' || detail.status === 'merging';
+
+          if (isWaitingToStart && !autoStart) {
+            // 待機状態 & 自動開始なし → 手動開始が必要
+            setNeedsManualStart(true);
+          } else if (isAlreadyProcessing || (isWaitingToStart && autoStart)) {
+            // 既に処理中 or 自動開始モード → タイマー開始
             setIsTimerRunning(true);
           }
         }
@@ -115,13 +124,14 @@ export function JobProgressPage({
     }
   }, [job?.status, job?.transcriptionId, onTranscriptionComplete]);
 
-  /** 中断/失敗ジョブを再開 */
+  /** 処理開始/再開 */
   const handleResume = () => {
     setIsResuming(true);
     setError('');
     setHideErrorMessage(true);
     setElapsedSeconds(0);
     setIsTimerRunning(true);
+    setNeedsManualStart(false);
 
     // Fire-and-forget: バックエンドの処理は長時間かかるためレスポンスを待たない
     // 完了検知はポーリング（fetchJobDetail 2秒間隔）で行う
@@ -134,8 +144,9 @@ export function JobProgressPage({
           return;
         }
         // クォータ超過などの即座エラーは表示
-        setError(err instanceof Error ? err.message : '再開に失敗しました');
+        setError(err instanceof Error ? err.message : '処理の開始に失敗しました');
         setIsTimerRunning(false);
+        setNeedsManualStart(true);
       });
 
     // リクエスト送信後、短い遅延でisResumingを解除
@@ -157,6 +168,12 @@ export function JobProgressPage({
   // ステータステキスト
   const getStatusText = () => {
     if (!job) return '読み込み中...';
+
+    // 手動開始待ちの場合
+    if (needsManualStart) {
+      return '文字起こしの開始を待機中...';
+    }
+
     switch (job.status) {
       case 'initializing':
         return '文字起こしを準備中...';
@@ -175,8 +192,15 @@ export function JobProgressPage({
     }
   };
 
-  // 再開可能かどうか（failed の場合のみ）
-  const canResume = job && job.status === 'failed' && !isResuming;
+  // 開始/再開ボタンの表示条件
+  const canResume = job && (job.status === 'failed' || needsManualStart) && !isResuming;
+
+  // ボタンのラベル
+  const getResumeButtonLabel = () => {
+    if (isResuming) return '開始中...';
+    if (needsManualStart) return '文字起こしを開始';
+    return '途中から再開する';
+  };
 
   // プログレスバーの割合
   const progressPercent =
@@ -275,7 +299,7 @@ export function JobProgressPage({
                       onClick={handleResume}
                       disabled={isResuming || creditCheckLoading || !creditInfo || !isCreditSufficient}
                     >
-                      {isResuming ? '再開中...' : '途中から再開する'}
+                      {getResumeButtonLabel()}
                     </button>
                   </div>
                 </>
