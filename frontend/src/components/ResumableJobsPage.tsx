@@ -11,7 +11,7 @@ interface ResumableJobsPageProps {
   onJobsDeleted: (deletedIds: string[]) => void;
 }
 
-/** 中断中のジョブ一覧ページ */
+/** ジョブ進捗確認ページ */
 export function ResumableJobsPage({
   jobs,
   onBack,
@@ -77,13 +77,13 @@ export function ResumableJobsPage({
         <button className="resumable-jobs-back-button" onClick={onBack}>
           ← 戻る
         </button>
-        <h1>中断中のジョブ</h1>
+        <h1>ジョブ進捗確認</h1>
       </div>
 
       <div className="resumable-jobs-content">
         {jobs.length === 0 ? (
           <div className="resumable-jobs-empty">
-            <p>中断中のジョブはありません</p>
+            <p>進行中のジョブはありません</p>
           </div>
         ) : (
           <>

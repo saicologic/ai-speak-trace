@@ -36,6 +36,12 @@ export interface CompletedChunk {
   chunkFileName: string;
   /** チャンクの開始時間（元の音声における秒数） */
   startTimeSec: number;
+  /** ElevenLabs transcription_id（非同期処理用） */
+  transcription_id?: string;
+  /** チャンクのステータス（processing/completed/error） */
+  chunkStatus?: 'processing' | 'completed' | 'error';
+  /** エラーメッセージ（チャンクエラー時） */
+  chunkErrorMessage?: string;
   /** ElevenLabsレスポンスの words 配列（タイムスタンプ調整済み） */
   words: ElevenLabsWord[];
   /** ElevenLabsレスポンスの text */

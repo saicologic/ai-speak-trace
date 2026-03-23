@@ -199,7 +199,7 @@ function App() {
     );
   }
 
-  /** 中断中のジョブ一覧ページの場合 */
+  /** ジョブ進捗確認ページの場合 */
   if (page === 'resumable-jobs') {
     return (
       <ResumableJobsPage
@@ -293,7 +293,7 @@ function App() {
               className="sidebar-tab-action sidebar-tab-action--warning"
               onClick={() => setPage('resumable-jobs')}
             >
-              中断中のジョブ（{resumableJobs.length}件）
+              ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
           <div className="sidebar-section-title">履歴</div>

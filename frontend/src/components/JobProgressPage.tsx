@@ -124,6 +124,13 @@ export function JobProgressPage({
     job?.status === 'transcribing' &&
     Date.now() - new Date(job.updatedAt).getTime() >= 30_000;
 
+  // 中断状態の時はタイマー停止
+  useEffect(() => {
+    if (isStale) {
+      setIsTimerRunning(false);
+    }
+  }, [isStale]);
+
   /** 中断/失敗ジョブを再開 */
   const handleResume = () => {
     setIsResuming(true);

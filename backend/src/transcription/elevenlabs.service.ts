@@ -182,4 +182,78 @@ export class ElevenLabsService {
         );
     }
   }
+
+  /** 文字起こしステータスを取得（ジョブ確認用）
+   *
+   * ElevenLabs公式仕様:
+   * - 200: トランスクリプトデータを正常に取得（完了）
+   * - 401: 認証エラーまたはクォータ超過
+   * - 404: トランスクリプトが存在しない（削除済みまたは無効なID）
+   * - 422: バリデーションエラー
+   */
+  async getTranscriptionStatus(transcriptionId: string): Promise<{
+    status: 'processing' | 'completed' | 'error';
+    error_message?: string;
+    data?: any;
+  }> {
+    const apiKey = this.getApiKey();
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      throw new Error(
+        'ELEVENLABS_API_KEY が設定されていません。backend/.env ファイルを確認してください。',
+      );
+    }
+
+    const url = `${this.apiUrl}/transcripts/${transcriptionId}`;
+    this.logger.log(`文字起こしステータス確認: ${transcriptionId}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.authHeaders,
+      });
+
+      if (response.ok) {
+        // 200: 完了（トランスクリプトデータを取得できた）
+        const data = await response.json();
+        this.logger.log(`文字起こし完了: ${transcriptionId}`);
+        return { status: 'completed', data };
+      }
+
+      if (response.status === 404) {
+        // 404: トランスクリプトが存在しない（削除済みまたは無効なID）
+        this.logger.warn(`トランスクリプトが見つかりません: ${transcriptionId}`);
+        return {
+          status: 'error',
+          error_message: 'トランスクリプトが見つかりません（削除済みまたは無効なID）',
+        };
+      }
+
+      if (response.status === 401) {
+        // 401: 認証エラーまたはクォータ超過
+        const errorBody = await response.text();
+        this.logger.error(`認証エラー: ${errorBody}`);
+        return {
+          status: 'error',
+          error_message: `認証エラー: ${errorBody}`,
+        };
+      }
+
+      // その他のエラー
+      const errorBody = await response.text();
+      this.logger.error(
+        `文字起こしステータス確認エラー: ${response.status} ${errorBody}`,
+      );
+      return {
+        status: 'error',
+        error_message: `ElevenLabs API エラー (${response.status})`,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`文字起こしステータス確認失敗: ${errorMessage}`);
+      return {
+        status: 'error',
+        error_message: errorMessage,
+      };
+    }
+  }
 }
