@@ -140,14 +140,8 @@ export class ChunkedTranscriptionService {
     }
 
     if (job.status === 'transcribing') {
-      // 直近30秒以内に更新されている場合、まだ処理中の可能性がある
-      const lastUpdate = new Date(job.updatedAt).getTime();
-      const now = Date.now();
-      if (now - lastUpdate < 30_000) {
-        throw new Error(
-          'このジョブは現在処理中です。しばらく待ってから再試行してください。',
-        );
-      }
+      // sidecarはアプリと一体で起動・終了するため、
+      // transcribing状態のジョブは前回プロセスで中断されたものとして扱う
       this.logger.warn(
         `中断ジョブを検出: jobId=${jobId}, 最終更新: ${job.updatedAt}`,
       );
