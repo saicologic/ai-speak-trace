@@ -298,7 +298,7 @@ export function JobProgressPage({
                     <button
                       className="job-progress-resume-button"
                       onClick={handleResume}
-                      disabled={isResuming || !isCreditSufficient}
+                      disabled={isResuming || creditCheckLoading || !creditInfo || !isCreditSufficient}
                     >
                       {isResuming ? '再開中...' : '途中から再開する'}
                     </button>

@@ -483,7 +483,7 @@ export function TranscribePage({
             <button
               className="transcribe-start-button"
               onClick={handleTranscribe}
-              disabled={!isCreditSufficient}
+              disabled={creditCheckLoading || !creditInfo || !isCreditSufficient}
             >
               文字起こしを実行
             </button>
