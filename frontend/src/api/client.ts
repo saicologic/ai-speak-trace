@@ -182,7 +182,7 @@ export async function transcribeAudio(
 export interface ChunkedJobStatus {
   id: string;
   audioFileName: string;
-  status: 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
+  status: 'initializing' | 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
   totalChunks: number;
   currentChunkIndex: number;
   completedChunks: { index: number }[];
@@ -289,7 +289,7 @@ export interface ChunkedJobDetail {
   id: string;
   audioFileName: string;
   createdAt: string;
-  status: 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
+  status: 'initializing' | 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
   totalDurationSec: number;
   chunkDurationSec: number;
   totalChunks: number;

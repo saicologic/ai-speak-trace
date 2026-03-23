@@ -468,11 +468,13 @@ export function TranscribePage({
               {chunkProgress && chunkProgress.totalChunks > 1 ? (
                 <>
                   <p className="transcribe-processing-text">
-                    {chunkProgress.status === 'splitting'
-                      ? '音声ファイルを分割中...'
-                      : chunkProgress.status === 'merging'
-                        ? '結果をマージ中...'
-                        : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
+                    {chunkProgress.status === 'initializing'
+                      ? '文字起こしを準備中...'
+                      : chunkProgress.status === 'splitting'
+                        ? '音声ファイルを分割中...'
+                        : chunkProgress.status === 'merging'
+                          ? '結果をマージ中...'
+                          : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
                     {' '}{formatTime(elapsedSeconds)} 経過
                   </p>
                   <div className="transcribe-progress-bar">

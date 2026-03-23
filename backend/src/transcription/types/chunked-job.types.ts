@@ -9,7 +9,7 @@ export interface ChunkedTranscriptionJob {
   /** ジョブ開始日時 */
   createdAt: string;
   /** ジョブ状態 */
-  status: 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
+  status: 'initializing' | 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
   /** 音声ファイルの総秒数 */
   totalDurationSec: number;
   /** チャンクあたりの秒数（デフォルト600秒=10分） */

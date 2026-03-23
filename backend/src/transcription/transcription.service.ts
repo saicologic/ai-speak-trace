@@ -99,6 +99,9 @@ export class TranscriptionService {
       );
     }
 
+    // ジョブを早期作成（needsChunking判定前に保存し、中断時に再開可能にする）
+    const chunkedJob = await this.chunkedTranscriptionService.createJob(fileName);
+
     // 音声の長さに応じて処理を分岐
     let elWords: ElevenLabsWord[];
     let fullText: string;
@@ -107,22 +110,20 @@ export class TranscriptionService {
     const { needs: needsChunking } =
       await this.chunkedTranscriptionService.needsChunking(fileBuffer, fileName);
 
-    let chunkedJob: ChunkedTranscriptionJob | null = null;
-
     if (needsChunking) {
       // 10分超: チャンク分割して順番に文字起こし
       this.logger.log(`チャンク分割モードで文字起こし: ${fileName}`);
       const chunkedResult =
         await this.chunkedTranscriptionService.startChunkedTranscription(
+          chunkedJob,
           fileBuffer,
-          fileName,
         );
       elWords = chunkedResult.mergedWords;
       fullText = chunkedResult.mergedText;
       languageCode = chunkedResult.languageCode;
-      chunkedJob = chunkedResult.job;
     } else {
-      // 10分以下: 従来通り一括で文字起こし
+      // 10分以下: 従来通り一括で文字起こし（ジョブは不要なので削除）
+      await this.chunkedTranscriptionService.deleteJob(chunkedJob.id);
       const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
       elWords = result.words;
       fullText = result.text;
@@ -151,7 +152,7 @@ export class TranscriptionService {
     await this.store.save(transcription);
 
     // チャンクジョブにtranscriptionIdを記録（JobProgressPageからの完了検知用）
-    if (chunkedJob) {
+    if (needsChunking) {
       chunkedJob.transcriptionId = transcription.id;
       await this.chunkedTranscriptionService.saveJob(chunkedJob);
     }
@@ -168,8 +169,38 @@ export class TranscriptionService {
 
     this.logger.log(`文字起こし再開: jobId=${jobId}`);
 
-    const { mergedWords, mergedText, languageCode, job } =
-      await this.chunkedTranscriptionService.resumeChunkedTranscription(jobId);
+    // ジョブの状態を確認
+    const existingJob = await this.chunkedTranscriptionService.getJobStatus(jobId);
+    if (!existingJob) {
+      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
+    }
+
+    let mergedWords: ElevenLabsWord[];
+    let mergedText: string;
+    let languageCode: string;
+    let job: ChunkedTranscriptionJob;
+
+    if (existingJob.status === 'initializing' || existingJob.status === 'splitting') {
+      // 初期段階で中断されたジョブ: 音声ファイルを再読み込みして最初からやり直す
+      this.logger.log(`初期段階からの再開: ${existingJob.audioFileName}`);
+      const fileBuffer = await this.audioStorage.readFile(existingJob.audioFileName);
+      const result = await this.chunkedTranscriptionService.startChunkedTranscription(
+        existingJob,
+        fileBuffer,
+      );
+      mergedWords = result.mergedWords;
+      mergedText = result.mergedText;
+      languageCode = result.languageCode;
+      job = existingJob;
+    } else {
+      // transcribing/failed: チャンクの途中から再開
+      const result =
+        await this.chunkedTranscriptionService.resumeChunkedTranscription(jobId);
+      mergedWords = result.mergedWords;
+      mergedText = result.mergedText;
+      languageCode = result.languageCode;
+      job = result.job;
+    }
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
     const rawWords = this.convertWords(mergedWords);

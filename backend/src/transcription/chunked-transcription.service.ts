@@ -52,22 +52,13 @@ export class ChunkedTranscriptionService {
     }
   }
 
-  /** チャンク分割文字起こしを開始 */
-  async startChunkedTranscription(
-    fileBuffer: Buffer,
-    fileName: string,
-  ): Promise<{ job: ChunkedTranscriptionJob; mergedWords: ElevenLabsWord[]; mergedText: string; languageCode: string }> {
-    const jobId = uuidv4();
-    const chunksDir = path.join(this.jobStore.getChunksBaseDir(), jobId);
-
-    this.logger.log(`チャンク分割文字起こし開始: jobId=${jobId}, fileName=${fileName}`);
-
-    // ジョブ初期状態を作成
+  /** ジョブを早期作成して保存する（needsChunking判定前に呼ぶ） */
+  async createJob(fileName: string): Promise<ChunkedTranscriptionJob> {
     const job: ChunkedTranscriptionJob = {
-      id: jobId,
+      id: uuidv4(),
       audioFileName: fileName,
       createdAt: new Date().toISOString(),
-      status: 'splitting',
+      status: 'initializing',
       totalDurationSec: 0,
       chunkDurationSec: DEFAULT_CHUNK_DURATION_SEC,
       totalChunks: 0,
@@ -76,12 +67,27 @@ export class ChunkedTranscriptionService {
       updatedAt: new Date().toISOString(),
     };
     await this.jobStore.save(job);
+    this.logger.log(`ジョブ作成: jobId=${job.id}, fileName=${fileName}`);
+    return job;
+  }
+
+  /** チャンク分割文字起こしを開始（既存ジョブを使用） */
+  async startChunkedTranscription(
+    job: ChunkedTranscriptionJob,
+    fileBuffer: Buffer,
+  ): Promise<{ mergedWords: ElevenLabsWord[]; mergedText: string; languageCode: string }> {
+    const chunksDir = path.join(this.jobStore.getChunksBaseDir(), job.id);
+
+    this.logger.log(`チャンク分割文字起こし開始: jobId=${job.id}, fileName=${job.audioFileName}`);
+
+    job.status = 'splitting';
+    await this.jobStore.save(job);
 
     try {
       // 音声ファイルをチャンク分割
       const { chunkFiles, totalDurationSec } = await this.audioSplitter.splitAudio(
         fileBuffer,
-        fileName,
+        job.audioFileName,
         DEFAULT_CHUNK_DURATION_SEC,
         chunksDir,
       );
@@ -108,16 +114,16 @@ export class ChunkedTranscriptionService {
       await this.audioSplitter.cleanupChunks(chunksDir);
 
       this.logger.log(
-        `チャンク分割文字起こし完了: jobId=${jobId}, ${job.totalChunks}チャンク, ${words.length}単語`,
+        `チャンク分割文字起こし完了: jobId=${job.id}, ${job.totalChunks}チャンク, ${words.length}単語`,
       );
 
-      return { job, mergedWords: words, mergedText: text, languageCode };
+      return { mergedWords: words, mergedText: text, languageCode };
     } catch (error) {
       job.status = 'failed';
       job.errorMessage = error instanceof Error ? error.message : String(error);
       await this.jobStore.save(job);
       this.logger.error(
-        `チャンク分割文字起こし失敗: jobId=${jobId}, chunk=${job.currentChunkIndex}/${job.totalChunks}`,
+        `チャンク分割文字起こし失敗: jobId=${job.id}, chunk=${job.currentChunkIndex}/${job.totalChunks}`,
         error instanceof Error ? error.stack : '',
       );
       throw error;
@@ -144,6 +150,11 @@ export class ChunkedTranscriptionService {
       }
       this.logger.warn(
         `中断ジョブを検出: jobId=${jobId}, 最終更新: ${job.updatedAt}`,
+      );
+    } else if (job.status === 'initializing' || job.status === 'splitting') {
+      // 初期化中・分割中に中断されたジョブ: 最初からやり直す
+      this.logger.warn(
+        `初期段階で中断されたジョブを検出: jobId=${jobId}, status=${job.status}`,
       );
     } else if (job.status !== 'failed') {
       throw new Error(

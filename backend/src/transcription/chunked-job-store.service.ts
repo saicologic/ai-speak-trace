@@ -59,7 +59,8 @@ export class ChunkedJobStoreService {
         const job = JSON.parse(content) as ChunkedTranscriptionJob;
         if (
           job.audioFileName === fileName &&
-          (job.status === 'splitting' ||
+          (job.status === 'initializing' ||
+            job.status === 'splitting' ||
             job.status === 'transcribing' ||
             job.status === 'failed')
         ) {
@@ -102,7 +103,8 @@ export class ChunkedJobStoreService {
     // 未完了ジョブのうち、同じファイル名で完了済みジョブがないものだけ返す
     const resumable = allJobs.filter(
       (job) =>
-        (job.status === 'splitting' ||
+        (job.status === 'initializing' ||
+          job.status === 'splitting' ||
           job.status === 'transcribing' ||
           job.status === 'failed') &&
         !completedFileNames.has(job.audioFileName),

@@ -51,7 +51,7 @@ export function JobProgressPage({
         // 初回取得時: updatedAt が30秒以内ならアクティブ処理中と判断しタイマー開始
         if (!initialStatusChecked.current) {
           initialStatusChecked.current = true;
-          const isActive = detail.status === 'splitting' || detail.status === 'transcribing' || detail.status === 'merging';
+          const isActive = detail.status === 'initializing' || detail.status === 'splitting' || detail.status === 'transcribing' || detail.status === 'merging';
           if (isActive) {
             const lastUpdate = new Date(detail.updatedAt).getTime();
             const isRecentlyActive = Date.now() - lastUpdate < 30_000;
@@ -167,6 +167,8 @@ export function JobProgressPage({
   const getStatusText = () => {
     if (!job) return '読み込み中...';
     switch (job.status) {
+      case 'initializing':
+        return '文字起こしを準備中...';
       case 'splitting':
         return '音声ファイルを分割中...';
       case 'transcribing':
@@ -183,10 +185,13 @@ export function JobProgressPage({
     }
   };
 
-  // 再開可能かどうか（transcribing は中断時のみ再開可能）
+  // 再開可能かどうか（initializing/splitting は常に再開可能、transcribing は中断時のみ再開可能）
   const canResume =
     job &&
-    (job.status === 'failed' || (job.status === 'transcribing' && isStale)) &&
+    (job.status === 'failed' ||
+      job.status === 'initializing' ||
+      job.status === 'splitting' ||
+      (job.status === 'transcribing' && isStale)) &&
     !isResuming;
 
   // プログレスバーの割合
