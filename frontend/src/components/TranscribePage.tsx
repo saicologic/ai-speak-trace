@@ -3,7 +3,6 @@ import {
   uploadAudioFile,
   transcribeAudio,
   fetchActiveJob,
-  resumeTranscription,
   checkCredits,
   checkAudioFileExists,
   deleteAllResourcesByFileName,
@@ -59,7 +58,6 @@ interface TranscribePageProps {
   onTranscriptionComplete: (transcription: Transcription) => void;
   onNavigateSettings: () => void;
   onChunkedJobStarted?: (jobId: string) => void;
-  isFromJobProgress?: boolean;
 }
 
 type Step = 'select' | 'preview' | 'transcribing' | 'done';
@@ -70,7 +68,6 @@ export function TranscribePage({
   onTranscriptionComplete,
   onNavigateSettings,
   onChunkedJobStarted,
-  isFromJobProgress = false,
 }: TranscribePageProps) {
   const [step, setStep] = useState<Step>('select');
   const [file, setFile] = useState<File | null>(null);
@@ -81,7 +78,7 @@ export function TranscribePage({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [audioDurationSec, setAudioDurationSec] = useState<number | null>(null);
   const [chunkProgress, setChunkProgress] = useState<ChunkedJobStatus | null>(null);
-  const [failedJobId, setFailedJobId] = useState<string | null>(null);
+
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
   const [creditCheckError, setCreditCheckError] = useState<string | null>(null);
@@ -264,7 +261,6 @@ export function TranscribePage({
 
     setError('');
     setChunkProgress(null);
-    setFailedJobId(null);
     setStep('transcribing');
     try {
       // 0. サーバーの疎通確認
@@ -291,10 +287,7 @@ export function TranscribePage({
       });
       setIsApiKeyMissing(false);
       setIsQuotaExceeded(false);
-      // チャンクジョブIDを保持（再開用）
-      if (chunkProgress?.id) {
-        setFailedJobId(chunkProgress.id);
-      }
+
       if (errorName === 'ApiKeyMissingError') {
         setIsApiKeyMissing(true);
         setError(detail);
@@ -310,35 +303,6 @@ export function TranscribePage({
     }
   };
 
-  /** 失敗したチャンクジョブを再開 */
-  const handleResume = async () => {
-    if (!failedJobId) return;
-    setError('');
-    setChunkProgress(null);
-    setStep('transcribing');
-    try {
-      const result = await resumeTranscription(failedJobId);
-      onTranscriptionComplete(result);
-      setFailedJobId(null);
-      setStep('done');
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      const errorName = err instanceof Error ? err.name : 'Unknown';
-      console.error('[TranscribePage] 再開エラー:', { name: errorName, message: detail });
-      setIsApiKeyMissing(false);
-      setIsQuotaExceeded(false);
-      if (chunkProgress?.id) {
-        setFailedJobId(chunkProgress.id);
-      }
-      if (errorName === 'QuotaExceededError') {
-        setIsQuotaExceeded(true);
-        setError(detail);
-      } else {
-        setError(`文字起こしの再開に失敗しました: ${detail}`);
-      }
-      setStep('preview');
-    }
-  };
 
   /** 別のファイルを選択し直す */
   const handleReset = () => {
@@ -351,7 +315,6 @@ export function TranscribePage({
     setIsQuotaExceeded(false);
     setAudioDurationSec(null);
     setChunkProgress(null);
-    setFailedJobId(null);
     setCreditInfo(null);
     setCreditCheckLoading(false);
     setCreditCheckError(null);
@@ -386,15 +349,7 @@ export function TranscribePage({
                 設定画面を開く
               </button>
             )}
-            {/* ジョブ進捗管理から来た場合のみ「途中から再開する」を表示 */}
-            {isFromJobProgress && failedJobId && !isApiKeyMissing && (
-              <button
-                className="transcribe-resume-button"
-                onClick={handleResume}
-              >
-                途中から再開する
-              </button>
-            )}
+
           </div>
         )}
 
