@@ -21,6 +21,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 @Injectable()
 export class ChunkedTranscriptionService {
   private readonly logger = new Logger(ChunkedTranscriptionService.name);
+  // 現在このプロセスで処理中のジョブIDを追跡（メモリ上のみ）
+  private readonly processingJobIds = new Set<string>();
 
   constructor(
     private readonly elevenLabsService: ElevenLabsService,
@@ -79,6 +81,7 @@ export class ChunkedTranscriptionService {
     const chunksDir = path.join(this.jobStore.getChunksBaseDir(), job.id);
 
     this.logger.log(`チャンク分割文字起こし開始: jobId=${job.id}, fileName=${job.audioFileName}`);
+    this.processingJobIds.add(job.id);
 
     job.status = 'splitting';
     await this.jobStore.save(job);
@@ -113,12 +116,14 @@ export class ChunkedTranscriptionService {
       // チャンクファイルを削除
       await this.audioSplitter.cleanupChunks(chunksDir);
 
+      this.processingJobIds.delete(job.id);
       this.logger.log(
         `チャンク分割文字起こし完了: jobId=${job.id}, ${job.totalChunks}チャンク, ${words.length}単語`,
       );
 
       return { mergedWords: words, mergedText: text, languageCode };
     } catch (error) {
+      this.processingJobIds.delete(job.id);
       job.status = 'failed';
       job.errorMessage = error instanceof Error ? error.message : String(error);
       await this.jobStore.save(job);
@@ -172,6 +177,8 @@ export class ChunkedTranscriptionService {
       );
     }
 
+    this.processingJobIds.add(jobId);
+
     try {
       job.status = 'transcribing';
       job.errorMessage = undefined;
@@ -192,12 +199,14 @@ export class ChunkedTranscriptionService {
       // チャンクファイルを削除
       await this.audioSplitter.cleanupChunks(chunksDir);
 
+      this.processingJobIds.delete(jobId);
       this.logger.log(
         `チャンク分割文字起こし再開完了: jobId=${jobId}, ${job.totalChunks}チャンク`,
       );
 
       return { job, mergedWords: words, mergedText: text, languageCode };
     } catch (error) {
+      this.processingJobIds.delete(jobId);
       job.status = 'failed';
       job.errorMessage = error instanceof Error ? error.message : String(error);
       await this.jobStore.save(job);
@@ -208,6 +217,11 @@ export class ChunkedTranscriptionService {
   /** ジョブの進捗状態を取得 */
   async getJobStatus(jobId: string): Promise<ChunkedTranscriptionJob | null> {
     return this.jobStore.findById(jobId);
+  }
+
+  /** 指定ジョブが現在このプロセスで処理中かどうかを返す */
+  isJobProcessing(jobId: string): boolean {
+    return this.processingJobIds.has(jobId);
   }
 
   /** ファイル名で進行中のジョブを検索 */

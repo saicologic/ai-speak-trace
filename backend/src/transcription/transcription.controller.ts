@@ -202,11 +202,15 @@ export class TranscriptionController {
     return { job };
   }
 
-  /** 再開可能なジョブ一覧取得: GET /api/transcribe/jobs */
+  /** ジョブ一覧取得: GET /api/transcribe/jobs */
   @Get('transcribe/jobs')
   async getResumableJobs() {
     const jobs = await this.transcriptionService.getResumableJobs();
-    return { jobs };
+    const jobsWithProcessing = jobs.map((job) => ({
+      ...job,
+      isProcessing: this.transcriptionService.isJobProcessing(job.id),
+    }));
+    return { jobs: jobsWithProcessing };
   }
 
   /** ジョブ詳細取得: GET /api/transcribe/jobs/:jobId */
@@ -216,7 +220,8 @@ export class TranscriptionController {
     if (!job) {
       throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
     }
-    return { job };
+    const isProcessing = this.transcriptionService.isJobProcessing(jobId);
+    return { job: { ...job, isProcessing } };
   }
 
   /** チャンク音声配信: GET /api/transcribe/jobs/:jobId/chunks/:chunkIndex/audio */

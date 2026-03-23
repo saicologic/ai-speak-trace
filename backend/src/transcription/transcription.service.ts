@@ -287,6 +287,11 @@ export class TranscriptionService {
     return this.chunkedTranscriptionService.getJobStatus(jobId);
   }
 
+  /** 指定ジョブが現在このプロセスで処理中かどうかを返す */
+  isJobProcessing(jobId: string): boolean {
+    return this.chunkedTranscriptionService.isJobProcessing(jobId);
+  }
+
   /** ジョブを削除 */
   async deleteJob(jobId: string): Promise<void> {
     return this.chunkedTranscriptionService.deleteJob(jobId);

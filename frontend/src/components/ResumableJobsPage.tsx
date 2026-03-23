@@ -133,10 +133,14 @@ export function ResumableJobsPage({
                         className={`resumable-job-card-status ${
                           job.status === 'failed'
                             ? 'resumable-job-card-status--failed'
-                            : 'resumable-job-card-status--interrupted'
+                            : job.isProcessing
+                              ? 'resumable-job-card-status--processing'
+                              : 'resumable-job-card-status--interrupted'
                         }`}
                       >
-                        {job.status === 'failed' ? '失敗' : '中断'}
+                        {job.status === 'failed' ? '失敗'
+                          : job.isProcessing ? '処理中'
+                          : '中断'}
                       </span>
                     </div>
                     <div className="resumable-job-card-progress">

@@ -173,6 +173,11 @@
   color: #d97706;
 }
 
+.resumable-job-card-status--processing {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
 .resumable-job-card-progress {
   display: flex;
   align-items: center;

@@ -341,6 +341,7 @@ export interface ChunkedJobDetail {
   errorMessage?: string;
   updatedAt: string;
   transcriptionId?: string;
+  isProcessing?: boolean;
 }
 
 /** 再開可能なジョブ一覧を取得 */

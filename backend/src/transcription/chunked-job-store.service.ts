@@ -130,15 +130,21 @@ export class ChunkedJobStoreService {
     // 未完了ジョブのうち、同じファイル名で完了済みジョブがないものだけ返す
     const resumable = allJobs.filter(
       (job) =>
-        (job.status === 'initializing' ||
-          job.status === 'splitting' ||
-          job.status === 'transcribing' ||
-          job.status === 'failed') &&
+        job.status !== 'completed' &&
         !completedFileNames.has(job.audioFileName),
     );
 
+    // 同じファイル名のジョブは最新のもの1つだけに絞る
+    const latestByFileName = new Map<string, ChunkedTranscriptionJob>();
+    for (const job of resumable) {
+      const existing = latestByFileName.get(job.audioFileName);
+      if (!existing || new Date(job.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+        latestByFileName.set(job.audioFileName, job);
+      }
+    }
+
     // 更新日時の降順でソート
-    return resumable.sort(
+    return Array.from(latestByFileName.values()).sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );

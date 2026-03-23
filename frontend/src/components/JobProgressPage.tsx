@@ -18,7 +18,6 @@ interface JobProgressPageProps {
   jobId: string;
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
-  autoStart?: boolean;
 }
 
 /** チャンク分割文字起こしの処理監視画面 */
@@ -26,7 +25,6 @@ export function JobProgressPage({
   jobId,
   onBack,
   onTranscriptionComplete,
-  autoStart = false,
 }: JobProgressPageProps) {
   const [job, setJob] = useState<ChunkedJobDetail | null>(null);
   const [error, setError] = useState('');
@@ -39,8 +37,6 @@ export function JobProgressPage({
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const completedRef = useRef(false);
-  const initialStatusChecked = useRef(false);
-  const [needsManualStart, setNeedsManualStart] = useState(false);
 
   // ポーリングでジョブ詳細を取得
   useEffect(() => {
@@ -51,20 +47,6 @@ export function JobProgressPage({
       if (cancelled) return;
       if (detail) {
         setJob(detail);
-        // 初回取得時: 手動開始が必要かを判定
-        if (!initialStatusChecked.current) {
-          initialStatusChecked.current = true;
-          const isWaitingToStart = detail.status === 'initializing' || detail.status === 'splitting' || detail.status === 'transcribing';
-          const isAlreadyProcessing = detail.status === 'merging';
-
-          if (isWaitingToStart && !autoStart) {
-            // 待機状態 & 自動開始なし → 手動開始が必要
-            setNeedsManualStart(true);
-          } else if (isAlreadyProcessing || (isWaitingToStart && autoStart)) {
-            // 既に処理中 or 自動開始モード → タイマー開始
-            setIsTimerRunning(true);
-          }
-        }
       }
     };
 
@@ -92,6 +74,23 @@ export function JobProgressPage({
       });
     return () => { cancelled = true; };
   }, [jobId]);
+
+  // isProcessingに連動してタイマーを制御
+  useEffect(() => {
+    if (!job) return;
+
+    if (job.isProcessing) {
+      // バックエンドで処理中 → タイマー開始
+      if (!isTimerRunning) {
+        setIsTimerRunning(true);
+      }
+    } else {
+      // バックエンドで処理していない → タイマー停止
+      if (isTimerRunning && job.status !== 'completed') {
+        setIsTimerRunning(false);
+      }
+    }
+  }, [job?.isProcessing, job?.status]);
 
   // 経過時間カウンター（タイマー開始フラグで制御）
   useEffect(() => {
@@ -124,15 +123,6 @@ export function JobProgressPage({
     }
   }, [job?.status, job?.transcriptionId, onTranscriptionComplete]);
 
-  // ポーリング毎にneedsManualStartを更新（提案B）
-  useEffect(() => {
-    if (!job || autoStart || isTimerRunning) return;
-
-    // タイマーが動いていない & autoStart=false の場合、statusに応じてneedsManualStartを更新
-    const isWaitingToStart = job.status === 'initializing' || job.status === 'splitting' || job.status === 'transcribing';
-    setNeedsManualStart(isWaitingToStart);
-  }, [job?.status, autoStart, isTimerRunning]);
-
   /** 処理開始/再開 */
   const handleResume = () => {
     setIsResuming(true);
@@ -140,7 +130,6 @@ export function JobProgressPage({
     setHideErrorMessage(true);
     setElapsedSeconds(0);
     setIsTimerRunning(true);
-    setNeedsManualStart(false);
 
     // Fire-and-forget: バックエンドの処理は長時間かかるためレスポンスを待たない
     // 完了検知はポーリング（fetchJobDetail 2秒間隔）で行う
@@ -155,7 +144,6 @@ export function JobProgressPage({
         // クォータ超過などの即座エラーは表示
         setError(err instanceof Error ? err.message : '処理の開始に失敗しました');
         setIsTimerRunning(false);
-        setNeedsManualStart(true);
       });
 
     // リクエスト送信後、短い遅延でisResumingを解除
@@ -174,12 +162,18 @@ export function JobProgressPage({
     setPlayingChunkIndex(chunkIndex);
   };
 
-  // ステータステキスト（提案A）
+  // 手動開始が必要かどうか: バックエンドで処理中でなく、未完了状態
+  const needsManualStart = job
+    ? !job.isProcessing && !isResuming &&
+      (job.status === 'initializing' || job.status === 'splitting' || job.status === 'transcribing')
+    : false;
+
+  // ステータステキスト
   const getStatusText = () => {
     if (!job) return '読み込み中...';
 
     // 手動開始が必要な場合（ボタンが表示されている = まだ開始していない）
-    if (canResume && needsManualStart) {
+    if (needsManualStart) {
       return '文字起こしの開始を待機中...';
     }
 
@@ -355,8 +349,8 @@ export function JobProgressPage({
                 </div>
               ))}
 
-              {/* 処理中のチャンク表示（実際に処理が開始されている場合のみ） */}
-              {job && job.status === 'transcribing' && isTimerRunning && job.currentChunkIndex >= sortedChunks.length && (
+              {/* 処理中のチャンク表示（バックエンドで処理中の場合のみ） */}
+              {job && job.status === 'transcribing' && job.isProcessing && job.currentChunkIndex >= sortedChunks.length && (
                 <div className="chunk-text-item chunk-text-processing">
                   <div className="chunk-text-header">
                     <span className="chunk-text-label">
