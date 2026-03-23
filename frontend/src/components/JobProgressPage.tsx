@@ -355,8 +355,8 @@ export function JobProgressPage({
                 </div>
               ))}
 
-              {/* 処理中のチャンク表示 */}
-              {job && job.status === 'transcribing' && job.currentChunkIndex >= sortedChunks.length && (
+              {/* 処理中のチャンク表示（実際に処理が開始されている場合のみ） */}
+              {job && job.status === 'transcribing' && isTimerRunning && job.currentChunkIndex >= sortedChunks.length && (
                 <div className="chunk-text-item chunk-text-processing">
                   <div className="chunk-text-header">
                     <span className="chunk-text-label">
