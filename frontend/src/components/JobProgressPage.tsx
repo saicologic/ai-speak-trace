@@ -302,14 +302,6 @@ export function JobProgressPage({
                     >
                       {isResuming ? '再開中...' : '途中から再開する'}
                     </button>
-                    {onSelectAudio && (
-                      <button
-                        className="job-progress-select-audio-button"
-                        onClick={onSelectAudio}
-                      >
-                        音声を選択
-                      </button>
-                    )}
                   </div>
                 </>
               );
