@@ -18,6 +18,7 @@ interface JobProgressPageProps {
   jobId: string;
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
+  onSelectAudio?: () => void;
 }
 
 /** チャンク分割文字起こしの処理監視画面 */
@@ -25,6 +26,7 @@ export function JobProgressPage({
   jobId,
   onBack,
   onTranscriptionComplete,
+  onSelectAudio,
 }: JobProgressPageProps) {
   const [job, setJob] = useState<ChunkedJobDetail | null>(null);
   const [error, setError] = useState('');
@@ -292,13 +294,23 @@ export function JobProgressPage({
                       </div>
                     )}
                   </div>
-                  <button
-                    className="job-progress-resume-button"
-                    onClick={handleResume}
-                    disabled={isResuming || !isCreditSufficient}
-                  >
-                    {isResuming ? '再開中...' : '途中から再開する'}
-                  </button>
+                  <div className="job-progress-actions">
+                    <button
+                      className="job-progress-resume-button"
+                      onClick={handleResume}
+                      disabled={isResuming || !isCreditSufficient}
+                    >
+                      {isResuming ? '再開中...' : '途中から再開する'}
+                    </button>
+                    {onSelectAudio && (
+                      <button
+                        className="job-progress-select-audio-button"
+                        onClick={onSelectAudio}
+                      >
+                        音声を選択
+                      </button>
+                    )}
+                  </div>
                 </>
               );
             })()}

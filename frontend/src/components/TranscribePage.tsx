@@ -59,6 +59,7 @@ interface TranscribePageProps {
   onTranscriptionComplete: (transcription: Transcription) => void;
   onNavigateSettings: () => void;
   onChunkedJobStarted?: (jobId: string) => void;
+  isFromJobProgress?: boolean;
 }
 
 type Step = 'select' | 'preview' | 'transcribing' | 'done';
@@ -69,6 +70,7 @@ export function TranscribePage({
   onTranscriptionComplete,
   onNavigateSettings,
   onChunkedJobStarted,
+  isFromJobProgress = false,
 }: TranscribePageProps) {
   const [step, setStep] = useState<Step>('select');
   const [file, setFile] = useState<File | null>(null);
@@ -384,7 +386,8 @@ export function TranscribePage({
                 設定画面を開く
               </button>
             )}
-            {failedJobId && !isApiKeyMissing && (
+            {/* ジョブ進捗管理から来た場合のみ「途中から再開する」を表示 */}
+            {isFromJobProgress && failedJobId && !isApiKeyMissing && (
               <button
                 className="transcribe-resume-button"
                 onClick={handleResume}

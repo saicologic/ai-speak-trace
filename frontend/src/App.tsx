@@ -50,6 +50,7 @@ function App() {
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
+  const [isFromJobProgress, setIsFromJobProgress] = useState(false);
 
   /** 起動時にベータ機能の設定を読み込み + 中断ジョブを確認 */
   useEffect(() => {
@@ -167,15 +168,21 @@ function App() {
   if (page === 'transcribe') {
     return (
       <TranscribePage
-        onBack={() => setPage('main')}
+        onBack={() => {
+          setIsFromJobProgress(false);
+          setPage('main');
+        }}
         onTranscriptionComplete={(result) => {
           setTranscription(result);
+          setIsFromJobProgress(false);
         }}
         onNavigateSettings={() => setPage('settings')}
         onChunkedJobStarted={(jobId) => {
           setActiveJobId(jobId);
+          setIsFromJobProgress(false);
           setPage('job-progress');
         }}
+        isFromJobProgress={isFromJobProgress}
       />
     );
   }
@@ -187,13 +194,19 @@ function App() {
         jobId={activeJobId}
         onBack={() => {
           setActiveJobId(null);
+          setIsFromJobProgress(false);
           setPage('resumable-jobs');
         }}
         onTranscriptionComplete={(result) => {
           setTranscription(result);
           setActiveJobId(null);
+          setIsFromJobProgress(false);
           setResumableJobs((prev) => prev.filter((j) => j.id !== activeJobId));
           setPage('main');
+        }}
+        onSelectAudio={() => {
+          setIsFromJobProgress(true);
+          setPage('transcribe');
         }}
       />
     );
@@ -283,7 +296,10 @@ function App() {
           <div className="sidebar-tabs">
             <button
               className="sidebar-tab-action"
-              onClick={() => setPage('transcribe')}
+              onClick={() => {
+                setIsFromJobProgress(false);
+                setPage('transcribe');
+              }}
             >
               音声ファイルの文字起こし
             </button>

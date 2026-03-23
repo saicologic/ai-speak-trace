@@ -154,18 +154,27 @@
   margin: 0.5rem 0 0 0;
 }
 
-.job-progress-resume-button {
-  display: inline-block;
+/* ボタンコンテナ */
+.job-progress-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.job-progress-resume-button,
+.job-progress-select-audio-button {
   padding: 0.6rem 1.2rem;
   font-size: 0.9rem;
   font-weight: 600;
   color: #ffffff;
-  background-color: #f59e0b;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.15s;
-  margin-top: 1rem;
+}
+
+.job-progress-resume-button {
+  background-color: #f59e0b;
 }
 
 .job-progress-resume-button:hover {
@@ -175,6 +184,14 @@
 .job-progress-resume-button:disabled {
   background-color: #9ca3af;
   cursor: not-allowed;
+}
+
+.job-progress-select-audio-button {
+  background-color: #3b82f6;
+}
+
+.job-progress-select-audio-button:hover {
+  background-color: #2563eb;
 }
 
 .job-progress-error-detail {
