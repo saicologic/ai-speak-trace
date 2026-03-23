@@ -69,6 +69,22 @@ export class TranscriptionController {
     return { files };
   }
 
+  /** 音声ファイルの存在確認: GET /api/audio-files/exists/:fileName */
+  @Get('audio-files/exists/:fileName')
+  async checkAudioFileExists(@Param('fileName') fileName: string) {
+    const exists = await this.transcriptionService.checkAudioFileExists(fileName);
+    return { exists };
+  }
+
+  /** 同名ファイルの全リソース削除: DELETE /api/audio-files/:fileName/all */
+  @Delete('audio-files/:fileName/all')
+  async deleteAllResourcesByFileName(@Param('fileName') fileName: string) {
+    console.log('[audio-files/all] 同名ファイルの全リソース削除:', fileName);
+    await this.transcriptionService.deleteAllResourcesByFileName(fileName);
+    console.log('[audio-files/all] 削除完了:', fileName);
+    return { success: true };
+  }
+
   /** アップロード用署名付きURL取得: POST /api/audio-files/upload-url */
   @Post('audio-files/upload-url')
   async getUploadUrl(@Body() body: { fileName: string }) {
@@ -337,5 +353,14 @@ export class TranscriptionController {
       dto.speakers,
     );
     return { transcription };
+  }
+
+  /** 同名ファイルの未完了ジョブ検索: GET /api/chunked-jobs/check/:fileName */
+  @Get('chunked-jobs/check/:fileName')
+  async checkExistingJob(@Param('fileName') fileName: string) {
+    console.log('[chunked-jobs/check] ファイル名で未完了ジョブを検索:', fileName);
+    const job = await this.transcriptionService.findActiveJob(fileName);
+    console.log('[chunked-jobs/check] 検索結果:', job ? `jobId=${job.id}` : 'なし');
+    return { job };
   }
 }

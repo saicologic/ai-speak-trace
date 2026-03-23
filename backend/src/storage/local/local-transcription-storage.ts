@@ -65,4 +65,12 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
     this.logger.log(`findAll 完了: ${transcriptions.length}件の文字起こしを返却`);
     return transcriptions;
   }
+
+  async delete(id: string): Promise<void> {
+    const filePath = path.join(this.storeDir, `${id}.json`);
+    if (existsSync(filePath)) {
+      await fs.unlink(filePath);
+      this.logger.log(`文字起こし結果削除完了: ${id}`);
+    }
+  }
 }

@@ -73,6 +73,33 @@ export class ChunkedJobStoreService {
     return null;
   }
 
+  /** ファイル名で全ジョブ（完了・未完了含む）を検索 */
+  async findAllJobsByFileName(
+    fileName: string,
+  ): Promise<ChunkedTranscriptionJob[]> {
+    if (!existsSync(this.storeDir)) return [];
+
+    const files = await fs.readdir(this.storeDir);
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
+    const matchedJobs: ChunkedTranscriptionJob[] = [];
+
+    for (const file of jsonFiles) {
+      try {
+        const content = await fs.readFile(
+          path.join(this.storeDir, file),
+          'utf-8',
+        );
+        const job = JSON.parse(content) as ChunkedTranscriptionJob;
+        if (job.audioFileName === fileName) {
+          matchedJobs.push(job);
+        }
+      } catch {
+        // 読み込み失敗は無視
+      }
+    }
+    return matchedJobs;
+  }
+
   /** 再開可能な（未完了の）ジョブ一覧を取得 */
   async findResumableJobs(): Promise<ChunkedTranscriptionJob[]> {
     if (!existsSync(this.storeDir)) return [];

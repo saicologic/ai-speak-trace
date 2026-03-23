@@ -5,6 +5,8 @@ import {
   fetchActiveJob,
   resumeTranscription,
   checkCredits,
+  checkAudioFileExists,
+  deleteAllResourcesByFileName,
   BASE_URL,
 } from '../api/client';
 import type { ChunkedJobStatus, CreditInfo } from '../api/client';
@@ -233,6 +235,31 @@ export function TranscribePage({
   /** 文字起こし実行（アップロード→文字起こし） */
   const handleTranscribe = async () => {
     if (!file) return;
+
+    // 既存ファイルの上書き確認
+    const fileExists = await checkAudioFileExists(file.name);
+    if (fileExists) {
+      const { confirm } = await import('@tauri-apps/plugin-dialog');
+      const confirmed = await confirm(
+        `「${file.name}」は既に文字起こし済みです。\n上書きして新しく文字起こししますか？\n\n※ 既存のチャンクデータと文字起こし結果（履歴）は全て削除されます。`,
+        { title: '上書き確認', kind: 'warning' },
+      );
+
+      if (!confirmed) {
+        // キャンセルされた場合は何もしない
+        return;
+      }
+
+      // 全リソースを削除
+      try {
+        await deleteAllResourcesByFileName(file.name);
+      } catch (deleteErr) {
+        console.error('リソース削除に失敗:', deleteErr);
+        setError('既存ファイルの削除に失敗しました。再度お試しください。');
+        return;
+      }
+    }
+
     setError('');
     setChunkProgress(null);
     setFailedJobId(null);

@@ -62,6 +62,43 @@ export class TranscriptionService {
     return this.audioStorage.getPlaybackUrl(fileName);
   }
 
+  /** 音声ファイルの存在確認 */
+  async checkAudioFileExists(fileName: string): Promise<boolean> {
+    return this.audioStorage.exists(fileName);
+  }
+
+  /** 同名ファイルの全リソースを削除（音声ファイル + 全チャンクジョブ + 文字起こし履歴） */
+  async deleteAllResourcesByFileName(fileName: string): Promise<void> {
+    this.logger.log(`同名ファイルの全リソース削除開始: ${fileName}`);
+
+    // 1. 音声ファイルを削除
+    if (await this.audioStorage.exists(fileName)) {
+      await this.audioStorage.deleteFile(fileName);
+      this.logger.log(`音声ファイル削除完了: ${fileName}`);
+    }
+
+    // 2. 同名ファイルの全チャンクジョブを削除（completed, transcribing, failed 全て）
+    const jobs = await this.chunkedTranscriptionService.findAllJobsByFileName(fileName);
+    this.logger.log(`削除対象のジョブ: ${jobs.length}件`);
+    for (const job of jobs) {
+      await this.chunkedTranscriptionService.deleteJob(job.id);
+      this.logger.log(`ジョブ削除完了: ${job.id} (status: ${job.status})`);
+    }
+
+    // 3. 文字起こし履歴を削除
+    const allTranscriptions = await this.store.findAll();
+    const matchedTranscriptions = allTranscriptions.filter(
+      (t) => t.audioFileName === fileName,
+    );
+    this.logger.log(`削除対象の文字起こし履歴: ${matchedTranscriptions.length}件`);
+    for (const transcription of matchedTranscriptions) {
+      await this.store.delete(transcription.id);
+      this.logger.log(`文字起こし履歴削除完了: ${transcription.id}`);
+    }
+
+    this.logger.log(`同名ファイルの全リソース削除完了: ${fileName}`);
+  }
+
   /** アップロード用署名付きURLを取得 */
   async getUploadUrl(fileName: string): Promise<string | null> {
     return this.audioStorage.getUploadUrl(fileName);

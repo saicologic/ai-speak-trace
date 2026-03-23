@@ -205,6 +205,49 @@ export async function fetchActiveJob(
   }
 }
 
+/** 同名ファイルの未完了ジョブを検索（上書き確認用） */
+export async function checkExistingJob(
+  fileName: string,
+): Promise<ChunkedJobDetail | null> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/chunked-jobs/check/${encodeURIComponent(fileName)}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.job;
+  } catch {
+    return null;
+  }
+}
+
+/** 音声ファイルの存在確認 */
+export async function checkAudioFileExists(fileName: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/audio-files/exists/${encodeURIComponent(fileName)}`,
+    );
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.exists;
+  } catch {
+    return false;
+  }
+}
+
+/** 同名ファイルの全リソースを削除（音声ファイル + 全チャンクジョブ） */
+export async function deleteAllResourcesByFileName(
+  fileName: string,
+): Promise<void> {
+  const res = await fetch(
+    `${BASE_URL}/audio-files/${encodeURIComponent(fileName)}/all`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    throw new Error(`リソース削除に失敗しました: ${res.status}`);
+  }
+}
+
 /** 失敗したチャンクジョブを再開 */
 export async function resumeTranscription(
   jobId: string,

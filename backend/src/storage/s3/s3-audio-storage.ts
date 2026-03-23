@@ -6,6 +6,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AudioStorage } from '../interfaces/audio-storage.interface';
@@ -152,6 +153,23 @@ export class S3AudioStorage implements AudioStorage {
       this.logger.error(`S3への音声ファイル保存に失敗: ${fileName}`, err);
       throw new Error(
         `S3への音声ファイル保存に失敗しました（${fileName}）: ${err.message}`,
+      );
+    }
+  }
+
+  async deleteFile(fileName: string): Promise<void> {
+    try {
+      await this.s3.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: `${this.prefix}${fileName}`,
+        }),
+      );
+      this.logger.log(`S3音声ファイル削除完了: ${fileName}`);
+    } catch (err: any) {
+      this.logger.error(`S3からの音声ファイル削除に失敗: ${fileName}`, err);
+      throw new Error(
+        `S3からの音声ファイル削除に失敗しました（${fileName}）: ${err.message}`,
       );
     }
   }

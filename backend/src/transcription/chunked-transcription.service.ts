@@ -223,6 +223,13 @@ export class ChunkedTranscriptionService {
     return this.jobStore.findActiveByFileName(fileName);
   }
 
+  /** ファイル名で全ジョブ（完了・未完了含む）を検索 */
+  async findAllJobsByFileName(
+    fileName: string,
+  ): Promise<ChunkedTranscriptionJob[]> {
+    return this.jobStore.findAllJobsByFileName(fileName);
+  }
+
   /** 再開可能なジョブ一覧を取得 */
   async getResumableJobs(): Promise<ChunkedTranscriptionJob[]> {
     return this.jobStore.findResumableJobs();
