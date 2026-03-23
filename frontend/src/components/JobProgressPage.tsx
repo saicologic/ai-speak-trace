@@ -54,8 +54,8 @@ export function JobProgressPage({
         // 初回取得時: 手動開始が必要かを判定
         if (!initialStatusChecked.current) {
           initialStatusChecked.current = true;
-          const isWaitingToStart = detail.status === 'initializing' || detail.status === 'splitting';
-          const isAlreadyProcessing = detail.status === 'transcribing' || detail.status === 'merging';
+          const isWaitingToStart = detail.status === 'initializing' || detail.status === 'splitting' || detail.status === 'transcribing';
+          const isAlreadyProcessing = detail.status === 'merging';
 
           if (isWaitingToStart && !autoStart) {
             // 待機状態 & 自動開始なし → 手動開始が必要
