@@ -15,7 +15,7 @@ vi.mock('../../utils/transcription', async () => {
   };
 });
 
-// 中断状態のジョブ（updatedAtが60秒前 = isStale = true → canResume = true）
+// 中断状態のジョブ（isProcessing: false = バックエンドで処理していない → canResume = true）
 const staleJob: ChunkedJobDetail = {
   id: 'job-1',
   audioFileName: 'test-audio.mp3',
@@ -31,6 +31,7 @@ const staleJob: ChunkedJobDetail = {
     { index: 2, chunkFileName: 'chunk-2.mp3', startTimeSec: 1200, text: 'テスト2', languageCode: 'ja' },
   ],
   updatedAt: new Date(Date.now() - 60_000).toISOString(),
+  isProcessing: false,
 };
 
 // クレジット十分
@@ -79,21 +80,21 @@ describe('JobProgressPage', () => {
     expect(screen.queryByText('音声を選択')).toBeNull();
   });
 
-  it('クレジット取得中は「途中から再開する」ボタンが無効', async () => {
+  it('クレジット取得中は「文字起こしを開始」ボタンが無効', async () => {
     // checkCredits を永遠にpendingにする
     vi.mocked(checkCredits).mockReturnValue(new Promise(() => {}));
 
     render(<JobProgressPage {...defaultProps} />);
     await waitFor(() => {
-      expect(screen.getByText('途中から再開する')).toBeInTheDocument();
+      expect(screen.getByText('文字起こしを開始')).toBeInTheDocument();
     });
-    expect(screen.getByText('途中から再開する')).toBeDisabled();
+    expect(screen.getByText('文字起こしを開始')).toBeDisabled();
   });
 
-  it('クレジット取得完了後（十分）、「途中から再開する」ボタンが有効', async () => {
+  it('クレジット取得完了後（十分）、「文字起こしを開始」ボタンが有効', async () => {
     render(<JobProgressPage {...defaultProps} />);
     await waitFor(() => {
-      expect(screen.getByText('途中から再開する')).toBeEnabled();
+      expect(screen.getByText('文字起こしを開始')).toBeEnabled();
     });
   });
 
@@ -102,15 +103,15 @@ describe('JobProgressPage', () => {
 
     render(<JobProgressPage {...defaultProps} />);
     await waitFor(() => {
-      expect(screen.getByText('途中から再開する')).toBeDisabled();
+      expect(screen.getByText('文字起こしを開始')).toBeDisabled();
     });
     expect(screen.getByText(/クレジットが不足しています/)).toBeInTheDocument();
   });
 
-  it('中断状態（isStale）のジョブではタイマーが停止している', async () => {
+  it('中断状態（isProcessing: false）のジョブではタイマーが停止している', async () => {
     render(<JobProgressPage {...defaultProps} />);
     await waitForJobLoaded();
-    // isStale = true → isTimerRunning は false のまま → タイマー表示なし
+    // isProcessing: false → isTimerRunning は false のまま → タイマー表示なし
     expect(screen.queryByText(/\d+:\d+ 経過/)).toBeNull();
   });
 });
