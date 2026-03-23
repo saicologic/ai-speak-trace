@@ -124,6 +124,15 @@ export function JobProgressPage({
     }
   }, [job?.status, job?.transcriptionId, onTranscriptionComplete]);
 
+  // ポーリング毎にneedsManualStartを更新（提案B）
+  useEffect(() => {
+    if (!job || autoStart || isTimerRunning) return;
+
+    // タイマーが動いていない & autoStart=false の場合、statusに応じてneedsManualStartを更新
+    const isWaitingToStart = job.status === 'initializing' || job.status === 'splitting' || job.status === 'transcribing';
+    setNeedsManualStart(isWaitingToStart);
+  }, [job?.status, autoStart, isTimerRunning]);
+
   /** 処理開始/再開 */
   const handleResume = () => {
     setIsResuming(true);
@@ -165,12 +174,12 @@ export function JobProgressPage({
     setPlayingChunkIndex(chunkIndex);
   };
 
-  // ステータステキスト
+  // ステータステキスト（提案A）
   const getStatusText = () => {
     if (!job) return '読み込み中...';
 
-    // 手動開始待ちの場合
-    if (needsManualStart) {
+    // 手動開始が必要な場合（ボタンが表示されている = まだ開始していない）
+    if (canResume && needsManualStart) {
       return '文字起こしの開始を待機中...';
     }
 
