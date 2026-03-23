@@ -18,7 +18,6 @@ interface JobProgressPageProps {
   jobId: string;
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
-  onSelectAudio?: () => void;
 }
 
 /** チャンク分割文字起こしの処理監視画面 */
@@ -26,7 +25,6 @@ export function JobProgressPage({
   jobId,
   onBack,
   onTranscriptionComplete,
-  onSelectAudio,
 }: JobProgressPageProps) {
   const [job, setJob] = useState<ChunkedJobDetail | null>(null);
   const [error, setError] = useState('');
@@ -50,16 +48,12 @@ export function JobProgressPage({
       if (cancelled) return;
       if (detail) {
         setJob(detail);
-        // 初回取得時: updatedAt が30秒以内ならアクティブ処理中と判断しタイマー開始
+        // 初回取得時: statusが処理中ならタイマー開始
         if (!initialStatusChecked.current) {
           initialStatusChecked.current = true;
           const isActive = detail.status === 'initializing' || detail.status === 'splitting' || detail.status === 'transcribing' || detail.status === 'merging';
           if (isActive) {
-            const lastUpdate = new Date(detail.updatedAt).getTime();
-            const isRecentlyActive = Date.now() - lastUpdate < 30_000;
-            if (isRecentlyActive) {
-              setIsTimerRunning(true);
-            }
+            setIsTimerRunning(true);
           }
         }
       }
@@ -121,18 +115,6 @@ export function JobProgressPage({
     }
   }, [job?.status, job?.transcriptionId, onTranscriptionComplete]);
 
-  // 中断判定: status が transcribing だが updatedAt が30秒以上前
-  const isStale =
-    job?.status === 'transcribing' &&
-    Date.now() - new Date(job.updatedAt).getTime() >= 30_000;
-
-  // 中断状態の時はタイマー停止
-  useEffect(() => {
-    if (isStale) {
-      setIsTimerRunning(false);
-    }
-  }, [isStale]);
-
   /** 中断/失敗ジョブを再開 */
   const handleResume = () => {
     setIsResuming(true);
@@ -181,7 +163,6 @@ export function JobProgressPage({
       case 'splitting':
         return '音声ファイルを分割中...';
       case 'transcribing':
-        if (isStale) return '文字起こしが中断されました';
         return `チャンク ${job.currentChunkIndex + 1}/${job.totalChunks} を文字起こし中...`;
       case 'merging':
         return '結果をマージ中...';
@@ -194,14 +175,8 @@ export function JobProgressPage({
     }
   };
 
-  // 再開可能かどうか（initializing/splitting は常に再開可能、transcribing は中断時のみ再開可能）
-  const canResume =
-    job &&
-    (job.status === 'failed' ||
-      job.status === 'initializing' ||
-      job.status === 'splitting' ||
-      (job.status === 'transcribing' && isStale)) &&
-    !isResuming;
+  // 再開可能かどうか（failed の場合のみ）
+  const canResume = job && job.status === 'failed' && !isResuming;
 
   // プログレスバーの割合
   const progressPercent =
@@ -347,8 +322,8 @@ export function JobProgressPage({
                 </div>
               ))}
 
-              {/* 処理中のチャンク表示（中断状態では非表示） */}
-              {job && job.status === 'transcribing' && !isStale && job.currentChunkIndex >= sortedChunks.length && (
+              {/* 処理中のチャンク表示 */}
+              {job && job.status === 'transcribing' && job.currentChunkIndex >= sortedChunks.length && (
                 <div className="chunk-text-item chunk-text-processing">
                   <div className="chunk-text-header">
                     <span className="chunk-text-label">
