@@ -94,11 +94,6 @@
   gap: 0.5rem;
 }
 
-.job-progress-elapsed {
-  color: #9ca3af;
-  font-weight: 400;
-}
-
 .job-progress-bar {
   width: 100%;
   height: 8px;
@@ -165,8 +160,7 @@
   margin-top: 1rem;
 }
 
-.job-progress-resume-button,
-.job-progress-select-audio-button {
+.job-progress-resume-button {
   padding: 0.6rem 1.2rem;
   font-size: 0.9rem;
   font-weight: 600;
@@ -203,14 +197,6 @@
 }
 
 .job-progress-top-button:hover {
-  background-color: #2563eb;
-}
-
-.job-progress-select-audio-button {
-  background-color: #3b82f6;
-}
-
-.job-progress-select-audio-button:hover {
   background-color: #2563eb;
 }
 
