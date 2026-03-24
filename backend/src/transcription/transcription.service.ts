@@ -139,6 +139,19 @@ export class TranscriptionService {
     // ジョブを早期作成（needsChunking判定前に保存し、中断時に再開可能にする）
     const chunkedJob = await this.chunkedTranscriptionService.createJob(fileName);
 
+    // 完了済みまたは処理中のジョブが返ってきた場合は既存の文字起こし結果を返す
+    if (chunkedJob.status === 'completed' && chunkedJob.transcriptionId) {
+      this.logger.log(`既に完了済みのジョブ: jobId=${chunkedJob.id}, transcriptionId=${chunkedJob.transcriptionId}`);
+      const existing = await this.store.findById(chunkedJob.transcriptionId);
+      if (existing) return existing;
+      // 文字起こし結果が見つからない場合はジョブをリセットして続行
+      this.logger.warn(`完了済みジョブだが文字起こし結果が見つからない: ${chunkedJob.transcriptionId}`);
+    }
+    if (this.chunkedTranscriptionService.isJobProcessing(chunkedJob.id)) {
+      this.logger.warn(`処理中のジョブに対して重複リクエスト: jobId=${chunkedJob.id}`);
+      throw new Error('このファイルは現在文字起こし処理中です。完了をお待ちください。');
+    }
+
     // 音声の長さに応じて処理を分岐
     let elWords: ElevenLabsWord[];
     let fullText: string;

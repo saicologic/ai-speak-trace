@@ -57,10 +57,16 @@ export class ChunkedTranscriptionService {
   async createJob(fileName: string): Promise<ChunkedTranscriptionJob> {
     const stem = path.parse(fileName).name;
 
-    // 既存ジョブがあればリセットして返す（同一ファイルの重複防止）
+    // 既存ジョブの状態を確認
     const existing = await this.jobStore.findById(stem);
     if (existing) {
-      this.logger.log(`既存ジョブをリセット: jobId=${stem}`);
+      // 完了済みまたは処理中のジョブはリセットしない
+      if (existing.status === 'completed' || this.processingJobIds.has(stem)) {
+        this.logger.log(`既存ジョブをスキップ: jobId=${stem}, status=${existing.status}, processing=${this.processingJobIds.has(stem)}`);
+        return existing;
+      }
+      // 未完了（failed, initializing, splitting, transcribing）のジョブはリセット
+      this.logger.log(`既存ジョブをリセット: jobId=${stem}, status=${existing.status}`);
       existing.status = 'initializing';
       existing.totalDurationSec = 0;
       existing.totalChunks = 0;
