@@ -347,7 +347,7 @@ export interface ChunkedJobDetail {
 /** 再開可能なジョブ一覧を取得 */
 export async function fetchResumableJobs(): Promise<ChunkedJobDetail[]> {
   try {
-    const res = await fetch(`${BASE_URL}/transcribe/jobs`);
+    const res = await fetchWithRetry(`${BASE_URL}/transcribe/jobs`);
     if (!res.ok) return [];
     const data = await res.json();
     return data.jobs;

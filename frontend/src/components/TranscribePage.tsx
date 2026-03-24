@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   uploadAudioFile,
   transcribeAudio,
@@ -83,6 +83,9 @@ export function TranscribePage({
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
   const [creditCheckError, setCreditCheckError] = useState<string | null>(null);
 
+  // JobProgressPageに遷移済みフラグ（遷移後はtranscribeAudioの結果を無視する）
+  const navigatedToJobProgressRef = useRef(false);
+
   // 推定必要クレジット数（音声の長さから算出）
   const estimatedCredits = audioDurationSec !== null
     ? Math.ceil((audioDurationSec / 60) * CREDITS_PER_MINUTE)
@@ -157,6 +160,7 @@ export function TranscribePage({
         // チャンクジョブが開始されたらJobProgressPageに遷移
         if (!navigated && job.totalChunks > 1 && onChunkedJobStarted) {
           navigated = true;
+          navigatedToJobProgressRef.current = true;
           onChunkedJobStarted(job.id);
         }
       }
@@ -262,6 +266,7 @@ export function TranscribePage({
     setError('');
     setChunkProgress(null);
     setStep('transcribing');
+    navigatedToJobProgressRef.current = false;
     try {
       // 0. サーバーの疎通確認
       try {
@@ -273,9 +278,13 @@ export function TranscribePage({
       const fileName = await uploadAudioFile(file);
       // 2. 文字起こし実行
       const result = await transcribeAudio(fileName);
+      // JobProgressPageに遷移済みなら結果を無視
+      if (navigatedToJobProgressRef.current) return;
       onTranscriptionComplete(result);
       setStep('done');
     } catch (err) {
+      // JobProgressPageに遷移済みならエラーを無視
+      if (navigatedToJobProgressRef.current) return;
       const detail = err instanceof Error ? err.message : String(err);
       const errorName = err instanceof Error ? err.name : 'Unknown';
       const stack = err instanceof Error ? err.stack : '';
@@ -306,6 +315,7 @@ export function TranscribePage({
 
   /** 別のファイルを選択し直す */
   const handleReset = () => {
+    navigatedToJobProgressRef.current = false;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setStep('select');
     setFile(null);
