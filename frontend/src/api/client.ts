@@ -7,7 +7,6 @@ import type {
   DocumentInfo,
   InterviewAnalysis,
   Transcription,
-  TranscriptionJob,
   TranscriptionSummary,
 } from '../types';
 
@@ -166,12 +165,60 @@ export async function transcribeAudio(
       error.name = 'ApiKeyMissingError';
       throw error;
     }
+    if (body?.code === 'FFMPEG_MISSING') {
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
+      error.name = 'FfmpegMissingError';
+      throw error;
+    }
     const serverMessage = (typeof body?.message === 'string' ? body.message : null) || rawText || res.statusText;
     throw new Error(`文字起こしに失敗しました (${res.status}): ${serverMessage}`);
   }
   const data = await res.json();
   console.log('[API] transcribeAudio 完了:', { id: data.transcription?.id });
   return data.transcription;
+}
+
+/** チャンク分割ジョブの進捗状態 */
+export interface ChunkedJobStatus {
+  id: string;
+  audioFileName: string;
+  status: 'initializing' | 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
+  totalChunks: number;
+  currentChunkIndex: number;
+  completedChunks: { index: number }[];
+  errorMessage?: string;
+}
+
+/** 進行中のチャンクジョブを取得 */
+export async function fetchActiveJob(
+  fileName: string,
+): Promise<ChunkedJobStatus | null> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/transcribe/jobs/active?fileName=${encodeURIComponent(fileName)}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.job;
+  } catch {
+    return null;
+  }
+}
+
+/** 同名ファイルの未完了ジョブを検索（上書き確認用） */
+export async function checkExistingJob(
+  fileName: string,
+): Promise<ChunkedJobDetail | null> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/chunked-jobs/check/${encodeURIComponent(fileName)}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.job;
+  } catch {
+    return null;
+  }
 }
 
 /** 音声ファイルの存在確認 */
@@ -188,7 +235,7 @@ export async function checkAudioFileExists(fileName: string): Promise<boolean> {
   }
 }
 
-/** 同名ファイルの全リソースを削除（音声ファイル + 文字起こし履歴） */
+/** 同名ファイルの全リソースを削除（音声ファイル + 全チャンクジョブ） */
 export async function deleteAllResourcesByFileName(
   fileName: string,
 ): Promise<void> {
@@ -199,6 +246,42 @@ export async function deleteAllResourcesByFileName(
   if (!res.ok) {
     throw new Error(`リソース削除に失敗しました: ${res.status}`);
   }
+}
+
+/** 失敗したチャンクジョブを再開 */
+export async function resumeTranscription(
+  jobId: string,
+): Promise<Transcription> {
+  const res = await fetch(`${BASE_URL}/transcribe/resume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobId }),
+  });
+
+  if (!res.ok) {
+    const rawText = await res.text().catch(() => '');
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = JSON.parse(rawText);
+    } catch {
+      // JSONパース失敗時はrawTextをそのまま使う
+    }
+    if (body?.code === 'QUOTA_EXCEEDED') {
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
+      error.name = 'QuotaExceededError';
+      throw error;
+    }
+    if (body?.code === 'TRANSCRIPTION_TIMEOUT') {
+      const error = new Error(typeof body.message === 'string' ? body.message : rawText);
+      error.name = 'TranscriptionTimeoutError';
+      throw error;
+    }
+    const serverMessage = (typeof body?.message === 'string' ? body.message : null) || rawText || res.statusText;
+    throw new Error(`文字起こしの再開に失敗しました (${res.status}): ${serverMessage}`);
+  }
+
+  const data = await res.json();
+  return data.transcription;
 }
 
 /** ElevenLabsクレジット情報 */
@@ -233,6 +316,73 @@ export async function checkCredits(): Promise<CreditInfo> {
   }
   const data = await res.json();
   return data.creditInfo;
+}
+
+/** 完了済みチャンクの情報 */
+export interface CompletedChunkInfo {
+  index: number;
+  chunkFileName: string;
+  startTimeSec: number;
+  text: string;
+  languageCode: string;
+}
+
+/** チャンク分割ジョブの詳細（テキスト含む） */
+export interface ChunkedJobDetail {
+  id: string;
+  audioFileName: string;
+  createdAt: string;
+  status: 'initializing' | 'splitting' | 'transcribing' | 'merging' | 'completed' | 'failed';
+  totalDurationSec: number;
+  chunkDurationSec: number;
+  totalChunks: number;
+  currentChunkIndex: number;
+  completedChunks: CompletedChunkInfo[];
+  errorMessage?: string;
+  updatedAt: string;
+  transcriptionId?: string;
+  isProcessing?: boolean;
+}
+
+/** 再開可能なジョブ一覧を取得 */
+export async function fetchResumableJobs(): Promise<ChunkedJobDetail[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/transcribe/jobs`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.jobs;
+  } catch {
+    return [];
+  }
+}
+
+/** ジョブを削除 */
+export async function deleteChunkedJob(jobId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/transcribe/jobs/${jobId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`ジョブの削除に失敗しました: ${res.status}`);
+  }
+}
+
+/** ジョブ詳細を取得（テキスト含む） */
+export async function fetchJobDetail(
+  jobId: string,
+): Promise<ChunkedJobDetail | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/transcribe/jobs/${jobId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.job;
+  } catch {
+    return null;
+  }
+}
+
+/** チャンク音声のURLを取得 */
+export function getChunkAudioUrl(jobId: string, chunkIndex: number): string {
+  return `${BASE_URL}/transcribe/jobs/${jobId}/chunks/${chunkIndex}/audio`;
 }
 
 /** 文字起こし一覧を取得 */
@@ -521,54 +671,6 @@ export async function fetchSettings(): Promise<AppSettings> {
 /** データフォルダをFinderで開く */
 export async function openDataFolder(): Promise<void> {
   await fetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
-}
-
-// === ジョブ管理 ===
-
-/** ジョブを開始（非ブロッキング） */
-export async function startTranscriptionJob(
-  fileName: string,
-): Promise<TranscriptionJob> {
-  const res = await fetch(`${BASE_URL}/jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName }),
-  });
-  if (!res.ok) {
-    throw new Error(`ジョブの開始に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.job;
-}
-
-/** ジョブ一覧を取得 */
-export async function fetchJobs(): Promise<TranscriptionJob[]> {
-  const res = await fetch(`${BASE_URL}/jobs`);
-  if (!res.ok) {
-    throw new Error(`ジョブ一覧の取得に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.jobs;
-}
-
-/** ジョブ詳細を取得 */
-export async function fetchJob(jobId: string): Promise<TranscriptionJob> {
-  const res = await fetch(`${BASE_URL}/jobs/${jobId}`);
-  if (!res.ok) {
-    throw new Error(`ジョブの取得に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.job;
-}
-
-/** ジョブを削除 */
-export async function deleteJob(jobId: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/jobs/${jobId}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    throw new Error(`ジョブの削除に失敗しました: ${res.status}`);
-  }
 }
 
 /** アプリ設定を更新 */

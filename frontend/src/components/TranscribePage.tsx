@@ -2,20 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   uploadAudioFile,
   transcribeAudio,
-  startTranscriptionJob,
+  fetchActiveJob,
   checkCredits,
   checkAudioFileExists,
   deleteAllResourcesByFileName,
   BASE_URL,
 } from '../api/client';
-import type { CreditInfo } from '../api/client';
-import type { Transcription, TranscriptionJob } from '../types';
+import type { ChunkedJobStatus, CreditInfo } from '../api/client';
+import type { Transcription } from '../types';
 import { CREDITS_PER_MINUTE, formatTime, formatDuration } from '../utils/transcription';
 import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
 const PODCAST_CACHE_RELATIVE =
   'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache';
+
+/** チャンク進捗ポーリング間隔（ミリ秒） */
+const CHUNK_POLL_INTERVAL_MS = 2000;
 
 /** ファイルサイズを読みやすい形式にフォーマット */
 function formatFileSize(bytes: number): string {
@@ -54,20 +57,19 @@ interface TranscribePageProps {
   onBack: () => void;
   onTranscriptionComplete: (transcription: Transcription) => void;
   onNavigateSettings: () => void;
-  onJobStarted?: (job: TranscriptionJob) => void;
+  onChunkedJobStarted?: (jobId: string) => void;
 }
 
-type Step = 'select' | 'preview' | 'transcribing' | 'job-started' | 'done';
+type Step = 'select' | 'preview' | 'transcribing' | 'done';
 
 /** 音声ファイルの文字起こしページ */
 export function TranscribePage({
   onBack,
   onTranscriptionComplete,
   onNavigateSettings,
-  onJobStarted,
+  onChunkedJobStarted,
 }: TranscribePageProps) {
   const [step, setStep] = useState<Step>('select');
-  const [startedJob, setStartedJob] = useState<TranscriptionJob | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
@@ -75,6 +77,7 @@ export function TranscribePage({
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [audioDurationSec, setAudioDurationSec] = useState<number | null>(null);
+  const [chunkProgress, setChunkProgress] = useState<ChunkedJobStatus | null>(null);
 
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
@@ -141,6 +144,25 @@ export function TranscribePage({
     doCheck();
     return () => { cancelled = true; };
   }, [step]);
+
+  // 文字起こし中のチャンク進捗ポーリング
+  // チャンクジョブが検出されたらJobProgressPageに遷移
+  useEffect(() => {
+    if (step !== 'transcribing' || !file) return;
+    let navigated = false;
+    const interval = setInterval(async () => {
+      const job = await fetchActiveJob(file.name);
+      if (job) {
+        setChunkProgress(job);
+        // チャンクジョブが開始されたらJobProgressPageに遷移
+        if (!navigated && job.totalChunks > 1 && onChunkedJobStarted) {
+          navigated = true;
+          onChunkedJobStarted(job.id);
+        }
+      }
+    }, CHUNK_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [step, file, onChunkedJobStarted]);
 
   /** Tauri環境でのファイル選択（ネイティブダイアログ） */
   const handleTauriFileSelect = async () => {
@@ -218,7 +240,7 @@ export function TranscribePage({
     if (fileExists) {
       const { confirm } = await import('@tauri-apps/plugin-dialog');
       const confirmed = await confirm(
-        `「${file.name}」は既に文字起こし済みです。\n上書きして新しく文字起こししますか？\n\n※ 既存の文字起こし結果（履歴）は全て削除されます。`,
+        `「${file.name}」は既に文字起こし済みです。\n上書きして新しく文字起こししますか？\n\n※ 既存のチャンクデータと文字起こし結果（履歴）は全て削除されます。`,
         { title: '上書き確認', kind: 'warning' },
       );
 
@@ -238,7 +260,8 @@ export function TranscribePage({
     }
 
     setError('');
-
+    setChunkProgress(null);
+    setStep('transcribing');
     try {
       // 0. サーバーの疎通確認
       try {
@@ -248,20 +271,10 @@ export function TranscribePage({
       }
       // 1. サーバーにアップロード
       const fileName = await uploadAudioFile(file);
-
-      if (onJobStarted) {
-        // ジョブ方式（非ブロッキング）: バックグラウンドで処理
-        const job = await startTranscriptionJob(fileName);
-        setStartedJob(job);
-        setStep('job-started');
-        onJobStarted(job);
-      } else {
-        // フォールバック: onJobStarted未指定時は同期方式
-        setStep('transcribing');
-        const result = await transcribeAudio(fileName);
-        onTranscriptionComplete(result);
-        setStep('done');
-      }
+      // 2. 文字起こし実行
+      const result = await transcribeAudio(fileName);
+      onTranscriptionComplete(result);
+      setStep('done');
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       const errorName = err instanceof Error ? err.name : 'Unknown';
@@ -281,6 +294,8 @@ export function TranscribePage({
       } else if (errorName === 'QuotaExceededError') {
         setIsQuotaExceeded(true);
         setError(detail);
+      } else if (errorName === 'FfmpegMissingError') {
+        setError(detail);
       } else {
         setError(`文字起こしに失敗しました: ${detail}`);
       }
@@ -299,10 +314,10 @@ export function TranscribePage({
     setIsApiKeyMissing(false);
     setIsQuotaExceeded(false);
     setAudioDurationSec(null);
+    setChunkProgress(null);
     setCreditInfo(null);
     setCreditCheckLoading(false);
     setCreditCheckError(null);
-    setStartedJob(null);
   };
 
   return (
@@ -435,53 +450,51 @@ export function TranscribePage({
           <div className="transcribe-section">
             <div className="transcribe-processing">
               <div className="transcribe-spinner" />
-              <p className="transcribe-processing-text">
-                文字起こし中... {formatTime(elapsedSeconds)} 経過
-              </p>
-              {audioDurationSec !== null ? (
-                <p className="transcribe-processing-hint">
-                  推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
-                </p>
+              {chunkProgress && chunkProgress.totalChunks > 1 ? (
+                <>
+                  <p className="transcribe-processing-text">
+                    {chunkProgress.status === 'initializing'
+                      ? '文字起こしを準備中...'
+                      : chunkProgress.status === 'splitting'
+                        ? '音声ファイルを分割中...'
+                        : chunkProgress.status === 'merging'
+                          ? '結果をマージ中...'
+                          : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
+                    {' '}{formatTime(elapsedSeconds)} 経過
+                  </p>
+                  <div className="transcribe-progress-bar">
+                    <div
+                      className="transcribe-progress-fill"
+                      style={{
+                        width: `${(chunkProgress.completedChunks.length / chunkProgress.totalChunks) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="transcribe-processing-hint">
+                    完了: {chunkProgress.completedChunks.length}/{chunkProgress.totalChunks} チャンク
+                  </p>
+                </>
               ) : (
-                <p className="transcribe-processing-hint">
-                  音声の長さやファイルサイズにより数分かかる場合があります。
-                </p>
+                <>
+                  <p className="transcribe-processing-text">
+                    文字起こし中... {formatTime(elapsedSeconds)} 経過
+                  </p>
+                  {audioDurationSec !== null ? (
+                    <p className="transcribe-processing-hint">
+                      推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
+                    </p>
+                  ) : (
+                    <p className="transcribe-processing-hint">
+                      音声の長さやファイルサイズにより数分かかる場合があります。
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>
         )}
 
-        {/* ステップ4: ジョブ開始済み（長音声） */}
-        {step === 'job-started' && startedJob && (
-          <div className="transcribe-section">
-            <div className="transcribe-done">
-              <div className="transcribe-done-icon">↗</div>
-              <p className="transcribe-done-text">
-                バックグラウンドで文字起こし処理を開始しました
-              </p>
-              <p className="transcribe-done-hint">
-                {startedJob.audioFileName} の文字起こしをバックグラウンドで実行中です。
-                この画面を離れても処理は継続されます。
-              </p>
-              <div className="transcribe-done-actions">
-                <button
-                  className="transcribe-back-to-main"
-                  onClick={onBack}
-                >
-                  メイン画面に戻る
-                </button>
-                <button
-                  className="transcribe-another"
-                  onClick={handleReset}
-                >
-                  別のファイルを文字起こし
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ステップ5: 完了 */}
+        {/* ステップ4: 完了 */}
         {step === 'done' && (
           <div className="transcribe-section">
             <div className="transcribe-done">

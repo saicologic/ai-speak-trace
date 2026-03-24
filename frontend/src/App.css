@@ -77,17 +77,6 @@
   background-color: #2563eb;
 }
 
-.sidebar-tab-action--secondary {
-  margin-top: 0.5rem;
-  background-color: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-}
-
-.sidebar-tab-action--secondary:hover {
-  background-color: #e5e7eb;
-}
-
 .sidebar-tab-action--warning {
   background-color: #d97706;
 }

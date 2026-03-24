@@ -134,20 +134,6 @@ export interface DeepSearchAnalysis {
   analyzedAt: string;
 }
 
-/** ジョブステータス */
-export type JobStatus = 'processing' | 'completed' | 'failed';
-
-/** 文字起こしジョブ */
-export interface TranscriptionJob {
-  id: string;
-  audioFileName: string;
-  status: JobStatus;
-  createdAt: string;
-  completedAt?: string;
-  transcriptionId?: string;
-  errorMessage?: string;
-}
-
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;
