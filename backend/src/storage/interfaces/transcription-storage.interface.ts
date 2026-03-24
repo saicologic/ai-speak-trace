@@ -10,6 +10,9 @@ export interface TranscriptionStorage {
 
   /** 全文字起こし結果を取得 */
   findAll(): Promise<Transcription[]>;
+
+  /** 文字起こし結果を削除 */
+  delete(id: string): Promise<void>;
 }
 
 /** DI用のインジェクショントークン */

@@ -29,58 +29,74 @@ pub fn run() {
             let settings_file = app_data_dir.join("settings.json");
 
             // sidecar（NestJSサーバー）を環境変数付きで起動
-            let shell = app.shell();
-            // ~/Library/Application Support/... から ~ を逆算
-            let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
-                // app_data_dir = /Users/<user>/Library/Application Support/<bundle_id>
-                app_data_dir
-                    .ancestors()
-                    .find(|p| *p != std::path::Path::new("/") && p.join("Library").exists())
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            });
+            // 開発時は npm run start:dev でバックエンドを別途起動するため、sidecarはスキップ
+            if cfg!(debug_assertions) {
+                println!("[tauri] 開発モード: sidecar の起動をスキップします（npm run start:dev を使用）");
+            } else {
+                let shell = app.shell();
+                // ~/Library/Application Support/... から ~ を逆算
+                let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
+                    // app_data_dir = /Users/<user>/Library/Application Support/<bundle_id>
+                    app_data_dir
+                        .ancestors()
+                        .find(|p| *p != std::path::Path::new("/") && p.join("Library").exists())
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default()
+                });
 
-            // Podcastキャッシュフォルダのパスを明示的に渡す
-            let podcast_cache_dir = std::path::PathBuf::from(&home_dir)
-                .join("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache");
-            println!("[tauri] PODCAST_CACHE_DIR={}", podcast_cache_dir.display());
+                // Podcastキャッシュフォルダのパスを明示的に渡す
+                let podcast_cache_dir = std::path::PathBuf::from(&home_dir)
+                    .join("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache");
+                println!("[tauri] PODCAST_CACHE_DIR={}", podcast_cache_dir.display());
 
-            let sidecar = shell
-                .sidecar("nestjs-server")
-                .expect("nestjs-server sidecar バイナリが見つかりません")
-                .env("HOME", &home_dir)
-                .env("DATA_DIR", data_dir.to_string_lossy().to_string())
-                .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
-                .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
+                // sidecarはシェルを経由しないためPATHが最小限になる
+                // ffmpeg等の外部コマンドを利用するため、Homebrew等のパスを追加する
+                let system_path = std::env::var("PATH").unwrap_or_default();
+                let extra_paths = "/opt/homebrew/bin:/usr/local/bin";
+                let full_path = if system_path.is_empty() {
+                    extra_paths.to_string()
+                } else {
+                    format!("{}:{}", extra_paths, system_path)
+                };
 
-            let (mut rx, child) = sidecar
-                .spawn()
-                .expect("nestjs-server sidecar の起動に失敗しました");
+                let sidecar = shell
+                    .sidecar("nestjs-server")
+                    .expect("nestjs-server sidecar バイナリが見つかりません")
+                    .env("HOME", &home_dir)
+                    .env("PATH", &full_path)
+                    .env("DATA_DIR", data_dir.to_string_lossy().to_string())
+                    .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
+                    .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
 
-            println!("[tauri] sidecar 起動完了 (DATA_DIR={})", data_dir.display());
+                let (mut rx, child) = sidecar
+                    .spawn()
+                    .expect("nestjs-server sidecar の起動に失敗しました");
 
-            // sidecar プロセスを状態に保存（終了時にkillするため）
-            let state = app.state::<SidecarState>();
-            *state.0.lock().unwrap() = Some(child);
+                println!("[tauri] sidecar 起動完了 (DATA_DIR={})", data_dir.display());
 
-            // sidecar の stdout/stderr をログに出力
-            tauri::async_runtime::spawn(async move {
-                use tauri_plugin_shell::process::CommandEvent;
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(line) => {
-                            println!("[nestjs] {}", String::from_utf8_lossy(&line));
+                // sidecar プロセスを状態に保存（終了時にkillするため）
+                let state = app.state::<SidecarState>();
+                *state.0.lock().unwrap() = Some(child);
+
+                // sidecar の stdout/stderr をログに出力
+                tauri::async_runtime::spawn(async move {
+                    use tauri_plugin_shell::process::CommandEvent;
+                    while let Some(event) = rx.recv().await {
+                        match event {
+                            CommandEvent::Stdout(line) => {
+                                println!("[nestjs] {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Stderr(line) => {
+                                eprintln!("[nestjs] {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Terminated(status) => {
+                                println!("[nestjs] プロセス終了: {:?}", status);
+                            }
+                            _ => {}
                         }
-                        CommandEvent::Stderr(line) => {
-                            eprintln!("[nestjs] {}", String::from_utf8_lossy(&line));
-                        }
-                        CommandEvent::Terminated(status) => {
-                            println!("[nestjs] プロセス終了: {:?}", status);
-                        }
-                        _ => {}
                     }
-                }
-            });
+                });
+            }
 
             Ok(())
         })

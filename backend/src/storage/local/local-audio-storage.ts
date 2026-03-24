@@ -72,6 +72,14 @@ export class LocalAudioStorage implements AudioStorage {
     this.logger.log(`音声ファイル保存完了: ${fileName}`);
   }
 
+  async deleteFile(fileName: string): Promise<void> {
+    const filePath = path.join(this.baseDir, fileName);
+    if (existsSync(filePath)) {
+      await fs.unlink(filePath);
+      this.logger.log(`音声ファイル削除完了: ${fileName}`);
+    }
+  }
+
   /** ServeStaticModule用にbaseDirを公開 */
   getBaseDir(): string {
     return this.baseDir;

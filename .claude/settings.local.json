@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:flexprice.io)",
+      "WebFetch(domain:help.elevenlabs.io)",
+      "WebFetch(domain:api.elevenlabs.io)"
+    ]
+  }
+}

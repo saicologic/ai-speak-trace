@@ -77,6 +77,14 @@
   background-color: #2563eb;
 }
 
+.sidebar-tab-action--warning {
+  background-color: #d97706;
+}
+
+.sidebar-tab-action--warning:hover {
+  background-color: #b45309;
+}
+
 /* サイドバーセクションタイトル */
 .sidebar-section-title {
   font-size: 0.85rem;

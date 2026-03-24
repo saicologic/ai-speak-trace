@@ -25,4 +25,9 @@ export class TranscriptionStoreService {
   async findAll(): Promise<Transcription[]> {
     return this.storage.findAll();
   }
+
+  /** 文字起こし結果を削除 */
+  async delete(id: string): Promise<void> {
+    return this.storage.delete(id);
+  }
 }

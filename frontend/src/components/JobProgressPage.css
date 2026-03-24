@@ -1,0 +1,349 @@
+.job-progress-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+}
+
+.job-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.job-progress-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.job-progress-back-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.job-progress-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.job-progress-content {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.job-progress-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.job-progress-error p {
+  margin: 0;
+}
+
+/* ステータスセクション */
+.job-progress-status-section {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.job-progress-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.job-progress-file-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2937;
+  word-break: break-all;
+}
+
+.job-progress-file-duration {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.job-progress-status-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #374151;
+  margin: 0 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.job-progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.job-progress-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.job-progress-chunk-count {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* クレジット情報 */
+.job-progress-credit-section {
+  margin-top: 1rem;
+}
+
+.job-progress-credit-loading {
+  font-size: 0.8rem;
+  color: #2563eb;
+  font-weight: 500;
+  margin: 0;
+}
+
+.job-progress-credit-info {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+}
+
+.job-progress-credit-insufficient {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.job-progress-credit-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.job-progress-credit-warning {
+  font-size: 0.8rem;
+  color: #991b1b;
+  margin: 0.5rem 0 0 0;
+}
+
+/* ボタンコンテナ */
+.job-progress-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.job-progress-resume-button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.job-progress-resume-button {
+  background-color: #f59e0b;
+}
+
+.job-progress-resume-button:hover {
+  background-color: #d97706;
+}
+
+.job-progress-resume-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.job-progress-top-button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  background-color: #3b82f6;
+}
+
+.job-progress-top-button:hover {
+  background-color: #2563eb;
+}
+
+.job-progress-error-detail {
+  font-size: 0.8rem;
+  color: #991b1b;
+  margin: 0.5rem 0 0 0;
+  white-space: pre-wrap;
+  font-family: monospace;
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+/* 途中経過テキストセクション */
+.job-progress-chunks-section {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 5rem;
+}
+
+.job-progress-chunks-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+}
+
+.chunk-text-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.chunk-text-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chunk-text-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chunk-text-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.chunk-text-time {
+  font-weight: 400;
+  color: #9ca3af;
+  margin-left: 0.5rem;
+}
+
+.chunk-play-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chunk-play-button:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.chunk-play-button.chunk-play-active {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.chunk-text-body {
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.chunk-text-processing {
+  border-color: #93c5fd;
+  border-style: dashed;
+}
+
+.chunk-text-placeholder {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chunk-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: chunk-spin 0.8s linear infinite;
+}
+
+@keyframes chunk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* チャンク音声プレイヤー（画面下部固定） */
+.chunk-audio-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #1a1a2e;
+  padding: 0.75rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+}
+
+.chunk-audio-label {
+  font-size: 0.8rem;
+  color: #d1d5db;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.chunk-audio-player audio {
+  flex: 1;
+  height: 32px;
+}
