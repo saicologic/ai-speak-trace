@@ -6,22 +6,16 @@ import {
   Delete,
   Param,
   Body,
-  Query,
-  Res,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
-  NotFoundException,
   HttpException,
   HttpStatus,
-  StreamableFile,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import * as path from 'path';
-import { existsSync, createReadStream } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TranscriptionService } from './transcription.service';
 import { ElevenLabsService } from './elevenlabs.service';
+import { JobManagerService } from './job-manager.service';
 import { TranscribeRequestDto } from './dto/transcribe-request.dto';
 import { UpdateSpeakersDto } from './dto/update-speakers.dto';
 
@@ -31,6 +25,7 @@ export class TranscriptionController {
   constructor(
     private readonly transcriptionService: TranscriptionService,
     private readonly elevenLabsService: ElevenLabsService,
+    private readonly jobManagerService: JobManagerService,
   ) {}
 
   /** クレジット残量確認: GET /api/credits/check */
@@ -166,142 +161,6 @@ export class TranscriptionController {
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
-      // ffmpeg未インストールエラー
-      if (
-        error instanceof Error &&
-        (error.message.includes('ffprobeが見つかりません') ||
-          error.message.includes('ffmpegがインストールされていません'))
-      ) {
-        throw new HttpException(
-          {
-            code: 'FFMPEG_MISSING',
-            message:
-              'ffmpegがインストールされていません。ターミナルで以下のコマンドを実行してください:\nbrew install ffmpeg',
-          },
-          HttpStatus.UNPROCESSABLE_ENTITY,
-        );
-      }
-      // その他のエラー: エラーメッセージをクライアントに返す
-      throw new HttpException(
-        {
-          code: 'TRANSCRIPTION_ERROR',
-          message: errMsg,
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  /** 進行中のチャンクジョブ状態取得: GET /api/transcribe/jobs/active?fileName=xxx */
-  @Get('transcribe/jobs/active')
-  async getActiveJob(@Query('fileName') fileName: string) {
-    if (!fileName) {
-      throw new BadRequestException('fileNameが指定されていません');
-    }
-    const job = await this.transcriptionService.findActiveJob(fileName);
-    return { job };
-  }
-
-  /** ジョブ一覧取得: GET /api/transcribe/jobs */
-  @Get('transcribe/jobs')
-  async getResumableJobs() {
-    const jobs = await this.transcriptionService.getResumableJobs();
-    const jobsWithProcessing = jobs.map((job) => ({
-      ...job,
-      isProcessing: this.transcriptionService.isJobProcessing(job.id),
-    }));
-    return { jobs: jobsWithProcessing };
-  }
-
-  /** ジョブ詳細取得: GET /api/transcribe/jobs/:jobId */
-  @Get('transcribe/jobs/:jobId')
-  async getJobDetail(@Param('jobId') jobId: string) {
-    const job = await this.transcriptionService.getJobDetail(jobId);
-    if (!job) {
-      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
-    }
-    const isProcessing = this.transcriptionService.isJobProcessing(jobId);
-    return { job: { ...job, isProcessing } };
-  }
-
-  /** チャンク音声配信: GET /api/transcribe/jobs/:jobId/chunks/:chunkIndex/audio */
-  @Get('transcribe/jobs/:jobId/chunks/:chunkIndex/audio')
-  async getChunkAudio(
-    @Param('jobId') jobId: string,
-    @Param('chunkIndex') chunkIndex: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const job = await this.transcriptionService.getJobDetail(jobId);
-    if (!job) {
-      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
-    }
-
-    const idx = parseInt(chunkIndex, 10);
-    const ext = path.extname(job.audioFileName) || '.m4a';
-    const chunkFileName = `chunk_${String(idx).padStart(3, '0')}${ext}`;
-    const chunksBaseDir = this.transcriptionService.getChunksBaseDir();
-    const chunkPath = path.join(chunksBaseDir, jobId, chunkFileName);
-
-    if (!existsSync(chunkPath)) {
-      throw new NotFoundException(
-        `チャンク音声ファイルが見つかりません: ${chunkFileName}`,
-      );
-    }
-
-    const mimeTypes: Record<string, string> = {
-      '.mp3': 'audio/mpeg',
-      '.m4a': 'audio/mp4',
-      '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg',
-      '.flac': 'audio/flac',
-    };
-    res.set('Content-Type', mimeTypes[ext] || 'audio/mpeg');
-
-    const fileStream = createReadStream(chunkPath);
-    return new StreamableFile(fileStream);
-  }
-
-  /** ジョブ削除: DELETE /api/transcribe/jobs/:jobId */
-  @Delete('transcribe/jobs/:jobId')
-  async deleteJob(@Param('jobId') jobId: string) {
-    const job = await this.transcriptionService.getJobDetail(jobId);
-    if (!job) {
-      throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
-    }
-    await this.transcriptionService.deleteJob(jobId);
-    console.log('[transcribe/jobs] ジョブ削除完了:', jobId);
-    return { success: true };
-  }
-
-  /** チャンクジョブの再開: POST /api/transcribe/resume */
-  @Post('transcribe/resume')
-  async resumeTranscription(@Body() body: { jobId: string }) {
-    if (!body.jobId) {
-      throw new BadRequestException('jobIdが指定されていません');
-    }
-    console.log('[transcribe/resume] リクエスト受信:', body.jobId);
-    try {
-      const transcription = await this.transcriptionService.resumeTranscription(
-        body.jobId,
-      );
-      console.log('[transcribe/resume] 完了:', body.jobId);
-      return { transcription };
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      const errName = error instanceof Error ? error.name : 'Unknown';
-      console.error('[transcribe/resume] エラー:', { name: errName, message: errMsg });
-      if (error instanceof Error && error.name === 'QuotaExceededError') {
-        throw new HttpException(
-          { code: 'QUOTA_EXCEEDED', message: error.message },
-          HttpStatus.PAYMENT_REQUIRED,
-        );
-      }
-      if (error instanceof Error && error.name === 'TranscriptionTimeoutError') {
-        throw new HttpException(
-          { code: 'TRANSCRIPTION_TIMEOUT', message: error.message },
-          HttpStatus.REQUEST_TIMEOUT,
-        );
-      }
       // その他のエラー: エラーメッセージをクライアントに返す
       throw new HttpException(
         {
@@ -360,12 +219,41 @@ export class TranscriptionController {
     return { transcription };
   }
 
-  /** 同名ファイルの未完了ジョブ検索: GET /api/chunked-jobs/check/:fileName */
-  @Get('chunked-jobs/check/:fileName')
-  async checkExistingJob(@Param('fileName') fileName: string) {
-    console.log('[chunked-jobs/check] ファイル名で未完了ジョブを検索:', fileName);
-    const job = await this.transcriptionService.findActiveJob(fileName);
-    console.log('[chunked-jobs/check] 検索結果:', job ? `jobId=${job.id}` : 'なし');
+  /** ジョブ開始（非ブロッキング）: POST /api/jobs */
+  @Post('jobs')
+  async startJob(@Body() body: { fileName: string }) {
+    if (!body.fileName) {
+      throw new BadRequestException('ファイル名が指定されていません');
+    }
+    console.log('[jobs] ジョブ開始:', body.fileName);
+    const job = await this.jobManagerService.startJob(body.fileName);
     return { job };
+  }
+
+  /** ジョブ一覧取得: GET /api/jobs */
+  @Get('jobs')
+  getJobs() {
+    const jobs = this.jobManagerService.getAllJobs();
+    return { jobs };
+  }
+
+  /** ジョブ詳細取得: GET /api/jobs/:id */
+  @Get('jobs/:id')
+  getJob(@Param('id') id: string) {
+    const job = this.jobManagerService.getJob(id);
+    if (!job) {
+      throw new HttpException(
+        { code: 'JOB_NOT_FOUND', message: 'ジョブが見つかりません' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return { job };
+  }
+
+  /** ジョブ削除: DELETE /api/jobs/:id */
+  @Delete('jobs/:id')
+  async deleteJob(@Param('id') id: string) {
+    await this.jobManagerService.deleteJob(id);
+    return { success: true };
   }
 }

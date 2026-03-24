@@ -1,5 +1,3 @@
-import type { ChunkedJobDetail } from '../api/client';
-
 /** 1分あたりの推定クレジット消費量 */
 export const CREDITS_PER_MINUTE = 40;
 
@@ -20,10 +18,4 @@ export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return m > 0 ? `${m}分${s}秒` : `${s}秒`;
-}
-
-/** 残りチャンクの推定必要クレジットを計算 */
-export function estimateCredits(job: ChunkedJobDetail): number {
-  const remainingChunks = job.totalChunks - job.completedChunks.length;
-  return Math.ceil((remainingChunks * (job.chunkDurationSec ?? 600) / 60) * CREDITS_PER_MINUTE);
 }

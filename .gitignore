@@ -3,8 +3,7 @@ node_modules/
 settings.json
 
 # バックエンドデータ（実行時生成）
-backend/data/chunks/
-backend/data/chunked-jobs/
+backend/data/jobs/
 
 # Tauri
 src-tauri/target/

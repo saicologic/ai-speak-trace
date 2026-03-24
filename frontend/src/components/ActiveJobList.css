@@ -1,0 +1,52 @@
+.active-job-list {
+  margin-bottom: 1rem;
+}
+
+.active-job-list-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.active-job-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  font-size: 0.8rem;
+  color: #1e40af;
+}
+
+.active-job-item:hover {
+  background-color: #dbeafe;
+}
+
+.active-job-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #93c5fd;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: active-job-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes active-job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.active-job-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
