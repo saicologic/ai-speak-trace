@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ElevenLabsService } from './elevenlabs.service';
@@ -56,8 +55,25 @@ export class ChunkedTranscriptionService {
 
   /** ジョブを早期作成して保存する（needsChunking判定前に呼ぶ） */
   async createJob(fileName: string): Promise<ChunkedTranscriptionJob> {
+    const stem = path.parse(fileName).name;
+
+    // 既存ジョブがあればリセットして返す（同一ファイルの重複防止）
+    const existing = await this.jobStore.findById(stem);
+    if (existing) {
+      this.logger.log(`既存ジョブをリセット: jobId=${stem}`);
+      existing.status = 'initializing';
+      existing.totalDurationSec = 0;
+      existing.totalChunks = 0;
+      existing.currentChunkIndex = 0;
+      existing.completedChunks = [];
+      existing.errorMessage = undefined;
+      existing.transcriptionId = undefined;
+      await this.jobStore.save(existing);
+      return existing;
+    }
+
     const job: ChunkedTranscriptionJob = {
-      id: uuidv4(),
+      id: stem,
       audioFileName: fileName,
       createdAt: new Date().toISOString(),
       status: 'initializing',

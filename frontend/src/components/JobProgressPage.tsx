@@ -29,12 +29,11 @@ export function JobProgressPage({
   const [job, setJob] = useState<ChunkedJobDetail | null>(null);
   const [error, setError] = useState('');
   const [isResuming, setIsResuming] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [hideErrorMessage, setHideErrorMessage] = useState(false);
   const [playingChunkIndex, setPlayingChunkIndex] = useState<number | null>(null);
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
+  const [completedTranscription, setCompletedTranscription] = useState<Transcription | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const completedRef = useRef(false);
 
@@ -75,45 +74,14 @@ export function JobProgressPage({
     return () => { cancelled = true; };
   }, [jobId]);
 
-  // isProcessingに連動してタイマーを制御
-  useEffect(() => {
-    if (!job) return;
-
-    if (job.isProcessing) {
-      // バックエンドで処理中 → タイマー開始
-      if (!isTimerRunning) {
-        setIsTimerRunning(true);
-      }
-    } else {
-      // バックエンドで処理していない → タイマー停止
-      if (isTimerRunning && job.status !== 'completed') {
-        setIsTimerRunning(false);
-      }
-    }
-  }, [job?.isProcessing, job?.status]);
-
-  // 経過時間カウンター（タイマー開始フラグで制御）
-  useEffect(() => {
-    if (!isTimerRunning) return;
-    // 完了・失敗時はタイマー停止
-    if (job?.status === 'completed' || job?.status === 'failed') {
-      setIsTimerRunning(false);
-      return;
-    }
-    const interval = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isTimerRunning, job?.status]);
-
-  // 完了検知: transcriptionId がセットされたら結果を取得
+  // 完了検知: transcriptionId がセットされたら結果を取得して保持（自動遷移しない）
   useEffect(() => {
     if (!job || completedRef.current) return;
     if (job.status === 'completed' && job.transcriptionId) {
       completedRef.current = true;
       fetchTranscription(job.transcriptionId)
         .then((result) => {
-          onTranscriptionComplete(result);
+          setCompletedTranscription(result);
         })
         .catch((err) => {
           setError(
@@ -121,15 +89,22 @@ export function JobProgressPage({
           );
         });
     }
-  }, [job?.status, job?.transcriptionId, onTranscriptionComplete]);
+  }, [job?.status, job?.transcriptionId]);
+
+  /** トップに戻るボタンクリック時 */
+  const handleGoToTop = () => {
+    if (completedTranscription) {
+      onTranscriptionComplete(completedTranscription);
+    } else {
+      onBack();
+    }
+  };
 
   /** 処理開始/再開 */
   const handleResume = () => {
     setIsResuming(true);
     setError('');
     setHideErrorMessage(true);
-    setElapsedSeconds(0);
-    setIsTimerRunning(true);
 
     // Fire-and-forget: バックエンドの処理は長時間かかるためレスポンスを待たない
     // 完了検知はポーリング（fetchJobDetail 2秒間隔）で行う
@@ -143,7 +118,6 @@ export function JobProgressPage({
         }
         // クォータ超過などの即座エラーは表示
         setError(err instanceof Error ? err.message : '処理の開始に失敗しました');
-        setIsTimerRunning(false);
       });
 
     // リクエスト送信後、短い遅延でisResumingを解除
@@ -183,7 +157,7 @@ export function JobProgressPage({
       case 'splitting':
         return '音声ファイルを分割中...';
       case 'transcribing':
-        return `チャンク ${job.currentChunkIndex + 1}/${job.totalChunks} を文字起こし中...`;
+        return '文字起こし中...';
       case 'merging':
         return '結果をマージ中...';
       case 'completed':
@@ -216,6 +190,10 @@ export function JobProgressPage({
     ? [...job.completedChunks].sort((a, b) => a.index - b.index)
     : [];
 
+  // 処理中のチャンク表示の判定
+  const showProcessingChunk = job && job.isProcessing &&
+    (job.status === 'transcribing' || job.status === 'splitting' || job.status === 'initializing');
+
   return (
     <div className="job-progress-page">
       <div className="job-progress-header">
@@ -245,12 +223,10 @@ export function JobProgressPage({
             </div>
 
             <p className="job-progress-status-text">
-              {getStatusText()}
-              {isTimerRunning && (
-                <span className="job-progress-elapsed">
-                  {' '}{formatTime(elapsedSeconds)} 経過
-                </span>
+              {job.isProcessing && job.status !== 'completed' && (
+                <span className="chunk-spinner" />
               )}
+              {getStatusText()}
             </p>
 
             {job.totalChunks > 0 && (
@@ -265,6 +241,18 @@ export function JobProgressPage({
                   完了: {job.completedChunks.length}/{job.totalChunks} チャンク
                 </p>
               </>
+            )}
+
+            {/* 完了時: トップに戻るボタン */}
+            {job.status === 'completed' && (
+              <div className="job-progress-actions">
+                <button
+                  className="job-progress-top-button"
+                  onClick={handleGoToTop}
+                >
+                  トップに戻る
+                </button>
+              </div>
             )}
 
             {/* クレジット情報 + 再開ボタン */}
@@ -324,7 +312,7 @@ export function JobProgressPage({
         )}
 
         {/* 途中経過テキスト */}
-        {sortedChunks.length > 0 && (
+        {(sortedChunks.length > 0 || showProcessingChunk) && (
           <div className="job-progress-chunks-section">
             <h2>途中経過テキスト</h2>
             <div className="chunk-text-list">
@@ -349,15 +337,17 @@ export function JobProgressPage({
                 </div>
               ))}
 
-              {/* 処理中のチャンク表示（バックエンドで処理中の場合のみ） */}
-              {job && job.status === 'transcribing' && job.isProcessing && job.currentChunkIndex >= sortedChunks.length && (
+              {/* 処理中のチャンク表示（バックエンドで処理中の場合） */}
+              {job && showProcessingChunk && job.currentChunkIndex >= sortedChunks.length && (
                 <div className="chunk-text-item chunk-text-processing">
                   <div className="chunk-text-header">
                     <span className="chunk-text-label">
                       チャンク {job.currentChunkIndex + 1}
-                      <span className="chunk-text-time">
-                        ({formatTime(job.currentChunkIndex * (job.chunkDurationSec ?? 600))} - {formatTime((job.currentChunkIndex + 1) * (job.chunkDurationSec ?? 600))})
-                      </span>
+                      {job.totalChunks > 0 && (
+                        <span className="chunk-text-time">
+                          ({formatTime(job.currentChunkIndex * (job.chunkDurationSec ?? 600))} - {formatTime((job.currentChunkIndex + 1) * (job.chunkDurationSec ?? 600))})
+                        </span>
+                      )}
                     </span>
                   </div>
                   <div className="chunk-text-body chunk-text-placeholder">

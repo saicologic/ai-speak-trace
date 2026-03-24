@@ -198,7 +198,10 @@ function App() {
         onTranscriptionComplete={(result) => {
           setTranscription(result);
           setActiveJobId(null);
-          setResumableJobs((prev) => prev.filter((j) => j.id !== activeJobId));
+          // ジョブ一覧を最新状態に更新（完了ジョブも含む）
+          fetchResumableJobs()
+            .then((jobs) => setResumableJobs(jobs))
+            .catch(() => {});
           setPage('main');
         }}
       />

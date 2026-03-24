@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import * as path from 'path';
 import { ElevenLabsService } from './elevenlabs.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
@@ -174,8 +174,9 @@ export class TranscriptionService {
     const utterances = this.groupWordsIntoUtterances(words, speakers);
     this.logger.log(`データ変換完了: ${rawWords.length} 単語 → ${words.length} フレーズ, ${speakers.length} 名, ${utterances.length} セグメント`);
 
+    const stem = path.parse(fileName).name;
     const transcription: Transcription = {
-      id: uuidv4(),
+      id: stem,
       audioFileName: fileName,
       createdAt: new Date().toISOString(),
       languageCode,
@@ -245,8 +246,9 @@ export class TranscriptionService {
     const speakers = this.buildSpeakers(words);
     const utterances = this.groupWordsIntoUtterances(words, speakers);
 
+    const resumeStem = path.parse(job.audioFileName).name;
     const transcription: Transcription = {
-      id: uuidv4(),
+      id: resumeStem,
       audioFileName: job.audioFileName,
       createdAt: new Date().toISOString(),
       languageCode,

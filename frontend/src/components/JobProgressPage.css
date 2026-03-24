@@ -89,6 +89,9 @@
   font-weight: 500;
   color: #374151;
   margin: 0 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .job-progress-elapsed {
@@ -185,6 +188,22 @@
 .job-progress-resume-button:disabled {
   background-color: #9ca3af;
   cursor: not-allowed;
+}
+
+.job-progress-top-button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  background-color: #3b82f6;
+}
+
+.job-progress-top-button:hover {
+  background-color: #2563eb;
 }
 
 .job-progress-select-audio-button {

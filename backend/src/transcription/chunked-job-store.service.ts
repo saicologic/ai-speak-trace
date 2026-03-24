@@ -5,7 +5,7 @@ import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { ChunkedTranscriptionJob } from './types/chunked-job.types';
 
-/** チャンク分割ジョブ状態の永続化サービス */
+/** チャンク分割ジョブ状態の永続化サービス（フォルダベース） */
 @Injectable()
 export class ChunkedJobStoreService {
   private readonly logger = new Logger(ChunkedJobStoreService.name);
@@ -26,16 +26,31 @@ export class ChunkedJobStoreService {
     return path.resolve(path.join(path.dirname(this.storeDir), 'chunks'));
   }
 
+  /** ジョブIDからジョブフォルダパスを取得 */
+  private getJobDir(jobId: string): string {
+    return path.join(this.storeDir, jobId);
+  }
+
+  /** ジョブIDからjob.jsonパスを取得 */
+  private getJobFilePath(jobId: string): string {
+    return path.join(this.getJobDir(jobId), 'job.json');
+  }
+
   /** ジョブ状態を保存 */
   async save(job: ChunkedTranscriptionJob): Promise<void> {
     job.updatedAt = new Date().toISOString();
-    const filePath = path.join(this.storeDir, `${job.id}.json`);
-    await fs.writeFile(filePath, JSON.stringify(job, null, 2), 'utf-8');
+    const jobDir = this.getJobDir(job.id);
+    await fs.mkdir(jobDir, { recursive: true });
+    await fs.writeFile(
+      path.join(jobDir, 'job.json'),
+      JSON.stringify(job, null, 2),
+      'utf-8',
+    );
   }
 
   /** ジョブIDで取得 */
   async findById(jobId: string): Promise<ChunkedTranscriptionJob | null> {
-    const filePath = path.join(this.storeDir, `${jobId}.json`);
+    const filePath = this.getJobFilePath(jobId);
     if (!existsSync(filePath)) return null;
     const content = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(content) as ChunkedTranscriptionJob;
@@ -45,30 +60,16 @@ export class ChunkedJobStoreService {
   async findActiveByFileName(
     fileName: string,
   ): Promise<ChunkedTranscriptionJob | null> {
-    if (!existsSync(this.storeDir)) return null;
-
-    const files = await fs.readdir(this.storeDir);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
-
-    for (const file of jsonFiles) {
-      try {
-        const content = await fs.readFile(
-          path.join(this.storeDir, file),
-          'utf-8',
-        );
-        const job = JSON.parse(content) as ChunkedTranscriptionJob;
-        if (
-          job.audioFileName === fileName &&
-          (job.status === 'initializing' ||
-            job.status === 'splitting' ||
-            job.status === 'transcribing' ||
-            job.status === 'failed')
-        ) {
-          return job;
-        }
-      } catch {
-        // 読み込み失敗は無視
-      }
+    const stem = path.parse(fileName).name;
+    const job = await this.findById(stem);
+    if (
+      job &&
+      (job.status === 'initializing' ||
+        job.status === 'splitting' ||
+        job.status === 'transcribing' ||
+        job.status === 'failed')
+    ) {
+      return job;
     }
     return null;
   }
@@ -77,74 +78,32 @@ export class ChunkedJobStoreService {
   async findAllJobsByFileName(
     fileName: string,
   ): Promise<ChunkedTranscriptionJob[]> {
-    if (!existsSync(this.storeDir)) return [];
-
-    const files = await fs.readdir(this.storeDir);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
-    const matchedJobs: ChunkedTranscriptionJob[] = [];
-
-    for (const file of jsonFiles) {
-      try {
-        const content = await fs.readFile(
-          path.join(this.storeDir, file),
-          'utf-8',
-        );
-        const job = JSON.parse(content) as ChunkedTranscriptionJob;
-        if (job.audioFileName === fileName) {
-          matchedJobs.push(job);
-        }
-      } catch {
-        // 読み込み失敗は無視
-      }
-    }
-    return matchedJobs;
+    const stem = path.parse(fileName).name;
+    const job = await this.findById(stem);
+    return job ? [job] : [];
   }
 
-  /** 再開可能な（未完了の）ジョブ一覧を取得 */
+  /** 全ジョブ一覧を取得（完了済み含む） */
   async findResumableJobs(): Promise<ChunkedTranscriptionJob[]> {
     if (!existsSync(this.storeDir)) return [];
 
-    const files = await fs.readdir(this.storeDir);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
+    const entries = await fs.readdir(this.storeDir, { withFileTypes: true });
     const allJobs: ChunkedTranscriptionJob[] = [];
 
-    for (const file of jsonFiles) {
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const filePath = path.join(this.storeDir, entry.name, 'job.json');
+      if (!existsSync(filePath)) continue;
       try {
-        const content = await fs.readFile(
-          path.join(this.storeDir, file),
-          'utf-8',
-        );
+        const content = await fs.readFile(filePath, 'utf-8');
         allJobs.push(JSON.parse(content) as ChunkedTranscriptionJob);
       } catch {
         // 読み込み失敗は無視
       }
     }
 
-    // 完了済みジョブの audioFileName を収集
-    const completedFileNames = new Set(
-      allJobs
-        .filter((j) => j.status === 'completed')
-        .map((j) => j.audioFileName),
-    );
-
-    // 未完了ジョブのうち、同じファイル名で完了済みジョブがないものだけ返す
-    const resumable = allJobs.filter(
-      (job) =>
-        job.status !== 'completed' &&
-        !completedFileNames.has(job.audioFileName),
-    );
-
-    // 同じファイル名のジョブは最新のもの1つだけに絞る
-    const latestByFileName = new Map<string, ChunkedTranscriptionJob>();
-    for (const job of resumable) {
-      const existing = latestByFileName.get(job.audioFileName);
-      if (!existing || new Date(job.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
-        latestByFileName.set(job.audioFileName, job);
-      }
-    }
-
     // 更新日時の降順でソート
-    return Array.from(latestByFileName.values()).sort(
+    return allJobs.sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
@@ -152,10 +111,11 @@ export class ChunkedJobStoreService {
 
   /** ジョブとチャンク音声ファイルを削除 */
   async delete(jobId: string): Promise<void> {
-    // ジョブJSONファイルを削除
-    const filePath = path.join(this.storeDir, `${jobId}.json`);
-    if (existsSync(filePath)) {
-      await fs.unlink(filePath);
+    // ジョブフォルダを削除
+    const jobDir = this.getJobDir(jobId);
+    if (existsSync(jobDir)) {
+      await fs.rm(jobDir, { recursive: true, force: true });
+      this.logger.log(`ジョブフォルダを削除: ${jobDir}`);
     }
 
     // チャンク音声ディレクトリを削除

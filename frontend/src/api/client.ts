@@ -358,7 +358,7 @@ export async function fetchResumableJobs(): Promise<ChunkedJobDetail[]> {
 
 /** ジョブを削除 */
 export async function deleteChunkedJob(jobId: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/transcribe/jobs/${jobId}`, {
+  const res = await fetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`, {
     method: 'DELETE',
   });
   if (!res.ok) {
@@ -371,7 +371,7 @@ export async function fetchJobDetail(
   jobId: string,
 ): Promise<ChunkedJobDetail | null> {
   try {
-    const res = await fetch(`${BASE_URL}/transcribe/jobs/${jobId}`);
+    const res = await fetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`);
     if (!res.ok) return null;
     const data = await res.json();
     return data.job;
@@ -382,7 +382,7 @@ export async function fetchJobDetail(
 
 /** チャンク音声のURLを取得 */
 export function getChunkAudioUrl(jobId: string, chunkIndex: number): string {
-  return `${BASE_URL}/transcribe/jobs/${jobId}/chunks/${chunkIndex}/audio`;
+  return `${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}/chunks/${chunkIndex}/audio`;
 }
 
 /** 文字起こし一覧を取得 */
@@ -408,7 +408,7 @@ export async function fetchTranscriptions(): Promise<TranscriptionSummary[]> {
 export async function fetchTranscription(
   id: string,
 ): Promise<Transcription> {
-  const url = `${BASE_URL}/transcriptions/${id}`;
+  const url = `${BASE_URL}/transcriptions/${encodeURIComponent(id)}`;
   console.log('[API] fetchTranscription 開始:', { url, id });
 
   const res = await fetchWithRetry(url);
@@ -486,7 +486,7 @@ export async function updateSpeakerNames(
   id: string,
   speakers: { id: string; name: string }[],
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcriptions/${id}/speakers`, {
+  const res = await fetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}/speakers`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ speakers }),
