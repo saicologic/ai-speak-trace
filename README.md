@@ -141,6 +141,7 @@ xattr -cr /Applications/AI\ Speak\ Trace.app
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
 | `EADDRINUSE: address already in use :::3100` | `npm run kill` を実行してから再起動してください。または `.env` の `BACKEND_PORT` を別のポートに変更してください |
+| `Port 5173 is already in use` | `npm run kill` を実行してから再起動してください。フロントエンド（Vite）のポートが占有されています |
 | 長時間音声の文字起こし中に「Load failed」と表示される | WebViewのコネクションタイムアウトです。バックエンドは処理を継続しているため、進捗画面で完了を待つか、「中断中のジョブ」から再開してください |
 | 中断中のジョブが表示されない | 同じファイル名で完了済みの文字起こしがある場合、中断ジョブは自動的に非表示になります |
 
