@@ -1,6 +1,7 @@
 .env*.local
 node_modules/
 settings.json
+.claude/settings.local.json
 
 # バックエンドデータ（実行時生成）
 backend/data/chunks/
