@@ -99,7 +99,9 @@ ai-speak-trace/
 
 ## PRテストプラン
 
-PRのTest planは以下の形式で記載する。`npm run build` でビルドが成功することを確認する。
+PRのTest planは以下の形式で記載する。変更内容に応じて適切なテンプレートを使用する。
+
+### 機能追加・バグ修正の場合
 
 ```markdown
 ## Test plan
@@ -107,4 +109,13 @@ PRのTest planは以下の形式で記載する。`npm run build` でビルド�
 `npm run build` でビルドが成功することを確認し、以下を確認:
 
 - [ ] （変更内容に応じた確認項目を記載）
+```
+
+### 脆弱性対応の場合
+
+```markdown
+## Test plan
+
+- [ ] `cd backend && npm audit` で脆弱性が0件であること
+- [ ] `cd frontend && npm audit` で脆弱性が0件であること
 ```
