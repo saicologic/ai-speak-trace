@@ -35,20 +35,21 @@ export function TranscriptionView({
   const [previousUtteranceIndex, setPreviousUtteranceIndex] = useState<number | null>(null);
   // 各utterance要素へのref（元配列のインデックスをキーとする）
   const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  // ハイライト中のutteranceインデックス
-  const [highlightedUtteranceIndex, setHighlightedUtteranceIndex] = useState<number | null>(null);
 
-  // スクロール先が指定されたら該当要素にスクロール
+  // スクロール先が指定されたら該当要素にスクロール＋ハイライト
   useEffect(() => {
     if (scrollToUtteranceIndex == null) return;
     const el = utteranceRefs.current.get(scrollToUtteranceIndex);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedUtteranceIndex(scrollToUtteranceIndex);
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('jump-highlight');
       // ハイライトを2秒後に消す
-      const timer = setTimeout(() => setHighlightedUtteranceIndex(null), 2000);
+      const timer = setTimeout(() => el.classList.remove('jump-highlight'), 2000);
       onScrollComplete?.();
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        el.classList.remove('jump-highlight');
+      };
     }
     onScrollComplete?.();
   }, [scrollToUtteranceIndex]);
@@ -161,7 +162,7 @@ export function TranscriptionView({
               ref={(el) => {
                 if (el) utteranceRefs.current.set(index, el);
               }}
-              className={`utterance-select-wrapper ${contextSelectMode ? 'selectable' : ''} ${highlightedUtteranceIndex === index ? 'jump-highlight' : ''}`}
+              className={`utterance-select-wrapper ${contextSelectMode ? 'selectable' : ''}`}
             >
               {contextSelectMode && (
                 <input
