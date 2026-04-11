@@ -87,8 +87,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
       setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
       setShowSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setSaving(false);
     }

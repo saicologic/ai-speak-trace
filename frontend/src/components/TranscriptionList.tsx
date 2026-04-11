@@ -39,7 +39,25 @@ export function TranscriptionList({ selectedId, onSelect, loading }: Props) {
   };
 
   useEffect(() => {
-    loadItems();
+    let cancelled = false;
+    const init = async () => {
+      try {
+        console.log('[TranscriptionList] 履歴一覧の取得を開始');
+        const result = await fetchTranscriptions();
+        if (!cancelled) {
+          console.log('[TranscriptionList] 履歴一覧の取得完了:', result.length, '件');
+          setItems(result);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const msg = e instanceof Error ? e.message : '取得に失敗しました';
+          console.error('[TranscriptionList] 履歴一覧の取得エラー:', msg, e);
+          setFetchError(msg);
+        }
+      }
+    };
+    void init();
+    return () => { cancelled = true; };
   }, []);
 
   return (
