@@ -121,6 +121,12 @@ function App() {
     }
   };
 
+  /** タイムスタンプクリック時に音声再生位置を変更 */
+  const handleTimeClick = useCallback((startTime: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = startTime;
+  }, []);
+
   /** 現在の音声再生位置に対応する発話にジャンプ */
   const handleJumpToUtterance = useCallback(() => {
     if (!transcription || !audioRef.current) return;
@@ -377,6 +383,7 @@ function App() {
                   onToggleUtteranceSelection={toggleUtteranceSelection}
                   scrollToUtteranceIndex={scrollToUtteranceIndex}
                   onScrollComplete={() => setScrollToUtteranceIndex(null)}
+                  onTimeClick={handleTimeClick}
                 />
               </div>
             </>

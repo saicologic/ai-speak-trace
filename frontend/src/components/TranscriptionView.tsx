@@ -16,6 +16,8 @@ interface Props {
   scrollToUtteranceIndex?: number | null;
   /** スクロール完了後のコールバック */
   onScrollComplete?: () => void;
+  /** タイムスタンプクリック時のコールバック */
+  onTimeClick?: (startTime: number) => void;
 }
 
 /** 文字起こし結果表示コンポーネント */
@@ -29,6 +31,7 @@ export function TranscriptionView({
   onToggleUtteranceSelection,
   scrollToUtteranceIndex,
   onScrollComplete,
+  onTimeClick,
 }: Props) {
   const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
   // 直前発話ポップアップ用の状態（元配列のインデックスを保持）
@@ -181,6 +184,7 @@ export function TranscriptionView({
                 onWordClick={toggleWord}
                 clickable={!!selectedSpeakerId && index > 0}
                 onBlockClick={() => handleUtteranceClick(index)}
+                onTimeClick={onTimeClick}
               />
             </div>
           );

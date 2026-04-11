@@ -11,6 +11,7 @@ interface Props {
   onWordClick: (globalIndex: number) => void;
   clickable?: boolean;
   onBlockClick?: () => void;
+  onTimeClick?: (startTime: number) => void;
 }
 
 /** 時間を mm:ss 形式に変換 */
@@ -30,6 +31,7 @@ export function UtteranceBlock({
   onWordClick,
   clickable,
   onBlockClick,
+  onTimeClick,
 }: Props) {
   const borderColor = speaker?.color ?? '#6B7280';
 
@@ -46,7 +48,14 @@ export function UtteranceBlock({
         >
           {utterance.speakerName}
         </span>
-        <span className="utterance-time">
+        <span
+          className={`utterance-time ${onTimeClick ? 'clickable-time' : ''}`}
+          onClick={onTimeClick ? (e) => {
+            e.stopPropagation();
+            onTimeClick(utterance.start);
+          } : undefined}
+          title={onTimeClick ? 'クリックでこの位置から再生' : undefined}
+        >
           {formatTime(utterance.start)} - {formatTime(utterance.end)}
         </span>
       </div>
