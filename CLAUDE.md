@@ -99,12 +99,12 @@ ai-speak-trace/
 
 ## PRテストプラン
 
-PRのTest planは以下の形式で記載する。`npm run dev` で起動し、Tauriウィンドウ上で確認する。
+PRのTest planは以下の形式で記載する。`npm run build` でビルドが成功することを確認する。
 
 ```markdown
 ## Test plan
 
-`npm run dev` で起動し、Tauriウィンドウ上で以下を確認:
+`npm run build` でビルドが成功することを確認し、以下を確認:
 
 - [ ] （変更内容に応じた確認項目を記載）
 ```
