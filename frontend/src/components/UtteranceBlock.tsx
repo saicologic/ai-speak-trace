@@ -69,6 +69,7 @@ export function UtteranceBlock({
               isSelected={selectedWords.has(globalIndex)}
               highlightedKeywords={highlightedKeywords}
               onClick={() => onWordClick(globalIndex)}
+              onTimeClick={onTimeClick}
             />
           );
         })}
