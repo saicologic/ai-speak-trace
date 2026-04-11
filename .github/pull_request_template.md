@@ -7,7 +7,7 @@
 <!-- なぜこの変更が必要なのか -->
 
 ## テスト
-- [ ] バックエンドのビルド成功 (`cd backend && pnpm run build`)
+- [ ] バックエンドのビルド成功 (`cd backend && npm run build`)
 - [ ] フロントエンドのビルド成功 (`cd frontend && npm run build`)
 - [ ] 手動テストで動作確認済み
 
