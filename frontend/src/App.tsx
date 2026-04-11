@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TranscriptionList } from './components/TranscriptionList';
 import { TranscriptionView } from './components/TranscriptionView';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
@@ -51,6 +51,8 @@ function App() {
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [scrollToUtteranceIndex, setScrollToUtteranceIndex] = useState<number | null>(null);
 
   /** 起動時にベータ機能の設定を読み込み + 中断ジョブを確認 */
   useEffect(() => {
@@ -118,6 +120,33 @@ function App() {
       setContextAnalyzing(false);
     }
   };
+
+  /** タイムスタンプクリック時に音声再生位置を変更 */
+  const handleTimeClick = useCallback((startTime: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = startTime;
+  }, []);
+
+  /** 現在の音声再生位置に対応する発話にジャンプ */
+  const handleJumpToUtterance = useCallback(() => {
+    if (!transcription || !audioRef.current) return;
+    const currentTime = audioRef.current.currentTime;
+    // currentTime以前に開始し、最も近い発話を検索
+    let targetIndex = -1;
+    for (let i = 0; i < transcription.utterances.length; i++) {
+      const u = transcription.utterances[i];
+      if (u.start <= currentTime && currentTime <= u.end) {
+        targetIndex = i;
+        break;
+      }
+      if (u.start <= currentTime) {
+        targetIndex = i;
+      }
+    }
+    if (targetIndex >= 0) {
+      setScrollToUtteranceIndex(targetIndex);
+    }
+  }, [transcription]);
 
   /** キーワードのハイライトをトグル */
   const toggleKeywordHighlight = (keyword: string) => {
@@ -332,7 +361,11 @@ function App() {
           {transcription && !loading && (
             <>
               <div className="app-content-fixed">
-                <AudioPlayer fileName={transcription.audioFileName} />
+                <AudioPlayer
+                  fileName={transcription.audioFileName}
+                  ref={audioRef}
+                  onJumpToUtterance={handleJumpToUtterance}
+                />
               </div>
               <div className="app-content-scroll">
                 <SpeakerNameEditor
@@ -348,6 +381,9 @@ function App() {
                   contextSelectMode={contextSelectMode}
                   selectedUtteranceIndices={selectedUtteranceIndices}
                   onToggleUtteranceSelection={toggleUtteranceSelection}
+                  scrollToUtteranceIndex={scrollToUtteranceIndex}
+                  onScrollComplete={() => setScrollToUtteranceIndex(null)}
+                  onTimeClick={handleTimeClick}
                 />
               </div>
             </>

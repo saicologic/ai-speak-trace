@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { UtteranceBlock } from './UtteranceBlock';
 import { PreviousUtterancePopup } from './PreviousUtterancePopup';
 import type { Transcription } from '../types';
@@ -12,6 +12,12 @@ interface Props {
   contextSelectMode?: boolean;
   selectedUtteranceIndices?: Set<number>;
   onToggleUtteranceSelection?: (index: number) => void;
+  /** スクロール先のutteranceインデックス（元配列のインデックス） */
+  scrollToUtteranceIndex?: number | null;
+  /** スクロール完了後のコールバック */
+  onScrollComplete?: () => void;
+  /** タイムスタンプクリック時のコールバック */
+  onTimeClick?: (startTime: number) => void;
 }
 
 /** 文字起こし結果表示コンポーネント */
@@ -23,10 +29,33 @@ export function TranscriptionView({
   contextSelectMode,
   selectedUtteranceIndices,
   onToggleUtteranceSelection,
+  scrollToUtteranceIndex,
+  onScrollComplete,
+  onTimeClick,
 }: Props) {
   const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
   // 直前発話ポップアップ用の状態（元配列のインデックスを保持）
   const [previousUtteranceIndex, setPreviousUtteranceIndex] = useState<number | null>(null);
+  // 各utterance要素へのref（元配列のインデックスをキーとする）
+  const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // スクロール先が指定されたら該当要素にスクロール＋ハイライト
+  useEffect(() => {
+    if (scrollToUtteranceIndex == null) return;
+    const el = utteranceRefs.current.get(scrollToUtteranceIndex);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('jump-highlight');
+      // ハイライトを2秒後に消す
+      const timer = setTimeout(() => el.classList.remove('jump-highlight'), 2000);
+      onScrollComplete?.();
+      return () => {
+        clearTimeout(timer);
+        el.classList.remove('jump-highlight');
+      };
+    }
+    onScrollComplete?.();
+  }, [scrollToUtteranceIndex]);
 
   const toggleWord = (index: number) => {
     setSelectedWords((prev) => {
@@ -133,6 +162,9 @@ export function TranscriptionView({
           return (
             <div
               key={index}
+              ref={(el) => {
+                if (el) utteranceRefs.current.set(index, el);
+              }}
               className={`utterance-select-wrapper ${contextSelectMode ? 'selectable' : ''}`}
             >
               {contextSelectMode && (
@@ -152,6 +184,7 @@ export function TranscriptionView({
                 onWordClick={toggleWord}
                 clickable={!!selectedSpeakerId && index > 0}
                 onBlockClick={() => handleUtteranceClick(index)}
+                onTimeClick={onTimeClick}
               />
             </div>
           );
