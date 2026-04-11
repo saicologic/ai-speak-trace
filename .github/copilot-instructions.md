@@ -17,7 +17,7 @@ PRの説明文は以下の構成で記述してください:
 - なぜこの変更が必要なのか、背景や目的を記述
 
 ### テスト
-- [ ] ビルドが成功すること（backend: `pnpm run build`, frontend: `npm run build`）
+- [ ] ビルドが成功すること（backend: `npm run build`, frontend: `npm run build`）
 - [ ] 手動テストで動作確認済み
 
 ### 破壊的変更
@@ -37,4 +37,4 @@ PRの説明文は以下の構成で記述してください:
 
 - フロントエンド: Vite + React 19 + TypeScript
 - バックエンド: NestJS 11 + TypeScript
-- パッケージマネージャー: pnpm（backend）、npm（frontend）
+- パッケージマネージャー: npm（backend・frontend共通）
