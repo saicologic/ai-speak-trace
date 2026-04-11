@@ -7,25 +7,13 @@ import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 import type { AudioStorage } from '../storage/interfaces/audio-storage.interface';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 import { ChunkedTranscriptionJob } from './types/chunked-job.types';
+import { AudioFileInfo, Transcription } from './types/transcription.types';
 import {
-  AudioFileInfo,
-  Speaker,
-  Transcription,
-  TranscriptionWord,
-  Utterance,
-} from './types/transcription.types';
-
-/** デフォルトの話者名 */
-const DEFAULT_SPEAKER_NAMES = ['Aさん', 'Bさん'];
-
-/** 話者の表示色 */
-const SPEAKER_COLORS = ['#3B82F6', '#EF4444'];
-
-/** フレーズ区切りとなる句読点パターン */
-const PHRASE_BREAK_CHARS = /[。、！？!?,.\s]/;
-
-/** フレーズ区切りとなる時間間隔（秒） */
-const PHRASE_GAP_THRESHOLD = 0.5;
+  convertWords,
+  mergeWordsIntoPhrases,
+  buildSpeakers,
+  groupWordsIntoUtterances,
+} from './transcription.utils';
 
 /** ファイルサイズ上限（3GB）: ElevenLabs APIのローカルアップロード上限 */
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024 * 1024;
@@ -47,17 +35,14 @@ export class TranscriptionService {
     const files = await this.audioStorage.listFiles();
     return files.sort(
       (a, b) =>
-        new Date(b.lastModified).getTime() -
-        new Date(a.lastModified).getTime(),
+        new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime(),
     );
   }
 
   /** 音声ファイルの再生用URLを取得 */
   async getAudioFileUrl(fileName: string): Promise<string> {
     if (!(await this.audioStorage.exists(fileName))) {
-      throw new NotFoundException(
-        `音声ファイルが見つかりません: ${fileName}`,
-      );
+      throw new NotFoundException(`音声ファイルが見つかりません: ${fileName}`);
     }
     return this.audioStorage.getPlaybackUrl(fileName);
   }
@@ -78,7 +63,8 @@ export class TranscriptionService {
     }
 
     // 2. 同名ファイルの全チャンクジョブを削除（completed, transcribing, failed 全て）
-    const jobs = await this.chunkedTranscriptionService.findAllJobsByFileName(fileName);
+    const jobs =
+      await this.chunkedTranscriptionService.findAllJobsByFileName(fileName);
     this.logger.log(`削除対象のジョブ: ${jobs.length}件`);
     for (const job of jobs) {
       await this.chunkedTranscriptionService.deleteJob(job.id);
@@ -90,7 +76,9 @@ export class TranscriptionService {
     const matchedTranscriptions = allTranscriptions.filter(
       (t) => t.audioFileName === fileName,
     );
-    this.logger.log(`削除対象の文字起こし履歴: ${matchedTranscriptions.length}件`);
+    this.logger.log(
+      `削除対象の文字起こし履歴: ${matchedTranscriptions.length}件`,
+    );
     for (const transcription of matchedTranscriptions) {
       await this.store.delete(transcription.id);
       this.logger.log(`文字起こし履歴削除完了: ${transcription.id}`);
@@ -119,9 +107,7 @@ export class TranscriptionService {
 
     if (!(await this.audioStorage.exists(fileName))) {
       this.logger.error(`音声ファイルが見つかりません: ${fileName}`);
-      throw new NotFoundException(
-        `音声ファイルが見つかりません: ${fileName}`,
-      );
+      throw new NotFoundException(`音声ファイルが見つかりません: ${fileName}`);
     }
 
     // ストレージから音声ファイルを読み込み
@@ -137,19 +123,28 @@ export class TranscriptionService {
     }
 
     // ジョブを早期作成（needsChunking判定前に保存し、中断時に再開可能にする）
-    const chunkedJob = await this.chunkedTranscriptionService.createJob(fileName);
+    const chunkedJob =
+      await this.chunkedTranscriptionService.createJob(fileName);
 
     // 完了済みまたは処理中のジョブが返ってきた場合は既存の文字起こし結果を返す
     if (chunkedJob.status === 'completed' && chunkedJob.transcriptionId) {
-      this.logger.log(`既に完了済みのジョブ: jobId=${chunkedJob.id}, transcriptionId=${chunkedJob.transcriptionId}`);
+      this.logger.log(
+        `既に完了済みのジョブ: jobId=${chunkedJob.id}, transcriptionId=${chunkedJob.transcriptionId}`,
+      );
       const existing = await this.store.findById(chunkedJob.transcriptionId);
       if (existing) return existing;
       // 文字起こし結果が見つからない場合はジョブをリセットして続行
-      this.logger.warn(`完了済みジョブだが文字起こし結果が見つからない: ${chunkedJob.transcriptionId}`);
+      this.logger.warn(
+        `完了済みジョブだが文字起こし結果が見つからない: ${chunkedJob.transcriptionId}`,
+      );
     }
     if (this.chunkedTranscriptionService.isJobProcessing(chunkedJob.id)) {
-      this.logger.warn(`処理中のジョブに対して重複リクエスト: jobId=${chunkedJob.id}`);
-      throw new Error('このファイルは現在文字起こし処理中です。完了をお待ちください。');
+      this.logger.warn(
+        `処理中のジョブに対して重複リクエスト: jobId=${chunkedJob.id}`,
+      );
+      throw new Error(
+        'このファイルは現在文字起こし処理中です。完了をお待ちください。',
+      );
     }
 
     // 音声の長さに応じて処理を分岐
@@ -158,7 +153,10 @@ export class TranscriptionService {
     let languageCode: string;
 
     const { needs: needsChunking } =
-      await this.chunkedTranscriptionService.needsChunking(fileBuffer, fileName);
+      await this.chunkedTranscriptionService.needsChunking(
+        fileBuffer,
+        fileName,
+      );
 
     if (needsChunking) {
       // 10分超: チャンク分割して順番に文字起こし
@@ -174,18 +172,23 @@ export class TranscriptionService {
     } else {
       // 10分以下: 従来通り一括で文字起こし（ジョブは不要なので削除）
       await this.chunkedTranscriptionService.deleteJob(chunkedJob.id);
-      const result = await this.elevenLabsService.transcribe(fileBuffer, fileName);
+      const result = await this.elevenLabsService.transcribe(
+        fileBuffer,
+        fileName,
+      );
       elWords = result.words;
       fullText = result.text;
       languageCode = result.language_code;
     }
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
-    const rawWords = this.convertWords(elWords);
-    const words = this.mergeWordsIntoPhrases(rawWords);
-    const speakers = this.buildSpeakers(words);
-    const utterances = this.groupWordsIntoUtterances(words, speakers);
-    this.logger.log(`データ変換完了: ${rawWords.length} 単語 → ${words.length} フレーズ, ${speakers.length} 名, ${utterances.length} セグメント`);
+    const rawWords = convertWords(elWords);
+    const words = mergeWordsIntoPhrases(rawWords);
+    const speakers = buildSpeakers(words);
+    const utterances = groupWordsIntoUtterances(words, speakers);
+    this.logger.log(
+      `データ変換完了: ${rawWords.length} 単語 → ${words.length} フレーズ, ${speakers.length} 名, ${utterances.length} セグメント`,
+    );
 
     const stem = path.parse(fileName).name;
     const transcription: Transcription = {
@@ -208,7 +211,9 @@ export class TranscriptionService {
       await this.chunkedTranscriptionService.saveJob(chunkedJob);
     }
 
-    this.logger.log(`文字起こしパイプライン完了: ${fileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`);
+    this.logger.log(
+      `文字起こしパイプライン完了: ${fileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`,
+    );
 
     return transcription;
   }
@@ -221,7 +226,8 @@ export class TranscriptionService {
     this.logger.log(`文字起こし再開: jobId=${jobId}`);
 
     // ジョブの状態を確認
-    const existingJob = await this.chunkedTranscriptionService.getJobStatus(jobId);
+    const existingJob =
+      await this.chunkedTranscriptionService.getJobStatus(jobId);
     if (!existingJob) {
       throw new NotFoundException(`ジョブが見つかりません: ${jobId}`);
     }
@@ -231,14 +237,20 @@ export class TranscriptionService {
     let languageCode: string;
     let job: ChunkedTranscriptionJob;
 
-    if (existingJob.status === 'initializing' || existingJob.status === 'splitting') {
+    if (
+      existingJob.status === 'initializing' ||
+      existingJob.status === 'splitting'
+    ) {
       // 初期段階で中断されたジョブ: 音声ファイルを再読み込みして最初からやり直す
       this.logger.log(`初期段階からの再開: ${existingJob.audioFileName}`);
-      const fileBuffer = await this.audioStorage.readFile(existingJob.audioFileName);
-      const result = await this.chunkedTranscriptionService.startChunkedTranscription(
-        existingJob,
-        fileBuffer,
+      const fileBuffer = await this.audioStorage.readFile(
+        existingJob.audioFileName,
       );
+      const result =
+        await this.chunkedTranscriptionService.startChunkedTranscription(
+          existingJob,
+          fileBuffer,
+        );
       mergedWords = result.mergedWords;
       mergedText = result.mergedText;
       languageCode = result.languageCode;
@@ -246,7 +258,9 @@ export class TranscriptionService {
     } else {
       // transcribing/failed: チャンクの途中から再開
       const result =
-        await this.chunkedTranscriptionService.resumeChunkedTranscription(jobId);
+        await this.chunkedTranscriptionService.resumeChunkedTranscription(
+          jobId,
+        );
       mergedWords = result.mergedWords;
       mergedText = result.mergedText;
       languageCode = result.languageCode;
@@ -254,10 +268,10 @@ export class TranscriptionService {
     }
 
     // ElevenLabsのレスポンスをアプリ内部型に変換
-    const rawWords = this.convertWords(mergedWords);
-    const words = this.mergeWordsIntoPhrases(rawWords);
-    const speakers = this.buildSpeakers(words);
-    const utterances = this.groupWordsIntoUtterances(words, speakers);
+    const rawWords = convertWords(mergedWords);
+    const words = mergeWordsIntoPhrases(rawWords);
+    const speakers = buildSpeakers(words);
+    const utterances = groupWordsIntoUtterances(words, speakers);
 
     const resumeStem = path.parse(job.audioFileName).name;
     const transcription: Transcription = {
@@ -277,18 +291,24 @@ export class TranscriptionService {
     job.transcriptionId = transcription.id;
     await this.chunkedTranscriptionService.saveJob(job);
 
-    this.logger.log(`文字起こし再開完了: ${job.audioFileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`);
+    this.logger.log(
+      `文字起こし再開完了: ${job.audioFileName} (ID: ${transcription.id}, 所要時間: ${elapsedSec()}秒)`,
+    );
 
     return transcription;
   }
 
   /** チャンクジョブの進捗を取得 */
-  async getChunkedJobStatus(jobId: string): Promise<ChunkedTranscriptionJob | null> {
+  async getChunkedJobStatus(
+    jobId: string,
+  ): Promise<ChunkedTranscriptionJob | null> {
     return this.chunkedTranscriptionService.getJobStatus(jobId);
   }
 
   /** ファイル名で進行中のチャンクジョブを検索 */
-  async findActiveJob(fileName: string): Promise<ChunkedTranscriptionJob | null> {
+  async findActiveJob(
+    fileName: string,
+  ): Promise<ChunkedTranscriptionJob | null> {
     return this.chunkedTranscriptionService.findActiveJobByFileName(fileName);
   }
 
@@ -323,7 +343,9 @@ export class TranscriptionService {
   > {
     this.logger.log('getTranscriptions 開始');
     const all = await this.store.findAll();
-    this.logger.log(`getTranscriptions: store.findAll() から ${all.length} 件取得`);
+    this.logger.log(
+      `getTranscriptions: store.findAll() から ${all.length} 件取得`,
+    );
     const result = all
       .map((t) => ({
         id: t.id,
@@ -342,9 +364,7 @@ export class TranscriptionService {
   async getTranscription(id: string): Promise<Transcription> {
     const transcription = await this.store.findById(id);
     if (!transcription) {
-      throw new NotFoundException(
-        `文字起こし結果が見つかりません: ${id}`,
-      );
+      throw new NotFoundException(`文字起こし結果が見つかりません: ${id}`);
     }
     return transcription;
   }
@@ -376,107 +396,5 @@ export class TranscriptionService {
     this.logger.log(`話者名更新完了: ${id}`);
 
     return transcription;
-  }
-
-  /** ElevenLabsの単語データをアプリ内部型に変換 */
-  private convertWords(elevenLabsWords: ElevenLabsWord[]): TranscriptionWord[] {
-    return elevenLabsWords.map((w) => ({
-      text: w.text,
-      start: w.start,
-      end: w.end,
-      type: w.type,
-      speakerId: w.speaker_id,
-    }));
-  }
-
-  /**
-   * 1文字単位の単語をフレーズ単位にマージする
-   * 日本語ではElevenLabsが1文字ずつwordを返すため、
-   * 句読点・時間間隔・話者変更をフレーズの区切りとして結合する
-   */
-  private mergeWordsIntoPhrases(
-    words: TranscriptionWord[],
-  ): TranscriptionWord[] {
-    if (words.length === 0) return [];
-
-    const phrases: TranscriptionWord[] = [];
-    let current: TranscriptionWord = { ...words[0] };
-
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-
-      if (word.type !== 'word') {
-        phrases.push(current);
-        phrases.push({ ...word });
-        if (i + 1 < words.length) {
-          current = { ...words[++i] };
-        }
-        continue;
-      }
-
-      if (word.speakerId !== current.speakerId) {
-        phrases.push(current);
-        current = { ...word };
-        continue;
-      }
-
-      if (PHRASE_BREAK_CHARS.test(current.text.slice(-1))) {
-        phrases.push(current);
-        current = { ...word };
-        continue;
-      }
-
-      if (word.start - current.end > PHRASE_GAP_THRESHOLD) {
-        phrases.push(current);
-        current = { ...word };
-        continue;
-      }
-
-      current.text += word.text;
-      current.end = word.end;
-    }
-
-    phrases.push(current);
-    return phrases;
-  }
-
-  /** 単語データから話者情報を構築 */
-  private buildSpeakers(words: TranscriptionWord[]): Speaker[] {
-    const speakerIds = [...new Set(words.map((w) => w.speakerId))].sort();
-    return speakerIds.map((id, index) => ({
-      id,
-      name: DEFAULT_SPEAKER_NAMES[index] ?? `話者${index + 1}`,
-      color: SPEAKER_COLORS[index] ?? '#6B7280',
-    }));
-  }
-
-  /** 単語データを発話セグメントにグループ化 */
-  private groupWordsIntoUtterances(
-    words: TranscriptionWord[],
-    speakers: Speaker[],
-  ): Utterance[] {
-    const utterances: Utterance[] = [];
-    let current: Utterance | null = null;
-
-    for (const word of words) {
-      if (!current || current.speakerId !== word.speakerId) {
-        const speaker = speakers.find((s) => s.id === word.speakerId);
-        current = {
-          speakerId: word.speakerId,
-          speakerName: speaker?.name ?? word.speakerId,
-          start: word.start,
-          end: word.end,
-          text: word.text,
-          words: [word],
-        };
-        utterances.push(current);
-      } else {
-        current.end = word.end;
-        current.text += word.text;
-        current.words.push(word);
-      }
-    }
-
-    return utterances;
   }
 }
