@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { UtteranceBlock } from './UtteranceBlock';
+import { PreviousUtterancePopup } from './PreviousUtterancePopup';
 import type { Transcription } from '../types';
 import './TranscriptionView.css';
 
@@ -24,6 +25,8 @@ export function TranscriptionView({
   onToggleUtteranceSelection,
 }: Props) {
   const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
+  // 直前発話ポップアップ用の状態（元配列のインデックスを保持）
+  const [previousUtteranceIndex, setPreviousUtteranceIndex] = useState<number | null>(null);
 
   const toggleWord = (index: number) => {
     setSelectedWords((prev) => {
@@ -83,6 +86,25 @@ export function TranscriptionView({
     return offsets;
   }, [transcription.utterances]);
 
+  /** 発話ブロッククリック時：話者フィルター中なら直前の発話をポップアップ表示 */
+  const handleUtteranceClick = (originalIndex: number) => {
+    if (!selectedSpeakerId) return;
+    if (originalIndex <= 0) return;
+    const prevUtterance = transcription.utterances[originalIndex - 1];
+    // 直前が別の話者の場合のみ表示
+    if (prevUtterance && prevUtterance.speakerId !== selectedSpeakerId) {
+      setPreviousUtteranceIndex(originalIndex - 1);
+    }
+  };
+
+  // ポップアップに表示する直前発話データ
+  const popupUtterance = previousUtteranceIndex !== null
+    ? transcription.utterances[previousUtteranceIndex]
+    : null;
+  const popupSpeaker = popupUtterance
+    ? transcription.speakers.find((s) => s.id === popupUtterance.speakerId)
+    : undefined;
+
   return (
     <div className="transcription-view">
       <h3>文字起こし結果</h3>
@@ -128,11 +150,21 @@ export function TranscriptionView({
                 highlightedKeywords={highlightedKeywords}
                 wordIndexOffset={wordOffsets[index]}
                 onWordClick={toggleWord}
+                clickable={!!selectedSpeakerId && index > 0}
+                onBlockClick={() => handleUtteranceClick(index)}
               />
             </div>
           );
         })}
       </div>
+
+      {popupUtterance && (
+        <PreviousUtterancePopup
+          utterance={popupUtterance}
+          speaker={popupSpeaker}
+          onClose={() => setPreviousUtteranceIndex(null)}
+        />
+      )}
     </div>
   );
 }
