@@ -63,6 +63,35 @@
   color: #ffffff;
 }
 
+.speaker-filter {
+  margin-bottom: 0.75rem;
+}
+
+.speaker-filter-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.speaker-filter-select {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background-color: #ffffff;
+  cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.speaker-filter-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
 .keyword-list-header {
   display: flex;
   align-items: center;
