@@ -24,6 +24,18 @@
   color: #9ca3af;
 }
 
+.utterance-time.clickable-time {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.utterance-time.clickable-time:hover {
+  background-color: #eff6ff;
+  color: #3b82f6;
+}
+
 .utterance-text {
   font-size: 0.95rem;
   line-height: 1.8;

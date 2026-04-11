@@ -7,6 +7,7 @@ interface Props {
   isSelected: boolean;
   highlightedKeywords: Set<string>;
   onClick: () => void;
+  onTimeClick?: (startTime: number) => void;
 }
 
 /** 時間を mm:ss 形式に変換 */
@@ -72,6 +73,7 @@ export function WordSpan({
   isSelected,
   highlightedKeywords,
   onClick,
+  onTimeClick,
 }: Props) {
   const highlightedContent = useMemo(
     () => renderHighlightedText(word.text, highlightedKeywords),
@@ -93,7 +95,10 @@ export function WordSpan({
   return (
     <span
       className={`word-span ${isSelected ? 'selected' : ''}`}
-      onClick={onClick}
+      onClick={() => {
+        onClick();
+        onTimeClick?.(word.start);
+      }}
       title={`${formatTime(word.start)} - ${formatTime(word.end)}`}
     >
       {highlightedContent}

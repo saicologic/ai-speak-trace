@@ -1,8 +1,30 @@
 .audio-player {
   margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .audio-player audio {
-  width: 100%;
+  flex: 1;
   border-radius: 8px;
+}
+
+.jump-to-utterance-button {
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  background-color: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.jump-to-utterance-button:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
 }

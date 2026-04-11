@@ -62,15 +62,18 @@ export function JobProgressPage({
   // ページ表示時にクレジット残量を確認
   useEffect(() => {
     let cancelled = false;
-    setCreditCheckLoading(true);
-    checkCredits()
-      .then((info) => {
+    const loadCredits = async () => {
+      setCreditCheckLoading(true);
+      try {
+        const info = await checkCredits();
         if (!cancelled) setCreditInfo(info);
-      })
-      .catch(() => {})
-      .finally(() => {
+      } catch {
+        // クレジット確認失敗は無視
+      } finally {
         if (!cancelled) setCreditCheckLoading(false);
-      });
+      }
+    };
+    void loadCredits();
     return () => { cancelled = true; };
   }, [jobId]);
 
@@ -89,6 +92,7 @@ export function JobProgressPage({
           );
         });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- job全体ではなくstatus/transcriptionIdの変化のみ監視
   }, [job?.status, job?.transcriptionId]);
 
   /** トップに戻るボタンクリック時 */

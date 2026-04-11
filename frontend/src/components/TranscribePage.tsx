@@ -193,7 +193,7 @@ export function TranscribePage({
       if (typeof selected === 'string') {
         filePath = selected;
       } else if (typeof selected === 'object' && selected !== null && 'path' in selected) {
-        filePath = (selected as any).path;
+        filePath = (selected as { path: string }).path;
       } else {
         filePath = String(selected);
       }

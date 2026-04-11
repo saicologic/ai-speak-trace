@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TranscriptionList } from './components/TranscriptionList';
 import { TranscriptionView } from './components/TranscriptionView';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
@@ -38,6 +38,7 @@ function App() {
   );
   const [page, setPage] = useState<Page>('main');
   const [filterActive, setFilterActive] = useState(false);
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const [contextSelectMode, setContextSelectMode] = useState(false);
   const [selectedUtteranceIndices, setSelectedUtteranceIndices] = useState<
@@ -50,6 +51,8 @@ function App() {
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [scrollToUtteranceIndex, setScrollToUtteranceIndex] = useState<number | null>(null);
 
   /** 起動時にベータ機能の設定を読み込み + 中断ジョブを確認 */
   useEffect(() => {
@@ -118,6 +121,33 @@ function App() {
     }
   };
 
+  /** タイムスタンプクリック時に音声再生位置を変更 */
+  const handleTimeClick = useCallback((startTime: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = startTime;
+  }, []);
+
+  /** 現在の音声再生位置に対応する発話にジャンプ */
+  const handleJumpToUtterance = useCallback(() => {
+    if (!transcription || !audioRef.current) return;
+    const currentTime = audioRef.current.currentTime;
+    // currentTime以前に開始し、最も近い発話を検索
+    let targetIndex = -1;
+    for (let i = 0; i < transcription.utterances.length; i++) {
+      const u = transcription.utterances[i];
+      if (u.start <= currentTime && currentTime <= u.end) {
+        targetIndex = i;
+        break;
+      }
+      if (u.start <= currentTime) {
+        targetIndex = i;
+      }
+    }
+    if (targetIndex >= 0) {
+      setScrollToUtteranceIndex(targetIndex);
+    }
+  }, [transcription]);
+
   /** キーワードのハイライトをトグル */
   const toggleKeywordHighlight = (keyword: string) => {
     setHighlightedKeywords((prev) => {
@@ -138,6 +168,7 @@ function App() {
     setError(null);
     setHighlightedKeywords(new Set());
     setFilterActive(false);
+    setSelectedSpeakerId(null);
 
     try {
       const result = await fetchTranscription(id);
@@ -330,7 +361,11 @@ function App() {
           {transcription && !loading && (
             <>
               <div className="app-content-fixed">
-                <AudioPlayer fileName={transcription.audioFileName} />
+                <AudioPlayer
+                  fileName={transcription.audioFileName}
+                  ref={audioRef}
+                  onJumpToUtterance={handleJumpToUtterance}
+                />
               </div>
               <div className="app-content-scroll">
                 <SpeakerNameEditor
@@ -342,9 +377,13 @@ function App() {
                   transcription={transcription}
                   highlightedKeywords={highlightedKeywords}
                   filterActive={filterActive}
+                  selectedSpeakerId={selectedSpeakerId}
                   contextSelectMode={contextSelectMode}
                   selectedUtteranceIndices={selectedUtteranceIndices}
                   onToggleUtteranceSelection={toggleUtteranceSelection}
+                  scrollToUtteranceIndex={scrollToUtteranceIndex}
+                  onScrollComplete={() => setScrollToUtteranceIndex(null)}
+                  onTimeClick={handleTimeClick}
                 />
               </div>
             </>
@@ -362,6 +401,9 @@ function App() {
               onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
               onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
               contextSelectMode={contextSelectMode}
+              speakers={transcription.speakers}
+              selectedSpeakerId={selectedSpeakerId}
+              onSpeakerFilterChange={setSelectedSpeakerId}
             />
           </aside>
         )}

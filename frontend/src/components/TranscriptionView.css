@@ -68,3 +68,17 @@
   cursor: pointer;
   accent-color: #8b5cf6;
 }
+
+/* 会話ジャンプ時のハイライトアニメーション */
+.utterance-select-wrapper.jump-highlight {
+  animation: jump-highlight-fade 2s ease-out;
+}
+
+@keyframes jump-highlight-fade {
+  0% {
+    background-color: #bfdbfe;
+  }
+  100% {
+    background-color: transparent;
+  }
+}

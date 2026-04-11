@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Keyword } from '../types';
+import type { Keyword, Speaker } from '../types';
 import './KeywordList.css';
 
 interface Props {
@@ -12,6 +12,9 @@ interface Props {
   onNavigateDeepSearch?: () => void;
   onToggleContextMode?: () => void;
   contextSelectMode?: boolean;
+  speakers?: Speaker[];
+  selectedSpeakerId: string | null;
+  onSpeakerFilterChange: (speakerId: string | null) => void;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -25,6 +28,9 @@ export function KeywordList({
   onNavigateDeepSearch,
   onToggleContextMode,
   contextSelectMode,
+  speakers,
+  selectedSpeakerId,
+  onSpeakerFilterChange,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -68,6 +74,21 @@ export function KeywordList({
         >
           {contextSelectMode ? '発言の文脈（選択中...）' : '発言の文脈'}
         </button>
+      )}
+      {speakers && speakers.length > 0 && (
+        <div className="speaker-filter">
+          <label className="speaker-filter-label">話者フィルター</label>
+          <select
+            className="speaker-filter-select"
+            value={selectedSpeakerId ?? ''}
+            onChange={(e) => onSpeakerFilterChange(e.target.value || null)}
+          >
+            <option value="">全員</option>
+            {speakers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
       )}
       <div className="keyword-list-header">
         <h2>キーワード</h2>
