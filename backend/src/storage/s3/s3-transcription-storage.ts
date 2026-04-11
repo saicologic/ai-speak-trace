@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { TranscriptionStorage } from '../interfaces/transcription-storage.interface';
 import { Transcription } from '../../transcription/types/transcription.types';
@@ -102,6 +103,23 @@ export class S3TranscriptionStorage implements TranscriptionStorage {
       this.logger.error(`S3からの文字起こし一覧の取得に失敗`, err);
       throw new Error(
         `S3からの文字起こし一覧の取得に失敗しました（bucket: ${this.bucket}）: ${err.message}`,
+      );
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    try {
+      await this.s3.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: `${this.prefix}${id}.json`,
+        }),
+      );
+      this.logger.log(`S3文字起こし結果削除完了: ${id}`);
+    } catch (err: any) {
+      this.logger.error(`S3からの文字起こし結果の削除に失敗: ${id}`, err);
+      throw new Error(
+        `S3からの文字起こし結果の削除に失敗しました（${id}）: ${err.message}`,
       );
     }
   }

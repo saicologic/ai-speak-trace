@@ -7,18 +7,22 @@ import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
 import { DeepSearchPage } from './components/DeepSearchPage';
 import { TranscribePage } from './components/TranscribePage';
+import { JobProgressPage } from './components/JobProgressPage';
+import { ResumableJobsPage } from './components/ResumableJobsPage';
 import { ContextAnalysisModal } from './components/ContextAnalysisModal';
 import SettingsPage from './components/SettingsPage';
 import {
   fetchTranscription,
   analyzeUtteranceContext,
   fetchSettings,
+  fetchResumableJobs,
 } from './api/client';
+import type { ChunkedJobDetail } from './api/client';
 import { extractKeywords } from './utils/keywords';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
-type Page = 'main' | 'transcribe' | 'interview' | 'deep-search' | 'settings';
+type Page = 'main' | 'transcribe' | 'interview' | 'deep-search' | 'settings' | 'job-progress' | 'resumable-jobs';
 
 function App() {
   const [transcription, setTranscription] = useState<Transcription | null>(
@@ -44,14 +48,21 @@ function App() {
   const [contextAnalyzing, setContextAnalyzing] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
 
-  /** 起動時にベータ機能の設定を読み込み */
+  /** 起動時にベータ機能の設定を読み込み + 中断ジョブを確認 */
   useEffect(() => {
     fetchSettings()
       .then((s) => {
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
       })
+      .catch(() => {});
+
+    // 中断されたジョブがあるか確認
+    fetchResumableJobs()
+      .then((jobs) => setResumableJobs(jobs))
       .catch(() => {});
   }, []);
 
@@ -156,11 +167,60 @@ function App() {
   if (page === 'transcribe') {
     return (
       <TranscribePage
-        onBack={() => setPage('main')}
+        onBack={() => {
+          setPage('main');
+        }}
         onTranscriptionComplete={(result) => {
           setTranscription(result);
         }}
         onNavigateSettings={() => setPage('settings')}
+        onChunkedJobStarted={(jobId) => {
+          setActiveJobId(jobId);
+          setPage('job-progress');
+        }}
+      />
+    );
+  }
+
+  /** 文字起こし進捗ページの場合 */
+  if (page === 'job-progress' && activeJobId) {
+    return (
+      <JobProgressPage
+        jobId={activeJobId}
+        onBack={() => {
+          setActiveJobId(null);
+          // ジョブ一覧を最新状態に更新
+          fetchResumableJobs()
+            .then((jobs) => setResumableJobs(jobs))
+            .catch(() => {});
+          setPage('main');
+        }}
+        onTranscriptionComplete={(result) => {
+          setTranscription(result);
+          setActiveJobId(null);
+          // ジョブ一覧を最新状態に更新（完了ジョブも含む）
+          fetchResumableJobs()
+            .then((jobs) => setResumableJobs(jobs))
+            .catch(() => {});
+          setPage('main');
+        }}
+      />
+    );
+  }
+
+  /** ジョブ進捗確認ページの場合 */
+  if (page === 'resumable-jobs') {
+    return (
+      <ResumableJobsPage
+        jobs={resumableJobs}
+        onBack={() => setPage('main')}
+        onSelectJob={(jobId) => {
+          setActiveJobId(jobId);
+          setPage('job-progress');
+        }}
+        onJobsDeleted={(deletedIds) => {
+          setResumableJobs((prev) => prev.filter((j) => !deletedIds.includes(j.id)));
+        }}
       />
     );
   }
@@ -232,9 +292,19 @@ function App() {
           <div className="sidebar-tabs">
             <button
               className="sidebar-tab-action"
-              onClick={() => setPage('transcribe')}
+              onClick={() => {
+                setPage('transcribe');
+              }}
             >
               音声ファイルの文字起こし
+            </button>
+          </div>
+          <div className="sidebar-tabs">
+            <button
+              className="sidebar-tab-action sidebar-tab-action--warning"
+              onClick={() => setPage('resumable-jobs')}
+            >
+              ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
           <div className="sidebar-section-title">履歴</div>
