@@ -47,18 +47,36 @@ npm run build
 npm run start:prod
 ```
 
-### その他のコマンド
+## テスト
+
+### ユニットテスト
+
+コアロジックのユーティリティ関数をテストしています。テストファイルは対象ファイルと同階層に `.spec.ts` として配置しています。
+
+| テストファイル | テスト対象 | 内容 |
+|--------------|-----------|------|
+| `transcription/transcription.utils.spec.ts` | `mergeWordsIntoPhrases`, `buildSpeakers`, `groupWordsIntoUtterances` | 文字起こし結果の組み立てロジック |
+| `transcription/chunked-transcription.utils.spec.ts` | `adjustTimestamps`, `resolveSpeakerMapping`, `mergeChunkResults` | 長時間音声のチャンク分割・結合処理 |
+| `document/document.utils.spec.ts` | `chunkText`, `splitIntoSentences`, `truncateToBytes` | PDF検索用のテキスト分割処理 |
+
+テスト対象の関数は `*.utils.ts` に純粋関数として切り出しており、外部依存なしで高速に実行できます。
+
+### テスト実行
 
 ```bash
 # ユニットテスト
 npm run test
 
-# E2Eテスト
-npm run test:e2e
-
-# テストカバレッジ
+# カバレッジ付き
 npm run test:cov
 
+# ウォッチモード（ファイル変更時に自動実行）
+npm run test:watch
+```
+
+### その他のコマンド
+
+```bash
 # リント
 npm run lint
 

@@ -2,13 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ElevenLabsService } from './elevenlabs.service';
-import { AudioSplitterService, DEFAULT_CHUNK_DURATION_SEC } from './audio-splitter.service';
+import {
+  AudioSplitterService,
+  DEFAULT_CHUNK_DURATION_SEC,
+} from './audio-splitter.service';
 import { ChunkedJobStoreService } from './chunked-job-store.service';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 import {
   ChunkedTranscriptionJob,
   CompletedChunk,
 } from './types/chunked-job.types';
+import {
+  adjustTimestamps,
+  resolveSpeakerMapping,
+  mergeChunkResults,
+} from './chunked-transcription.utils';
 
 /** チャンク間のレート制限回避のための待機時間（ミリ秒） */
 const INTER_CHUNK_DELAY_MS = 1000;
@@ -62,11 +70,15 @@ export class ChunkedTranscriptionService {
     if (existing) {
       // 完了済みまたは処理中のジョブはリセットしない
       if (existing.status === 'completed' || this.processingJobIds.has(stem)) {
-        this.logger.log(`既存ジョブをスキップ: jobId=${stem}, status=${existing.status}, processing=${this.processingJobIds.has(stem)}`);
+        this.logger.log(
+          `既存ジョブをスキップ: jobId=${stem}, status=${existing.status}, processing=${this.processingJobIds.has(stem)}`,
+        );
         return existing;
       }
       // 未完了（failed, initializing, splitting, transcribing）のジョブはリセット
-      this.logger.log(`既存ジョブをリセット: jobId=${stem}, status=${existing.status}`);
+      this.logger.log(
+        `既存ジョブをリセット: jobId=${stem}, status=${existing.status}`,
+      );
       existing.status = 'initializing';
       existing.totalDurationSec = 0;
       existing.totalChunks = 0;
@@ -99,10 +111,16 @@ export class ChunkedTranscriptionService {
   async startChunkedTranscription(
     job: ChunkedTranscriptionJob,
     fileBuffer: Buffer,
-  ): Promise<{ mergedWords: ElevenLabsWord[]; mergedText: string; languageCode: string }> {
+  ): Promise<{
+    mergedWords: ElevenLabsWord[];
+    mergedText: string;
+    languageCode: string;
+  }> {
     const chunksDir = path.join(this.jobStore.getChunksBaseDir(), job.id);
 
-    this.logger.log(`チャンク分割文字起こし開始: jobId=${job.id}, fileName=${job.audioFileName}`);
+    this.logger.log(
+      `チャンク分割文字起こし開始: jobId=${job.id}, fileName=${job.audioFileName}`,
+    );
     this.processingJobIds.add(job.id);
 
     job.status = 'splitting';
@@ -110,12 +128,13 @@ export class ChunkedTranscriptionService {
 
     try {
       // 音声ファイルをチャンク分割
-      const { chunkFiles, totalDurationSec } = await this.audioSplitter.splitAudio(
-        fileBuffer,
-        job.audioFileName,
-        DEFAULT_CHUNK_DURATION_SEC,
-        chunksDir,
-      );
+      const { chunkFiles, totalDurationSec } =
+        await this.audioSplitter.splitAudio(
+          fileBuffer,
+          job.audioFileName,
+          DEFAULT_CHUNK_DURATION_SEC,
+          chunksDir,
+        );
 
       job.totalDurationSec = totalDurationSec;
       job.totalChunks = chunkFiles.length;
@@ -129,7 +148,7 @@ export class ChunkedTranscriptionService {
       job.status = 'merging';
       await this.jobStore.save(job);
 
-      const { words, text, languageCode } = this.mergeChunkResults(job);
+      const { words, text, languageCode } = mergeChunkResults(job);
 
       // 完了
       job.status = 'completed';
@@ -158,9 +177,12 @@ export class ChunkedTranscriptionService {
   }
 
   /** 失敗または中断したジョブを途中から再開 */
-  async resumeChunkedTranscription(
-    jobId: string,
-  ): Promise<{ job: ChunkedTranscriptionJob; mergedWords: ElevenLabsWord[]; mergedText: string; languageCode: string }> {
+  async resumeChunkedTranscription(jobId: string): Promise<{
+    job: ChunkedTranscriptionJob;
+    mergedWords: ElevenLabsWord[];
+    mergedText: string;
+    languageCode: string;
+  }> {
     const job = await this.jobStore.findById(jobId);
     if (!job) {
       throw new Error(`ジョブが見つかりません: ${jobId}`);
@@ -213,7 +235,7 @@ export class ChunkedTranscriptionService {
       job.status = 'merging';
       await this.jobStore.save(job);
 
-      const { words, text, languageCode } = this.mergeChunkResults(job);
+      const { words, text, languageCode } = mergeChunkResults(job);
 
       job.status = 'completed';
       await this.jobStore.save(job);
@@ -305,12 +327,12 @@ export class ChunkedTranscriptionService {
 
       // タイムスタンプをチャンクの開始位置分オフセット
       const startTimeSec = i * job.chunkDurationSec;
-      const adjustedWords = this.adjustTimestamps(result.words, startTimeSec);
+      const adjustedWords = adjustTimestamps(result.words, startTimeSec);
 
       // 話者IDの統一（2チャンク目以降）
       const finalWords =
         i > 0 && job.completedChunks.length > 0
-          ? this.resolveSpeakerMapping(
+          ? resolveSpeakerMapping(
               job.completedChunks[job.completedChunks.length - 1].words,
               adjustedWords,
             )
@@ -337,153 +359,5 @@ export class ChunkedTranscriptionService {
         await sleep(INTER_CHUNK_DELAY_MS);
       }
     }
-  }
-
-  /** 単語のタイムスタンプをオフセット分調整 */
-  private adjustTimestamps(
-    words: ElevenLabsWord[],
-    offsetSec: number,
-  ): ElevenLabsWord[] {
-    if (offsetSec === 0) return words;
-    return words.map((w) => ({
-      ...w,
-      start: w.start + offsetSec,
-      end: w.end + offsetSec,
-    }));
-  }
-
-  /**
-   * 前チャンクの話者IDと現チャンクの話者IDの対応を解決する
-   * ElevenLabsはチャンクごとに独立して話者を割り当てるため、
-   * 前チャンクの末尾の話者と現チャンクの先頭の話者を比較して、
-   * 必要に応じてswapする
-   */
-  private resolveSpeakerMapping(
-    prevChunkWords: ElevenLabsWord[],
-    currentChunkWords: ElevenLabsWord[],
-  ): ElevenLabsWord[] {
-    // 前チャンクの末尾の話者を取得（spacing/audio_eventを除く）
-    const prevWordEntries = prevChunkWords.filter((w) => w.type === 'word');
-    const currentWordEntries = currentChunkWords.filter((w) => w.type === 'word');
-
-    if (prevWordEntries.length === 0 || currentWordEntries.length === 0) {
-      return currentChunkWords;
-    }
-
-    // 前チャンク末尾の話者ID
-    const prevLastSpeaker = prevWordEntries[prevWordEntries.length - 1].speaker_id;
-
-    // 現チャンク先頭の話者ID
-    const currentFirstSpeaker = currentWordEntries[0].speaker_id;
-
-    // ユニークな話者IDを収集
-    const currentSpeakers = [...new Set(currentWordEntries.map((w) => w.speaker_id))];
-
-    // 話者が1人だけの場合はswap不要
-    if (currentSpeakers.length <= 1) {
-      return currentChunkWords;
-    }
-
-    // 前チャンクの末尾の話者と現チャンクの先頭の話者が一致すれば
-    // そのままの対応でOK（同じ人が続けて話している想定）
-    // ただし、チャンク境界で話者が切り替わっている可能性もあるため、
-    // 末尾数個の単語を見て多数派の話者で判定する
-    const prevTailWords = prevWordEntries.slice(-20);
-    const prevTailSpeakers = prevTailWords.map((w) => w.speaker_id);
-    const prevDominantSpeaker = this.getMostFrequent(prevTailSpeakers);
-
-    const currentHeadWords = currentWordEntries.slice(0, 20);
-    const currentHeadSpeakers = currentHeadWords.map((w) => w.speaker_id);
-    const currentDominantSpeaker = this.getMostFrequent(currentHeadSpeakers);
-
-    // 前チャンク末尾で支配的な話者と、現チャンク先頭で支配的な話者が異なる場合、
-    // 話者が入れ替わっている可能性がある → swap
-    // ただし、実際には話者が切り替わった可能性もある
-    // ここでは「同じ話者が続いている」ことを仮定してswapを判定
-    if (prevDominantSpeaker === currentDominantSpeaker) {
-      // 同じID → 対応OK、swapなし
-      return currentChunkWords;
-    }
-
-    // IDが違うが、それが自然な割り当て違い（speaker_0 ↔ speaker_1の入れ替わり）か
-    // 実際の話者交替かを区別するのは困難
-    // ヒューリスティック: 前チャンク末尾と現チャンク先頭が連続する発話なら
-    // 同一話者のはず → swapが必要
-    // 時間的に連続しているかチェック（チャンク境界は通常連続）
-    const prevLastTime = prevWordEntries[prevWordEntries.length - 1].end;
-    const currentFirstTime = currentWordEntries[0].start;
-    const gapSec = currentFirstTime - prevLastTime;
-
-    // 5秒以内の間隔なら連続発話とみなし、swap実行
-    if (gapSec < 5) {
-      this.logger.log(
-        `話者IDスワップ実行: ${currentSpeakers[0]} ↔ ${currentSpeakers[1]} (間隔: ${gapSec.toFixed(1)}秒)`,
-      );
-      return this.swapSpeakerIds(currentChunkWords, currentSpeakers[0], currentSpeakers[1]);
-    }
-
-    return currentChunkWords;
-  }
-
-  /** 配列内で最も頻出する要素を返す */
-  private getMostFrequent(arr: string[]): string {
-    const counts = new Map<string, number>();
-    for (const item of arr) {
-      counts.set(item, (counts.get(item) || 0) + 1);
-    }
-    let maxCount = 0;
-    let maxItem = arr[0];
-    for (const [item, count] of counts) {
-      if (count > maxCount) {
-        maxCount = count;
-        maxItem = item;
-      }
-    }
-    return maxItem;
-  }
-
-  /** 2つの話者IDを入れ替える */
-  private swapSpeakerIds(
-    words: ElevenLabsWord[],
-    speakerA: string,
-    speakerB: string,
-  ): ElevenLabsWord[] {
-    return words.map((w) => ({
-      ...w,
-      speaker_id:
-        w.speaker_id === speakerA
-          ? speakerB
-          : w.speaker_id === speakerB
-            ? speakerA
-            : w.speaker_id,
-    }));
-  }
-
-  /** 全チャンクの結果をマージ */
-  private mergeChunkResults(job: ChunkedTranscriptionJob): {
-    words: ElevenLabsWord[];
-    text: string;
-    languageCode: string;
-  } {
-    const allWords: ElevenLabsWord[] = [];
-    const allTexts: string[] = [];
-    let languageCode = 'ja';
-
-    // チャンクをインデックス順にソート
-    const sortedChunks = [...job.completedChunks].sort(
-      (a, b) => a.index - b.index,
-    );
-
-    for (const chunk of sortedChunks) {
-      allWords.push(...chunk.words);
-      allTexts.push(chunk.text);
-      languageCode = chunk.languageCode;
-    }
-
-    return {
-      words: allWords,
-      text: allTexts.join(''),
-      languageCode,
-    };
   }
 }
