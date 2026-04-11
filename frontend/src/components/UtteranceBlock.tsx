@@ -9,6 +9,8 @@ interface Props {
   highlightedKeywords: Set<string>;
   wordIndexOffset: number;
   onWordClick: (globalIndex: number) => void;
+  clickable?: boolean;
+  onBlockClick?: () => void;
 }
 
 /** 時間を mm:ss 形式に変換 */
@@ -26,13 +28,16 @@ export function UtteranceBlock({
   highlightedKeywords,
   wordIndexOffset,
   onWordClick,
+  clickable,
+  onBlockClick,
 }: Props) {
   const borderColor = speaker?.color ?? '#6B7280';
 
   return (
     <div
-      className="utterance-block"
+      className={`utterance-block ${clickable ? 'clickable' : ''}`}
       style={{ borderLeftColor: borderColor }}
+      onClick={clickable ? onBlockClick : undefined}
     >
       <div className="utterance-header">
         <span
