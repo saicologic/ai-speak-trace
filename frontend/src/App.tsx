@@ -38,6 +38,7 @@ function App() {
   );
   const [page, setPage] = useState<Page>('main');
   const [filterActive, setFilterActive] = useState(false);
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const [contextSelectMode, setContextSelectMode] = useState(false);
   const [selectedUtteranceIndices, setSelectedUtteranceIndices] = useState<
@@ -138,6 +139,7 @@ function App() {
     setError(null);
     setHighlightedKeywords(new Set());
     setFilterActive(false);
+    setSelectedSpeakerId(null);
 
     try {
       const result = await fetchTranscription(id);
@@ -342,6 +344,7 @@ function App() {
                   transcription={transcription}
                   highlightedKeywords={highlightedKeywords}
                   filterActive={filterActive}
+                  selectedSpeakerId={selectedSpeakerId}
                   contextSelectMode={contextSelectMode}
                   selectedUtteranceIndices={selectedUtteranceIndices}
                   onToggleUtteranceSelection={toggleUtteranceSelection}
@@ -362,6 +365,9 @@ function App() {
               onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
               onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
               contextSelectMode={contextSelectMode}
+              speakers={transcription.speakers}
+              selectedSpeakerId={selectedSpeakerId}
+              onSpeakerFilterChange={setSelectedSpeakerId}
             />
           </aside>
         )}

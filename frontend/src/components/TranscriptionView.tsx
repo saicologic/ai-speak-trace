@@ -7,6 +7,7 @@ interface Props {
   transcription: Transcription;
   highlightedKeywords: Set<string>;
   filterActive: boolean;
+  selectedSpeakerId?: string | null;
   contextSelectMode?: boolean;
   selectedUtteranceIndices?: Set<number>;
   onToggleUtteranceSelection?: (index: number) => void;
@@ -17,6 +18,7 @@ export function TranscriptionView({
   transcription,
   highlightedKeywords,
   filterActive,
+  selectedSpeakerId,
   contextSelectMode,
   selectedUtteranceIndices,
   onToggleUtteranceSelection,
@@ -37,8 +39,16 @@ export function TranscriptionView({
 
   /** フィルター適用時に表示する発話を絞り込み */
   const displayUtterances = useMemo(() => {
+    // 話者フィルター → キーワードフィルターの順に適用
+    let base = transcription.utterances.map((utterance, i) => ({ utterance, index: i }));
+
+    // 話者フィルター
+    if (selectedSpeakerId) {
+      base = base.filter(({ utterance }) => utterance.speakerId === selectedSpeakerId);
+    }
+
     if (!filterActive || highlightedKeywords.size === 0) {
-      return transcription.utterances.map((utterance, i) => ({ utterance, index: i }));
+      return base;
     }
     // キーワードの各部分（スペース区切り・文字種境界）も展開して照合
     const expandedKeywords: string[] = [];
@@ -56,13 +66,11 @@ export function TranscriptionView({
         }
       }
     }
-    return transcription.utterances
-      .map((utterance, i) => ({ utterance, index: i }))
-      .filter(({ utterance }) => {
-        const text = utterance.text.toLowerCase();
-        return expandedKeywords.some((kw) => text.includes(kw));
-      });
-  }, [transcription.utterances, highlightedKeywords, filterActive]);
+    return base.filter(({ utterance }) => {
+      const text = utterance.text.toLowerCase();
+      return expandedKeywords.some((kw) => text.includes(kw));
+    });
+  }, [transcription.utterances, highlightedKeywords, filterActive, selectedSpeakerId]);
 
   // 各utteranceのword開始インデックスを計算（全utterance分）
   const wordOffsets = useMemo(() => {
@@ -88,7 +96,7 @@ export function TranscriptionView({
         </div>
       )}
 
-      {filterActive && highlightedKeywords.size > 0 && (
+      {(selectedSpeakerId || (filterActive && highlightedKeywords.size > 0)) && (
         <div className="filter-info">
           {displayUtterances.length}件の発話を表示中（全{transcription.utterances.length}件）
         </div>
