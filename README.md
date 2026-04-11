@@ -40,7 +40,6 @@ macOSにはPodcastアプリがプリインストールされています。エ�
 
 - [Podcastでエピソードを保存する/ダウンロードする（Mac）](https://support.apple.com/ja-jp/guide/podcasts/poda4f6be01/mac)
 - [Podcastユーザガイド（Mac）](https://support.apple.com/ja-jp/guide/podcasts/welcome/mac)
-- [iTunesでポッドキャストをダウンロードする（Windows）](https://support.apple.com/ja-jp/guide/itunes/itns3125/windows)
 
 > Podcastアプリが見つからない場合は、[App Store](https://apps.apple.com/jp/app/apple-podcasts/id525463029) から再インストールできます。
 
@@ -61,12 +60,9 @@ open ~/Library/Group\ Containers/243LU875E5.groups.com.apple.podcasts/Library/Ca
 open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 ```
 
-### 4. 文字起こしを実行
+### 4. 使い方
 
-1. `Applications` フォルダから `AI Speak Trace` をダブルクリックで起動
-2. 左サイドバーの「音声ファイルの文字起こし」をクリック
-3. 音声ファイルを選択し、クレジット残量を確認して「文字起こしを実行」
-4. 完了後、メイン画面に文字起こし結果が表示される
+セットアップが完了したら、[使い方](#使い方)に進んでください。
 
 ---
 
@@ -136,8 +132,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 | 起動直後に「サーバーに接続できません」と表示される | バックエンドの起動待ち中です。自動リトライされるので数秒お待ちください |
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
-| `EADDRINUSE: address already in use :::3100` | `npm run kill` を実行してから再起動してください。または `.env` の `BACKEND_PORT` を別のポートに変更してください |
-| `Port 5173 is already in use` | `npm run kill` を実行してから再起動してください。フロントエンド（Vite）のポートが占有されています |
+| `EADDRINUSE: address already in use :::3100` | ポート3100を使用中のプロセスを終了してから再起動してください: `lsof -ti :3100 \| xargs kill` |
+| `Port 5173 is already in use` | ポート5173を使用中のプロセスを終了してから再起動してください: `lsof -ti :5173 \| xargs kill` |
 | 長時間音声の文字起こし中に「Load failed」と表示される | WebViewのコネクションタイムアウトです。バックエンドは処理を継続しているため、進捗画面で完了を待つか、「中断中のジョブ」から再開してください |
 | 中断中のジョブが表示されない | 同じファイル名で完了済みの文字起こしがある場合、中断ジョブは自動的に非表示になります |
 
