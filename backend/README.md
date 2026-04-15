@@ -8,7 +8,7 @@
 |---------|------|-----------|
 | フレームワーク | NestJS | 11.x |
 | 言語 | TypeScript | 5.7.x |
-| 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/capabilities/speech-to-text) API | - |
+| 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/overview/capabilities/speech-to-text) API | - |
 | 会話分析 | [Claude API](https://docs.anthropic.com/ja/docs/welcome)（[Anthropic](https://www.anthropic.com/)） | - |
 | ストレージ | ローカルファイル | - |
 | テスト | Jest | 30.x |
@@ -19,6 +19,9 @@
 ### ElevenLabs API
 
 音声ファイルの文字起こしに使用しています。
+
+- [APIクイックスタート](https://elevenlabs.io/docs/eleven-api/quickstart)
+- [Speech to Text ドキュメント](https://elevenlabs.io/docs/overview/capabilities/speech-to-text)
 
 | エンドポイント | 用途 | APIリファレンス |
 |---|---|---|
