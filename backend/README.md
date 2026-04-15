@@ -34,9 +34,9 @@
 - [Messages API リファレンス](https://docs.anthropic.com/ja/api/messages)
 - [Web検索ツール](https://docs.anthropic.com/ja/docs/agents-and-tools/tool-use/web-search-tool)
 
-| エンドポイント | 用途 |
-|---|---|
-| `POST /v1/messages` | 質問生成・会話分析・ディープサーチ（Web検索ツール併用あり） |
+| エンドポイント | 用途 | APIリファレンス |
+|---|---|---|
+| `POST /v1/messages` | 質問生成・会話分析・ディープサーチ（Web検索ツール併用あり） | [Messages](https://docs.anthropic.com/ja/api/messages) |
 
 ## セットアップ
 
