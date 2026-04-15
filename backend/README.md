@@ -8,11 +8,37 @@
 |---------|------|-----------|
 | フレームワーク | NestJS | 11.x |
 | 言語 | TypeScript | 5.7.x |
-| 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/capabilities/speech-to-text) API | - |
+| 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/overview/capabilities/speech-to-text) API | - |
 | 会話分析 | [Claude API](https://docs.anthropic.com/ja/docs/welcome)（[Anthropic](https://www.anthropic.com/)） | - |
 | ストレージ | ローカルファイル | - |
 | テスト | Jest | 30.x |
 | リンター | ESLint + Prettier | - |
+
+## 利用しているAPI
+
+### ElevenLabs API
+
+音声ファイルの文字起こしに使用しています。
+
+- [APIクイックスタート](https://elevenlabs.io/docs/eleven-api/quickstart)
+- [Speech to Text ドキュメント](https://elevenlabs.io/docs/overview/capabilities/speech-to-text)
+
+| エンドポイント | 用途 | APIリファレンス |
+|---|---|---|
+| `POST /v1/speech-to-text` | 音声ファイルの文字起こし（Scribe v2） | [Convert](https://elevenlabs.io/docs/api-reference/speech-to-text/convert) |
+| `GET /v1/user/subscription` | クレジット残量の確認 | [Subscription](https://elevenlabs.io/docs/api-reference/user/subscription) |
+| `GET /v1/speech-to-text/transcripts/{id}` | 文字起こしステータスの確認 | [Get Transcript](https://elevenlabs.io/docs/api-reference/speech-to-text/get) |
+
+### Claude API（Anthropic）
+
+会話分析・質問生成・ディープサーチに使用しています。
+
+- [APIドキュメント](https://docs.anthropic.com/ja/docs/welcome)
+- [Web検索ツール](https://docs.anthropic.com/ja/docs/agents-and-tools/tool-use/web-search-tool)
+
+| エンドポイント | 用途 | APIリファレンス |
+|---|---|---|
+| `POST /v1/messages` | 質問生成・会話分析・ディープサーチ（Web検索ツール併用あり） | [Messages](https://docs.anthropic.com/ja/api/messages) |
 
 ## セットアップ
 

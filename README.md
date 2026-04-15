@@ -25,10 +25,21 @@ xattr -cr /Applications/AI\ Speak\ Trace.app
 
 | キー | 用途 | 取得先 |
 |---|---|---|
-| ElevenLabs APIキー | 音声の文字起こし | https://elevenlabs.io |
-| Anthropic APIキー | 会話分析・質問生成 | https://console.anthropic.com |
+| ElevenLabs | 音声の文字起こし | https://elevenlabs.io/app/developers/api-keys |
+| Anthropic | 会話分析・質問生成 | https://console.anthropic.com |
 
 アプリ内の「設定」画面からAPIキーを設定してください。保存後すぐに反映されるため、アプリの再起動は不要です。
+
+#### ElevenLabs APIキーのアクセス制限
+
+**アクセスが必要な項目:**
+
+| スコープ | 設定 | 理由 |
+|---|---|---|
+| スピーチ to テキスト | アクセス | 音声の文字起こし・ステータス確認に必要 |
+| ユーザー | 読み取り | クレジット残量確認に必要 |
+
+上記以外のスコープ（テキスト読み上げ、サウンドエフェクト、ボイス等）は全て「アクセスなし」に設定してください。
 
 ### 3. 音声ファイルの準備
 
