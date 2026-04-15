@@ -34,7 +34,6 @@
 会話分析・質問生成・ディープサーチに使用しています。
 
 - [APIドキュメント](https://docs.anthropic.com/ja/docs/welcome)
-- [Messages API リファレンス](https://docs.anthropic.com/ja/api/messages)
 - [Web検索ツール](https://docs.anthropic.com/ja/docs/agents-and-tools/tool-use/web-search-tool)
 
 | エンドポイント | 用途 | APIリファレンス |
