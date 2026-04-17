@@ -81,12 +81,20 @@ gh run list --workflow=release.yml --limit 5
 
 ### 方法1: GitHub CLI（おすすめ）
 
+以下の例ではRun ID `24564915750` を使用しています。実際のRun IDに置き換えてください。
+
 ```bash
-# 例: Run IDが24564915750の場合
 gh run download 24564915750 -n dmg -D ./dmg-download
 ```
 
 `./dmg-download/` にdmgファイルがダウンロードされます。
+
+※ ワークフローが実行中の場合は `no valid artifacts found to download` エラーになります。
+以下のコマンドで完了を待ってからダウンロードしてください。
+
+```bash
+gh run watch 24564915750 --exit-status
+```
 
 ### 方法2: ブラウザ
 
