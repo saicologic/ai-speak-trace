@@ -2,7 +2,7 @@
 
 ## 前提条件
 
-- Node.js 20以上
+- Node.js（`.nvmrc` で指定されたバージョン。`nvm use` で切り替え可能）
 - npm
 - Rust（`rustup` でインストール）
 - ElevenLabs APIキー
@@ -58,6 +58,44 @@ npm run build
 ```
 
 生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
+
+## CIで生成したdmgのダウンロード
+
+GitHub Actionsで生成されたdmgをダウンロードして動作確認できます。
+
+### Run IDの取得
+
+dmgのダウンロードにはワークフローのRun IDが必要です。以下のコマンドで確認できます。
+
+```bash
+gh run list --workflow=release.yml --limit 5
+```
+
+出力例の右から2番目の数値がRun IDです。
+
+```
+completed  success  ci: ...  Release  ci/release-workflow  push  24564915750  3m4s  2026-04-17T12:25:00Z
+                                                                              ^^^^^^^^^^^
+                                                                              これがRun ID
+```
+
+### 方法1: GitHub CLI（おすすめ）
+
+```bash
+gh run download <Run ID> --name dmg --dir ./dmg-download
+```
+
+`./dmg-download/` にdmgファイルがダウンロードされます。
+
+### 方法2: ブラウザ
+
+1. `https://github.com/saicologic/ai-speak-trace/actions/runs/<Run ID>` を開く
+2. ページ最下部（ジョブのログよりさらに下）までスクロール
+3. 「Artifacts」セクションから `dmg` をダウンロード
+
+※ 「Artifacts」セクションはページの一番下にあり、見逃しやすい位置です。
+
+※ コード署名なしのため、初回起動時に「システム設定 > プライバシーとセキュリティ」で許可が必要です。
 
 ## プロダクションビルドのデバッグ
 
