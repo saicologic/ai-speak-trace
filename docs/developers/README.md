@@ -90,7 +90,7 @@ gh run download 24564915750 --name dmg --dir ./dmg-download
 
 ### 方法2: ブラウザ
 
-1. `https://github.com/saicologic/ai-speak-trace/actions/runs/<Run ID>` を開く
+1. 例: Run IDが24564915750の場合、`https://github.com/saicologic/ai-speak-trace/actions/runs/24564915750` を開く
 2. ページ最下部（ジョブのログよりさらに下）までスクロール
 3. 「Artifacts」セクションから `dmg` をダウンロード
 
