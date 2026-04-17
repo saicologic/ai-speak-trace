@@ -19,13 +19,13 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "pkg": "npm run build && pkg .",
-    "pkg:mac-arm64": "npm run build && pkg . --targets node20-macos-arm64 --output ../src-tauri/binaries/nestjs-server-aarch64-apple-darwin",
-    "pkg:mac-x64": "npm run build && pkg . --targets node20-macos-x64 --output ../src-tauri/binaries/nestjs-server-x86_64-apple-darwin"
+    "pkg:mac-arm64": "npm run build && pkg . --targets node22-macos-arm64 --output ../src-tauri/binaries/nestjs-server-aarch64-apple-darwin",
+    "pkg:mac-x64": "npm run build && pkg . --targets node22-macos-x64 --output ../src-tauri/binaries/nestjs-server-x86_64-apple-darwin"
   },
   "pkg": {
     "scripts": "dist/**/*.js",
     "assets": [],
-    "targets": ["node20-macos-arm64"],
+    "targets": ["node22-macos-arm64"],
     "outputPath": "../src-tauri/binaries"
   },
   "bin": "dist/main.js",
