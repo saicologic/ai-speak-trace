@@ -82,7 +82,8 @@ gh run list --workflow=release.yml --limit 5
 ### 方法1: GitHub CLI（おすすめ）
 
 ```bash
-gh run download <Run ID> --name dmg --dir ./dmg-download
+# 例: Run IDが24564915750の場合
+gh run download 24564915750 --name dmg --dir ./dmg-download
 ```
 
 `./dmg-download/` にdmgファイルがダウンロードされます。
