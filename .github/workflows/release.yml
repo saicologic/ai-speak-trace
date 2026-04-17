@@ -52,7 +52,7 @@ jobs:
 
       # 動作確認用（タグなしでもdmgをダウンロード可能にする）
       - name: dmgアーティファクトをアップロード
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dmg
           path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
