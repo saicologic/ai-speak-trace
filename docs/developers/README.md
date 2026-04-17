@@ -71,13 +71,13 @@ dmgのダウンロードにはワークフローのRun IDが必要です。以�
 gh run list --workflow=release.yml --limit 5
 ```
 
-出力例の右から2番目の数値がRun IDです。
+出力の各列の意味:
 
-```
-completed  success  ci: ...  Release  ci/release-workflow  push  24564915750  3m4s  2026-04-17T12:25:00Z
-                                                                              ^^^^^^^^^^^
-                                                                              これがRun ID
-```
+| STATUS | RESULT | TITLE | WORKFLOW | BRANCH | EVENT | **RUN ID** | DURATION | DATE |
+|---|---|---|---|---|---|---|---|---|
+| completed | success | ci: ... | Release | ci/release-workflow | push | **24564915750** | 3m4s | 2026-04-17 |
+
+`RUN ID` の列の数値を使用します。
 
 ### 方法1: GitHub CLI（おすすめ）
 
