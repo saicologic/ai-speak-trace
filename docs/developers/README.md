@@ -83,7 +83,7 @@ gh run list --workflow=release.yml --limit 5
 
 ```bash
 # 例: Run IDが24564915750の場合
-gh run download 24564915750 --name dmg --dir ./dmg-download
+gh run download 24564915750 -n dmg -D ./dmg-download
 ```
 
 `./dmg-download/` にdmgファイルがダウンロードされます。
