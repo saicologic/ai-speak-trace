@@ -2,7 +2,7 @@
 
 ## 前提条件
 
-- Node.js 20以上
+- Node.js（`.nvmrc` で指定されたバージョン。`nvm use` で切り替え可能）
 - npm
 - Rust（`rustup` でインストール）
 - ElevenLabs APIキー
@@ -58,6 +58,53 @@ npm run build
 ```
 
 生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
+
+## CIで生成したdmgのダウンロード
+
+GitHub Actionsで生成されたdmgをダウンロードして動作確認できます。
+
+### Run IDの取得
+
+dmgのダウンロードにはワークフローのRun IDが必要です。以下のコマンドで確認できます。
+
+```bash
+gh run list --workflow=release.yml --limit 5
+```
+
+出力の各列の意味:
+
+| STATUS | RESULT | TITLE | WORKFLOW | BRANCH | EVENT | **RUN ID** | DURATION | DATE |
+|---|---|---|---|---|---|---|---|---|
+| completed | success | ci: ... | Release | ci/release-workflow | push | **24564915750** | 3m4s | 2026-04-17 |
+
+`RUN ID` の列の数値を使用します。
+
+### 方法1: GitHub CLI（おすすめ）
+
+以下の例ではRun ID `24564915750` を使用しています。実際のRun IDに置き換えてください。
+
+```bash
+gh run download 24564915750 -n dmg -D ./dmg-download
+```
+
+`./dmg-download/` にdmgファイルがダウンロードされます。
+
+※ ワークフローが実行中の場合は `no valid artifacts found to download` エラーになります。
+以下のコマンドで完了を待ってからダウンロードしてください。
+
+```bash
+gh run watch 24564915750 --exit-status
+```
+
+### 方法2: ブラウザ
+
+1. 例: Run IDが24564915750の場合、`https://github.com/saicologic/ai-speak-trace/actions/runs/24564915750` を開く
+2. ページ最下部（ジョブのログよりさらに下）までスクロール
+3. 「Artifacts」セクションから `dmg` をダウンロード
+
+※ 「Artifacts」セクションはページの一番下にあり、見逃しやすい位置です。
+
+※ コード署名なしのため、初回起動時に「システム設定 > プライバシーとセキュリティ」で許可が必要です。
 
 ## プロダクションビルドのデバッグ
 
