@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - 'ci/release-workflow'  # 動作確認用（確認後に削除）
   workflow_dispatch:
 
 jobs:
