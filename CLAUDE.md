@@ -99,7 +99,7 @@ ai-speak-trace/
 
 ## PRテストプラン
 
-PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と手動確認項目を記載する。ブランチ種別に応じたテンプレートは各スキルを参照:
+PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と手動確認項目を記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。ブランチ種別に応じたテンプレートは各スキルを参照:
 
 - release/* → `/release`
 - fix/*, feature/* → `/fix-issue`

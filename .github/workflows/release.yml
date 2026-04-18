@@ -50,14 +50,15 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
-          releaseBody: 'dmgファイルをダウンロードしてインストールしてください。'
+          releaseBody: 'zipファイルをダウンロードして解凍し、アプリケーションフォルダに配置してください。'
           releaseDraft: false
           prerelease: false
           args: '--target aarch64-apple-darwin'
 
-      # 動作確認用（タグなしでもdmgをダウンロード可能にする）
-      - name: dmgアーティファクトをアップロード
-        uses: actions/upload-artifact@v6
-        with:
-          name: dmg
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+      # dmg生成を一時的に無効化（ONに戻す場合はtauri.conf.jsonのtargetsを"all"に戻し、以下のコメントを解除）
+      # # 動作確認用（タグなしでもdmgをダウンロード可能にする）
+      # - name: dmgアーティファクトをアップロード
+      #   uses: actions/upload-artifact@v6
+      #   with:
+      #     name: dmg
+      #     path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg

@@ -6,17 +6,21 @@
 
 ### 1. インストール
 
-[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `AI.Speak.Trace.dmg` をダウンロードしてください。
+[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `.app.tar.gz` ファイルをダウンロードしてください。
 
-1. ダウンロードした `AI.Speak.Trace.dmg` をダブルクリックで開く
-2. `AI Speak Trace.app` を `Applications` フォルダにドラッグ&ドロップ
-3. コード署名されていないアプリのため、初回起動前にターミナルで以下を実行:
+1. ターミナルで以下を実行してインストール:
 
 ```bash
+# ダウンロードしたファイルを展開してApplicationsフォルダに配置
+tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
+
+# macOS Gatekeeperの制限を解除
 xattr -cr /Applications/AI\ Speak\ Trace.app
 ```
 
-> **なぜこの操作が必要？**
+2. Launchpadまたは `Applications` フォルダからアプリを起動
+
+> **なぜ `xattr -cr` が必要？**
 > macOS Gatekeeper がコード署名のないアプリをブロックするため、手動で制限を解除する必要があります。
 
 ### 2. 初期設定
