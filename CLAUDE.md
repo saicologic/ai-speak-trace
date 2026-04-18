@@ -99,44 +99,8 @@ ai-speak-trace/
 
 ## PRテストプラン
 
-PRのTest planは以下の形式で記載する。PRのブランチ種別と変更内容に応じて適切なテンプレートを使用する。
+PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と手動確認項目を記載する。ブランチ種別に応じたテンプレートは各スキルを参照:
 
-### release/* ブランチの場合
-
-リリースPRでは、CI自動チェックとビルド確認、リリース内容の一覧を記載する。
-
-```markdown
-## Test plan
-
-### CI自動チェック（PRのChecksタブで確認）
-- [ ] `backend-test` がパスしていること
-- [ ] `frontend-test` がパスしていること
-
-### 手動確認
-- [ ] `npm run build` でビルドが成功すること
-- [ ] リリースに含まれる変更が正しいこと
-```
-
-### 個別ブランチ（feature/*, fix/* 等）の場合
-
-機能追加・バグ修正のPRでは、CI自動チェックと変更内容に応じた確認項目を記載する。
-
-```markdown
-## Test plan
-
-### CI自動チェック（PRのChecksタブで確認）
-- [ ] `backend-test` がパスしていること
-- [ ] `frontend-test` がパスしていること
-
-### 手動確認
-- [ ] （変更内容に応じた確認項目を記載）
-```
-
-### 脆弱性対応の場合
-
-```markdown
-## Test plan
-
-- [ ] `cd backend && npm audit` で脆弱性が0件であること
-- [ ] `cd frontend && npm audit` で脆弱性が0件であること
-```
+- release/* → `/release`
+- fix/*, feature/* → `/fix-issue`
+- 脆弱性対応 → `/audit`
