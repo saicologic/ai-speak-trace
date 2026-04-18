@@ -59,52 +59,55 @@ npm run build
 
 生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
 
-## CIで生成したdmgのダウンロード
+## リリースビルドの実行
 
-GitHub Actionsで生成されたdmgをダウンロードして動作確認できます。
+GitHub Releasesで配布されるSource code (zip)からビルドして実行できます。
 
-### Run IDの取得
+※ コード署名を行っていないため、dmgではなくソースコードからのビルドを推奨しています。
 
-dmgのダウンロードにはワークフローのRun IDが必要です。以下のコマンドで確認できます。
+### 1. Source codeのダウンロード
 
-```bash
-gh run list --workflow=release.yml --limit 5
-```
-
-出力の各列の意味:
-
-| STATUS | RESULT | TITLE | WORKFLOW | BRANCH | EVENT | **RUN ID** | DURATION | DATE |
-|---|---|---|---|---|---|---|---|---|
-| completed | success | ci: ... | Release | ci/release-workflow | push | **24564915750** | 3m4s | 2026-04-17 |
-
-`RUN ID` の列の数値を使用します。
-
-### 方法1: GitHub CLI（おすすめ）
-
-以下の例ではRun ID `24564915750` を使用しています。実際のRun IDに置き換えてください。
+[Releases](https://github.com/saicologic/ai-speak-trace/releases) ページから最新バージョンの「Source code (zip)」をダウンロードし、展開します。
 
 ```bash
-gh run download 24564915750 -n dmg -D ./dmg-download
+# または GitHub CLI でダウンロード
+gh release download v0.5.0 --repo saicologic/ai-speak-trace --archive zip
+unzip ai-speak-trace-0.5.0.zip
+cd ai-speak-trace-0.5.0
 ```
 
-`./dmg-download/` にdmgファイルがダウンロードされます。
-
-※ ワークフローが実行中の場合は `no valid artifacts found to download` エラーになります。
-以下のコマンドで完了を待ってからダウンロードしてください。
+### 2. セットアップとビルド
 
 ```bash
-gh run watch 24564915750 --exit-status
+# Node.jsバージョンを合わせる
+nvm use
+
+# 依存関係のインストール
+npm install
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# プロダクションビルド
+npm run build
 ```
 
-### 方法2: ブラウザ
+### 3. アプリの起動
 
-1. 例: Run IDが24564915750の場合、`https://github.com/saicologic/ai-speak-trace/actions/runs/24564915750` を開く
-2. ページ最下部（ジョブのログよりさらに下）までスクロール
-3. 「Artifacts」セクションから `dmg` をダウンロード
+ビルド完了後、以下のいずれかの方法で起動できます。
 
-※ 「Artifacts」セクションはページの一番下にあり、見逃しやすい位置です。
+**方法1: dmgからインストール**
 
-※ コード署名なしのため、初回起動時に「システム設定 > プライバシーとセキュリティ」で許可が必要です。
+```bash
+open src-tauri/target/release/bundle/dmg/*.dmg
+```
+
+初回起動時に「システム設定 > プライバシーとセキュリティ」で許可が必要です。
+
+**方法2: 直接実行**
+
+```bash
+./src-tauri/target/release/bundle/macos/AI\ Speak\ Trace.app/Contents/MacOS/ai-speak-trace
+```
 
 ## プロダクションビルドのデバッグ
 
@@ -165,3 +168,84 @@ ai-speak-trace/
         ├── documents/            # PDFファイルの保存先
         └── document-metadata/    # PDFメタデータの保存先
 ```
+
+## Claude Code スキル
+
+開発ワークフローを効率化するClaude Codeスキルが利用できます。
+
+### スラッシュコマンド一覧
+
+| コマンド | 説明 | 引数 |
+|---|---|---|
+| `/test` | テスト実行 | `backend` / `frontend` / なし（両方） |
+| `/build` | ビルド確認 | なし |
+| `/audit` | npm脆弱性チェック | なし |
+| `/pr` | PRサマリー生成 | なし |
+| `/release` | リリースPR作成 | バージョン（例: `v0.6.0`） |
+| `/fix-issue` | Issue修正フロー | Issue番号（例: `42`） |
+| `/research` | コードベース調査 | 調査トピック |
+
+### 使用例
+
+**テスト**
+```
+/test
+/test backend
+/test frontend
+```
+
+**ビルド確認**
+```
+/build
+```
+
+**脆弱性チェック**
+```
+/audit
+```
+
+**PRサマリー生成**
+```
+/pr
+```
+
+**リリースPR作成**
+```
+/release v0.6.0
+```
+
+**Issue修正**
+```
+/fix-issue 42
+```
+
+**コードベース調査**
+
+複数ファイルにまたがる実装の全体像を把握したいときに使います。
+Glob/Grepによる関連ファイルの検索、コードの読み込み、依存関係の追跡を自動で行い、構造化されたレポートを生成します。
+
+ユースケース:
+- 新機能追加前に、関連する既存コードの把握
+- バグ修正時に、データフローや影響範囲の特定
+- 特定機能の実装パターンやアーキテクチャの理解
+
+```
+/research 話者分離の処理フロー
+/research ElevenLabs APIの呼び出し箇所
+/research フロントエンドの状態管理
+```
+
+レポート形式:
+1. 概要 — 調査トピックの全体像
+2. 関連ファイル — ファイルパスと役割の一覧
+3. 実装の詳細 — コードの動作や設計パターン
+4. 依存関係 — 他のモジュールとの関係
+5. 注意点 — 改善の余地やリスク
+
+### 自動適用スキル
+
+以下のスキルはスラッシュコマンドではなく、対象ファイルの編集時に自動的に適用されます。
+
+| スキル | 対象 | 説明 |
+|---|---|---|
+| `api-conventions` | `backend/src/**` | NestJSのモジュール構成・設計規約 |
