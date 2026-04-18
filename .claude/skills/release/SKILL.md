@@ -1,6 +1,6 @@
 ---
 name: release
-description: リリースPR作成。release/*ブランチからmainへのPRを、テストプランテンプレート付きで作成する
+description: リリースPR作成。リリースブランチからmainへのPRをテストプラン付きで作成する際に使用
 disable-model-invocation: true
 argument-hint: <version>
 allowed-tools: Bash(git *) Bash(gh *)

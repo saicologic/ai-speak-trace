@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: GitHub Issueの修正フロー。fix/ブランチ作成から修正、テスト実行、PR作成まで一連の流れを実行する
+description: GitHub Issueの修正フロー。fix/ブランチ作成から修正、テスト、PR作成まで一連の流れを実行する際に使用
 disable-model-invocation: true
 argument-hint: <issue-number>
 allowed-tools: Bash(git *) Bash(gh *) Bash(cd backend *) Bash(cd frontend *)

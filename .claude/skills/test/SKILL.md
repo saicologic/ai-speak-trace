@@ -1,8 +1,8 @@
 ---
 name: test
-description: backend(Jest)/frontend(Vitest)のテスト実行。引数なしで全体、backend/frontendで個別実行
+description: backend(Jest)/frontend(Vitest)のテスト実行。コード変更後の動作確認やPR作成前の検証時に使用
 disable-model-invocation: true
-argument-hint: [backend|frontend]
+argument-hint: "[backend|frontend]"
 allowed-tools: Bash(cd backend *) Bash(cd frontend *)
 ---
 

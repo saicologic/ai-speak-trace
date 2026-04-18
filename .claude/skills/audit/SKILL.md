@@ -1,6 +1,6 @@
 ---
 name: audit
-description: backendとfrontendのnpm脆弱性チェック。重大度別のレポートと修正提案を行う
+description: npm脆弱性チェックと修正提案。依存パッケージ更新時やセキュリティ確認時に使用
 disable-model-invocation: true
 allowed-tools: Bash(cd backend *) Bash(cd frontend *)
 ---

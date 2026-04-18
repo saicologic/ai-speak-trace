@@ -1,6 +1,6 @@
 ---
 name: build
-description: backend(NestJS)/frontend(Vite)のビルド確認。ビルドエラーの検出と報告を行う
+description: backend(NestJS)/frontend(Vite)のビルド確認。リリース前やCI失敗時の原因調査に使用
 disable-model-invocation: true
 allowed-tools: Bash(cd backend *) Bash(cd frontend *)
 ---

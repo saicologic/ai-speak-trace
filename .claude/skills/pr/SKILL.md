@@ -1,6 +1,6 @@
 ---
 name: pr
-description: 現在のPRの差分・コメントを取得し、変更内容のサマリーを生成する。PRレビュー前の確認やPR説明文の作成に使用
+description: PRの差分を分析しサマリーを生成。PRレビュー前の確認やPR説明文の作成時に使用
 disable-model-invocation: true
 context: fork
 agent: Explore

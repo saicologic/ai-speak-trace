@@ -1,6 +1,6 @@
 ---
 name: research
-description: コードベースの特定トピックを深く調査する。アーキテクチャ理解、依存関係の調査、実装パターンの分析に使用
+description: コードベースの特定トピックを深く調査。アーキテクチャ理解や依存関係の調査時に使用
 disable-model-invocation: true
 context: fork
 agent: Explore
