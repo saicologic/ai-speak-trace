@@ -154,20 +154,18 @@ describe('mergeWordsIntoPhrases', () => {
   });
 });
 
+// ElevenLabs Scribe v2の話者分離は最大32人まで対応
+// @see https://elevenlabs.io/docs/capabilities/speech-to-text
 describe('generateSpeakerName', () => {
-  it('インデックス0〜2でA〜Cさんを返す', () => {
+  it('インデックスからアルファベット順の話者名を返す', () => {
     expect(generateSpeakerName(0)).toBe('Aさん');
-    expect(generateSpeakerName(1)).toBe('Bさん');
     expect(generateSpeakerName(2)).toBe('Cさん');
+    expect(generateSpeakerName(4)).toBe('Eさん');
   });
 
-  it('インデックス25でZさんを返す', () => {
+  it('API上限の32人目まで対応する', () => {
     expect(generateSpeakerName(25)).toBe('Zさん');
-  });
-
-  it('インデックス26以上でAA、ABさんを返す', () => {
-    expect(generateSpeakerName(26)).toBe('AAさん');
-    expect(generateSpeakerName(27)).toBe('ABさん');
+    expect(generateSpeakerName(31)).toBe('AFさん');
   });
 });
 

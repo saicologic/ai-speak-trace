@@ -5,7 +5,11 @@ import {
 } from './types/transcription.types';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 
-/** インデックスからアルファベット順の話者名を生成する */
+/**
+ * インデックスからアルファベット順の話者名を生成する
+ * ElevenLabs Scribe v2の話者分離は最大32人まで対応
+ * @see https://elevenlabs.io/docs/capabilities/speech-to-text
+ */
 export function generateSpeakerName(index: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (index < 26) {
