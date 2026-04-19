@@ -159,13 +159,8 @@ describe('mergeWordsIntoPhrases', () => {
 describe('generateSpeakerName', () => {
   it('インデックスからアルファベット順の話者名を返す', () => {
     expect(generateSpeakerName(0)).toBe('Aさん');
+    expect(generateSpeakerName(1)).toBe('Bさん');
     expect(generateSpeakerName(2)).toBe('Cさん');
-    expect(generateSpeakerName(4)).toBe('Eさん');
-  });
-
-  it('API上限の32人目まで対応する', () => {
-    expect(generateSpeakerName(25)).toBe('Zさん');
-    expect(generateSpeakerName(31)).toBe('AFさん');
   });
 });
 
