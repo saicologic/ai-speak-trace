@@ -90,10 +90,12 @@ export function resolveSpeakerMapping(
   const gapSec = currentFirstTime - prevLastTime;
 
   if (gapSec < 5) {
+    // 前チャンクの支配的話者が現チャンクでは別IDに割り当てられている
+    // → currentDominantSpeaker と prevDominantSpeaker をswapする
     return swapSpeakerIds(
       currentChunkWords,
-      currentSpeakers[0],
-      currentSpeakers[1],
+      currentDominantSpeaker,
+      prevDominantSpeaker,
     );
   }
 
