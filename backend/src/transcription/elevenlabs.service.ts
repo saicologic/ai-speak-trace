@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ElevenLabsCreditInfo, ElevenLabsResponse } from './types/elevenlabs.types';
+import {
+  ElevenLabsCreditInfo,
+  ElevenLabsResponse,
+} from './types/elevenlabs.types';
 
 /** 全体のタイムアウト（ミリ秒）: 30分
  * ElevenLabsはリアルタイムの20〜50倍速で処理するため、
@@ -47,7 +50,6 @@ export class ElevenLabsService {
     form.append('model_id', 'scribe_v2');
     form.append('language_code', 'ja');
     form.append('diarize', 'true');
-    form.append('num_speakers', '2');
     form.append('timestamps_granularity', 'word');
     form.append('tag_audio_events', 'true');
 
@@ -55,7 +57,9 @@ export class ElevenLabsService {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    this.logger.log(`ElevenLabs API リクエスト送信 (タイムアウト: ${TIMEOUT_MS / 60000}分)`);
+    this.logger.log(
+      `ElevenLabs API リクエスト送信 (タイムアウト: ${TIMEOUT_MS / 60000}分)`,
+    );
 
     let response: Response;
     try {
@@ -69,7 +73,9 @@ export class ElevenLabsService {
       clearTimeout(timeoutId);
       // AbortErrorはタイムアウトとして処理
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        this.logger.error(`文字起こしタイムアウト: ${TIMEOUT_MS / 60000}分を超過 (${fileName})`);
+        this.logger.error(
+          `文字起こしタイムアウト: ${TIMEOUT_MS / 60000}分を超過 (${fileName})`,
+        );
         const error = new Error(
           `文字起こしがタイムアウトしました（${TIMEOUT_MS / 60000}分経過）。音声ファイルが大きすぎる可能性があります。`,
         );
@@ -86,7 +92,9 @@ export class ElevenLabsService {
       clearTimeout(timeoutId);
     }
 
-    this.logger.log(`ElevenLabs API レスポンス受信: status=${response.status} (${elapsedSec()}秒)`);
+    this.logger.log(
+      `ElevenLabs API レスポンス受信: status=${response.status} (${elapsedSec()}秒)`,
+    );
 
     if (!response.ok) {
       await this.handleErrorResponse(response);
@@ -127,7 +135,11 @@ export class ElevenLabsService {
       );
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      character_count?: number;
+      character_limit?: number;
+      next_character_count_reset_unix?: number;
+    };
     const characterCount: number = data.character_count ?? 0;
     const characterLimit: number = data.character_limit ?? 0;
     const nextResetUnix: number = data.next_character_count_reset_unix ?? 0;
@@ -145,15 +157,15 @@ export class ElevenLabsService {
   /** エラーレスポンスを解析してスローする */
   private async handleErrorResponse(response: Response): Promise<never> {
     const errorBody = await response.text();
-    this.logger.error(
-      `ElevenLabs API エラー: ${response.status} ${errorBody}`,
-    );
+    this.logger.error(`ElevenLabs API エラー: ${response.status} ${errorBody}`);
 
     // クォータ超過をチェック（401レスポンスにquota_exceededが含まれる場合）
     if (errorBody.includes('quota_exceeded')) {
       let detail = '';
       try {
-        const parsed = JSON.parse(errorBody);
+        const parsed = JSON.parse(errorBody) as {
+          detail?: { message?: string };
+        };
         const msg: string = parsed?.detail?.message ?? '';
         const quota = msg.match(/quota of (\d+)/)?.[1];
         const remaining = msg.match(/have (\d+) credits remaining/)?.[1];
@@ -214,17 +226,20 @@ export class ElevenLabsService {
 
       if (response.ok) {
         // 200: 完了（トランスクリプトデータを取得できた）
-        const data = await response.json();
+        const data = (await response.json()) as Record<string, unknown>;
         this.logger.log(`文字起こし完了: ${transcriptionId}`);
         return { status: 'completed', data };
       }
 
       if (response.status === 404) {
         // 404: トランスクリプトが存在しない（削除済みまたは無効なID）
-        this.logger.warn(`トランスクリプトが見つかりません: ${transcriptionId}`);
+        this.logger.warn(
+          `トランスクリプトが見つかりません: ${transcriptionId}`,
+        );
         return {
           status: 'error',
-          error_message: 'トランスクリプトが見つかりません（削除済みまたは無効なID）',
+          error_message:
+            'トランスクリプトが見つかりません（削除済みまたは無効なID）',
         };
       }
 
@@ -248,7 +263,8 @@ export class ElevenLabsService {
         error_message: `ElevenLabs API エラー (${response.status})`,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(`文字起こしステータス確認失敗: ${errorMessage}`);
       return {
         status: 'error',

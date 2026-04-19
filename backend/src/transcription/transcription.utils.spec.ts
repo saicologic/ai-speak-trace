@@ -4,6 +4,7 @@ import {
   buildSpeakers,
   groupWordsIntoUtterances,
   convertWords,
+  generateSpeakerName,
 } from './transcription.utils';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 
@@ -153,6 +154,16 @@ describe('mergeWordsIntoPhrases', () => {
   });
 });
 
+// ElevenLabs Scribe v2の話者分離は最大32人まで対応
+// @see https://elevenlabs.io/docs/capabilities/speech-to-text
+describe('generateSpeakerName', () => {
+  it('インデックスからアルファベット順の話者名を返す', () => {
+    expect(generateSpeakerName(0)).toBe('Aさん');
+    expect(generateSpeakerName(1)).toBe('Bさん');
+    expect(generateSpeakerName(2)).toBe('Cさん');
+  });
+});
+
 describe('buildSpeakers', () => {
   it('空配列から空の話者リストを返す', () => {
     expect(buildSpeakers([])).toEqual([]);
@@ -182,7 +193,7 @@ describe('buildSpeakers', () => {
     expect(speakers[1].color).toBe('#EF4444');
   });
 
-  it('3人以上の話者にはフォールバック名・色を割り当てる', () => {
+  it('3人以上の話者にもアルファベット順の名前を割り当てる', () => {
     const words = [
       word('あ', 0, 0.1, 'speaker_0'),
       word('い', 0.1, 0.2, 'speaker_1'),
@@ -190,8 +201,8 @@ describe('buildSpeakers', () => {
     ];
     const speakers = buildSpeakers(words);
     expect(speakers).toHaveLength(3);
-    expect(speakers[2].name).toBe('話者3');
-    expect(speakers[2].color).toBe('#6B7280');
+    expect(speakers[2].name).toBe('Cさん');
+    expect(speakers[2].color).toBe('#10B981');
   });
 
   it('話者IDをソート順で返す', () => {

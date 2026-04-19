@@ -80,7 +80,8 @@ export class SettingsService {
           this.configService.get<string>('ANTHROPIC_API_KEY') || '',
       },
       enableDeepSearch: this.readSettingsFile().enableDeepSearch ?? false,
-      enableContextAnalysis: this.readSettingsFile().enableContextAnalysis ?? false,
+      enableContextAnalysis:
+        this.readSettingsFile().enableContextAnalysis ?? false,
     };
   }
 
@@ -165,8 +166,7 @@ export class SettingsService {
    */
   static loadSettingsIntoEnv(): void {
     const settingsPath =
-      process.env.SETTINGS_FILE ||
-      path.join(process.cwd(), 'settings.json');
+      process.env.SETTINGS_FILE || path.join(process.cwd(), 'settings.json');
 
     try {
       if (!fs.existsSync(settingsPath)) return;
@@ -182,14 +182,18 @@ export class SettingsService {
         );
       }
 
-      // APIキーをsettings.jsonから環境変数にマージ
-      if (settings.elevenlabsApiKey && !process.env.ELEVENLABS_API_KEY) {
+      // APIキーはsettings.json（アプリの設定画面）の値を常に優先する
+      if (settings.elevenlabsApiKey) {
         process.env.ELEVENLABS_API_KEY = settings.elevenlabsApiKey;
-        console.log('[Settings] ELEVENLABS_API_KEY を settings.json から読み込み');
+        console.log(
+          '[Settings] ELEVENLABS_API_KEY を settings.json から読み込み',
+        );
       }
-      if (settings.anthropicApiKey && !process.env.ANTHROPIC_API_KEY) {
+      if (settings.anthropicApiKey) {
         process.env.ANTHROPIC_API_KEY = settings.anthropicApiKey;
-        console.log('[Settings] ANTHROPIC_API_KEY を settings.json から読み込み');
+        console.log(
+          '[Settings] ANTHROPIC_API_KEY を settings.json から読み込み',
+        );
       }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);
