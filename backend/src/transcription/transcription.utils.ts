@@ -21,8 +21,17 @@ export function generateSpeakerName(index: number): string {
   return `${chars[first]}${chars[second]}さん`;
 }
 
-/** 話者の表示色 */
-export const SPEAKER_COLORS = ['#3B82F6', '#EF4444'];
+/** 話者の表示色（最大32人分、ElevenLabs Scribe v2の話者分離上限に対応） */
+export const SPEAKER_COLORS = [
+  '#3B82F6', // 青
+  '#EF4444', // 赤
+  '#10B981', // 緑
+  '#F59E0B', // 黄
+  '#8B5CF6', // 紫
+  '#EC4899', // ピンク
+  '#06B6D4', // シアン
+  '#F97316', // オレンジ
+];
 
 /** フレーズ区切りとなる句読点パターン */
 export const PHRASE_BREAK_CHARS = /[。、！？!?,.\s]/;

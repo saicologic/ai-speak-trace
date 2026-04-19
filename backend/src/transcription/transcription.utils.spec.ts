@@ -202,7 +202,7 @@ describe('buildSpeakers', () => {
     const speakers = buildSpeakers(words);
     expect(speakers).toHaveLength(3);
     expect(speakers[2].name).toBe('Cさん');
-    expect(speakers[2].color).toBe('#6B7280');
+    expect(speakers[2].color).toBe('#10B981');
   });
 
   it('話者IDをソート順で返す', () => {
