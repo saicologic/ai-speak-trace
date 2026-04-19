@@ -4,6 +4,7 @@ import {
   buildSpeakers,
   groupWordsIntoUtterances,
   convertWords,
+  generateSpeakerName,
 } from './transcription.utils';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 
@@ -153,6 +154,23 @@ describe('mergeWordsIntoPhrases', () => {
   });
 });
 
+describe('generateSpeakerName', () => {
+  it('インデックス0〜2でA〜Cさんを返す', () => {
+    expect(generateSpeakerName(0)).toBe('Aさん');
+    expect(generateSpeakerName(1)).toBe('Bさん');
+    expect(generateSpeakerName(2)).toBe('Cさん');
+  });
+
+  it('インデックス25でZさんを返す', () => {
+    expect(generateSpeakerName(25)).toBe('Zさん');
+  });
+
+  it('インデックス26以上でAA、ABさんを返す', () => {
+    expect(generateSpeakerName(26)).toBe('AAさん');
+    expect(generateSpeakerName(27)).toBe('ABさん');
+  });
+});
+
 describe('buildSpeakers', () => {
   it('空配列から空の話者リストを返す', () => {
     expect(buildSpeakers([])).toEqual([]);
@@ -182,7 +200,7 @@ describe('buildSpeakers', () => {
     expect(speakers[1].color).toBe('#EF4444');
   });
 
-  it('3人以上の話者にはフォールバック名・色を割り当てる', () => {
+  it('3人以上の話者にもアルファベット順の名前を割り当てる', () => {
     const words = [
       word('あ', 0, 0.1, 'speaker_0'),
       word('い', 0.1, 0.2, 'speaker_1'),
@@ -190,7 +208,7 @@ describe('buildSpeakers', () => {
     ];
     const speakers = buildSpeakers(words);
     expect(speakers).toHaveLength(3);
-    expect(speakers[2].name).toBe('話者3');
+    expect(speakers[2].name).toBe('Cさん');
     expect(speakers[2].color).toBe('#6B7280');
   });
 

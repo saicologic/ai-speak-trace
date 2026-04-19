@@ -5,8 +5,16 @@ import {
 } from './types/transcription.types';
 import { ElevenLabsWord } from './types/elevenlabs.types';
 
-/** デフォルトの話者名 */
-export const DEFAULT_SPEAKER_NAMES = ['Aさん', 'Bさん'];
+/** インデックスからアルファベット順の話者名を生成する */
+export function generateSpeakerName(index: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (index < 26) {
+    return `${chars[index]}さん`;
+  }
+  const first = Math.floor(index / 26) - 1;
+  const second = index % 26;
+  return `${chars[first]}${chars[second]}さん`;
+}
 
 /** 話者の表示色 */
 export const SPEAKER_COLORS = ['#3B82F6', '#EF4444'];
@@ -86,7 +94,7 @@ export function buildSpeakers(words: TranscriptionWord[]): Speaker[] {
   const speakerIds = [...new Set(words.map((w) => w.speakerId))].sort();
   return speakerIds.map((id, index) => ({
     id,
-    name: DEFAULT_SPEAKER_NAMES[index] ?? `話者${index + 1}`,
+    name: generateSpeakerName(index),
     color: SPEAKER_COLORS[index] ?? '#6B7280',
   }));
 }
