@@ -7,7 +7,8 @@ import { ElevenLabsWord } from './types/elevenlabs.types';
 
 /**
  * インデックスからアルファベット順の話者名を生成する
- * ElevenLabs Scribe v2の話者分離は最大32人まで対応
+ * 0〜25: Aさん〜Zさん、26〜: AAさん、ABさん...
+ * ElevenLabs Scribe v2の話者分離上限は32人
  * @see https://elevenlabs.io/docs/capabilities/speech-to-text
  */
 export function generateSpeakerName(index: number): string {
