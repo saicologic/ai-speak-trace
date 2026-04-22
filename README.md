@@ -6,7 +6,15 @@
 
 ### 1. インストール
 
-[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `.app.tar.gz` ファイルをダウンロードしてください。
+[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版をダウンロードしてください。
+
+**dmgファイルの場合（推奨）**
+
+1. `.dmg` ファイルをダブルクリック
+2. 開いたウィンドウでアプリを `Applications` フォルダにドラッグ&ドロップ
+3. Launchpadまたは `Applications` フォルダからアプリを起動
+
+**tar.gzファイルの場合**
 
 1. ターミナルで以下を実行してインストール:
 
