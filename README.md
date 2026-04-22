@@ -13,15 +13,9 @@
 ```bash
 # ダウンロードしたファイルを展開してApplicationsフォルダに配置
 tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
-
-# macOS Gatekeeperの制限を解除
-xattr -cr /Applications/AI\ Speak\ Trace.app
 ```
 
 2. Launchpadまたは `Applications` フォルダからアプリを起動
-
-> **なぜ `xattr -cr` が必要？**
-> macOS Gatekeeper がコード署名のないアプリをブロックするため、手動で制限を解除する必要があります。
 
 ### 2. 初期設定
 

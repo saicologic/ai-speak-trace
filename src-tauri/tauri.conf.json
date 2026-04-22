@@ -30,6 +30,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/nestjs-server"]
+    "externalBin": ["binaries/nestjs-server"],
+    "macOS": {
+      "signingIdentity": null
+    }
   }
 }
