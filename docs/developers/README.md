@@ -63,8 +63,6 @@ npm run build
 
 GitHub Releasesで配布されるSource code (zip)からビルドして実行できます。
 
-※ コード署名を行っていないため、dmgではなくソースコードからのビルドを推奨しています。
-
 ### 1. Source codeのダウンロード
 
 [Releases](https://github.com/saicologic/ai-speak-trace/releases) ページから最新バージョンの「Source code (zip)」をダウンロードし、展開します。
