@@ -4,6 +4,17 @@ import { SettingsService } from './settings/settings.service';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
+// pkg --jitless 環境では DOMMatrix 等のグローバルが未定義になるためポリフィル
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  (globalThis as Record<string, unknown>).DOMMatrix = class DOMMatrix {};
+}
+if (typeof globalThis.ImageData === 'undefined') {
+  (globalThis as Record<string, unknown>).ImageData = class ImageData {};
+}
+if (typeof globalThis.Path2D === 'undefined') {
+  (globalThis as Record<string, unknown>).Path2D = class Path2D {};
+}
+
 // ルートの.envからポート設定を読み込み
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 

@@ -73,7 +73,7 @@ security find-identity -v -p codesigning
 以下のように表示されれば成功:
 
 ```
-1) ABC123... "Developer ID Application: SATORU MIKAMI (2M2QV9R792)"
+1) ABC123... "Developer ID Application: Your Name (TEAMID)"
    1 valid identities found
 ```
 
@@ -125,11 +125,37 @@ base64 -i ~/Desktop/certificate.p12 | pbcopy
 | `APPLE_CERTIFICATE_PASSWORD` | 手順6で `.p12` エクスポート時に設定したパスワード | — |
 | `APPLE_ID` | 自分のApple IDメールアドレス | https://appleid.apple.com |
 | `APPLE_PASSWORD` | 手順5で生成した App用パスワード（`xxxx-xxxx-xxxx-xxxx` 形式） | https://appleid.apple.com |
-| `APPLE_TEAM_ID` | `APPLE_SIGNING_IDENTITY` の末尾の括弧内の値（例: `2M2QV9R792`） | https://developer.apple.com/account |
+| `APPLE_TEAM_ID` | `APPLE_SIGNING_IDENTITY` の末尾の括弧内の値（例: `TEAMID`） | https://developer.apple.com/account |
 
 ---
 
-### 8. コードへの反映
+### 8. ローカルビルドでの公証設定（任意）
+
+CI経由だけでなくローカルでも公証付きDMGをビルドしたい場合、`~/.zshrc` に環境変数を追加します。
+
+1. `.p12` をBase64変換してクリップボードにコピー（手順6と同じ）
+2. `~/.zshrc` に以下を追加:
+
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export APPLE_CERTIFICATE="base64文字列"
+export APPLE_CERTIFICATE_PASSWORD="p12エクスポート時のパスワード"
+export APPLE_ID="AppleIDのメールアドレス"
+export APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="TEAMID"
+```
+
+3. 反映してビルド:
+
+```bash
+source ~/.zshrc && npm run build
+```
+
+公証が完了すると `Notarizing Finished with status Accepted` と表示されます。
+
+---
+
+### 9. コードへの反映
 
 **`src-tauri/tauri.conf.json`**
 
@@ -137,7 +163,7 @@ base64 -i ~/Desktop/certificate.p12 | pbcopy
 
 ```json
 "macOS": {
-  "signingIdentity": "Developer ID Application: SATORU MIKAMI (2M2QV9R792)"
+  "signingIdentity": "Developer ID Application: Your Name (TEAMID)"
 }
 ```
 

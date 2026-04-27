@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { PDFParse } from 'pdf-parse';
 import {
   DOCUMENT_STORAGE,
   type DocumentStorage,
@@ -90,7 +89,8 @@ export class DocumentService {
     try {
       this.logger.log(`PDF処理開始: ${id}`);
 
-      // 1. テキスト抽出
+      // 1. テキスト抽出（DOMMatrix未定義環境対応のため動的import）
+      const { PDFParse } = await import('pdf-parse');
       const parser = new PDFParse({ data: buffer });
       const pdfData = await parser.getText();
       const text = pdfData.pages.map((p) => p.text).join('\n\n');
