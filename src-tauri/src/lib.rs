@@ -28,6 +28,33 @@ pub fn run() {
             // 設定ファイルのパス
             let settings_file = app_data_dir.join("settings.json");
 
+            // settings.json からポートを読み込む（未設定の場合は3100）
+            let backend_port = std::fs::read_to_string(&settings_file)
+                .ok()
+                .and_then(|content| {
+                    let v: serde_json::Value = serde_json::from_str(&content).ok()?;
+                    v.get("port")?.as_u64().map(|p| p.to_string())
+                })
+                .unwrap_or_else(|| "3100".to_string());
+            println!("[tauri] BACKEND_PORT={}", backend_port);
+
+            // 起動前に使用中のポートをkillして競合を防ぐ
+            if let Ok(output) = std::process::Command::new("lsof")
+                .args(["-ti", &format!(":{}", backend_port)])
+                .output()
+            {
+                if let Ok(pids) = String::from_utf8(output.stdout) {
+                    for pid in pids.lines() {
+                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                            let _ = std::process::Command::new("kill")
+                                .args(["-9", &pid_num.to_string()])
+                                .output();
+                            println!("[tauri] ポート{}を使用中のプロセス{}を終了しました", backend_port, pid_num);
+                        }
+                    }
+                }
+            }
+
             // sidecar（NestJSサーバー）を環境変数付きで起動
             // 開発時は npm run start:dev でバックエンドを別途起動するため、sidecarはスキップ
             if cfg!(debug_assertions) {
@@ -66,6 +93,7 @@ pub fn run() {
                     .env("PATH", &full_path)
                     .env("DATA_DIR", data_dir.to_string_lossy().to_string())
                     .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
+                    .env("BACKEND_PORT", &backend_port)
                     .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
 
                 let (mut rx, child) = sidecar

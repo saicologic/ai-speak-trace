@@ -677,6 +677,7 @@ export async function openDataFolder(): Promise<void> {
 export async function updateSettings(
   dto: {
     dataDir?: string;
+    port?: number;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;

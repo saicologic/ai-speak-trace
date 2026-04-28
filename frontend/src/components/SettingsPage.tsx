@@ -20,6 +20,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [port, setPort] = useState<number>(3100);
 
   // 設定を読み込み
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
         }
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setPort(s.port ?? 3100);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -59,12 +61,16 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
     // 変更があった項目だけDTOに含める
     const dto: {
+      port?: number;
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
     } = {};
 
+    if (port !== (settings?.port ?? 3100)) {
+      dto.port = port;
+    }
     if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
       dto.elevenlabsApiKey = elevenlabsApiKey;
     }
@@ -86,7 +92,12 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       setAnthropicApiKey(result.settings.apiKeys?.anthropicApiKey || '');
       setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
       setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
-      setShowSuccess(true);
+      setPort(result.settings.port ?? 3100);
+      if (result.restartRequired) {
+        alert('ポートを変更しました。反映するにはアプリを再起動してください。');
+      } else {
+        setShowSuccess(true);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
@@ -96,7 +107,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   // 変更があるか判定
   const hasChanges = settings
-    ? elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
+    ? port !== (settings.port ?? 3100) ||
+      elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
       anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '') ||
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
       enableContextAnalysis !== (settings.enableContextAnalysis ?? false)
@@ -130,6 +142,28 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
         {settings && (
           <>
+            {/* サーバー設定 */}
+            <div className="settings-section">
+              <h2>サーバー設定</h2>
+              <div className="settings-input-group">
+                <label>バックエンドポート番号</label>
+                <input
+                  type="number"
+                  className="settings-input"
+                  value={port}
+                  min={1024}
+                  max={65535}
+                  onChange={(e) => {
+                    setPort(Number(e.target.value));
+                    setShowSuccess(false);
+                  }}
+                />
+                <p className="settings-checkbox-hint">
+                  変更後はアプリの再起動が必要です。デフォルト: 3100
+                </p>
+              </div>
+            </div>
+
             {/* APIキー設定 */}
             <div className="settings-section">
               <h2>APIキー設定</h2>
