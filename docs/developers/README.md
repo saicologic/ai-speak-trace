@@ -1,5 +1,12 @@
 # 開発者ガイド
 
+## このガイドについて
+
+| 目的 | 方法 |
+|---|---|
+| 開発に参加・コントリビュートしたい | このガイドの手順に従って `npm run dev` で開発環境を構築してください |
+| 個人・社内向けにカスタマイズして使いたい | [リポジトリをフォーク](https://github.com/saicologic/ai-speak-trace/fork)して、自分のApple Developer証明書とGitHub Secretsを設定してください（[コード署名の設定手順](code-signing.md)を参照） |
+
 ## 前提条件
 
 - Node.js（`.nvmrc` で指定されたバージョン。`nvm use` で切り替え可能）
