@@ -6,6 +6,9 @@ use tauri_plugin_shell::process::CommandChild;
 /// sidecar プロセスをアプリ状態として管理
 struct SidecarState(Mutex<Option<CommandChild>>);
 
+/// 開発モード時のバックエンドポート番号を保持（終了時のkillに使用）
+struct DevBackendPort(Mutex<Option<String>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -14,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .manage(SidecarState(Mutex::new(None)))
+        .manage(DevBackendPort(Mutex::new(None)))
         .setup(|app| {
             // データ保存先ディレクトリを決定
             // ~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
@@ -42,6 +46,9 @@ pub fn run() {
             // 開発時は npm run start:dev でバックエンドを別途起動するため、sidecarはスキップ
             if cfg!(debug_assertions) {
                 println!("[tauri] 開発モード: sidecar の起動をスキップします（npm run start:dev を使用）");
+                // 終了時にバックエンドプロセスをkillできるようポートを保持
+                let dev_port_state = app.state::<DevBackendPort>();
+                *dev_port_state.0.lock().unwrap() = Some(backend_port.clone());
             } else {
                 // 起動前に使用中のポートをkillして競合を防ぐ（本番モードのみ）
                 if let Ok(output) = std::process::Command::new("lsof")
@@ -133,11 +140,34 @@ pub fn run() {
         .run(|app_handle, event| {
             // アプリ終了時に sidecar プロセスを停止
             if let tauri::RunEvent::Exit = event {
+                // 本番モード: sidecar プロセスを停止
                 let state = app_handle.state::<SidecarState>();
                 let mut guard = state.0.lock().unwrap();
                 if let Some(child) = guard.take() {
                     println!("[tauri] sidecar プロセスを終了します");
                     let _ = child.kill();
+                }
+
+                // 開発モード: ポートを占有しているバックエンドプロセスを停止
+                let dev_port_state = app_handle.state::<DevBackendPort>();
+                let dev_port_guard = dev_port_state.0.lock().unwrap();
+                if let Some(port) = dev_port_guard.as_ref() {
+                    println!("[tauri] 開発モード: ポート{}のバックエンドプロセスを終了します", port);
+                    if let Ok(output) = std::process::Command::new("lsof")
+                        .args(["-ti", &format!(":{}", port)])
+                        .output()
+                    {
+                        if let Ok(pids) = String::from_utf8(output.stdout) {
+                            for pid in pids.lines() {
+                                if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                                    let _ = std::process::Command::new("kill")
+                                        .args(["-9", &pid_num.to_string()])
+                                        .output();
+                                    println!("[tauri] ポート{}を使用中のプロセス{}を終了しました", port, pid_num);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         });
