@@ -9,6 +9,7 @@ on:
 jobs:
   build-and-release:
     runs-on: macos-latest
+    environment: ai-speak-trace
     permissions:
       contents: write
 
