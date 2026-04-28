@@ -19,13 +19,15 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "pkg": "npm run build && pkg .",
-    "pkg:mac-arm64": "npm run build && pkg . --targets node24-macos-arm64 --output ../src-tauri/binaries/nestjs-server-aarch64-apple-darwin",
+    "pkg:mac-arm64": "npm run build && pkg . --targets node24-macos-arm64 --no-bytecode --public-packages \"*\" --public --options jitless --output ../src-tauri/binaries/nestjs-server-aarch64-apple-darwin",
     "pkg:mac-x64": "npm run build && pkg . --targets node24-macos-x64 --output ../src-tauri/binaries/nestjs-server-x86_64-apple-darwin"
   },
   "pkg": {
     "scripts": "dist/**/*.js",
     "assets": [],
-    "targets": ["node24-macos-arm64"],
+    "targets": [
+      "node24-macos-arm64"
+    ],
     "outputPath": "../src-tauri/binaries"
   },
   "bin": "dist/main.js",
@@ -40,6 +42,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.1.17",
     "@nestjs/serve-static": "^5.0.4",
+    "axios": "^1.15.2",
     "form-data": "^4.0.5",
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",

@@ -6,22 +6,24 @@
 
 ### 1. インストール
 
-[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版の `.app.tar.gz` ファイルをダウンロードしてください。
+[GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版をダウンロードしてください。
+
+**dmgファイルの場合（推奨）**
+
+1. `.dmg` ファイルをダブルクリック
+2. 開いたウィンドウでアプリを `Applications` フォルダにドラッグ&ドロップ
+3. Launchpadまたは `Applications` フォルダからアプリを起動
+
+**tar.gzファイルの場合**
 
 1. ターミナルで以下を実行してインストール:
 
 ```bash
 # ダウンロードしたファイルを展開してApplicationsフォルダに配置
 tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
-
-# macOS Gatekeeperの制限を解除
-xattr -cr /Applications/AI\ Speak\ Trace.app
 ```
 
 2. Launchpadまたは `Applications` フォルダからアプリを起動
-
-> **なぜ `xattr -cr` が必要？**
-> macOS Gatekeeper がコード署名のないアプリをブロックするため、手動で制限を解除する必要があります。
 
 ### 2. 初期設定
 
@@ -147,8 +149,6 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 | 起動直後に「サーバーに接続できません」と表示される | バックエンドの起動待ち中です。自動リトライされるので数秒お待ちください |
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
 | 会話分析が実行できない | 設定画面でAnthropic APIキーが正しく設定されているか確認してください |
-| `EADDRINUSE: address already in use :::3100` | ポート3100を使用中のプロセスを終了してから再起動してください: `lsof -ti :3100 \| xargs kill` |
-| `Port 5173 is already in use` | ポート5173を使用中のプロセスを終了してから再起動してください: `lsof -ti :5173 \| xargs kill` |
 | 長時間音声の文字起こし中に「Load failed」と表示される | WebViewのコネクションタイムアウトです。バックエンドは処理を継続しているため、進捗画面で完了を待つか、「中断中のジョブ」から再開してください |
 | 中断中のジョブが表示されない | 同じファイル名で完了済みの文字起こしがある場合、中断ジョブは自動的に非表示になります |
 

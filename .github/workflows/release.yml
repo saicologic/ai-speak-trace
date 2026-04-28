@@ -33,11 +33,18 @@ jobs:
 
       - run: cd frontend && npm ci
 
-      # タグからバージョンを取得してtauri.conf.jsonに同期
-      - name: タグからバージョンを同期
-        if: startsWith(github.ref, 'refs/tags/v')
+      # タグまたはブランチ名からバージョンを取得してtauri.conf.jsonに同期
+      - name: バージョンを同期
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF_NAME#v}
+          elif [[ "$GITHUB_REF" == refs/heads/release/v* ]]; then
+            VERSION=${GITHUB_REF_NAME#release/v}
+          else
+            echo "タグ・リリースブランチ以外のため、バージョン同期をスキップします"
+            exit 0
+          fi
+          echo "同期するバージョン: $VERSION"
           sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 
       # sidecarバイナリをtauri-action実行前に生成
@@ -47,6 +54,13 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # コード署名・公証
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
@@ -55,10 +69,9 @@ jobs:
           prerelease: false
           args: '--target aarch64-apple-darwin'
 
-      # dmg生成を一時的に無効化（ONに戻す場合はtauri.conf.jsonのtargetsを"all"に戻し、以下のコメントを解除）
-      # # 動作確認用（タグなしでもdmgをダウンロード可能にする）
-      # - name: dmgアーティファクトをアップロード
-      #   uses: actions/upload-artifact@v6
-      #   with:
-      #     name: dmg
-      #     path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+      # 動作確認用（タグなしでもdmgをダウンロード可能にする）
+      - name: dmgアーティファクトをアップロード
+        uses: actions/upload-artifact@v6
+        with:
+          name: dmg
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg

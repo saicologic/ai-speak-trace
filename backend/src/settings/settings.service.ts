@@ -16,7 +16,6 @@ interface SettingsFile {
 export interface AppSettings {
   appVersion: string;
   storageType: string;
-  port: number;
   paths: {
     dataDir: string;
     outputsDir: string;
@@ -53,7 +52,6 @@ export class SettingsService {
     return {
       appVersion: '0.1.0',
       storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
-      port: Number(this.configService.get('BACKEND_PORT', '3100')),
       paths: {
         dataDir,
         outputsDir: path.resolve(
@@ -102,6 +100,7 @@ export class SettingsService {
     if (dto.dataDir !== undefined) {
       updated.dataDir = dto.dataDir;
     }
+    let restartRequired = false;
     let apiKeyChanged = false;
 
     if (dto.elevenlabsApiKey !== undefined) {
@@ -130,7 +129,7 @@ export class SettingsService {
 
     return {
       settings: this.getSettings(),
-      restartRequired: false,
+      restartRequired,
     };
   }
 
