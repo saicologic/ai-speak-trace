@@ -28,16 +28,6 @@
 npm install
 ```
 
-### 環境変数
-
-開発時はViteのプロキシ設定により `http://localhost:3100` へ自動的に転送されるため、環境変数の設定は不要です。
-
-本番環境ではバックエンドのURLを指定してください。
-
-```env
-VITE_API_BASE_URL=https://your-backend-url.com/api
-```
-
 ### 開発サーバーの起動
 
 ```bash

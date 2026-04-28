@@ -138,7 +138,6 @@ export interface DeepSearchAnalysis {
 export interface AppSettings {
   appVersion: string;
   storageType: string;
-  port: number;
   paths: {
     dataDir: string;
     outputsDir: string;

@@ -58,8 +58,9 @@ export class LocalAudioStorage implements AudioStorage {
   }
 
   async getPlaybackUrl(fileName: string): Promise<string> {
-    const port = process.env.BACKEND_PORT ?? 3100;
-    return `http://localhost:${port}/outputs/${encodeURIComponent(fileName)}`;
+    // ポートは動的割り当てのためホスト名は返さず、パスのみを返す
+    // フロントエンドが BASE_URL と組み合わせて完全なURLを構築する
+    return `/outputs/${encodeURIComponent(fileName)}`;
   }
 
   async getUploadUrl(): Promise<string | null> {

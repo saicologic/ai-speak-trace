@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
+import FormDataNode = require('form-data');
 import {
   ElevenLabsCreditInfo,
   ElevenLabsResponse,
@@ -44,35 +46,30 @@ export class ElevenLabsService {
     const fileSizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(1);
     this.logger.log(`文字起こし開始: ${fileName} (${fileSizeMB} MB)`);
 
-    const blob = new Blob([new Uint8Array(fileBuffer)]);
-    const form = new FormData();
-    form.append('file', blob, fileName);
+    const form = new FormDataNode();
+    form.append('file', fileBuffer, { filename: fileName });
     form.append('model_id', 'scribe_v2');
     form.append('language_code', 'ja');
     form.append('diarize', 'true');
     form.append('timestamps_granularity', 'word');
     form.append('tag_audio_events', 'true');
 
-    // 大ファイル対応: AbortControllerでタイムアウト制御
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
     this.logger.log(
       `ElevenLabs API リクエスト送信 (タイムアウト: ${TIMEOUT_MS / 60000}分)`,
     );
 
-    let response: Response;
+    let axiosResponse: axios.AxiosResponse;
     try {
-      response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: this.authHeaders,
-        body: form,
-        signal: controller.signal,
+      axiosResponse = await axios.post(this.apiUrl, form, {
+        headers: { ...this.authHeaders, ...form.getHeaders() },
+        timeout: TIMEOUT_MS,
+        validateStatus: () => true,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
       });
     } catch (fetchError) {
-      clearTimeout(timeoutId);
-      // AbortErrorはタイムアウトとして処理
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      // タイムアウト
+      if (axios.isAxiosError(fetchError) && fetchError.code === 'ECONNABORTED') {
         this.logger.error(
           `文字起こしタイムアウト: ${TIMEOUT_MS / 60000}分を超過 (${fileName})`,
         );
@@ -88,19 +85,17 @@ export class ElevenLabsService {
           : String(fetchError);
       this.logger.error(`ElevenLabs API 通信エラー: ${detail}`);
       throw new Error(`ElevenLabs APIへの接続に失敗しました: ${detail}`);
-    } finally {
-      clearTimeout(timeoutId);
     }
 
     this.logger.log(
-      `ElevenLabs API レスポンス受信: status=${response.status} (${elapsedSec()}秒)`,
+      `ElevenLabs API レスポンス受信: status=${axiosResponse.status} (${elapsedSec()}秒)`,
     );
 
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
+    if (axiosResponse.status < 200 || axiosResponse.status >= 300) {
+      this.handleAxiosErrorResponse(axiosResponse.status, axiosResponse.data);
     }
 
-    const result = (await response.json()) as ElevenLabsResponse;
+    const result = axiosResponse.data as ElevenLabsResponse;
     this.logger.log(
       `文字起こし完了: ${fileName} (${result.words.length} 単語, 言語: ${result.language_code}, 所要時間: ${elapsedSec()}秒)`,
     );
@@ -117,29 +112,24 @@ export class ElevenLabsService {
       );
     }
 
-    const response = await fetch(
-      'https://api.elevenlabs.io/v1/user/subscription',
-      { headers: this.authHeaders },
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      this.logger.error(
-        `ElevenLabs Subscription API エラー: ${response.status} ${errorBody}`,
-      );
-      if (response.status === 401) {
-        throw new Error('ElevenLabs APIキーが無効です。');
-      }
-      throw new Error(
-        `クレジット情報の取得に失敗しました (${response.status})`,
-      );
-    }
-
-    const data = (await response.json()) as {
+    const response = await axios.get<{
       character_count?: number;
       character_limit?: number;
       next_character_count_reset_unix?: number;
-    };
+    }>('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: this.authHeaders,
+      validateStatus: () => true,
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      this.logger.error(`ElevenLabs Subscription API エラー: ${response.status}`);
+      if (response.status === 401) {
+        throw new Error('ElevenLabs APIキーが無効です。');
+      }
+      throw new Error(`クレジット情報の取得に失敗しました (${response.status})`);
+    }
+
+    const data = response.data;
     const characterCount: number = data.character_count ?? 0;
     const characterLimit: number = data.character_limit ?? 0;
     const nextResetUnix: number = data.next_character_count_reset_unix ?? 0;
@@ -155,17 +145,18 @@ export class ElevenLabsService {
   }
 
   /** エラーレスポンスを解析してスローする */
-  private async handleErrorResponse(response: Response): Promise<never> {
-    const errorBody = await response.text();
-    this.logger.error(`ElevenLabs API エラー: ${response.status} ${errorBody}`);
+  private handleAxiosErrorResponse(status: number, data: unknown): never {
+    const errorBody = typeof data === 'string' ? data : JSON.stringify(data);
+    this.logger.error(`ElevenLabs API エラー: ${status} ${errorBody}`);
 
     // クォータ超過をチェック（401レスポンスにquota_exceededが含まれる場合）
     if (errorBody.includes('quota_exceeded')) {
       let detail = '';
       try {
-        const parsed = JSON.parse(errorBody) as {
-          detail?: { message?: string };
-        };
+        const parsed =
+          typeof data === 'object' && data !== null
+            ? (data as { detail?: { message?: string } })
+            : (JSON.parse(errorBody) as { detail?: { message?: string } });
         const msg: string = parsed?.detail?.message ?? '';
         const quota = msg.match(/quota of (\d+)/)?.[1];
         const remaining = msg.match(/have (\d+) credits remaining/)?.[1];
@@ -181,7 +172,7 @@ export class ElevenLabsService {
       throw error;
     }
 
-    switch (response.status) {
+    switch (status) {
       case 401:
         throw new Error('ElevenLabs APIキーが無効です。');
       case 429:
@@ -190,7 +181,7 @@ export class ElevenLabsService {
         );
       default:
         throw new Error(
-          `ElevenLabs API エラー (${response.status}): ${errorBody}`,
+          `ElevenLabs API エラー (${status}): ${errorBody}`,
         );
     }
   }
@@ -206,7 +197,7 @@ export class ElevenLabsService {
   async getTranscriptionStatus(transcriptionId: string): Promise<{
     status: 'processing' | 'completed' | 'error';
     error_message?: string;
-    data?: any;
+    data?: unknown;
   }> {
     const apiKey = this.getApiKey();
     if (!apiKey || apiKey === 'your_api_key_here') {
@@ -219,16 +210,15 @@ export class ElevenLabsService {
     this.logger.log(`文字起こしステータス確認: ${transcriptionId}`);
 
     try {
-      const response = await fetch(url, {
-        method: 'GET',
+      const response = await axios.get<unknown>(url, {
         headers: this.authHeaders,
+        validateStatus: () => true,
       });
 
-      if (response.ok) {
+      if (response.status >= 200 && response.status < 300) {
         // 200: 完了（トランスクリプトデータを取得できた）
-        const data = (await response.json()) as Record<string, unknown>;
         this.logger.log(`文字起こし完了: ${transcriptionId}`);
-        return { status: 'completed', data };
+        return { status: 'completed', data: response.data };
       }
 
       if (response.status === 404) {
@@ -245,7 +235,10 @@ export class ElevenLabsService {
 
       if (response.status === 401) {
         // 401: 認証エラーまたはクォータ超過
-        const errorBody = await response.text();
+        const errorBody =
+          typeof response.data === 'string'
+            ? response.data
+            : JSON.stringify(response.data);
         this.logger.error(`認証エラー: ${errorBody}`);
         return {
           status: 'error',
@@ -254,9 +247,8 @@ export class ElevenLabsService {
       }
 
       // その他のエラー
-      const errorBody = await response.text();
       this.logger.error(
-        `文字起こしステータス確認エラー: ${response.status} ${errorBody}`,
+        `文字起こしステータス確認エラー: ${response.status}`,
       );
       return {
         status: 'error',
