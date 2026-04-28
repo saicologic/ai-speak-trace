@@ -1,10 +1,20 @@
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandChild;
 
 /// sidecar プロセスをアプリ状態として管理
 struct SidecarState(Mutex<Option<CommandChild>>);
+
+/// バックエンドポートをアプリ状態として管理
+/// 開発時は NestJS stdout から、本番時は sidecar stdout から取得してセット
+struct BackendPortState(Mutex<Option<u16>>);
+
+/// フロントエンドから invoke でポートを取得するコマンド
+#[tauri::command]
+fn get_backend_port(state: tauri::State<BackendPortState>) -> Option<u16> {
+    *state.0.lock().unwrap()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +24,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .manage(SidecarState(Mutex::new(None)))
+        .manage(BackendPortState(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![get_backend_port])
         .setup(|app| {
             // データ保存先ディレクトリを決定
             // ~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
@@ -28,38 +40,24 @@ pub fn run() {
             // 設定ファイルのパス
             let settings_file = app_data_dir.join("settings.json");
 
-            // settings.json からポートを読み込む（未設定の場合は3100）
-            let backend_port = std::fs::read_to_string(&settings_file)
-                .ok()
-                .and_then(|content| {
-                    let v: serde_json::Value = serde_json::from_str(&content).ok()?;
-                    v.get("port")?.as_u64().map(|p| p.to_string())
-                })
-                .unwrap_or_else(|| "3100".to_string());
-            println!("[tauri] BACKEND_PORT={}", backend_port);
-
-            // sidecar（NestJSサーバー）を環境変数付きで起動
             // 開発時は npm run start:dev でバックエンドを別途起動するため、sidecarはスキップ
+            // scripts/dev.mjs が書き込む .backend-port ファイルからポートを読んでセットする
             if cfg!(debug_assertions) {
                 println!("[tauri] 開発モード: sidecar の起動をスキップします（npm run start:dev を使用）");
-            } else {
-                // 起動前に使用中のポートをkillして競合を防ぐ（本番モードのみ）
-                if let Ok(output) = std::process::Command::new("lsof")
-                    .args(["-ti", &format!(":{}", backend_port)])
-                    .output()
-                {
-                    if let Ok(pids) = String::from_utf8(output.stdout) {
-                        for pid in pids.lines() {
-                            if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                                let _ = std::process::Command::new("kill")
-                                    .args(["-9", &pid_num.to_string()])
-                                    .output();
-                                println!("[tauri] ポート{}を使用中のプロセス{}を終了しました", backend_port, pid_num);
-                            }
-                        }
-                    }
-                }
 
+                // プロジェクトルートの .backend-port ファイルからポートを読む
+                // tauri dev の cwd は src-tauri/ なので "../" で親ディレクトリを参照
+                let port_file = std::path::Path::new("../.backend-port");
+                if let Ok(content) = std::fs::read_to_string(port_file) {
+                    if let Ok(port) = content.trim().parse::<u16>() {
+                        println!("[tauri] 開発モード: バックエンドポート={}", port);
+                        let port_state = app.state::<BackendPortState>();
+                        *port_state.0.lock().unwrap() = Some(port);
+                    }
+                } else {
+                    println!("[tauri] 開発モード: .backend-port が見つかりません。バックエンド起動待ちです。");
+                }
+            } else {
                 let shell = app.shell();
                 // ~/Library/Application Support/... から ~ を逆算
                 let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
@@ -93,7 +91,6 @@ pub fn run() {
                     .env("PATH", &full_path)
                     .env("DATA_DIR", data_dir.to_string_lossy().to_string())
                     .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
-                    .env("BACKEND_PORT", &backend_port)
                     .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
 
                 let (mut rx, child) = sidecar
@@ -106,13 +103,26 @@ pub fn run() {
                 let state = app.state::<SidecarState>();
                 *state.0.lock().unwrap() = Some(child);
 
-                // sidecar の stdout/stderr をログに出力
+                // sidecar の stdout/stderr をログに出力し、PORT= 行を検出してフロントへ通知
+                let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     use tauri_plugin_shell::process::CommandEvent;
                     while let Some(event) = rx.recv().await {
                         match event {
                             CommandEvent::Stdout(line) => {
-                                println!("[nestjs] {}", String::from_utf8_lossy(&line));
+                                let text = String::from_utf8_lossy(&line);
+                                println!("[nestjs] {}", text);
+                                // "PORT=xxxxx" の行を検出してフロントエンドへ通知
+                                if let Some(port_str) = text.trim().strip_prefix("PORT=") {
+                                    if let Ok(port) = port_str.parse::<u16>() {
+                                        println!("[tauri] バックエンドポート確定: {}", port);
+                                        // AppState に保存（invoke 用）
+                                        let port_state = app_handle.state::<BackendPortState>();
+                                        *port_state.0.lock().unwrap() = Some(port);
+                                        // フロントエンドへイベント送信
+                                        let _ = app_handle.emit("backend-port", port);
+                                    }
+                                }
                             }
                             CommandEvent::Stderr(line) => {
                                 eprintln!("[nestjs] {}", String::from_utf8_lossy(&line));

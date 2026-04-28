@@ -6,7 +6,6 @@ import * as path from 'path';
 /** 設定ファイルの内容 */
 interface SettingsFile {
   dataDir?: string;
-  port?: number;
   elevenlabsApiKey?: string;
   anthropicApiKey?: string;
   enableDeepSearch?: boolean;
@@ -17,7 +16,6 @@ interface SettingsFile {
 export interface AppSettings {
   appVersion: string;
   storageType: string;
-  port: number;
   paths: {
     dataDir: string;
     outputsDir: string;
@@ -54,7 +52,6 @@ export class SettingsService {
     return {
       appVersion: '0.1.0',
       storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
-      port: Number(this.configService.get('BACKEND_PORT', '3100')),
       paths: {
         dataDir,
         outputsDir: path.resolve(
@@ -89,7 +86,6 @@ export class SettingsService {
   /** 設定を更新して settings.json に保存 */
   updateSettings(dto: {
     dataDir?: string;
-    port?: number;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
@@ -107,10 +103,6 @@ export class SettingsService {
     let restartRequired = false;
     let apiKeyChanged = false;
 
-    if (dto.port !== undefined && dto.port !== Number(this.configService.get('BACKEND_PORT', '3100'))) {
-      updated.port = dto.port;
-      restartRequired = true;
-    }
     if (dto.elevenlabsApiKey !== undefined) {
       updated.elevenlabsApiKey = dto.elevenlabsApiKey;
       process.env.ELEVENLABS_API_KEY = dto.elevenlabsApiKey;
@@ -133,9 +125,6 @@ export class SettingsService {
 
     if (apiKeyChanged) {
       this.logger.log('APIキーを即時反映しました（再起動不要）');
-    }
-    if (restartRequired) {
-      this.logger.log('ポートを変更しました（反映にはアプリの再起動が必要）');
     }
 
     return {
@@ -189,14 +178,6 @@ export class SettingsService {
         process.env.DATA_DIR = settings.dataDir;
         console.log(
           `[Settings] DATA_DIR を settings.json から読み込み: ${settings.dataDir}`,
-        );
-      }
-
-      // settings.json のポートを BACKEND_PORT に適用
-      if (settings.port) {
-        process.env.BACKEND_PORT = String(settings.port);
-        console.log(
-          `[Settings] BACKEND_PORT を settings.json から読み込み: ${settings.port}`,
         );
       }
 

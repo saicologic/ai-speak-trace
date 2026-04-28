@@ -32,15 +32,9 @@ cd frontend
 npm install
 ```
 
-### 2. 環境変数の設定（オプション）
+### 2. APIキーの設定
 
-バックエンドのポート番号を変更したい場合は、ルートの `.env` を編集してください（デフォルト: 3100）:
-
-```env
-BACKEND_PORT=3100
-```
-
-APIキーはアプリの「設定」画面から設定してください。
+APIキーはアプリ起動後、「設定」画面から設定してください。
 
 ### 3. Rustのインストール（未インストールの場合）
 
@@ -55,7 +49,7 @@ source "$HOME/.cargo/env"
 npm run dev
 ```
 
-起動時に前回のバックエンドプロセスを自動終了するため、ポート競合を気にせず実行できます。
+バックエンドはOSが自動でポートを割り当てるため、ポート競合を気にせず実行できます。
 Ctrl+C でまとめて停止できます。
 
 ## プロダクションビルド
@@ -142,12 +136,13 @@ Apple Developer証明書による署名・公証済みのため、Gatekeeperの�
 ```
 AI Speak Trace.app (Tauri)
 ├── WebView (frontend/dist)        ← Vite ビルド済みの React アプリ
-├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理
+├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理・ポート通知
 └── Sidecar (nestjs-server)        ← NestJS を pkg でバイナリ化
-    └── HTTP API (localhost:3100)
+    └── HTTP API (127.0.0.1:動的ポート)
 ```
 
-- フロントエンドは WebView 内で動作し、localhost:3100 の NestJS sidecar と HTTP 通信
+- フロントエンドは WebView 内で動作し、NestJS sidecar と HTTP 通信
+- NestJS は `listen(0)` でOSに空きポートを自動割り当て。Rust が stdout の `PORT=xxxxx` を検知してフロントへ通知
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
 

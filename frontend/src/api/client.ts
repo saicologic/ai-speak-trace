@@ -10,10 +10,56 @@ import type {
   TranscriptionSummary,
 } from '../types';
 
-declare const __BACKEND_PORT__: string;
+/**
+ * バックエンドのベースURL
+ *
+ * - 本番（Tauri sidecar）: initBackendUrl() で動的に設定される
+ * - 開発（Vite dev server）: Vite proxy 経由のため相対パス /api のまま
+ *
+ * アプリ起動時に initBackendUrl() を呼び出してから API を使用すること。
+ */
+export let BASE_URL = '/api';
 
-// Tauriデスクトップアプリ: sidecarのバックエンドに直接接続
-export const BASE_URL = `http://localhost:${__BACKEND_PORT__}/api`;
+/**
+ * バックエンドURLを初期化する
+ * - 本番: Tauri invoke('get_backend_port') でポートを取得してBASE_URLを更新
+ * - 開発: Vite proxy が /api を転送するため何もしない
+ */
+export async function initBackendUrl(): Promise<void> {
+  // Tauri環境（本番）かどうかを判定
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  if (!isTauri) {
+    // Vite dev server経由: proxy が /api を転送するため相対パスのまま
+    console.log('[API] 開発モード: Vite proxy 経由 (BASE_URL=/api)');
+    return;
+  }
+
+  // Tauri invoke でポートを取得（sidecarが起動してPORT=を出力するまで待機）
+  const { invoke } = await import('@tauri-apps/api/core');
+  const MAX_WAIT_MS = 30_000;
+  const INTERVAL_MS = 200;
+  const start = Date.now();
+
+  while (Date.now() - start < MAX_WAIT_MS) {
+    const port: number | null = await invoke('get_backend_port');
+    if (port !== null) {
+      BASE_URL = `http://127.0.0.1:${port}/api`;
+      console.log(`[API] バックエンドポート確定: ${port} (BASE_URL=${BASE_URL})`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, INTERVAL_MS));
+  }
+
+  // タイムアウト: 開発時はVite proxyにフォールバック
+  // （.backend-portが存在しない状態でtauri devが先に起動した場合など）
+  if (import.meta.env.DEV) {
+    console.warn('[API] ポート取得タイムアウト。Vite proxy にフォールバックします (BASE_URL=/api)');
+    BASE_URL = '/api';
+    return;
+  }
+
+  throw new Error('[API] バックエンドの起動がタイムアウトしました（30秒）');
+}
 
 // リトライ設定（sidecar起動待ち用）
 const RETRY_MAX = 5;
@@ -122,7 +168,17 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
     throw new Error(`音声ファイルURLの取得に失敗しました: ${res.status}`);
   }
   const data = await res.json();
-  return data.url;
+  // ローカルモードでは "/outputs/..." 形式のパスが返るため、ベースURLを補完する
+  // S3モードでは完全なURLが返るためそのまま使用する
+  const url: string = data.url;
+  if (url.startsWith('/')) {
+    // BASE_URL から origin 部分を取り出す（例: "http://127.0.0.1:52341/api" → "http://127.0.0.1:52341"）
+    const origin = BASE_URL.startsWith('http')
+      ? new URL(BASE_URL).origin
+      : window.location.origin;
+    return `${origin}${url}`;
+  }
+  return url;
 }
 
 /** 音声ファイルを文字起こし */
@@ -677,7 +733,6 @@ export async function openDataFolder(): Promise<void> {
 export async function updateSettings(
   dto: {
     dataDir?: string;
-    port?: number;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
