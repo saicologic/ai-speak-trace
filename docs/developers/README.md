@@ -59,6 +59,8 @@ npm run build
 
 生成物: `src-tauri/target/release/bundle/dmg/` に `.dmg` ファイルが生成されます。
 
+> **注意:** バックエンドバイナリ（`nestjs-server`）は `@yao-pkg/pkg` で `--no-bytecode --jitless` オプションを使ってバイナリ化します。Apple Silicon (arm64) でのOOMクラッシュ対策と、JITレスによるメモリ削減のためです。`--jitless` 環境では `globalThis.fetch` が動作しないため、外部API通信は `axios` を使用しています。
+
 ## リリースビルドの実行
 
 GitHub Releasesで配布されるSource code (zip)からビルドして実行できます。
@@ -99,7 +101,7 @@ npm run build
 open src-tauri/target/release/bundle/dmg/*.dmg
 ```
 
-初回起動時に「システム設定 > プライバシーとセキュリティ」で許可が必要です。
+Apple Developer証明書による署名・公証済みのため、Gatekeeperの許可手順は不要です。
 
 **方法2: 直接実行**
 
