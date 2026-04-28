@@ -142,28 +142,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
         {settings && (
           <>
-            {/* サーバー設定 */}
-            <div className="settings-section">
-              <h2>サーバー設定</h2>
-              <div className="settings-input-group">
-                <label>バックエンドポート番号</label>
-                <input
-                  type="number"
-                  className="settings-input"
-                  value={port}
-                  min={1024}
-                  max={65535}
-                  onChange={(e) => {
-                    setPort(Number(e.target.value));
-                    setShowSuccess(false);
-                  }}
-                />
-                <p className="settings-checkbox-hint">
-                  変更後はアプリの再起動が必要です。デフォルト: 3100
-                </p>
-              </div>
-            </div>
-
             {/* APIキー設定 */}
             <div className="settings-section">
               <h2>APIキー設定</h2>
@@ -266,6 +244,28 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     <span className="settings-subdir-path">{dir.path}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* サーバー設定 */}
+            <div className="settings-section">
+              <h2>サーバー設定</h2>
+              <div className="settings-input-group">
+                <label>バックエンドポート番号</label>
+                <input
+                  type="number"
+                  className="settings-input"
+                  value={port}
+                  min={1024}
+                  max={65535}
+                  onChange={(e) => {
+                    setPort(Number(e.target.value));
+                    setShowSuccess(false);
+                  }}
+                />
+                <p className="settings-checkbox-hint">
+                  変更後はアプリの再起動が必要です。デフォルト: 3100
+                </p>
               </div>
             </div>
 

@@ -1,6 +1,56 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import axios from 'axios';
 import { AnalysisResult } from '../interview/types/interview.types';
+
+/**
+ * pkg --jitless 環境では globalThis.fetch が壊れるため、
+ * axios を使った fetch 互換関数を Anthropic クライアントに渡す
+ */
+async function axiosFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+  const method = (init?.method ?? (typeof input !== 'string' && !(input instanceof URL) ? (input as Request).method : undefined) ?? 'GET').toUpperCase();
+
+  // ヘッダーをプレーンオブジェクトに変換
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    const h = init.headers;
+    if (h instanceof Headers) {
+      h.forEach((v, k) => { headers[k] = v; });
+    } else if (Array.isArray(h)) {
+      h.forEach(([k, v]) => { headers[k] = v; });
+    } else {
+      Object.assign(headers, h);
+    }
+  }
+
+  const response = await axios({
+    url,
+    method,
+    headers,
+    data: init?.body ?? undefined,
+    responseType: 'arraybuffer',
+    validateStatus: () => true,
+    decompress: true,
+  });
+
+  const bodyBuffer = Buffer.from(response.data as ArrayBuffer);
+  const responseHeaders = new Headers();
+  Object.entries(response.headers).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) {
+      responseHeaders.set(k, String(v));
+    }
+  });
+
+  return new Response(bodyBuffer, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
+}
 
 /** Claude API連携サービス */
 @Injectable()
@@ -13,6 +63,7 @@ export class ClaudeService {
   private getClient(): Anthropic {
     return new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
+      fetch: axiosFetch,
     });
   }
 
