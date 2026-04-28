@@ -38,28 +38,28 @@ pub fn run() {
                 .unwrap_or_else(|| "3100".to_string());
             println!("[tauri] BACKEND_PORT={}", backend_port);
 
-            // 起動前に使用中のポートをkillして競合を防ぐ
-            if let Ok(output) = std::process::Command::new("lsof")
-                .args(["-ti", &format!(":{}", backend_port)])
-                .output()
-            {
-                if let Ok(pids) = String::from_utf8(output.stdout) {
-                    for pid in pids.lines() {
-                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                            let _ = std::process::Command::new("kill")
-                                .args(["-9", &pid_num.to_string()])
-                                .output();
-                            println!("[tauri] ポート{}を使用中のプロセス{}を終了しました", backend_port, pid_num);
-                        }
-                    }
-                }
-            }
-
             // sidecar（NestJSサーバー）を環境変数付きで起動
             // 開発時は npm run start:dev でバックエンドを別途起動するため、sidecarはスキップ
             if cfg!(debug_assertions) {
                 println!("[tauri] 開発モード: sidecar の起動をスキップします（npm run start:dev を使用）");
             } else {
+                // 起動前に使用中のポートをkillして競合を防ぐ（本番モードのみ）
+                if let Ok(output) = std::process::Command::new("lsof")
+                    .args(["-ti", &format!(":{}", backend_port)])
+                    .output()
+                {
+                    if let Ok(pids) = String::from_utf8(output.stdout) {
+                        for pid in pids.lines() {
+                            if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                                let _ = std::process::Command::new("kill")
+                                    .args(["-9", &pid_num.to_string()])
+                                    .output();
+                                println!("[tauri] ポート{}を使用中のプロセス{}を終了しました", backend_port, pid_num);
+                            }
+                        }
+                    }
+                }
+
                 let shell = app.shell();
                 // ~/Library/Application Support/... から ~ を逆算
                 let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
