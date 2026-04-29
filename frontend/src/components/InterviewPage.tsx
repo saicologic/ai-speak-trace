@@ -53,12 +53,18 @@ export function InterviewPage({
   const [logDetailLoading, setLogDetailLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'new' | 'logs'>('new');
 
-  /** 過去ログを取得 */
+  /** 過去ログを取得（現在の文字起こしに絞り込み、最新順） */
   const loadLogs = async () => {
     setLogsLoading(true);
     try {
       const result = await fetchAnalysisLogs();
-      setLogs(result);
+      const filtered = result
+        .filter((l) => l.transcriptionId === transcriptionId)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      setLogs(filtered);
     } catch {
       // ログ取得失敗は無視（初回は空）
     } finally {
