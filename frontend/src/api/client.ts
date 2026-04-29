@@ -6,6 +6,7 @@ import type {
   DeepSearchResponse,
   DocumentInfo,
   InterviewAnalysis,
+  InterviewAnalysisSummary,
   Transcription,
   TranscriptionSummary,
 } from '../types';
@@ -516,6 +517,26 @@ export async function analyzeInterview(
   }
   const data = await res.json();
   return data.analysis;
+}
+
+/** 分析ログ一覧（サマリー）を取得 */
+export async function fetchAnalysisLogs(): Promise<InterviewAnalysisSummary[]> {
+  const res = await fetch(`${BASE_URL}/interview/logs`);
+  if (!res.ok) {
+    throw new Error(`分析ログ一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.logs;
+}
+
+/** 分析ログ詳細を取得 */
+export async function fetchAnalysisLog(id: string): Promise<InterviewAnalysis> {
+  const res = await fetch(`${BASE_URL}/interview/logs/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    throw new Error(`分析ログの取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.log;
 }
 
 /** プロンプトプレビューを取得 */
