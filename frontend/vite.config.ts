@@ -12,7 +12,7 @@ export default defineConfig(() => {
 
   if (backendPort) {
     console.log(`[vite] バックエンドポート: ${backendPort}`)
-  } else {
+  } else if (process.env.NODE_ENV !== 'production') {
     console.warn('[vite] .backend-port が見つかりません。Vite proxy は無効です（本番ビルドでは不要）')
   }
 
