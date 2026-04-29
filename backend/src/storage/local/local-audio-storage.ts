@@ -22,8 +22,8 @@ export class LocalAudioStorage implements AudioStorage {
   constructor(private readonly configService: ConfigService) {
     const dataDir = this.configService.get<string>('DATA_DIR') || './data';
     this.baseDir = path.resolve(
-      this.configService.get<string>('OUTPUTS_DIR') ||
-        path.join(dataDir, 'outputs'),
+      this.configService.get<string>('AUDIO_DIR') ||
+        path.join(dataDir, 'audio'),
     );
     this.logger.log(`音声ファイルディレクトリ: ${this.baseDir}`);
   }
@@ -60,7 +60,7 @@ export class LocalAudioStorage implements AudioStorage {
   async getPlaybackUrl(fileName: string): Promise<string> {
     // ポートは動的割り当てのためホスト名は返さず、パスのみを返す
     // フロントエンドが BASE_URL と組み合わせて完全なURLを構築する
-    return `/outputs/${encodeURIComponent(fileName)}`;
+    return `/audio/${encodeURIComponent(fileName)}`;
   }
 
   async getUploadUrl(): Promise<string | null> {
