@@ -52,6 +52,17 @@ jobs:
       - name: バックエンドsidecarバイナリ生成
         run: npm run pkg:backend
 
+      # tauri-actionがリリース作成する前にGH CLIで先に作成しておく
+      - name: GitHubリリースを作成
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes "DMGファイルをダウンロードしてダブルクリックし、アプリケーションフォルダにドラッグしてインストールしてください。" \
+            --repo ${{ github.repository }} || echo "リリースが既に存在します"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
