@@ -380,3 +380,193 @@
   line-height: 1.6;
   color: #374151;
 }
+
+/* タブ切り替え */
+.interview-tabs {
+  display: flex;
+  gap: 0;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.interview-tab {
+  padding: 0.65rem 1.5rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background-color: transparent;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.interview-tab:hover {
+  color: #374151;
+  background-color: #e5e7eb;
+}
+
+.interview-tab.active {
+  color: #1d4ed8;
+  border-bottom-color: #3b82f6;
+  background-color: #ffffff;
+}
+
+/* 過去ログタブのレイアウト */
+.interview-logs-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 100px);
+}
+
+/* ログ一覧 */
+.interview-logs-list {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.interview-logs-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.interview-logs-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 1rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.interview-logs-refresh:hover:not(:disabled) {
+  color: #374151;
+  background-color: #e5e7eb;
+}
+
+.interview-logs-refresh:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.interview-logs-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.interview-log-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.interview-log-item:hover {
+  background-color: #e5e7eb;
+}
+
+.interview-log-item.selected {
+  background-color: #eff6ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.interview-log-item-speaker {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.2rem;
+}
+
+.interview-log-item-keywords {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.interview-log-item-date {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+/* ログ詳細 */
+.interview-logs-detail {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 2rem;
+  background-color: #f9fafb;
+}
+
+.interview-logs-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.interview-logs-detail-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.interview-logs-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.interview-logs-detail-speaker {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.interview-logs-detail-date {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.interview-logs-detail-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.interview-logs-keyword-tag {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  background-color: #fef9c3;
+  border: 1px solid #facc15;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: #92400e;
+}

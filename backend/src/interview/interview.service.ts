@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeService } from '../claude/claude.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
+import { AnalysisLogStorage } from './analysis-log.storage';
 import {
   InterviewAnalysis,
   UtteranceContextResult,
@@ -16,6 +17,7 @@ export class InterviewService {
   constructor(
     private readonly claudeService: ClaudeService,
     private readonly store: TranscriptionStoreService,
+    private readonly analysisLogStorage: AnalysisLogStorage,
   ) {}
 
   /** 話者名を取得するヘルパー */
@@ -91,7 +93,7 @@ export class InterviewService {
       speakerName,
     );
 
-    return {
+    const analysis: InterviewAnalysis = {
       id: uuidv4(),
       transcriptionId,
       speakerId,
@@ -100,6 +102,25 @@ export class InterviewService {
       results,
       createdAt: new Date().toISOString(),
     };
+
+    // 分析結果を過去ログとして保存
+    await this.analysisLogStorage.save(analysis);
+
+    return analysis;
+  }
+
+  /** 分析ログ一覧（サマリー）を取得 */
+  async findAnalysisLogs(): Promise<Omit<InterviewAnalysis, 'results'>[]> {
+    return this.analysisLogStorage.findAllSummaries();
+  }
+
+  /** 分析ログ詳細を取得 */
+  async findAnalysisLogById(id: string): Promise<InterviewAnalysis> {
+    const log = await this.analysisLogStorage.findById(id);
+    if (!log) {
+      throw new NotFoundException(`分析ログが見つかりません: ${id}`);
+    }
+    return log;
   }
 
   /** 発言の文脈を分析 */
