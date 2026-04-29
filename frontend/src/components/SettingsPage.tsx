@@ -104,7 +104,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   // サブディレクトリ（相対パス表示）
   const subDirs = [
-    { label: '音声ファイル', path: 'outputs/' },
+    { label: '音声ファイル', path: 'audio/' },
     { label: '文字起こし', path: 'transcriptions/' },
     { label: 'PDFドキュメント', path: 'documents/' },
     { label: 'メタデータ', path: 'document-metadata/' },

@@ -18,7 +18,7 @@ export interface AppSettings {
   storageType: string;
   paths: {
     dataDir: string;
-    outputsDir: string;
+    audioDir: string;
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;
@@ -54,9 +54,9 @@ export class SettingsService {
       storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
       paths: {
         dataDir,
-        outputsDir: path.resolve(
-          this.configService.get<string>('OUTPUTS_DIR') ||
-            path.join(dataDir, 'outputs'),
+        audioDir: path.resolve(
+          this.configService.get<string>('AUDIO_DIR') ||
+            path.join(dataDir, 'audio'),
         ),
         transcriptionsDir: path.resolve(
           this.configService.get<string>('TRANSCRIPTIONS_DIR') ||

@@ -134,13 +134,16 @@ export interface DeepSearchAnalysis {
   analyzedAt: string;
 }
 
+/** 会話分析ログサマリー（results を除いた一覧表示用） */
+export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
+
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;
   storageType: string;
   paths: {
     dataDir: string;
-    outputsDir: string;
+    audioDir: string;
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;

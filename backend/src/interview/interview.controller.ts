@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { GenerateQuestionsDto } from './dto/generate-questions.dto';
 import { AnalyzeDto } from './dto/analyze.dto';
@@ -52,5 +52,19 @@ export class InterviewController {
       dto.utteranceIndices,
     );
     return { analysis };
+  }
+
+  /** 分析ログ一覧: GET /api/interview/logs */
+  @Get('logs')
+  async findAnalysisLogs() {
+    const logs = await this.interviewService.findAnalysisLogs();
+    return { logs };
+  }
+
+  /** 分析ログ詳細: GET /api/interview/logs/:id */
+  @Get('logs/:id')
+  async findAnalysisLogById(@Param('id') id: string) {
+    const log = await this.interviewService.findAnalysisLogById(id);
+    return { log };
   }
 }

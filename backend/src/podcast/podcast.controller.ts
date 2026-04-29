@@ -68,7 +68,7 @@ export class PodcastController {
       // 1. Podcastキャッシュからファイルを読み込み
       const buffer = await this.podcastService.readFile(body.fileName);
 
-      // 2. outputs/ ディレクトリにコピー保存
+      // 2. audio/ ディレクトリにコピー保存
       await this.audioStorage.saveFile(body.fileName, buffer);
 
       // 3. 既存の文字起こしフローで処理
