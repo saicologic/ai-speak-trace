@@ -168,7 +168,7 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
     throw new Error(`音声ファイルURLの取得に失敗しました: ${res.status}`);
   }
   const data = await res.json();
-  // ローカルモードでは "/outputs/..." 形式のパスが返るため、ベースURLを補完する
+  // ローカルモードでは "/audio/..." 形式のパスが返るため、ベースURLを補完する
   // S3モードでは完全なURLが返るためそのまま使用する
   const url: string = data.url;
   if (url.startsWith('/')) {

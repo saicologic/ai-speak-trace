@@ -30,7 +30,7 @@ export class S3AudioStorage implements AudioStorage {
   constructor(private readonly configService: ConfigService) {
     const region = this.configService.get<string>('AWS_REGION', 'ap-northeast-1');
     this.bucket = this.configService.get<string>('S3_BUCKET', '');
-    this.prefix = this.configService.get<string>('S3_AUDIO_PREFIX', 'outputs/');
+    this.prefix = this.configService.get<string>('S3_AUDIO_PREFIX', 'audio/');
 
     if (!this.bucket) {
       throw new Error(

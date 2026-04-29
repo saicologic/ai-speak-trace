@@ -46,8 +46,8 @@ lerna-debug.log*
 .tmp
 
 # data directories (keep .gitkeep)
-data/outputs/*
-!data/outputs/.gitkeep
+data/audio/*
+!data/audio/.gitkeep
 data/transcriptions/*
 !data/transcriptions/.gitkeep
 data/documents/*

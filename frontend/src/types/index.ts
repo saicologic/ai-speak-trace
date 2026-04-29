@@ -140,7 +140,7 @@ export interface AppSettings {
   storageType: string;
   paths: {
     dataDir: string;
-    outputsDir: string;
+    audioDir: string;
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;

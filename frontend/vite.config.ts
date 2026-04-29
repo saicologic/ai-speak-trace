@@ -31,7 +31,7 @@ export default defineConfig(() => {
             target: `http://127.0.0.1:${backendPort}`,
             changeOrigin: true,
           },
-          '/outputs': {
+          '/audio': {
             target: `http://127.0.0.1:${backendPort}`,
             changeOrigin: true,
           },

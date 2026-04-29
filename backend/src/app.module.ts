@@ -30,11 +30,11 @@ import { PodcastModule } from './podcast/podcast.module';
           return [];
         }
         const dataDir = configService.get<string>('DATA_DIR') || './data';
-        const outputsDir = resolve(
-          configService.get<string>('OUTPUTS_DIR') ||
-            `${dataDir}/outputs`,
+        const audioDir = resolve(
+          configService.get<string>('AUDIO_DIR') ||
+            `${dataDir}/audio`,
         );
-        return [{ rootPath: outputsDir, serveRoot: '/outputs' }];
+        return [{ rootPath: audioDir, serveRoot: '/audio' }];
       },
       inject: [ConfigService],
     }),

@@ -133,7 +133,7 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 
 ```
 ~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
-├── outputs/          # 音声ファイル
+├── audio/            # 音声ファイル
 ├── transcriptions/   # 文字起こし結果
 ├── chunks/           # チャンク分割された音声ファイル（処理中のみ）
 ├── chunked-jobs/     # チャンク分割ジョブの状態
