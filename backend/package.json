@@ -42,7 +42,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.1.17",
     "@nestjs/serve-static": "^5.0.4",
-    "axios": "^1.15.2",
+    "axios": "^1.16.0",
     "form-data": "^4.0.5",
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",
