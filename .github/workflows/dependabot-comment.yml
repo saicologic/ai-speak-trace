@@ -1,0 +1,78 @@
+name: Dependabot PRコメント投稿
+
+on:
+  workflow_run:
+    workflows: ['Dependabot 差分チェック']
+    types: [completed]
+
+# workflow_runトリガーはベースブランチのコードで動作するため、
+# 書き込み権限を安全に使用できる
+jobs:
+  comment:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: アーティファクトをダウンロード
+        uses: actions/download-artifact@v4
+        with:
+          name: diff-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: /tmp/diff-report
+
+      - name: PRにコメントを投稿
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const prNumber = parseInt(fs.readFileSync('/tmp/diff-report/pr-number.txt', 'utf8').trim());
+            const ecosystem = fs.readFileSync('/tmp/diff-report/ecosystem.txt', 'utf8').trim();
+            const cargoSummary = fs.readFileSync('/tmp/diff-report/cargo-summary.txt', 'utf8').trim();
+            const npmHasDiff = fs.readFileSync('/tmp/diff-report/npm-has-diff.txt', 'utf8').trim();
+
+            let body = '## Dependabot 差分レポート\n\n';
+
+            if (ecosystem === 'cargo') {
+              body += '**エコシステム**: Rust (Cargo)\n\n';
+              body += '### 更新されたクレート\n\n';
+              if (cargoSummary) {
+                body += '```\n' + cargoSummary + '\n```\n\n';
+              } else {
+                body += '差分情報を取得できませんでした。\n\n';
+              }
+              body += '> Rustのビルド確認は `npm run build` で手動実施してください。\n';
+
+            } else if (ecosystem === 'npm-backend') {
+              body += '**エコシステム**: npm (backend)\n\n';
+              if (npmHasDiff === 'false') {
+                body += '✅ **ビルド差分なし** — 動作への影響はありません。安全にマージできます。\n';
+              } else if (npmHasDiff === 'true') {
+                body += '⚠️ **ビルド差分あり** — 動作に影響がある可能性があります。変更内容を確認してください。\n';
+              } else {
+                body += '❓ ビルド差分チェックをスキップしました。\n';
+              }
+
+            } else if (ecosystem === 'npm-frontend') {
+              body += '**エコシステム**: npm (frontend)\n\n';
+              if (npmHasDiff === 'false') {
+                body += '✅ **ビルド差分なし** — 動作への影響はありません。安全にマージできます。\n';
+              } else if (npmHasDiff === 'true') {
+                body += '⚠️ **ビルド差分あり** — 動作に影響がある可能性があります。変更内容を確認してください。\n';
+              } else {
+                body += '❓ ビルド差分チェックをスキップしました。\n';
+              }
+
+            } else {
+              body += '対象外のエコシステムのため、チェックをスキップしました。\n';
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body,
+            });

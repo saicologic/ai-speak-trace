@@ -1,0 +1,109 @@
+name: Dependabot 差分チェック
+
+on:
+  pull_request:
+    branches: [main]
+
+# Dependabotのpull_requestトリガーは読み取り専用のため、
+# 差分情報をアーティファクトに保存し、workflow_runで拾ってコメント投稿する
+jobs:
+  diff:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: エコシステムを判定
+        id: changed
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+          FILES=$(git diff --name-only "$BASE" "$HEAD")
+
+          if echo "$FILES" | grep -q "Cargo.lock"; then
+            echo "ecosystem=cargo" >> $GITHUB_OUTPUT
+          elif echo "$FILES" | grep -q "backend/package-lock.json"; then
+            echo "ecosystem=npm-backend" >> $GITHUB_OUTPUT
+          elif echo "$FILES" | grep -q "frontend/package-lock.json"; then
+            echo "ecosystem=npm-frontend" >> $GITHUB_OUTPUT
+          else
+            echo "ecosystem=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Cargo.lock 差分サマリーを生成
+        id: cargo-diff
+        if: steps.changed.outputs.ecosystem == 'cargo'
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+
+          git show "$BASE:src-tauri/Cargo.lock" > /tmp/Cargo.lock.base 2>/dev/null || true
+          git show "$HEAD:src-tauri/Cargo.lock" > /tmp/Cargo.lock.head 2>/dev/null || true
+
+          diff /tmp/Cargo.lock.base /tmp/Cargo.lock.head \
+            | grep '^[<>]' \
+            | grep 'version = ' \
+            | sed 's/< /削除: /; s/> /追加: /' \
+            | sed 's/version = //' \
+            | tr -d '"' \
+            | sort > /tmp/cargo-summary.txt || true
+
+      - name: backend ビルド差分チェック
+        if: steps.changed.outputs.ecosystem == 'npm-backend'
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+
+          git checkout "$BASE" -- backend/
+          cd backend && npm ci --silent && npm run build --silent 2>/dev/null || true
+          cp -r dist /tmp/dist-base 2>/dev/null || mkdir -p /tmp/dist-base
+          cd ..
+
+          git checkout "$HEAD" -- backend/
+          cd backend && npm ci --silent && npm run build --silent 2>/dev/null || true
+
+          if diff -rq /tmp/dist-base dist > /dev/null 2>&1; then
+            echo "false" > /tmp/npm-has-diff.txt
+          else
+            echo "true" > /tmp/npm-has-diff.txt
+          fi
+
+      - name: frontend ビルド差分チェック
+        if: steps.changed.outputs.ecosystem == 'npm-frontend'
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+
+          git checkout "$BASE" -- frontend/
+          cd frontend && npm ci --silent && npm run build --silent 2>/dev/null || true
+          cp -r dist /tmp/dist-base 2>/dev/null || mkdir -p /tmp/dist-base
+          cd ..
+
+          git checkout "$HEAD" -- frontend/
+          cd frontend && npm ci --silent && npm run build --silent 2>/dev/null || true
+
+          if diff -rq /tmp/dist-base dist > /dev/null 2>&1; then
+            echo "false" > /tmp/npm-has-diff.txt
+          else
+            echo "true" > /tmp/npm-has-diff.txt
+          fi
+
+      # PR番号・エコシステム・差分結果をアーティファクトに保存
+      - name: 差分情報をアーティファクトに保存
+        run: |
+          mkdir -p /tmp/diff-report
+          echo "${{ github.event.pull_request.number }}" > /tmp/diff-report/pr-number.txt
+          echo "${{ steps.changed.outputs.ecosystem }}" > /tmp/diff-report/ecosystem.txt
+          cp /tmp/cargo-summary.txt /tmp/diff-report/cargo-summary.txt 2>/dev/null || touch /tmp/diff-report/cargo-summary.txt
+          cp /tmp/npm-has-diff.txt /tmp/diff-report/npm-has-diff.txt 2>/dev/null || touch /tmp/diff-report/npm-has-diff.txt
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: diff-report
+          path: /tmp/diff-report/
+          retention-days: 1
