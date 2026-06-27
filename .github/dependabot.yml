@@ -4,7 +4,7 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
-    target-branch: "release/v0.5.7"
+    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "backend"
@@ -13,7 +13,7 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    target-branch: "release/v0.5.7"
+    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "frontend"
@@ -22,7 +22,7 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: "weekly"
-    target-branch: "release/v0.5.7"
+    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "rust"
