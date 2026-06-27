@@ -1,14 +1,12 @@
-name: Dependabot 差分チェック
+name: 依存パッケージ差分チェック
 
 on:
   pull_request:
     branches: [main]
 
-# Dependabotのpull_requestトリガーは読み取り専用のため、
 # 差分情報をアーティファクトに保存し、workflow_runで拾ってコメント投稿する
 jobs:
   diff:
-    if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
