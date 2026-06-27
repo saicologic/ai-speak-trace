@@ -132,3 +132,12 @@ PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と
 - release/* → `/release`
 - fix/*, feature/* → `/fix-issue`
 - 脆弱性対応 → `/audit`
+
+### 手動確認項目の条件判断
+
+`npm run build`（backendディレクトリで実行）は、以下の場合のみTest planに含める:
+
+- `backend/` 配下のコードを変更した場合
+- `backend/package.json` または `backend/package-lock.json` を変更した場合
+
+`frontend/`・`.github/workflows/`・`CLAUDE.md`・`src-tauri/` のみの変更では含めない。
