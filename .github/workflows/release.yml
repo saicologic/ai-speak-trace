@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -69,8 +71,16 @@ jobs:
           prerelease: false
           args: '--target aarch64-apple-darwin'
 
+      # ビルド・公証失敗時に明示的なエラーメッセージを表示
+      - name: ビルド失敗通知
+        if: failure()
+        run: |
+          echo "::error::ビルドまたは公証に失敗しました。"
+          echo "::error::公証エラー(403)の場合は https://developer.apple.com/account および https://appstoreconnect.apple.com/agreements でApple Developer契約を確認してください。"
+
       # 動作確認用（タグなしでもdmgをダウンロード可能にする）
       - name: dmgアーティファクトをアップロード
+        if: success()
         uses: actions/upload-artifact@v6
         with:
           name: dmg
