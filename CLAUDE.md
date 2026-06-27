@@ -115,10 +115,13 @@ ai-speak-trace/
 
 ### リリース手順
 
-1. `fix/*` ブランチで修正してmainにマージ
+1. `fix/*` または `feature/*` ブランチで修正・実装する
 2. `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新
-3. `release/vX.Y.Z` → main へPR作成・マージ
-4. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
+3. `fix/*` → `release/vX.Y.Z` へPR作成・マージ
+4. `release/vX.Y.Z` → `main` へPR作成・マージ
+5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
+
+`fix/*` を直接 `main` にマージしない。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
 
 ## PRテストプラン
 
