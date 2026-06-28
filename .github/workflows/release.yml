@@ -39,6 +39,41 @@ jobs:
       - name: バックエンドsidecarバイナリ生成
         run: npm run pkg:backend
 
+      # release/vX.Y.Z PRの「変更内容」セクションをリリースノートに使用
+      - name: リリースノート生成
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          # release/vX.Y.Z にマージされたPRを検索
+          PR_BODY=$(gh pr list \
+            --repo ${{ github.repository }} \
+            --state merged \
+            --search "release: v${VERSION} in:title" \
+            --json body \
+            --jq '.[0].body // ""')
+
+          # "## 変更内容" セクションを抽出し "## " で始まる次のセクションの直前まで取得
+          CHANGES=$(echo "$PR_BODY" | awk '/^## 変更内容/{found=1; next} found && /^## /{exit} found{print}')
+
+          if [ -z "$CHANGES" ]; then
+            echo "::error::release: v${VERSION} のPRが見つからないか、「## 変更内容」セクションがありません"
+            exit 1
+          fi
+
+          BODY="## 変更内容
+          ${CHANGES}
+
+          ## インストール方法
+          DMGファイルをダウンロードしてマウントし、アプリケーションフォルダにドラッグしてください。"
+
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,7 +87,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
-          releaseBody: 'DMGファイルをダウンロードしてマウントし、アプリケーションフォルダにドラッグしてください。'
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: '--target aarch64-apple-darwin'
