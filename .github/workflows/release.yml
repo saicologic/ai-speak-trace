@@ -11,6 +11,8 @@ on:
 jobs:
   build-and-release:
     runs-on: macos-latest
+    # dependabotのPRはSecretsにアクセスできないためスキップ
+    if: github.actor != 'dependabot[bot]'
     permissions:
       contents: write
 
@@ -56,13 +58,13 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # タグプッシュ時のみコード署名・公証を実行（PRではSecretsが空になるためスキップ）
-          APPLE_SIGNING_IDENTITY: ${{ github.ref_type == 'tag' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_CERTIFICATE: ${{ github.ref_type == 'tag' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ github.ref_type == 'tag' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_ID: ${{ github.ref_type == 'tag' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ github.ref_type == 'tag' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ github.ref_type == 'tag' && secrets.APPLE_TEAM_ID || '' }}
+          # コード署名・公証（dependabotはジョブごとスキップのため常に渡す）
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
