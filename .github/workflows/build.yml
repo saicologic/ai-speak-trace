@@ -5,6 +5,10 @@ on:
     branches:
       - 'release/*'
       - main
+    paths:
+      - 'src-tauri/**'
+      - 'frontend/**'
+      - 'backend/**'
 
 jobs:
   build:
