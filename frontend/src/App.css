@@ -24,18 +24,24 @@
 }
 
 .app-header-settings-button {
-  padding: 0.4rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  background-color: transparent;
+  padding: 0.45rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #4f6ef7;
   color: #ffffff;
   cursor: pointer;
   font-size: 0.85rem;
-  transition: background-color 0.15s;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background-color 0.15s, transform 0.1s;
 }
 
 .app-header-settings-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: #3b5be0;
+}
+
+.app-header-settings-button:active {
+  transform: scale(0.97);
 }
 
 .app-main {
