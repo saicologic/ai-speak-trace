@@ -8,7 +8,9 @@ on:
     paths:
       - 'src-tauri/**'
       - 'frontend/**'
+      - '!frontend/**/*.css'
       - 'backend/**'
+      - '!**.md'
 
 jobs:
   build:

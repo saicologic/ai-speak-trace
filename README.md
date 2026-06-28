@@ -36,7 +36,7 @@ tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
 | ElevenLabs | 音声の文字起こし | https://elevenlabs.io/app/developers/api-keys |
 | Anthropic | 会話分析・質問生成 | https://console.anthropic.com |
 
-アプリ内の「設定」画面からAPIキーを設定してください。保存後すぐに反映されるため、アプリの再起動は不要です。
+アプリ右上の `設定` ボタンからAPIキーを設定してください。保存後すぐに反映されるため、アプリの再起動は不要です。
 
 #### ElevenLabs APIキーのアクセス制限
 

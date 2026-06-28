@@ -103,6 +103,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "silent": true,
+    "verbose": true,
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"]
   }
 }
