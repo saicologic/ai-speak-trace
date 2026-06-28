@@ -83,6 +83,17 @@ ai-speak-trace/
 - Amazon Bedrock Titan Embeddings V2によるベクトル検索（PDF）
 - 検索結果をClaudeで統合分析
 
+## 開発環境
+
+アプリの動作確認は**ルートディレクトリから `npm run dev` 一択**で行う。
+
+```bash
+# ai-speak-trace/ ルートディレクトリで実行
+npm run dev
+```
+
+`frontend/` や `backend/` で個別に起動しない。バックエンドはポート0でランダム起動し、`scripts/dev.mjs` 経由でポートをフロントエンドに伝える仕組みのため、個別起動するとプロキシ接続が失敗する。
+
 ## 前提条件
 
 - 文字起こしは日本語
