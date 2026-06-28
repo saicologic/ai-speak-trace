@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -34,20 +32,6 @@ jobs:
       - run: cd backend && npm ci
 
       - run: cd frontend && npm ci
-
-      # タグまたはブランチ名からバージョンを取得してtauri.conf.jsonに同期
-      - name: バージョンを同期
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF_NAME#v}
-          elif [[ "$GITHUB_REF" == refs/heads/release/v* ]]; then
-            VERSION=${GITHUB_REF_NAME#release/v}
-          else
-            echo "タグ・リリースブランチ以外のため、バージョン同期をスキップします"
-            exit 0
-          fi
-          echo "同期するバージョン: $VERSION"
-          sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 
       # sidecarバイナリをtauri-action実行前に生成
       - name: バックエンドsidecarバイナリ生成

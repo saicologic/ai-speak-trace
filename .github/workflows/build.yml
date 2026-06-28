@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  pull_request:
+    branches:
+      - 'release/*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - run: cd backend && npm ci
+
+      - run: cd frontend && npm ci
+
+      # sidecarバイナリをtauri-action実行前に生成
+      - name: バックエンドsidecarバイナリ生成
+        run: npm run pkg:backend
+
+      # 署名なしでビルドのみ実行
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: '--target aarch64-apple-darwin'
