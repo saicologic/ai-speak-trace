@@ -4,13 +4,13 @@ on:
   push:
     tags:
       - 'v*'
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   build-and-release:
     runs-on: macos-latest
+    # dependabotのPRはSecretsにアクセスできないためスキップ
+    if: github.actor != 'dependabot[bot]'
     permissions:
       contents: write
 
@@ -35,20 +35,6 @@ jobs:
 
       - run: cd frontend && npm ci
 
-      # タグまたはブランチ名からバージョンを取得してtauri.conf.jsonに同期
-      - name: バージョンを同期
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF_NAME#v}
-          elif [[ "$GITHUB_REF" == refs/heads/release/v* ]]; then
-            VERSION=${GITHUB_REF_NAME#release/v}
-          else
-            echo "タグ・リリースブランチ以外のため、バージョン同期をスキップします"
-            exit 0
-          fi
-          echo "同期するバージョン: $VERSION"
-          sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
-
       # sidecarバイナリをtauri-action実行前に生成
       - name: バックエンドsidecarバイナリ生成
         run: npm run pkg:backend
@@ -56,7 +42,7 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # コード署名・公証
+          # コード署名・公証（dependabotはジョブごとスキップのため常に渡す）
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

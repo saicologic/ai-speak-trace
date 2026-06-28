@@ -10,6 +10,7 @@ backend/data/chunked-jobs/
 # Tauri
 src-tauri/target/
 src-tauri/binaries/nestjs-server*
+src-tauri/gen/
 
 # 開発時バックエンドポートファイル
 .backend-port
