@@ -51,6 +51,7 @@ export class ElevenLabsService {
     form.append('model_id', 'scribe_v2');
     form.append('language_code', 'ja');
     form.append('diarize', 'true');
+    form.append('num_speakers', '2');
     form.append('timestamps_granularity', 'word');
     form.append('tag_audio_events', 'true');
 

@@ -55,7 +55,7 @@ tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
 
 **Podcastアプリから取り込む場合**
 
-macOSにはPodcastアプリがプリインストールされています。エピソードをダウンロードしてから、本アプリにアップロードしてください。
+macOSにはPodcastアプリがプリインストールされています。エピソードをダウンロードしてから、本アプリで取り込んでください。
 
 - [Podcastでエピソードを保存する/ダウンロードする（Mac）](https://support.apple.com/ja-jp/guide/podcasts/poda4f6be01/mac)
 - [Podcastユーザガイド（Mac）](https://support.apple.com/ja-jp/guide/podcasts/welcome/mac)
@@ -88,6 +88,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 ## 使い方
 
 ### 1. ファイルアップロード・文字起こし・結果確認
+
+> **話者数について:** 文字起こしの話者分離は最大2人までを対象としています。3人以上の音声は動作保証外です。
 
 1. 左サイドバーの「音声ファイルの文字起こし」をクリック
 2. 音声ファイルを選択し、クレジット残量を確認して「文字起こしを実行」
