@@ -56,11 +56,11 @@ jobs:
             --json body \
             --jq '.[0].body // ""')
 
-          # "## 変更内容" セクションを抽出し "## " で始まる次のセクションの直前まで取得
-          CHANGES=$(echo "$PR_BODY" | awk '/^## 変更内容/{found=1; next} found && /^## /{exit} found{print}')
+          # "## 変更内容" または "## Summary" セクションを抽出し "## " で始まる次のセクションの直前まで取得
+          CHANGES=$(echo "$PR_BODY" | awk '/^## (変更内容|Summary)/{found=1; next} found && /^## /{exit} found{print}')
 
           if [ -z "$CHANGES" ]; then
-            echo "::error::release: v${VERSION} のPRが見つからないか、「## 変更内容」セクションがありません"
+            echo "::error::release: v${VERSION} のPRが見つからないか、「## 変更内容」または「## Summary」セクションがありません"
             exit 1
           fi
 
