@@ -74,8 +74,16 @@ pub fn run() {
                     .join("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache");
                 println!("[tauri] PODCAST_CACHE_DIR={}", podcast_cache_dir.display());
 
+                // バンドルされたffmpegバイナリのパスを解決してNestJSへ渡す
+                // externalBinはContents/MacOS/に配置されるため、実行ファイルと同じディレクトリを参照する
+                let ffmpeg_path = std::env::current_exe()
+                    .expect("実行ファイルパスの取得に失敗")
+                    .parent()
+                    .expect("実行ファイルの親ディレクトリ取得に失敗")
+                    .join("ffmpeg");
+                println!("[tauri] FFMPEG_PATH={}", ffmpeg_path.display());
+
                 // sidecarはシェルを経由しないためPATHが最小限になる
-                // ffmpeg等の外部コマンドを利用するため、Homebrew等のパスを追加する
                 let system_path = std::env::var("PATH").unwrap_or_default();
                 let extra_paths = "/opt/homebrew/bin:/usr/local/bin";
                 let full_path = if system_path.is_empty() {
@@ -91,7 +99,8 @@ pub fn run() {
                     .env("PATH", &full_path)
                     .env("DATA_DIR", data_dir.to_string_lossy().to_string())
                     .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
-                    .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string());
+                    .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string())
+                    .env("FFMPEG_PATH", ffmpeg_path.to_string_lossy().to_string());
 
                 let (mut rx, child) = sidecar
                     .spawn()

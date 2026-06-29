@@ -39,6 +39,18 @@ jobs:
       - name: バックエンドsidecarバイナリ生成
         run: npm run pkg:backend
 
+      # ffmpeg静的バイナリをsrc-tauri/binaries/に配置
+      - name: ffmpegバイナリ配置
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = require('ffmpeg-static');
+            fs.copyFileSync(p, '../src-tauri/binaries/ffmpeg-aarch64-apple-darwin');
+            fs.chmodSync('../src-tauri/binaries/ffmpeg-aarch64-apple-darwin', 0o755);
+            console.log('ffmpeg配置完了:', p);
+          "
+        working-directory: backend
+
       # release/vX.Y.Z PRの「変更内容」セクションをリリースノートに使用
       - name: リリースノート生成
         id: release_notes
@@ -56,11 +68,11 @@ jobs:
             --json body \
             --jq '.[0].body // ""')
 
-          # "## 変更内容" セクションを抽出し "## " で始まる次のセクションの直前まで取得
-          CHANGES=$(echo "$PR_BODY" | awk '/^## 変更内容/{found=1; next} found && /^## /{exit} found{print}')
+          # "## 変更内容" または "## Summary" セクションを抽出し "## " で始まる次のセクションの直前まで取得
+          CHANGES=$(echo "$PR_BODY" | awk '/^## (変更内容|Summary)/{found=1; next} found && /^## /{exit} found{print}')
 
           if [ -z "$CHANGES" ]; then
-            echo "::error::release: v${VERSION} のPRが見つからないか、「## 変更内容」セクションがありません"
+            echo "::error::release: v${VERSION} のPRが見つからないか、「## 変更内容」または「## Summary」セクションがありません"
             exit 1
           fi
 

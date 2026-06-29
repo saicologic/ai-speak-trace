@@ -169,14 +169,12 @@ export class TranscriptionController {
       // ffmpeg未インストールエラー
       if (
         error instanceof Error &&
-        (error.message.includes('ffprobeが見つかりません') ||
-          error.message.includes('ffmpegがインストールされていません'))
+        error.message.includes('ffmpegが見つかりません')
       ) {
         throw new HttpException(
           {
             code: 'FFMPEG_MISSING',
-            message:
-              'ffmpegがインストールされていません。ターミナルで以下のコマンドを実行してください:\nbrew install ffmpeg',
+            message: 'ffmpegが見つかりません。アプリを再インストールしてください。',
           },
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
