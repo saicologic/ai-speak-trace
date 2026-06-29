@@ -1,0 +1,22 @@
+name: Build (skip)
+
+# ビルド対象外のファイル（Markdown・画像・CSS・ワークフロー設定など）のみ変更されたPRで実行される。
+# ブランチ保護の必須チェック「build」が「Waiting for status to be reported」でブロックされないよう、
+# 代わりに成功を報告するためのワークフロー。
+# ビルド対象ファイル（src-tauri/**・frontend/**・backend/**）が含まれる場合は build.yml が動く。
+
+on:
+  pull_request:
+    branches:
+      - 'release/*'
+      - main
+    paths-ignore:
+      - 'src-tauri/**'
+      - 'frontend/**'
+      - 'backend/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ビルド対象外のファイルのみ変更のためスキップ"
