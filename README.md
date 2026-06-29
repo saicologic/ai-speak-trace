@@ -2,7 +2,7 @@
 
 音声データから話者分離・文字起こしを行い、会話内容をキーワード分析・Web検索付きで深掘りできるデスクトップアプリケーションです。
 
-![AI Speak Trace スクリーンショット](docs/screenshots/readme_top.png)
+![AI Speak Trace スクリーンショット](docs/screenshots/readme_top.jpg)
 
 ## クイックスタート
 
