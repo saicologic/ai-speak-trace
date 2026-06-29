@@ -182,7 +182,7 @@ describe('TranscriptionController', () => {
 
     it('ffmpeg未インストールエラーは422を返す', async () => {
       mockTranscriptionService.transcribe.mockRejectedValueOnce(
-        new Error('ffprobeが見つかりません'),
+        new Error('ffmpegが見つかりません'),
       );
 
       await expect(

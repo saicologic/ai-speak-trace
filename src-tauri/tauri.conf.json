@@ -34,7 +34,8 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/nestjs-server"
+      "binaries/nestjs-server",
+      "binaries/ffmpeg"
     ],
     "macOS": {
       "signingIdentity": "Developer ID Application: SATORU MIKAMI (2M2QV9R792)"

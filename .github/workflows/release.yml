@@ -39,6 +39,18 @@ jobs:
       - name: バックエンドsidecarバイナリ生成
         run: npm run pkg:backend
 
+      # ffmpeg静的バイナリをsrc-tauri/binaries/に配置
+      - name: ffmpegバイナリ配置
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = require('ffmpeg-static');
+            fs.copyFileSync(p, '../src-tauri/binaries/ffmpeg-aarch64-apple-darwin');
+            fs.chmodSync('../src-tauri/binaries/ffmpeg-aarch64-apple-darwin', 0o755);
+            console.log('ffmpeg配置完了:', p);
+          "
+        working-directory: backend
+
       # release/vX.Y.Z PRの「変更内容」セクションをリリースノートに使用
       - name: リリースノート生成
         id: release_notes
