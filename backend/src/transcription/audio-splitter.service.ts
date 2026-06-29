@@ -15,35 +15,48 @@ export const DEFAULT_CHUNK_DURATION_SEC = 600;
 export class AudioSplitterService {
   private readonly logger = new Logger(AudioSplitterService.name);
 
-  /** ffmpegがインストールされているか確認 */
+  /**
+   * 使用するffmpegバイナリのパスを返す
+   * 環境変数 FFMPEG_PATH が設定されている場合はそちらを優先（Tauriバンドル時）
+   */
+  private getFfmpegPath(): string {
+    return process.env.FFMPEG_PATH ?? 'ffmpeg';
+  }
+
+  /** ffmpegが利用可能か確認 */
   async checkFfmpegAvailable(): Promise<boolean> {
     try {
-      await execFileAsync('ffmpeg', ['-version']);
+      await execFileAsync(this.getFfmpegPath(), ['-version']);
       return true;
     } catch {
       return false;
     }
   }
 
-  /** ffprobeで音声ファイルの長さ（秒）を取得 */
+  /** ffmpegで音声ファイルの長さ（秒）を取得（ffprobe不要） */
   async getAudioDuration(filePath: string): Promise<number> {
+    const ffmpegPath = this.getFfmpegPath();
     try {
-      const { stdout } = await execFileAsync('ffprobe', [
-        '-v', 'quiet',
-        '-show_entries', 'format=duration',
-        '-of', 'csv=p=0',
-        filePath,
-      ]);
-      const duration = parseFloat(stdout.trim());
-      if (isNaN(duration)) {
-        throw new Error(`音声ファイルの長さを解析できません: ${stdout.trim()}`);
+      // ffmpegは-i指定のみだとexit code 1になるがstderrにduration情報が出る
+      const { stderr } = await execFileAsync(ffmpegPath, [
+        '-i', filePath,
+      ]).catch((err: { stderr?: string; code?: number }) => {
+        // exit code 1は正常（入力のみ指定時の期待動作）
+        if (err.stderr) return { stderr: err.stderr };
+        throw err;
+      }) as { stderr: string };
+
+      const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
+      if (!match) {
+        throw new Error(`音声ファイルの長さを解析できません: ${filePath}`);
       }
-      return duration;
+      const hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const seconds = parseFloat(match[3]);
+      return hours * 3600 + minutes * 60 + seconds;
     } catch (error) {
       if (error instanceof Error && error.message.includes('ENOENT')) {
-        throw new Error(
-          'ffprobeが見つかりません。ffmpegをインストールしてください: brew install ffmpeg',
-        );
+        throw new Error('ffmpegが見つかりません');
       }
       throw error;
     }
@@ -63,11 +76,10 @@ export class AudioSplitterService {
     chunkDurationSec: number,
     outputDir: string,
   ): Promise<{ chunkFiles: string[]; totalDurationSec: number }> {
-    // ffmpegの存在確認
+    const ffmpegPath = this.getFfmpegPath();
+
     if (!(await this.checkFfmpegAvailable())) {
-      throw new Error(
-        'ffmpegがインストールされていません。Homebrew等でインストールしてください: brew install ffmpeg',
-      );
+      throw new Error('ffmpegが見つかりません');
     }
 
     // 出力ディレクトリを作成
@@ -95,7 +107,7 @@ export class AudioSplitterService {
       const chunkFileName = `chunk_${String(i).padStart(3, '0')}${ext}`;
       const chunkPath = path.join(outputDir, chunkFileName);
 
-      await execFileAsync('ffmpeg', [
+      await execFileAsync(ffmpegPath, [
         '-y',                          // 既存ファイルを上書き
         '-ss', String(startSec),       // 開始位置
         '-t', String(chunkDurationSec), // 切り出す長さ
