@@ -3,7 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { ClaudeService } from '../claude/claude.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
-import { AnalysisLogStorage } from './analysis-log.storage';
+import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 
 /** テスト用の文字起こしデータ */
 const sampleTranscription = {
@@ -69,6 +69,14 @@ describe('InterviewService', () => {
             save: jest.fn(),
             findById: jest.fn(),
             findAllSummaries: jest.fn(),
+          },
+        },
+        {
+          provide: SummaryLogStorage,
+          useValue: {
+            save: jest.fn(),
+            findById: jest.fn(),
+            findAll: jest.fn(),
           },
         },
       ],

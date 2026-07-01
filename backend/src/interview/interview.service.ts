@@ -2,9 +2,10 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeService } from '../claude/claude.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
-import { AnalysisLogStorage } from './analysis-log.storage';
+import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 import {
   InterviewAnalysis,
+  TranscriptionSummaryLog,
   UtteranceContextResult,
   ContextAnalysisResponse,
 } from './types/interview.types';
@@ -18,6 +19,7 @@ export class InterviewService {
     private readonly claudeService: ClaudeService,
     private readonly store: TranscriptionStoreService,
     private readonly analysisLogStorage: AnalysisLogStorage,
+    private readonly summaryLogStorage: SummaryLogStorage,
   ) {}
 
   /** 話者名を取得するヘルパー */
@@ -119,6 +121,43 @@ export class InterviewService {
     const log = await this.analysisLogStorage.findById(id);
     if (!log) {
       throw new NotFoundException(`分析ログが見つかりません: ${id}`);
+    }
+    return log;
+  }
+
+  /** 要約を生成して保存 */
+  async summarize(transcriptionId: string): Promise<TranscriptionSummaryLog> {
+    const transcription = await this.store.findById(transcriptionId);
+    if (!transcription) {
+      throw new NotFoundException(`文字起こし結果が見つかりません: ${transcriptionId}`);
+    }
+
+    this.logger.log(`要約開始: transcriptionId=${transcriptionId}`);
+    const result = await this.claudeService.summarize(transcription.fullText);
+
+    const summary: TranscriptionSummaryLog = {
+      id: uuidv4(),
+      transcriptionId,
+      topics: result.topics,
+      conclusion: result.conclusion,
+      actions: result.actions,
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.summaryLogStorage.save(summary);
+    return summary;
+  }
+
+  /** 要約ログ一覧を取得 */
+  async findSummaryLogs(): Promise<TranscriptionSummaryLog[]> {
+    return this.summaryLogStorage.findAll();
+  }
+
+  /** 要約ログ詳細を取得 */
+  async findSummaryLogById(id: string): Promise<TranscriptionSummaryLog> {
+    const log = await this.summaryLogStorage.findById(id);
+    if (!log) {
+      throw new NotFoundException(`要約ログが見つかりません: ${id}`);
     }
     return log;
   }

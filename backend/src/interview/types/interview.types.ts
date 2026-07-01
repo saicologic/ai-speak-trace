@@ -54,3 +54,19 @@ export interface ContextAnalysisResponse {
   /** 分析結果 */
   results: UtteranceContextResult[];
 }
+
+/** 要約結果 */
+export interface TranscriptionSummaryLog {
+  /** 一意のID */
+  id: string;
+  /** 文字起こしID */
+  transcriptionId: string;
+  /** 主なトピック */
+  topics: string[];
+  /** 結論・合意事項 */
+  conclusion: string;
+  /** 次のアクション（なければ空配列） */
+  actions: string[];
+  /** 作成日時（ISO 8601） */
+  createdAt: string;
+}

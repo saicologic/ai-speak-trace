@@ -67,4 +67,25 @@ export class InterviewController {
     const log = await this.interviewService.findAnalysisLogById(id);
     return { log };
   }
+
+  /** 要約生成: POST /api/interview/summarize */
+  @Post('summarize')
+  async summarize(@Body() body: { transcriptionId: string }) {
+    const summary = await this.interviewService.summarize(body.transcriptionId);
+    return { summary };
+  }
+
+  /** 要約ログ一覧: GET /api/interview/summary-logs */
+  @Get('summary-logs')
+  async findSummaryLogs() {
+    const logs = await this.interviewService.findSummaryLogs();
+    return { logs };
+  }
+
+  /** 要約ログ詳細: GET /api/interview/summary-logs/:id */
+  @Get('summary-logs/:id')
+  async findSummaryLogById(@Param('id') id: string) {
+    const log = await this.interviewService.findSummaryLogById(id);
+    return { log };
+  }
 }

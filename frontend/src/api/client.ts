@@ -9,6 +9,7 @@ import type {
   InterviewAnalysisSummary,
   Transcription,
   TranscriptionSummary,
+  TranscriptionSummaryLog,
 } from '../types';
 
 /**
@@ -731,6 +732,44 @@ export async function transcribePodcastFile(
   }
   const data = await res.json();
   return data.transcription;
+}
+
+// === 要約 ===
+
+/** 要約を生成 */
+export async function summarizeTranscription(
+  transcriptionId: string,
+): Promise<TranscriptionSummaryLog> {
+  const res = await fetch(`${BASE_URL}/interview/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionId }),
+  });
+  if (!res.ok) {
+    throw new Error(`要約の生成に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.summary;
+}
+
+/** 要約ログ一覧を取得 */
+export async function fetchSummaryLogs(): Promise<TranscriptionSummaryLog[]> {
+  const res = await fetch(`${BASE_URL}/interview/summary-logs`);
+  if (!res.ok) {
+    throw new Error(`要約ログ一覧の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.logs;
+}
+
+/** 要約ログ詳細を取得 */
+export async function fetchSummaryLog(id: string): Promise<TranscriptionSummaryLog> {
+  const res = await fetch(`${BASE_URL}/interview/summary-logs/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    throw new Error(`要約ログの取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.log;
 }
 
 // === 設定 ===

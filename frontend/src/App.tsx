@@ -5,6 +5,7 @@ import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
+import { SummaryPage } from './components/SummaryPage';
 import { DeepSearchPage } from './components/DeepSearchPage';
 import { TranscribePage } from './components/TranscribePage';
 import { JobProgressPage } from './components/JobProgressPage';
@@ -22,7 +23,7 @@ import { extractKeywords } from './utils/keywords';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
-type Page = 'main' | 'transcribe' | 'interview' | 'deep-search' | 'settings' | 'job-progress' | 'resumable-jobs';
+type Page = 'main' | 'transcribe' | 'summary' | 'interview' | 'deep-search' | 'settings' | 'job-progress' | 'resumable-jobs';
 
 function App() {
   const [transcription, setTranscription] = useState<Transcription | null>(
@@ -181,6 +182,16 @@ function App() {
       setLoading(false);
     }
   };
+
+  /** 要約ページの場合 */
+  if (page === 'summary' && transcription) {
+    return (
+      <SummaryPage
+        transcriptionId={transcription.id}
+        onBack={() => setPage('main')}
+      />
+    );
+  }
 
   /** 会話分析ページの場合 */
   if (page === 'interview' && transcription) {
@@ -397,6 +408,7 @@ function App() {
               onToggleKeyword={toggleKeywordHighlight}
               filterActive={filterActive}
               onToggleFilter={() => setFilterActive((prev) => !prev)}
+              onNavigateSummary={() => setPage('summary')}
               onNavigateInterview={() => setPage('interview')}
               onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
               onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}

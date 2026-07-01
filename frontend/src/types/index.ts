@@ -137,6 +137,16 @@ export interface DeepSearchAnalysis {
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
+/** 要約ログ */
+export interface TranscriptionSummaryLog {
+  id: string;
+  transcriptionId: string;
+  topics: string[];
+  conclusion: string;
+  actions: string[];
+  createdAt: string;
+}
+
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;

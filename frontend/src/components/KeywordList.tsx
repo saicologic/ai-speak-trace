@@ -8,6 +8,7 @@ interface Props {
   onToggleKeyword: (keyword: string) => void;
   filterActive: boolean;
   onToggleFilter: () => void;
+  onNavigateSummary?: () => void;
   onNavigateInterview?: () => void;
   onNavigateDeepSearch?: () => void;
   onToggleContextMode?: () => void;
@@ -24,6 +25,7 @@ export function KeywordList({
   onToggleKeyword,
   filterActive,
   onToggleFilter,
+  onNavigateSummary,
   onNavigateInterview,
   onNavigateDeepSearch,
   onToggleContextMode,
@@ -51,6 +53,14 @@ export function KeywordList({
 
   return (
     <div className="keyword-list">
+      {onNavigateSummary && (
+        <button
+          className="keyword-interview-button"
+          onClick={onNavigateSummary}
+        >
+          要約
+        </button>
+      )}
       {onNavigateInterview && (
         <button
           className="keyword-interview-button"

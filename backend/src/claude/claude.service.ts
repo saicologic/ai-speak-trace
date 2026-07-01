@@ -327,6 +327,53 @@ ${context}
     return { answer, sources };
   }
 
+  /** 会話全文を要約してJSON構造で返す */
+  async summarize(
+    fullText: string,
+  ): Promise<{ topics: string[]; conclusion: string; actions: string[] }> {
+    this.logger.log('要約開始');
+
+    const prompt = `以下の会話（日本語）を要約してください。
+
+## 出力形式
+JSON のみを出力してください。JSON以外は出力しないでください。
+{
+  "topics": ["主なトピック1", "主なトピック2"],
+  "conclusion": "会議・会話の結論や合意事項",
+  "actions": ["次のアクション1", "次のアクション2"]
+}
+
+## 指示
+- topics: 会話の主なトピックを3〜5点
+- conclusion: 会話全体の結論や合意事項（なければ「特になし」）
+- actions: 次のアクション（なければ空配列）
+
+## 会話全文
+${fullText}`;
+
+    const response = await this.getClient().messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      this.logger.error('要約のJSON抽出に失敗');
+      throw new Error('要約結果のパースに失敗しました');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      topics: string[];
+      conclusion: string;
+      actions: string[];
+    };
+
+    this.logger.log('要約完了');
+    return parsed;
+  }
+
   /** 検索結果をまとめて分析 */
   async analyzeSearchResults(
     keywords: string[],
