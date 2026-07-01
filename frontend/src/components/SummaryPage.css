@@ -1,48 +1,20 @@
-/* モデル選択 */
-.summary-model-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.summary-model-option {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
+/* モデル選択セレクトボックス */
+.summary-model-select {
+  padding: 0.5rem 0.75rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background-color: #ffffff;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.summary-model-option:has(input:checked) {
-  background-color: #eff6ff;
-  border-color: #93c5fd;
-}
-
-.summary-model-option:hover {
-  background-color: #f9fafb;
-}
-
-.summary-model-option input[type="radio"] {
-  accent-color: #3b82f6;
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-}
-
-.summary-model-label {
   font-size: 0.9rem;
-  font-weight: 500;
   color: #1f2937;
+  cursor: pointer;
+  min-width: 280px;
+  transition: border-color 0.15s;
 }
 
-.summary-model-id {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  margin-left: auto;
+.summary-model-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 /* プロンプトセクションヘッダー */
@@ -74,29 +46,149 @@
   color: #374151;
 }
 
-/* プロンプトテキストエリア */
-.summary-prompt-textarea {
-  width: 100%;
-  padding: 0.75rem;
+/* 指示フォーム */
+.summary-fields-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.summary-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 0.85rem;
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
-  line-height: 1.6;
-  color: #1f2937;
   background-color: #ffffff;
-  resize: vertical;
+}
+
+.summary-field-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  min-width: 7rem;
+  flex-shrink: 0;
+}
+
+/* グループフィールド（key_points / actions） */
+.summary-field-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.summary-field-group-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  padding: 0.5rem 0.75rem 0.3rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.summary-field-group-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-field-subrow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.summary-field-subrow:last-child {
+  border-bottom: none;
+}
+
+.summary-field-sublabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+  white-space: nowrap;
+  min-width: 4rem;
+  flex-shrink: 0;
+}
+
+.summary-field-instruction {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: #374151;
+  background-color: #ffffff;
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
 
-.summary-prompt-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+.summary-field-instruction::placeholder {
+  color: #9ca3af;
 }
 
-/* バリデーション */
+.summary-field-instruction:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+/* プロンプトプレビュー */
+.summary-prompt-preview {
+  margin-top: 0.75rem;
+}
+
+.summary-prompt-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.summary-prompt-preview-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.summary-prompt-update-button {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #374151;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.summary-prompt-update-button:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.summary-prompt-preview-content {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+  line-height: 1.6;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* バリデーション警告 */
 .summary-prompt-warning {
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
@@ -107,14 +199,46 @@
   color: #92400e;
 }
 
-.summary-prompt-ok {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  color: #166534;
+/* ログ詳細のデバッグ情報（モデル・プロンプト） */
+.summary-log-debug {
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.summary-log-debug-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.summary-log-debug-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summary-log-debug-value {
+  font-size: 0.82rem;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+  color: #374151;
+}
+
+.summary-log-debug-prompt {
+  margin: 0;
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+  color: #374151;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ログ一覧のモデル表示 */
@@ -154,4 +278,50 @@
   color: #9ca3af;
   text-align: right;
   padding-top: 0.5rem;
+}
+
+.summary-key-points li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  list-style: none;
+  border-left: 3px solid #e5e7eb;
+  padding-left: 0.75rem;
+}
+
+.summary-key-point-topic {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.summary-key-point-summary {
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.summary-actions li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  list-style: none;
+  padding-left: 0;
+}
+
+.summary-action-speaker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: #4b5563;
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.summary-action-task {
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.6;
 }

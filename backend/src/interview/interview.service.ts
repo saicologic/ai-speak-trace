@@ -157,13 +157,16 @@ export class InterviewService {
     const summary: TranscriptionSummaryLog = {
       id: uuidv4(),
       transcriptionId,
-      topics: result.topics,
-      conclusion: result.conclusion,
+      overview: result.overview,
+      key_points: result.key_points,
+      decisions: result.decisions,
       actions: result.actions,
+      open_questions: result.open_questions,
       createdAt: new Date().toISOString(),
       model,
       prompt: promptTemplate,
     };
+
 
     await this.summaryLogStorage.save(summary);
     return summary;
