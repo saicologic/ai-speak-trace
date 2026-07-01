@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
+import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 import {
@@ -16,7 +17,8 @@ export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
 
   constructor(
-    private readonly claudeService: ClaudeService,
+    private readonly analysisService: AnalysisService,
+    private readonly summaryService: SummaryService,
     private readonly store: TranscriptionStoreService,
     private readonly analysisLogStorage: AnalysisLogStorage,
     private readonly summaryLogStorage: SummaryLogStorage,
@@ -48,7 +50,7 @@ export class InterviewService {
       speakerId,
     );
 
-    return this.claudeService.generateQuestions(keywords, speakerName);
+    return this.analysisService.generateQuestions(keywords, speakerName);
   }
 
   /** プロンプトのプレビューを返す */
@@ -64,10 +66,10 @@ export class InterviewService {
     );
 
     const generateQuestionsPrompt =
-      this.claudeService.buildGenerateQuestionsPrompt(keywords, speakerName);
+      this.analysisService.buildGenerateQuestionsPrompt(keywords, speakerName);
 
     const analyzePrompts = questions.map((q) =>
-      this.claudeService.buildAnalysisPrompt(q, keywords, speakerName),
+      this.analysisService.buildAnalysisPrompt(q, keywords, speakerName),
     );
 
     return { generateQuestionsPrompt, analyzePrompts };
@@ -89,7 +91,7 @@ export class InterviewService {
       `分析開始: ${speakerName}, キーワード=${keywords.length}件, 質問=${questions.length}件`,
     );
 
-    const results = await this.claudeService.analyze(
+    const results = await this.analysisService.analyze(
       questions,
       keywords,
       speakerName,
@@ -131,8 +133,8 @@ export class InterviewService {
     models: { id: string; label: string }[];
   } {
     return {
-      defaultPrompt: ClaudeService.DEFAULT_SUMMARY_PROMPT,
-      models: ClaudeService.SUMMARY_MODELS,
+      defaultPrompt: SummaryService.DEFAULT_SUMMARY_PROMPT,
+      models: SummaryService.SUMMARY_MODELS,
     };
   }
 
@@ -148,7 +150,7 @@ export class InterviewService {
     }
 
     this.logger.log(`要約開始: transcriptionId=${transcriptionId}, model=${model}`);
-    const result = await this.claudeService.summarize(
+    const result = await this.summaryService.summarize(
       transcription.fullText,
       model,
       promptTemplate,
@@ -209,7 +211,7 @@ export class InterviewService {
     }));
 
     // Claude APIで意図・話題を分析
-    const llmResults = await this.claudeService.analyzeContext(
+    const llmResults = await this.analysisService.analyzeContext(
       allUtterances,
       utteranceIndices,
     );

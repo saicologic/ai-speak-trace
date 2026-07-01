@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 
@@ -39,7 +39,7 @@ const sampleTranscription = {
 
 describe('InterviewService', () => {
   let service: InterviewService;
-  let claudeService: jest.Mocked<ClaudeService>;
+  let claudeService: jest.Mocked<AnalysisService>;
   let store: jest.Mocked<TranscriptionStoreService>;
   let analysisLogStorage: jest.Mocked<AnalysisLogStorage>;
 
@@ -48,7 +48,7 @@ describe('InterviewService', () => {
       providers: [
         InterviewService,
         {
-          provide: ClaudeService,
+          provide: AnalysisService,
           useValue: {
             generateQuestions: jest.fn(),
             buildGenerateQuestionsPrompt: jest.fn(),
@@ -83,7 +83,7 @@ describe('InterviewService', () => {
     }).compile();
 
     service = module.get<InterviewService>(InterviewService);
-    claudeService = module.get(ClaudeService);
+    claudeService = module.get(AnalysisService);
     store = module.get(TranscriptionStoreService);
     analysisLogStorage = module.get(AnalysisLogStorage);
   });

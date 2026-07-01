@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 import {
   DeepSearchResponse,
@@ -19,7 +19,7 @@ export class DeepSearchService {
     private readonly transcriptionStore: TranscriptionStoreService,
     private readonly embeddingService: EmbeddingService,
     private readonly vectorSearchService: VectorSearchService,
-    private readonly claudeService: ClaudeService,
+    private readonly analysisService: AnalysisService,
   ) {}
 
   /** ディープサーチ実行（3ソース横断） */
@@ -61,7 +61,7 @@ export class DeepSearchService {
       `ディープサーチ分析開始: ${dto.results.length}件の結果を分析`,
     );
 
-    const analysis = await this.claudeService.analyzeSearchResults(
+    const analysis = await this.analysisService.analyzeSearchResults(
       dto.keywords,
       dto.results,
     );
@@ -142,7 +142,7 @@ export class DeepSearchService {
   ): Promise<DeepSearchResultItem[]> {
     try {
       const queryText = keywords.join(' ');
-      const { answer, sources } = await this.claudeService.searchAndAnalyze(
+      const { answer, sources } = await this.analysisService.searchAndAnalyze(
         keywords,
         `キーワード「${queryText}」に関連する最新情報を調査してください。`,
       );
