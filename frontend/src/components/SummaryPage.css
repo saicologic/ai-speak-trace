@@ -325,3 +325,34 @@
   color: #374151;
   line-height: 1.6;
 }
+
+.summary-completed {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+
+.summary-completed-message {
+  font-size: 0.9rem;
+  color: #15803d;
+  font-weight: 500;
+}
+
+.summary-completed-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: #1d4ed8;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.summary-completed-link:hover {
+  color: #1e40af;
+}

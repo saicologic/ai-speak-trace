@@ -97,7 +97,7 @@ ${jsonShape}
 export function SummaryPage({ transcriptionId, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<'new' | 'logs'>('new');
   const [summarizing, setSummarizing] = useState(false);
-  const [summary, setSummary] = useState<TranscriptionSummaryLog | null>(null);
+  const [completedId, setCompletedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 設定（モデル一覧・デフォルトプロンプト）
@@ -180,11 +180,12 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
     if (enabledCount === 0) return;
 
     setSummarizing(true);
+    setCompletedId(null);
     setError(null);
     try {
       const prompt = buildPrompt(fields);
       const result = await summarizeTranscription(transcriptionId, selectedModel, prompt);
-      setSummary(result);
+      setCompletedId(result.id);
       loadLogs();
     } catch (e) {
       setError(e instanceof Error ? e.message : '要約に失敗しました');
@@ -218,7 +219,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
       <div className="interview-tabs">
         <button
           className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
-          onClick={() => setActiveTab('new')}
+          onClick={() => { setActiveTab('new'); setCompletedId(null); }}
         >
           新規要約
         </button>
@@ -226,7 +227,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
           className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
-          過去の要約ログ
+          要約結果
         </button>
       </div>
 
@@ -352,7 +353,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
               <button
                 className="interview-button primary"
                 onClick={handleSummarize}
-                disabled={summarizing || !selectedModel || enabledCount === 0}
+                disabled={summarizing || !!completedId || !selectedModel || enabledCount === 0}
               >
                 {summarizing ? '要約中...' : '要約する'}
               </button>
@@ -365,8 +366,19 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
               </div>
             )}
 
-            {summary && !summarizing && (
-              <SummaryResult summary={summary} formatDate={formatDate} />
+            {completedId && !summarizing && (
+              <div className="summary-completed">
+                <span className="summary-completed-message">✓ 要約が完了しました。</span>
+                <button
+                  className="summary-completed-link"
+                  onClick={() => {
+                    setActiveTab('logs');
+                    handleSelectLog(completedId);
+                  }}
+                >
+                  要約結果を見る →
+                </button>
+              </div>
             )}
           </section>
         </div>
@@ -376,7 +388,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
         <div className="interview-logs-layout">
           <div className="interview-logs-list">
             <div className="interview-logs-list-header">
-              <span>要約履歴</span>
+              <span>要約結果</span>
               <button
                 className="interview-logs-refresh"
                 onClick={loadLogs}
@@ -389,7 +401,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
             {logsLoading ? (
               <div className="interview-logs-empty">読み込み中...</div>
             ) : logs.length === 0 ? (
-              <div className="interview-logs-empty">過去の要約結果がありません</div>
+              <div className="interview-logs-empty">要約結果がありません</div>
             ) : (
               logs.map((log) => (
                 <button
