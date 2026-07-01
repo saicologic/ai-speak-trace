@@ -327,13 +327,8 @@ ${context}
     return { answer, sources };
   }
 
-  /** 会話全文を要約してJSON構造で返す */
-  async summarize(
-    fullText: string,
-  ): Promise<{ topics: string[]; conclusion: string; actions: string[] }> {
-    this.logger.log('要約開始');
-
-    const prompt = `以下の会話（日本語）を要約してください。
+  /** 要約プロンプトのデフォルトテンプレート（{{fullText}} を会話全文で置換して使う） */
+  static readonly DEFAULT_SUMMARY_PROMPT = `以下の会話（日本語）を要約してください。
 
 ## 出力形式
 JSON のみを出力してください。JSON以外は出力しないでください。
@@ -349,10 +344,27 @@ JSON のみを出力してください。JSON以外は出力しないでくだ�
 - actions: 次のアクション（なければ空配列）
 
 ## 会話全文
-${fullText}`;
+{{fullText}}`;
+
+  /** 要約で選択可能なモデル一覧 */
+  static readonly SUMMARY_MODELS = [
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6（推奨）' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5（高速・低コスト）' },
+    { id: 'claude-opus-4-7', label: 'Claude Opus 4.7（最高品質）' },
+  ];
+
+  /** 会話全文を要約してJSON構造で返す */
+  async summarize(
+    fullText: string,
+    model: string = 'claude-sonnet-4-6',
+    promptTemplate: string = ClaudeService.DEFAULT_SUMMARY_PROMPT,
+  ): Promise<{ topics: string[]; conclusion: string; actions: string[] }> {
+    this.logger.log(`要約開始: model=${model}`);
+
+    const prompt = promptTemplate.replace('{{fullText}}', fullText);
 
     const response = await this.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model,
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     });

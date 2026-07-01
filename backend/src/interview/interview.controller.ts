@@ -68,10 +68,20 @@ export class InterviewController {
     return { log };
   }
 
+  /** 要約設定（デフォルトプロンプト・モデル一覧）取得: GET /api/interview/summary-config */
+  @Get('summary-config')
+  getSummaryConfig() {
+    return this.interviewService.getSummaryConfig();
+  }
+
   /** 要約生成: POST /api/interview/summarize */
   @Post('summarize')
-  async summarize(@Body() body: { transcriptionId: string }) {
-    const summary = await this.interviewService.summarize(body.transcriptionId);
+  async summarize(@Body() body: { transcriptionId: string; model: string; prompt: string }) {
+    const summary = await this.interviewService.summarize(
+      body.transcriptionId,
+      body.model,
+      body.prompt,
+    );
     return { summary };
   }
 

@@ -10,6 +10,7 @@ import type {
   Transcription,
   TranscriptionSummary,
   TranscriptionSummaryLog,
+  SummaryConfig,
 } from '../types';
 
 /**
@@ -736,14 +737,25 @@ export async function transcribePodcastFile(
 
 // === 要約 ===
 
+/** 要約設定（デフォルトプロンプト・モデル一覧）を取得 */
+export async function fetchSummaryConfig(): Promise<SummaryConfig> {
+  const res = await fetch(`${BASE_URL}/interview/summary-config`);
+  if (!res.ok) {
+    throw new Error(`要約設定の取得に失敗しました: ${res.status}`);
+  }
+  return res.json();
+}
+
 /** 要約を生成 */
 export async function summarizeTranscription(
   transcriptionId: string,
+  model: string,
+  prompt: string,
 ): Promise<TranscriptionSummaryLog> {
   const res = await fetch(`${BASE_URL}/interview/summarize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcriptionId }),
+    body: JSON.stringify({ transcriptionId, model, prompt }),
   });
   if (!res.ok) {
     throw new Error(`要約の生成に失敗しました: ${res.status}`);

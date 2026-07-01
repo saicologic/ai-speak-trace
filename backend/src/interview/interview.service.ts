@@ -125,15 +125,34 @@ export class InterviewService {
     return log;
   }
 
+  /** 要約プロンプトのデフォルトテンプレートと選択可能なモデル一覧を返す */
+  getSummaryConfig(): {
+    defaultPrompt: string;
+    models: { id: string; label: string }[];
+  } {
+    return {
+      defaultPrompt: ClaudeService.DEFAULT_SUMMARY_PROMPT,
+      models: ClaudeService.SUMMARY_MODELS,
+    };
+  }
+
   /** 要約を生成して保存 */
-  async summarize(transcriptionId: string): Promise<TranscriptionSummaryLog> {
+  async summarize(
+    transcriptionId: string,
+    model: string,
+    promptTemplate: string,
+  ): Promise<TranscriptionSummaryLog> {
     const transcription = await this.store.findById(transcriptionId);
     if (!transcription) {
       throw new NotFoundException(`文字起こし結果が見つかりません: ${transcriptionId}`);
     }
 
-    this.logger.log(`要約開始: transcriptionId=${transcriptionId}`);
-    const result = await this.claudeService.summarize(transcription.fullText);
+    this.logger.log(`要約開始: transcriptionId=${transcriptionId}, model=${model}`);
+    const result = await this.claudeService.summarize(
+      transcription.fullText,
+      model,
+      promptTemplate,
+    );
 
     const summary: TranscriptionSummaryLog = {
       id: uuidv4(),
@@ -142,6 +161,8 @@ export class InterviewService {
       conclusion: result.conclusion,
       actions: result.actions,
       createdAt: new Date().toISOString(),
+      model,
+      prompt: promptTemplate,
     };
 
     await this.summaryLogStorage.save(summary);

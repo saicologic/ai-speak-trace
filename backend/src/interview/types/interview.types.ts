@@ -69,4 +69,8 @@ export interface TranscriptionSummaryLog {
   actions: string[];
   /** 作成日時（ISO 8601） */
   createdAt: string;
+  /** 使用したモデルID */
+  model: string;
+  /** 実際に使用したプロンプト */
+  prompt: string;
 }

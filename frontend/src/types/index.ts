@@ -145,6 +145,14 @@ export interface TranscriptionSummaryLog {
   conclusion: string;
   actions: string[];
   createdAt: string;
+  model: string;
+  prompt: string;
+}
+
+/** 要約設定（デフォルトプロンプト・モデル一覧） */
+export interface SummaryConfig {
+  defaultPrompt: string;
+  models: { id: string; label: string }[];
 }
 
 /** アプリ設定 */
