@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { summarizeTranscription, fetchSummaryLogs, fetchSummaryLog, fetchSummaryConfig } from '../api/client';
-import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint, SummaryActionItem } from '../types';
+import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint } from '../types';
 import './InterviewPage.css';
 import './SummaryPage.css';
 
@@ -11,9 +11,9 @@ interface Props {
 
 /** プロンプト指示フォームの各フィールド設定 */
 interface PromptFieldConfig {
-  key: 'overview' | 'key_points_topic' | 'key_points_summary' | 'decisions' | 'actions_speaker' | 'actions_task' | 'open_questions';
+  key: 'overview' | 'key_points_topic' | 'key_points_summary' | 'decisions';
   /** JSONの親キー。サブフィールドは同じgroupKeyを持つ */
-  groupKey: 'overview' | 'key_points' | 'decisions' | 'actions' | 'open_questions';
+  groupKey: 'overview' | 'key_points' | 'decisions';
   label: string;
   subLabel?: string;
   defaultInstruction: string;
@@ -51,29 +51,6 @@ const DEFAULT_FIELDS: PromptFieldConfig[] = [
     defaultInstruction: '会話中に明示的に合意・決定された事項を列挙する',
     instruction: '会話中に明示的に合意・決定された事項を列挙する',
   },
-  {
-    key: 'actions_speaker',
-    groupKey: 'actions',
-    label: '次のアクション',
-    subLabel: 'speaker',
-    defaultInstruction: '担当する話者名。不明な場合は「未定」とする',
-    instruction: '担当する話者名。不明な場合は「未定」とする',
-  },
-  {
-    key: 'actions_task',
-    groupKey: 'actions',
-    label: '次のアクション',
-    subLabel: 'task',
-    defaultInstruction: '次のステップを動詞句で記述する',
-    instruction: '次のステップを動詞句で記述する',
-  },
-  {
-    key: 'open_questions',
-    groupKey: 'open_questions',
-    label: '未解決の質問',
-    defaultInstruction: '結論が出なかった質問・持ち越し事項を列挙する',
-    instruction: '結論が出なかった質問・持ち越し事項を列挙する',
-  },
 ];
 
 /** フィールド設定からプロンプトを生成（instructionが空のフィールドは除外） */
@@ -97,18 +74,6 @@ function buildPrompt(fields: PromptFieldConfig[]): string {
 
   if (get('decisions')) {
     lines.push(`  "decisions": ["${get('decisions')}"]`);
-  }
-
-  const actSpeaker = get('actions_speaker');
-  const actTask = get('actions_task');
-  if (actSpeaker || actTask) {
-    lines.push(
-      `  "actions": [{\n    "speaker": "${actSpeaker || '（省略）'}",\n    "task": "${actTask || '（省略）'}"\n  }]`,
-    );
-  }
-
-  if (get('open_questions')) {
-    lines.push(`  "open_questions": ["${get('open_questions')}"]`);
   }
 
   const jsonShape = lines.join(',\n');
@@ -353,39 +318,6 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
                 />
               </div>
 
-              {/* actions（グループ） */}
-              <div className="summary-field-group">
-                <span className="summary-field-group-label">次のアクション</span>
-                <div className="summary-field-group-rows">
-                  {(['actions_speaker', 'actions_task'] as const).map((key) => {
-                    const f = fields.find((f) => f.key === key)!;
-                    return (
-                      <div key={key} className="summary-field-subrow">
-                        <span className="summary-field-sublabel">{f.subLabel}</span>
-                        <input
-                          type="text"
-                          className="summary-field-instruction"
-                          placeholder={f.defaultInstruction}
-                          value={f.instruction}
-                          onChange={(e) => handleFieldInstruction(key, e.target.value)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* open_questions */}
-              <div className="summary-field-row">
-                <span className="summary-field-label">未解決の質問</span>
-                <input
-                  type="text"
-                  className="summary-field-instruction"
-                  placeholder={fields.find((f) => f.key === 'open_questions')!.defaultInstruction}
-                  value={fields.find((f) => f.key === 'open_questions')!.instruction}
-                  onChange={(e) => handleFieldInstruction('open_questions', e.target.value)}
-                />
-              </div>
             </div>
             {enabledCount === 0 && (
               <div className="summary-prompt-warning">
@@ -552,31 +484,6 @@ function SummaryResult({
           <ul className="summary-result-list">
             {summary.decisions?.map((decision: string, i: number) => (
               <li key={i}>{decision}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {(summary.actions?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">次のアクション</h3>
-          <ul className="summary-result-list summary-actions">
-            {summary.actions?.map((action: SummaryActionItem, i: number) => (
-              <li key={i}>
-                <span className="summary-action-speaker">{action.speaker}</span>
-                <span className="summary-action-task">{action.task}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {(summary.open_questions?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">未解決の質問</h3>
-          <ul className="summary-result-list">
-            {summary.open_questions?.map((q: string, i: number) => (
-              <li key={i}>{q}</li>
             ))}
           </ul>
         </div>

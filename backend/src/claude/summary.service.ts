@@ -21,18 +21,12 @@ export class SummaryService {
   "key_points": [
     { "topic": "トピック名", "summary": "要点を2〜3文で記述" }
   ],
-  "decisions": ["決定事項1", "決定事項2"],
-  "actions": [
-    { "speaker": "話者名", "task": "タスク内容を動詞句で記述" }
-  ],
-  "open_questions": ["未解決の質問1", "未解決の質問2"]
+  "decisions": ["決定事項1", "決定事項2"]
 }
 
 - overview: 会話の目的・流れ・結果を第三者が読んで理解できるよう2〜3文でまとめる
 - key_points: 会話で扱われた主なテーマを3〜5点。各トピックの要点を2〜3文で記述する
 - decisions: 会話中に明示的に合意・決定された事項を列挙する。なければ空配列 []
-- actions: 会話中に言及された次のステップを話者名と紐づけて列挙する。話者が不明な場合は「未定」とする。なければ空配列 []
-- open_questions: 結論が出なかった質問・持ち越し事項を列挙する。なければ空配列 []
 </instructions>`;
 
   /** 要約で選択可能なモデル一覧（要約向き順） */
@@ -56,8 +50,6 @@ export class SummaryService {
     overview?: string;
     key_points?: { topic: string; summary: string }[];
     decisions?: string[];
-    actions?: { speaker: string; task: string }[];
-    open_questions?: string[];
   }> {
     this.logger.log(`要約開始: model=${model}`);
 
@@ -80,8 +72,6 @@ export class SummaryService {
       overview?: string;
       key_points?: { topic: string; summary: string }[];
       decisions?: string[];
-      actions?: { speaker: string; task: string }[];
-      open_questions?: string[];
     };
     try {
       parsed = JSON.parse(jsonMatch[0]);

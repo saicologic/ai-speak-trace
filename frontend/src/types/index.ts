@@ -137,12 +137,6 @@ export interface DeepSearchAnalysis {
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
-/** 要約のアクションアイテム */
-export interface SummaryActionItem {
-  speaker: string;
-  task: string;
-}
-
 /** 要約のキーポイント */
 export interface SummaryKeyPoint {
   topic: string;
@@ -156,8 +150,6 @@ export interface TranscriptionSummaryLog {
   overview?: string;
   key_points?: SummaryKeyPoint[];
   decisions?: string[];
-  actions?: SummaryActionItem[];
-  open_questions?: string[];
   createdAt: string;
   model: string;
   prompt: string;

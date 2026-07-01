@@ -162,8 +162,6 @@ export class InterviewService {
       overview: result.overview,
       key_points: result.key_points,
       decisions: result.decisions,
-      actions: result.actions,
-      open_questions: result.open_questions,
       createdAt: new Date().toISOString(),
       model,
       prompt: promptTemplate,

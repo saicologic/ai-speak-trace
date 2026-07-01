@@ -55,14 +55,6 @@ export interface ContextAnalysisResponse {
   results: UtteranceContextResult[];
 }
 
-/** 要約のアクションアイテム */
-export interface SummaryActionItem {
-  /** 担当話者名 */
-  speaker: string;
-  /** タスク内容 */
-  task: string;
-}
-
 /** 要約のキーポイント */
 export interface SummaryKeyPoint {
   /** トピック名 */
@@ -83,10 +75,6 @@ export interface TranscriptionSummaryLog {
   key_points?: SummaryKeyPoint[];
   /** 決定事項。プロンプトで除外された場合は undefined */
   decisions?: string[];
-  /** 次のアクション（話者紐づき）。プロンプトで除外された場合は undefined */
-  actions?: SummaryActionItem[];
-  /** 未解決の質問・宿題。プロンプトで除外された場合は undefined */
-  open_questions?: string[];
   /** 作成日時（ISO 8601） */
   createdAt: string;
   /** 使用したモデルID */
