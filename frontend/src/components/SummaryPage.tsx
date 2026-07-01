@@ -168,9 +168,6 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
     setFields((prev) => prev.map((f) => (f.key === key ? { ...f, instruction: value } : { ...f })));
   };
 
-  const hasInstruction = (key: PromptFieldConfig['key']) =>
-    fields.find((f) => f.key === key)?.instruction.trim() !== '';
-
   const handleResetFields = () => {
     setFields(DEFAULT_FIELDS.map((f) => ({ ...f })));
   };
@@ -539,7 +536,7 @@ function SummaryResult({
         <div className="interview-result-card">
           <h3 className="result-question">キーポイント</h3>
           <ul className="summary-result-list summary-key-points">
-            {summary.key_points.map((kp: SummaryKeyPoint, i: number) => (
+            {summary.key_points?.map((kp: SummaryKeyPoint, i: number) => (
               <li key={i}>
                 <span className="summary-key-point-topic">{kp.topic}</span>
                 <span className="summary-key-point-summary">{kp.summary}</span>
@@ -553,7 +550,7 @@ function SummaryResult({
         <div className="interview-result-card">
           <h3 className="result-question">決定事項</h3>
           <ul className="summary-result-list">
-            {summary.decisions.map((decision: string, i: number) => (
+            {summary.decisions?.map((decision: string, i: number) => (
               <li key={i}>{decision}</li>
             ))}
           </ul>
@@ -564,7 +561,7 @@ function SummaryResult({
         <div className="interview-result-card">
           <h3 className="result-question">次のアクション</h3>
           <ul className="summary-result-list summary-actions">
-            {summary.actions.map((action: SummaryActionItem, i: number) => (
+            {summary.actions?.map((action: SummaryActionItem, i: number) => (
               <li key={i}>
                 <span className="summary-action-speaker">{action.speaker}</span>
                 <span className="summary-action-task">{action.task}</span>
@@ -578,7 +575,7 @@ function SummaryResult({
         <div className="interview-result-card">
           <h3 className="result-question">未解決の質問</h3>
           <ul className="summary-result-list">
-            {summary.open_questions.map((q: string, i: number) => (
+            {summary.open_questions?.map((q: string, i: number) => (
               <li key={i}>{q}</li>
             ))}
           </ul>

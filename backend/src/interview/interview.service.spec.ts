@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { AnalysisService } from '../claude/analysis.service';
+import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 
@@ -55,6 +56,12 @@ describe('InterviewService', () => {
             buildAnalysisPrompt: jest.fn(),
             analyze: jest.fn(),
             analyzeContext: jest.fn(),
+          },
+        },
+        {
+          provide: SummaryService,
+          useValue: {
+            summarize: jest.fn(),
           },
         },
         {
