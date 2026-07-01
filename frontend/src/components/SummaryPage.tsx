@@ -532,7 +532,7 @@ function SummaryResult({
         </div>
       )}
 
-      {summary.key_points?.length > 0 && (
+      {(summary.key_points?.length ?? 0) > 0 && (
         <div className="interview-result-card">
           <h3 className="result-question">キーポイント</h3>
           <ul className="summary-result-list summary-key-points">
@@ -546,7 +546,7 @@ function SummaryResult({
         </div>
       )}
 
-      {summary.decisions?.length > 0 && (
+      {(summary.decisions?.length ?? 0) > 0 && (
         <div className="interview-result-card">
           <h3 className="result-question">決定事項</h3>
           <ul className="summary-result-list">
@@ -557,7 +557,7 @@ function SummaryResult({
         </div>
       )}
 
-      {summary.actions?.length > 0 && (
+      {(summary.actions?.length ?? 0) > 0 && (
         <div className="interview-result-card">
           <h3 className="result-question">次のアクション</h3>
           <ul className="summary-result-list summary-actions">
@@ -571,7 +571,7 @@ function SummaryResult({
         </div>
       )}
 
-      {summary.open_questions?.length > 0 && (
+      {(summary.open_questions?.length ?? 0) > 0 && (
         <div className="interview-result-card">
           <h3 className="result-question">未解決の質問</h3>
           <ul className="summary-result-list">
