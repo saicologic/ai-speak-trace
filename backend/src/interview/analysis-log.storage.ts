@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { InterviewAnalysis } from './types/interview.types';
+import { InterviewAnalysis, TranscriptionSummaryLog } from './types/interview.types';
 
 /** 会話分析ログをローカルファイルに保存・取得するサービス */
 @Injectable()
@@ -75,5 +75,59 @@ export class AnalysisLogStorage {
 
     this.logger.log(`分析ログ一覧取得完了: ${summaries.length}件`);
     return summaries;
+  }
+}
+
+/** 要約ログをローカルファイルに保存・取得するサービス */
+@Injectable()
+export class SummaryLogStorage {
+  private readonly logger = new Logger(SummaryLogStorage.name);
+  private readonly storeDir: string;
+
+  constructor(private readonly configService: ConfigService) {
+    const dataDir = this.configService.get<string>('DATA_DIR') || './data';
+    this.storeDir = path.resolve(path.join(dataDir, 'summary-logs'));
+
+    if (!existsSync(this.storeDir)) {
+      mkdirSync(this.storeDir, { recursive: true });
+    }
+    this.logger.log(`要約ログ保存ディレクトリ: ${this.storeDir}`);
+  }
+
+  private getFilePath(id: string): string {
+    return path.join(this.storeDir, `${id}.json`);
+  }
+
+  async save(summary: TranscriptionSummaryLog): Promise<void> {
+    await fs.writeFile(this.getFilePath(summary.id), JSON.stringify(summary, null, 2), 'utf-8');
+    this.logger.log(`要約ログ保存完了: ${summary.id}`);
+  }
+
+  async findById(id: string): Promise<TranscriptionSummaryLog | null> {
+    const filePath = this.getFilePath(id);
+    if (!existsSync(filePath)) return null;
+    const content = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(content) as TranscriptionSummaryLog;
+  }
+
+  async findAll(): Promise<TranscriptionSummaryLog[]> {
+    if (!existsSync(this.storeDir)) return [];
+
+    const entries = await fs.readdir(this.storeDir, { withFileTypes: true });
+    const logs: TranscriptionSummaryLog[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+      try {
+        const content = await fs.readFile(path.join(this.storeDir, entry.name), 'utf-8');
+        logs.push(JSON.parse(content) as TranscriptionSummaryLog);
+      } catch (error) {
+        this.logger.warn(`要約ログの読み込みに失敗: ${entry.name}`, error);
+      }
+    }
+
+    logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    this.logger.log(`要約ログ一覧取得完了: ${logs.length}件`);
+    return logs;
   }
 }

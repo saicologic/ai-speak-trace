@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
+import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
-import { AnalysisLogStorage } from './analysis-log.storage';
+import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 
 /** テスト用の文字起こしデータ */
 const sampleTranscription = {
@@ -38,23 +39,30 @@ const sampleTranscription = {
 };
 
 describe('InterviewService', () => {
+  let module: TestingModule;
   let service: InterviewService;
-  let claudeService: jest.Mocked<ClaudeService>;
+  let claudeService: jest.Mocked<AnalysisService>;
   let store: jest.Mocked<TranscriptionStoreService>;
   let analysisLogStorage: jest.Mocked<AnalysisLogStorage>;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         InterviewService,
         {
-          provide: ClaudeService,
+          provide: AnalysisService,
           useValue: {
             generateQuestions: jest.fn(),
             buildGenerateQuestionsPrompt: jest.fn(),
             buildAnalysisPrompt: jest.fn(),
             analyze: jest.fn(),
             analyzeContext: jest.fn(),
+          },
+        },
+        {
+          provide: SummaryService,
+          useValue: {
+            summarize: jest.fn(),
           },
         },
         {
@@ -71,11 +79,19 @@ describe('InterviewService', () => {
             findAllSummaries: jest.fn(),
           },
         },
+        {
+          provide: SummaryLogStorage,
+          useValue: {
+            save: jest.fn(),
+            findById: jest.fn(),
+            findAll: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<InterviewService>(InterviewService);
-    claudeService = module.get(ClaudeService);
+    claudeService = module.get(AnalysisService);
     store = module.get(TranscriptionStoreService);
     analysisLogStorage = module.get(AnalysisLogStorage);
   });
@@ -171,6 +187,51 @@ describe('InterviewService', () => {
       analysisLogStorage.findById.mockResolvedValue(null);
 
       await expect(service.findAnalysisLogById('missing')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getSummaryConfig', () => {
+    it('デフォルトプロンプトとモデル一覧を返す', () => {
+      const config = service.getSummaryConfig();
+
+      expect(config.defaultPrompt).toBe(SummaryService.DEFAULT_SUMMARY_PROMPT);
+      expect(config.models).toEqual(SummaryService.SUMMARY_MODELS);
+      expect(config.models.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('summarize', () => {
+    it('SummaryServiceを呼び出してログを保存し結果を返す', async () => {
+      const summaryService = module.get<jest.Mocked<SummaryService>>(SummaryService);
+      const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
+      store.findById.mockResolvedValue(sampleTranscription);
+      summaryService.summarize.mockResolvedValue({
+        overview: '会話の概要',
+        key_points: [{ topic: 'テーマ1', summary: '要点1' }],
+        decisions: ['決定事項1'],
+      });
+      summaryLogStorage.save.mockResolvedValue(undefined);
+
+      const result = await service.summarize('sample', 'claude-sonnet-4-6', 'プロンプト {{fullText}}');
+
+      expect(summaryService.summarize).toHaveBeenCalledWith(
+        sampleTranscription.fullText,
+        'claude-sonnet-4-6',
+        'プロンプト {{fullText}}',
+      );
+      expect(summaryLogStorage.save).toHaveBeenCalledWith(result);
+      expect(result.transcriptionId).toBe('sample');
+      expect(result.overview).toBe('会話の概要');
+      expect(result.model).toBe('claude-sonnet-4-6');
+    });
+  });
+
+  describe('findSummaryLogById', () => {
+    it('存在しない要約ログIDはNotFoundExceptionをスロー', async () => {
+      const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
+      summaryLogStorage.findById.mockResolvedValue(null);
+
+      await expect(service.findSummaryLogById('missing')).rejects.toThrow(NotFoundException);
     });
   });
 

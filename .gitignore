@@ -14,3 +14,9 @@ src-tauri/gen/
 
 # 開発時バックエンドポートファイル
 .backend-port
+
+# ローカル検証用スクリーンショット
+screenshot-*.png
+
+# Playwright MCPスナップショット
+.playwright-mcp/

@@ -54,3 +54,31 @@ export interface ContextAnalysisResponse {
   /** 分析結果 */
   results: UtteranceContextResult[];
 }
+
+/** 要約のキーポイント */
+export interface SummaryKeyPoint {
+  /** トピック名 */
+  topic: string;
+  /** 要点（2〜3文） */
+  summary: string;
+}
+
+/** 要約結果 */
+export interface TranscriptionSummaryLog {
+  /** 一意のID */
+  id: string;
+  /** 文字起こしID */
+  transcriptionId: string;
+  /** 会話全体の概要（2〜3文）。プロンプトで除外された場合は undefined */
+  overview?: string;
+  /** キーポイント（トピック＋要点のペア）。プロンプトで除外された場合は undefined */
+  key_points?: SummaryKeyPoint[];
+  /** 決定事項。プロンプトで除外された場合は undefined */
+  decisions?: string[];
+  /** 作成日時（ISO 8601） */
+  createdAt: string;
+  /** 使用したモデルID */
+  model: string;
+  /** 実際に使用したプロンプト */
+  prompt: string;
+}

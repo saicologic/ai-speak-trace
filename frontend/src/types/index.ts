@@ -137,6 +137,30 @@ export interface DeepSearchAnalysis {
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
+/** 要約のキーポイント */
+export interface SummaryKeyPoint {
+  topic: string;
+  summary: string;
+}
+
+/** 要約ログ */
+export interface TranscriptionSummaryLog {
+  id: string;
+  transcriptionId: string;
+  overview?: string;
+  key_points?: SummaryKeyPoint[];
+  decisions?: string[];
+  createdAt: string;
+  model: string;
+  prompt: string;
+}
+
+/** 要約設定（デフォルトプロンプト・モデル一覧） */
+export interface SummaryConfig {
+  defaultPrompt: string;
+  models: { id: string; label: string }[];
+}
+
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;
@@ -147,6 +171,7 @@ export interface AppSettings {
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;
+    summaryLogsDir: string;
   };
   apiKeys: {
     elevenlabsApiKey: string;

@@ -3,7 +3,7 @@ import { DeepSearchService } from './deep-search.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 
 /** テスト用の文字起こしデータ */
@@ -40,7 +40,7 @@ describe('DeepSearchService', () => {
   let transcriptionStore: jest.Mocked<TranscriptionStoreService>;
   let embeddingService: jest.Mocked<EmbeddingService>;
   let vectorSearchService: jest.Mocked<VectorSearchService>;
-  let claudeService: jest.Mocked<ClaudeService>;
+  let claudeService: jest.Mocked<AnalysisService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -65,7 +65,7 @@ describe('DeepSearchService', () => {
           },
         },
         {
-          provide: ClaudeService,
+          provide: AnalysisService,
           useValue: {
             searchAndAnalyze: jest.fn(),
             analyzeSearchResults: jest.fn(),
@@ -78,7 +78,7 @@ describe('DeepSearchService', () => {
     transcriptionStore = module.get(TranscriptionStoreService);
     embeddingService = module.get(EmbeddingService);
     vectorSearchService = module.get(VectorSearchService);
-    claudeService = module.get(ClaudeService);
+    claudeService = module.get(AnalysisService);
   });
 
   describe('search', () => {

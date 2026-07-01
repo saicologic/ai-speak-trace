@@ -108,6 +108,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     { label: '文字起こし', path: 'transcriptions/' },
     { label: 'PDFドキュメント', path: 'documents/' },
     { label: 'メタデータ', path: 'document-metadata/' },
+    { label: '要約ログ', path: 'summary-logs/' },
   ];
 
   return (

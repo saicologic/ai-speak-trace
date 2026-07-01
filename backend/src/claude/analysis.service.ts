@@ -1,71 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
-import axios from 'axios';
+import { ClaudeClientService } from './claude-client.service';
 import { AnalysisResult } from '../interview/types/interview.types';
 
-/**
- * pkg --jitless 環境では globalThis.fetch が壊れるため、
- * axios を使った fetch 互換関数を Anthropic クライアントに渡す
- */
-async function axiosFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-  const method = (init?.method ?? (typeof input !== 'string' && !(input instanceof URL) ? (input as Request).method : undefined) ?? 'GET').toUpperCase();
-
-  // ヘッダーをプレーンオブジェクトに変換
-  const headers: Record<string, string> = {};
-  if (init?.headers) {
-    const h = init.headers;
-    if (h instanceof Headers) {
-      h.forEach((v, k) => { headers[k] = v; });
-    } else if (Array.isArray(h)) {
-      h.forEach(([k, v]) => { headers[k] = v; });
-    } else {
-      Object.assign(headers, h);
-    }
-  }
-
-  const response = await axios({
-    url,
-    method,
-    headers,
-    data: init?.body ?? undefined,
-    responseType: 'arraybuffer',
-    validateStatus: () => true,
-    decompress: true,
-  });
-
-  const bodyBuffer = Buffer.from(response.data as ArrayBuffer);
-  const responseHeaders = new Headers();
-  Object.entries(response.headers).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) {
-      responseHeaders.set(k, String(v));
-    }
-  });
-
-  return new Response(bodyBuffer, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: responseHeaders,
-  });
-}
-
-/** Claude API連携サービス */
+/** 会話分析・Web検索・ディープサーチ分析を担うサービス */
 @Injectable()
-export class ClaudeService {
-  private readonly logger = new Logger(ClaudeService.name);
+export class AnalysisService {
+  private readonly logger = new Logger(AnalysisService.name);
 
-  constructor() {}
-
-  /** Anthropicクライアントを取得（設定画面からの変更を即時反映） */
-  private getClient(): Anthropic {
-    return new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      fetch: axiosFetch,
-    });
-  }
+  constructor(private readonly claudeClient: ClaudeClientService) {}
 
   /** 質問生成プロンプトを構築 */
   buildGenerateQuestionsPrompt(
@@ -104,108 +46,6 @@ ${question}
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
   }
 
-  /** キーワードから調査レポート用の質問文を生成 */
-  async generateQuestions(
-    keywords: string[],
-    speakerName: string,
-  ): Promise<string[]> {
-    this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
-
-    const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
-
-    const response = await this.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text =
-      response.content[0].type === 'text' ? response.content[0].text : '';
-    const questions = text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    this.logger.log(`質問生成完了: ${questions.length}件`);
-    return questions;
-  }
-
-  /** 質問文でWeb検索付き分析を実行 */
-  async analyze(
-    questions: string[],
-    keywords: string[],
-    speakerName: string,
-  ): Promise<AnalysisResult[]> {
-    this.logger.log(`分析開始: 質問数=${questions.length}`);
-
-    const results: AnalysisResult[] = [];
-
-    for (const question of questions) {
-      try {
-        const result = await this.analyzeQuestion(
-          question,
-          keywords,
-          speakerName,
-        );
-        results.push(result);
-      } catch (error) {
-        this.logger.error(`質問の分析に失敗: ${question}`, error);
-        results.push({
-          question,
-          answer: '分析中にエラーが発生しました。',
-          sources: [],
-        });
-      }
-    }
-
-    this.logger.log(`分析完了: ${results.length}件`);
-    return results;
-  }
-
-  /** 1つの質問に対してWeb検索付き分析を実行 */
-  private async analyzeQuestion(
-    question: string,
-    keywords: string[],
-    speakerName: string,
-  ): Promise<AnalysisResult> {
-    const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
-
-    const response = await this.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 4096,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-        },
-      ],
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    // レスポンスからテキストとソースURLを抽出
-    let answer = '';
-    const sources: { title: string; url: string }[] = [];
-
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        answer += block.text;
-      }
-      if (block.type === 'web_search_tool_result') {
-        for (const searchResult of (block as any).content || []) {
-          if (searchResult.type === 'web_search_result') {
-            sources.push({
-              title: searchResult.title || searchResult.url,
-              url: searchResult.url,
-            });
-          }
-        }
-      }
-    }
-
-    return { question, answer, sources };
-  }
-
   /** 発言の文脈分析プロンプトを構築 */
   buildContextAnalysisPrompt(
     allUtterances: { speakerName: string; text: string }[],
@@ -237,6 +77,103 @@ ${targetList}
 ]`;
   }
 
+  /** キーワードから調査レポート用の質問文を生成 */
+  async generateQuestions(
+    keywords: string[],
+    speakerName: string,
+  ): Promise<string[]> {
+    this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
+
+    const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
+
+    const response = await this.claudeClient.getClient().messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text =
+      response.content[0].type === 'text' ? response.content[0].text : '';
+    const questions = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    this.logger.log(`質問生成完了: ${questions.length}件`);
+    return questions;
+  }
+
+  /** 質問文でWeb検索付き分析を実行 */
+  async analyze(
+    questions: string[],
+    keywords: string[],
+    speakerName: string,
+  ): Promise<AnalysisResult[]> {
+    this.logger.log(`分析開始: 質問数=${questions.length}`);
+
+    const results: AnalysisResult[] = [];
+
+    for (const question of questions) {
+      try {
+        const result = await this.analyzeQuestion(question, keywords, speakerName);
+        results.push(result);
+      } catch (error) {
+        this.logger.error(`質問の分析に失敗: ${question}`, error);
+        results.push({
+          question,
+          answer: '分析中にエラーが発生しました。',
+          sources: [],
+        });
+      }
+    }
+
+    this.logger.log(`分析完了: ${results.length}件`);
+    return results;
+  }
+
+  /** 1つの質問に対してWeb検索付き分析を実行 */
+  private async analyzeQuestion(
+    question: string,
+    keywords: string[],
+    speakerName: string,
+  ): Promise<AnalysisResult> {
+    const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
+
+    const response = await this.claudeClient.getClient().messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4096,
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 3,
+        },
+      ],
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    let answer = '';
+    const sources: { title: string; url: string }[] = [];
+
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        answer += block.text;
+      }
+      if (block.type === 'web_search_tool_result') {
+        for (const searchResult of (block as any).content || []) {
+          if (searchResult.type === 'web_search_result') {
+            sources.push({
+              title: searchResult.title || searchResult.url,
+              url: searchResult.url,
+            });
+          }
+        }
+      }
+    }
+
+    return { question, answer, sources };
+  }
+
   /** 発言の文脈を分析 */
   async analyzeContext(
     allUtterances: { speakerName: string; text: string }[],
@@ -244,12 +181,9 @@ ${targetList}
   ): Promise<{ index: number; intent: string; topic: string }[]> {
     this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
 
-    const prompt = this.buildContextAnalysisPrompt(
-      allUtterances,
-      targetIndices,
-    );
+    const prompt = this.buildContextAnalysisPrompt(allUtterances, targetIndices);
 
-    const response = await this.getClient().messages.create({
+    const response = await this.claudeClient.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
@@ -258,7 +192,6 @@ ${targetList}
     const text =
       response.content[0].type === 'text' ? response.content[0].text : '';
 
-    // JSONブロックを抽出してパース
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
       this.logger.error('文脈分析のJSON抽出に失敗');
@@ -292,7 +225,7 @@ ${context}
 - Markdown形式で回答してください
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
-    const response = await this.getClient().messages.create({
+    const response = await this.claudeClient.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       tools: [
@@ -333,10 +266,7 @@ ${context}
     results: { sourceType: string; sourceName: string; text: string }[],
   ): Promise<string> {
     const resultsText = results
-      .map(
-        (r, i) =>
-          `[${i + 1}] (${r.sourceType}) ${r.sourceName}\n${r.text}`,
-      )
+      .map((r, i) => `[${i + 1}] (${r.sourceType}) ${r.sourceName}\n${r.text}`)
       .join('\n\n');
 
     const prompt = `以下のキーワードに関連する検索結果を分析し、総合的なレポートを作成してください。
@@ -353,7 +283,7 @@ ${resultsText}
 - Markdown形式で構造化して出力してください
 - 重要なポイントを箇条書きでまとめてください`;
 
-    const response = await this.getClient().messages.create({
+    const response = await this.claudeClient.getClient().messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
