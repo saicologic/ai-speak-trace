@@ -157,6 +157,7 @@ export interface AppSettings {
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;
+    summaryLogsDir: string;
   };
   apiKeys: {
     elevenlabsApiKey: string;
