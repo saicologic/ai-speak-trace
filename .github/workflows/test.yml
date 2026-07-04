@@ -7,26 +7,66 @@ on:
     branches: [main]
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
   backend-test:
+    needs: check-changes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: テスト対象外のためスキップ
+        if: needs.check-changes.outputs.backend != 'true'
+        run: echo "backendの変更なし"
+
+      - if: needs.check-changes.outputs.backend == 'true'
+        uses: actions/checkout@v4
+
+      - if: needs.check-changes.outputs.backend == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-      - run: cd backend && npm ci
-      - run: cd backend && npm test
+
+      - if: needs.check-changes.outputs.backend == 'true'
+        run: cd backend && npm ci
+
+      - if: needs.check-changes.outputs.backend == 'true'
+        run: cd backend && npm test
 
   frontend-test:
+    needs: check-changes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: テスト対象外のためスキップ
+        if: needs.check-changes.outputs.frontend != 'true'
+        run: echo "frontendの変更なし"
+
+      - if: needs.check-changes.outputs.frontend == 'true'
+        uses: actions/checkout@v4
+
+      - if: needs.check-changes.outputs.frontend == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      - run: cd frontend && npm ci
-      - run: cd frontend && npm run test:run
+
+      - if: needs.check-changes.outputs.frontend == 'true'
+        run: cd frontend && npm ci
+
+      - if: needs.check-changes.outputs.frontend == 'true'
+        run: cd frontend && npm run test:run
