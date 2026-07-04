@@ -125,6 +125,17 @@ ai-speak-trace/
 
 `release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
 
+## CIワークフロー管理
+
+### ビルド対象ファイルの管理
+
+`build.yml` と `build-skip.yml` はトップレベルのファイル・フォルダをそれぞれ以下に分類している：
+
+- **`build.yml`（`paths`）**: ビルドが必要なファイル（`src-tauri/`・`frontend/`・`backend/`・`package.json`・`package-lock.json`・`scripts/`）
+- **`build-skip.yml`（`paths`）**: ビルド不要なファイル（`.github/`・`docs/`・Markdownファイル等）
+
+トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
+
 ## PRテストプラン
 
 PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と手動確認項目を記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。ブランチ種別に応じたテンプレートは各スキルを参照:

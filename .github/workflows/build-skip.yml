@@ -1,0 +1,26 @@
+name: Build
+
+# ビルド対象外のファイルのみ変更されたPRで実行される。
+# ブランチ保護の必須チェック「build」が pending にならないよう成功を報告するワークフロー。
+# 新しいファイル・フォルダをトップレベルに追加する場合は、
+# build.yml の paths か このファイルの paths のどちらかに追加すること。
+
+on:
+  pull_request:
+    branches:
+      - 'release/*'
+      - main
+    paths:
+      - '.github/**'
+      - '.gitignore'
+      - '.nvmrc'
+      - 'LICENSE'
+      - '.claude/**'
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ビルド対象外のファイルのみ変更のためスキップ"

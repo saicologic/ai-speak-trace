@@ -5,29 +5,16 @@ on:
     branches:
       - 'release/*'
       - main
+    paths:
+      - 'src-tauri/**'
+      - 'frontend/**'
+      - 'backend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
 
 jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      should-build: ${{ steps.filter.outputs.build }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            build:
-              - 'src-tauri/**'
-              - 'frontend/**'
-              - 'backend/**'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'scripts/**'
-
   build:
-    needs: check-changes
-    if: needs.check-changes.outputs.should-build == 'true'
     runs-on: macos-latest
     permissions:
       contents: read
@@ -68,14 +55,3 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: '--target aarch64-apple-darwin'
-
-  build-result:
-    needs: [build]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: ビルド結果を確認
-        run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            exit 1
-          fi

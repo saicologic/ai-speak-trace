@@ -3,29 +3,17 @@ name: Test
 on:
   push:
     branches: ['**']
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
   pull_request:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
 
 jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend/**'
-            frontend:
-              - 'frontend/**'
-
   backend-test:
-    needs: check-changes
-    if: needs.check-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +26,6 @@ jobs:
       - run: cd backend && npm test
 
   frontend-test:
-    needs: check-changes
-    if: needs.check-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,14 +36,3 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci
       - run: cd frontend && npm run test:run
-
-  test-result:
-    needs: [backend-test, frontend-test]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: テスト結果を確認
-        run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            exit 1
-          fi
