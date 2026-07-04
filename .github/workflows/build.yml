@@ -25,6 +25,10 @@ jobs:
               - '!**.md'
               - '!.github/**'
               - '!.gitignore'
+              - '!.nvmrc'
+              - '!LICENSE'
+              - '!.claude/**'
+              - '!docs/**'
 
   build:
     needs: check-changes
