@@ -25,48 +25,39 @@ jobs:
 
   backend-test:
     needs: check-changes
+    if: needs.check-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: テスト対象外のためスキップ
-        if: needs.check-changes.outputs.backend != 'true'
-        run: echo "backendの変更なし"
-
-      - if: needs.check-changes.outputs.backend == 'true'
-        uses: actions/checkout@v4
-
-      - if: needs.check-changes.outputs.backend == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-
-      - if: needs.check-changes.outputs.backend == 'true'
-        run: cd backend && npm ci
-
-      - if: needs.check-changes.outputs.backend == 'true'
-        run: cd backend && npm test
+      - run: cd backend && npm ci
+      - run: cd backend && npm test
 
   frontend-test:
     needs: check-changes
+    if: needs.check-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: テスト対象外のためスキップ
-        if: needs.check-changes.outputs.frontend != 'true'
-        run: echo "frontendの変更なし"
-
-      - if: needs.check-changes.outputs.frontend == 'true'
-        uses: actions/checkout@v4
-
-      - if: needs.check-changes.outputs.frontend == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && npm run test:run
 
-      - if: needs.check-changes.outputs.frontend == 'true'
-        run: cd frontend && npm ci
-
-      - if: needs.check-changes.outputs.frontend == 'true'
-        run: cd frontend && npm run test:run
+  test-result:
+    needs: [backend-test, frontend-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: テスト結果を確認
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            exit 1
+          fi

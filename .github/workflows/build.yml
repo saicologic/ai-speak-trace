@@ -20,15 +20,10 @@ jobs:
             build:
               - 'src-tauri/**'
               - 'frontend/**'
-              - '!frontend/**/*.css'
               - 'backend/**'
-              - '!**.md'
-              - '!.github/**'
-              - '!.gitignore'
-              - '!.nvmrc'
-              - '!LICENSE'
-              - '!.claude/**'
-              - '!docs/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'scripts/**'
 
   build:
     needs: check-changes
