@@ -32,49 +32,37 @@ jobs:
 
   build:
     needs: check-changes
-    runs-on: ${{ needs.check-changes.outputs.should-build == 'true' && 'macos-latest' || 'ubuntu-latest' }}
+    if: needs.check-changes.outputs.should-build == 'true'
+    runs-on: macos-latest
     permissions:
       contents: read
     steps:
-      - name: ビルド対象外のためスキップ
-        if: needs.check-changes.outputs.should-build != 'true'
-        run: echo "ビルド対象外のファイルのみ変更のためスキップ"
+      - uses: actions/checkout@v4
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        uses: actions/checkout@v4
-
-      - if: needs.check-changes.outputs.should-build == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        run: npm ci
+      - run: npm ci
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        run: cd backend && npm ci
+      - run: cd backend && npm ci
 
-      - if: needs.check-changes.outputs.should-build == 'true'
-        run: cd frontend && npm ci
+      - run: cd frontend && npm ci
 
       # sidecarバイナリをtauri-action実行前に生成
       - name: バックエンドsidecarバイナリ生成
-        if: needs.check-changes.outputs.should-build == 'true'
         run: npm run pkg:backend
 
       # リリース作成なし・署名ありでビルドのみ実行
-      - if: needs.check-changes.outputs.should-build == 'true'
-        uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -85,3 +73,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: '--target aarch64-apple-darwin'
+
+  build-result:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: ビルド結果を確認
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            exit 1
+          fi
