@@ -274,8 +274,8 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
             </p>
             <div className="summary-fields-form">
               {/* overview */}
-              <div className="summary-field-row">
-                <span className="summary-field-label">概要</span>
+              <div className="summary-field-card">
+                <span className="summary-field-card-label">概要</span>
                 <input
                   type="text"
                   className="summary-field-instruction"
@@ -286,30 +286,28 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
               </div>
 
               {/* key_points（グループ） */}
-              <div className="summary-field-group">
-                <span className="summary-field-group-label">キーポイント</span>
-                <div className="summary-field-group-rows">
-                  {(['key_points_topic', 'key_points_summary'] as const).map((key) => {
-                    const f = fields.find((f) => f.key === key)!;
-                    return (
-                      <div key={key} className="summary-field-subrow">
-                        <span className="summary-field-sublabel">{f.subLabel}</span>
-                        <input
-                          type="text"
-                          className="summary-field-instruction"
-                          placeholder={f.defaultInstruction}
-                          value={f.instruction}
-                          onChange={(e) => handleFieldInstruction(key, e.target.value)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="summary-field-card">
+                <span className="summary-field-card-label">キーポイント</span>
+                {(['key_points_topic', 'key_points_summary'] as const).map((key) => {
+                  const f = fields.find((f) => f.key === key)!;
+                  return (
+                    <div key={key} className="summary-field-subrow">
+                      <span className="summary-field-sublabel">{f.subLabel}</span>
+                      <input
+                        type="text"
+                        className="summary-field-instruction"
+                        placeholder={f.defaultInstruction}
+                        value={f.instruction}
+                        onChange={(e) => handleFieldInstruction(key, e.target.value)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* decisions */}
-              <div className="summary-field-row">
-                <span className="summary-field-label">決定事項</span>
+              <div className="summary-field-card">
+                <span className="summary-field-card-label">決定事項</span>
                 <input
                   type="text"
                   className="summary-field-instruction"
