@@ -5,46 +5,70 @@ on:
     branches:
       - 'release/*'
       - main
-    paths:
-      - 'src-tauri/**'
-      - 'frontend/**'
-      - '!frontend/**/*.css'
-      - 'backend/**'
-      - '!**.md'
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.filter.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            build:
+              - 'src-tauri/**'
+              - 'frontend/**'
+              - '!frontend/**/*.css'
+              - 'backend/**'
+              - '!**.md'
+
   build:
-    runs-on: macos-latest
+    needs: check-changes
+    runs-on: ${{ needs.check-changes.outputs.should-build == 'true' && 'macos-latest' || 'ubuntu-latest' }}
     permissions:
       contents: read
-
     steps:
-      - uses: actions/checkout@v6
+      - name: ビルド対象外のためスキップ
+        if: needs.check-changes.outputs.should-build != 'true'
+        run: echo "ビルド対象外のファイルのみ変更のためスキップ"
 
-      - uses: actions/setup-node@v6
+      - if: needs.check-changes.outputs.should-build == 'true'
+        uses: actions/checkout@v4
+
+      - if: needs.check-changes.outputs.should-build == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
 
-      - uses: dtolnay/rust-toolchain@stable
+      - if: needs.check-changes.outputs.should-build == 'true'
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
-      - uses: Swatinem/rust-cache@v2
+      - if: needs.check-changes.outputs.should-build == 'true'
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - run: npm ci
+      - if: needs.check-changes.outputs.should-build == 'true'
+        run: npm ci
 
-      - run: cd backend && npm ci
+      - if: needs.check-changes.outputs.should-build == 'true'
+        run: cd backend && npm ci
 
-      - run: cd frontend && npm ci
+      - if: needs.check-changes.outputs.should-build == 'true'
+        run: cd frontend && npm ci
 
       # sidecarバイナリをtauri-action実行前に生成
       - name: バックエンドsidecarバイナリ生成
+        if: needs.check-changes.outputs.should-build == 'true'
         run: npm run pkg:backend
 
       # リリース作成なし・署名ありでビルドのみ実行
-      - uses: tauri-apps/tauri-action@v0
+      - if: needs.check-changes.outputs.should-build == 'true'
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
