@@ -23,6 +23,8 @@ jobs:
               - '!frontend/**/*.css'
               - 'backend/**'
               - '!**.md'
+              - '!.github/**'
+              - '!.gitignore'
 
   build:
     needs: check-changes
