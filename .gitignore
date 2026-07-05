@@ -14,3 +14,11 @@ src-tauri/gen/
 
 # 開発時バックエンドポートファイル
 .backend-port
+
+# スクリーンショット・Playwright
+*.png
+.playwright-mcp/
+
+# ログデータ
+backend/data/analysis-logs/*.json
+backend/data/summary-logs/*.json

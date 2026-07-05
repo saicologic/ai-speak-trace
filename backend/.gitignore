@@ -54,6 +54,10 @@ data/documents/*
 !data/documents/.gitkeep
 data/document-metadata/*
 !data/document-metadata/.gitkeep
+data/analysis-logs/*
+!data/analysis-logs/.gitkeep
+data/summary-logs/*
+!data/summary-logs/.gitkeep
 
 # Runtime data
 pids

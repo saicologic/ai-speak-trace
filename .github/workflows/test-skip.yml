@@ -1,0 +1,22 @@
+name: Test
+
+# テスト対象外のファイルのみ変更されたPRで実行される。
+# ブランチ保護の必須チェック「backend-test」「frontend-test」が pending にならないよう成功を報告するワークフロー。
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'backend/**'
+      - 'frontend/**'
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "テスト対象外のファイルのみ変更のためスキップ"
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "テスト対象外のファイルのみ変更のためスキップ"

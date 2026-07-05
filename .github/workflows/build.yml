@@ -8,20 +8,20 @@ on:
     paths:
       - 'src-tauri/**'
       - 'frontend/**'
-      - '!frontend/**/*.css'
       - 'backend/**'
-      - '!**.md'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
 
 jobs:
   build:
     runs-on: macos-latest
     permissions:
       contents: read
-
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
 

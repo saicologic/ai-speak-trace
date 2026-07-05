@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ClaudeService } from '../claude/claude.service';
+import { AnalysisService } from '../claude/analysis.service';
+import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
-import { AnalysisLogStorage } from './analysis-log.storage';
+import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 import {
   InterviewAnalysis,
+  TranscriptionSummaryLog,
   UtteranceContextResult,
   ContextAnalysisResponse,
 } from './types/interview.types';
@@ -15,9 +17,11 @@ export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
 
   constructor(
-    private readonly claudeService: ClaudeService,
+    private readonly analysisService: AnalysisService,
+    private readonly summaryService: SummaryService,
     private readonly store: TranscriptionStoreService,
     private readonly analysisLogStorage: AnalysisLogStorage,
+    private readonly summaryLogStorage: SummaryLogStorage,
   ) {}
 
   /** 話者名を取得するヘルパー */
@@ -46,7 +50,7 @@ export class InterviewService {
       speakerId,
     );
 
-    return this.claudeService.generateQuestions(keywords, speakerName);
+    return this.analysisService.generateQuestions(keywords, speakerName);
   }
 
   /** プロンプトのプレビューを返す */
@@ -62,10 +66,10 @@ export class InterviewService {
     );
 
     const generateQuestionsPrompt =
-      this.claudeService.buildGenerateQuestionsPrompt(keywords, speakerName);
+      this.analysisService.buildGenerateQuestionsPrompt(keywords, speakerName);
 
     const analyzePrompts = questions.map((q) =>
-      this.claudeService.buildAnalysisPrompt(q, keywords, speakerName),
+      this.analysisService.buildAnalysisPrompt(q, keywords, speakerName),
     );
 
     return { generateQuestionsPrompt, analyzePrompts };
@@ -87,7 +91,7 @@ export class InterviewService {
       `分析開始: ${speakerName}, キーワード=${keywords.length}件, 質問=${questions.length}件`,
     );
 
-    const results = await this.claudeService.analyze(
+    const results = await this.analysisService.analyze(
       questions,
       keywords,
       speakerName,
@@ -123,6 +127,65 @@ export class InterviewService {
     return log;
   }
 
+  /** 要約プロンプトのデフォルトテンプレートと選択可能なモデル一覧を返す */
+  getSummaryConfig(): {
+    defaultPrompt: string;
+    models: { id: string; label: string }[];
+  } {
+    return {
+      defaultPrompt: SummaryService.DEFAULT_SUMMARY_PROMPT,
+      models: SummaryService.SUMMARY_MODELS,
+    };
+  }
+
+  /** 要約を生成して保存 */
+  async summarize(
+    transcriptionId: string,
+    model: string,
+    promptTemplate: string,
+  ): Promise<TranscriptionSummaryLog> {
+    const transcription = await this.store.findById(transcriptionId);
+    if (!transcription) {
+      throw new NotFoundException(`文字起こし結果が見つかりません: ${transcriptionId}`);
+    }
+
+    this.logger.log(`要約開始: transcriptionId=${transcriptionId}, model=${model}`);
+    const result = await this.summaryService.summarize(
+      transcription.fullText,
+      model,
+      promptTemplate,
+    );
+
+    const summary: TranscriptionSummaryLog = {
+      id: uuidv4(),
+      transcriptionId,
+      overview: result.overview,
+      key_points: result.key_points,
+      decisions: result.decisions,
+      createdAt: new Date().toISOString(),
+      model,
+      prompt: promptTemplate,
+    };
+
+
+    await this.summaryLogStorage.save(summary);
+    return summary;
+  }
+
+  /** 要約ログ一覧を取得 */
+  async findSummaryLogs(): Promise<TranscriptionSummaryLog[]> {
+    return this.summaryLogStorage.findAll();
+  }
+
+  /** 要約ログ詳細を取得 */
+  async findSummaryLogById(id: string): Promise<TranscriptionSummaryLog> {
+    const log = await this.summaryLogStorage.findById(id);
+    if (!log) {
+      throw new NotFoundException(`要約ログが見つかりません: ${id}`);
+    }
+    return log;
+  }
+
   /** 発言の文脈を分析 */
   async analyzeContext(
     transcriptionId: string,
@@ -146,7 +209,7 @@ export class InterviewService {
     }));
 
     // Claude APIで意図・話題を分析
-    const llmResults = await this.claudeService.analyzeContext(
+    const llmResults = await this.analysisService.analyzeContext(
       allUtterances,
       utteranceIndices,
     );

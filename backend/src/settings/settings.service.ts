@@ -22,6 +22,7 @@ export interface AppSettings {
     transcriptionsDir: string;
     documentsDir: string;
     documentMetadataDir: string;
+    summaryLogsDir: string;
   };
   apiKeys: {
     elevenlabsApiKey: string;
@@ -70,6 +71,7 @@ export class SettingsService {
           this.configService.get<string>('DOCUMENT_METADATA_DIR') ||
             path.join(dataDir, 'document-metadata'),
         ),
+        summaryLogsDir: path.resolve(path.join(dataDir, 'summary-logs')),
       },
       apiKeys: {
         elevenlabsApiKey:

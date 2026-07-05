@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ClaudeService } from './claude.service';
+import { ClaudeClientService } from './claude-client.service';
+import { AnalysisService } from './analysis.service';
+import { SummaryService } from './summary.service';
 
 /** Claude API共有モジュール */
 @Module({
-  providers: [ClaudeService],
-  exports: [ClaudeService],
+  providers: [ClaudeClientService, AnalysisService, SummaryService],
+  exports: [AnalysisService, SummaryService],
 })
 export class ClaudeModule {}

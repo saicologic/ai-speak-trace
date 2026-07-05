@@ -125,19 +125,39 @@ ai-speak-trace/
 
 `release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
 
+## CIワークフロー管理
+
+### ビルド対象ファイルの管理
+
+`build.yml` と `build-skip.yml` はトップレベルのファイル・フォルダをそれぞれ以下に分類している：
+
+- **`build.yml`（`paths`）**: ビルドが必要なファイル（`src-tauri/`・`frontend/`・`backend/`・`package.json`・`package-lock.json`・`scripts/`）
+- **`build-skip.yml`（`paths`）**: ビルド不要なファイル（`.github/`・`docs/`・Markdownファイル等）
+
+トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
+
 ## PRテストプラン
 
-PRのTest planにはCI自動チェック（`backend-test`, `frontend-test`）と手動確認項目を記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。ブランチ種別に応じたテンプレートは各スキルを参照:
+PRのTest planには以下の条件に従って記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。
 
-- release/* → `/release`
-- fix/*, feature/* → `/fix-issue`
-- 脆弱性対応 → `/audit`
+### CI自動チェック
 
-### 手動確認項目の条件判断
+以下の変更がある場合のみ記載する：
 
-`npm run build`（backendディレクトリで実行）は、以下の場合のみTest planに含める:
+- `backend/` 配下の変更 → `backend-test` が通過する
+- `frontend/` 配下の変更 → `frontend-test` が通過する
+- `src-tauri/`・`frontend/`・`backend/`・`package.json`・`package-lock.json`・`scripts/` の変更 → `build` が通過する
 
-- `backend/` 配下のコードを変更した場合
+`.github/workflows/`・`CLAUDE.md`・`.gitignore`・`docs/` のみの変更はCI自動チェック不要。
+
+### 手動確認項目
+
+`npm run build`（backendディレクトリで実行）は、以下の場合のみ含める：
+
+- `backend/` 配下のコード（`*.spec.ts` 以外）を変更した場合
 - `backend/package.json` または `backend/package-lock.json` を変更した場合
 
-`frontend/`・`.github/workflows/`・`CLAUDE.md`・`src-tauri/` のみの変更では含めない。
+### Test planが不要な場合
+
+以下のみの変更はTest planに「手動確認項目なし」と記載する：
+- `.github/workflows/`・`CLAUDE.md`・`.gitignore`・`docs/` のみの変更
