@@ -22,3 +22,8 @@ src-tauri/gen/
 # ログデータ
 backend/data/analysis-logs/*.json
 backend/data/summary-logs/*.json
+
+# Ragas評価スクリプト（Python仮想環境・結果ファイル）
+scripts/ragas_eval/.venv/
+scripts/ragas_eval/result.json
+scripts/ragas_eval/data.json

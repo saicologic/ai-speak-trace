@@ -58,6 +58,13 @@ export class InterviewController {
     return { log };
   }
 
+  /** Ragas評価用データエクスポート: GET /api/interview/logs/:id/ragas-export */
+  @Get('logs/:id/ragas-export')
+  async exportForRagas(@Param('id') id: string) {
+    const data = await this.interviewService.exportForRagas(id);
+    return data;
+  }
+
   /** 要約設定（デフォルトプロンプト・モデル一覧）取得: GET /api/interview/summary-config */
   @Get('summary-config')
   getSummaryConfig() {

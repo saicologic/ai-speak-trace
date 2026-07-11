@@ -224,4 +224,22 @@ export class InterviewService {
 
     return { transcriptionId, results };
   }
+
+  /** Ragas評価用データをエクスポート */
+  async exportForRagas(logId: string): Promise<{
+    samples: { question: string; answer: string; contexts: string[] }[];
+  }> {
+    const log = await this.analysisLogStorage.findById(logId);
+    if (!log) {
+      throw new NotFoundException(`分析ログが見つかりません: ${logId}`);
+    }
+
+    const samples = log.results.map((r) => ({
+      question: r.question,
+      answer: r.answer,
+      contexts: r.sources.map((s) => s.url),
+    }));
+
+    return { samples };
+  }
 }
