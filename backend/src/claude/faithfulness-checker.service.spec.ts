@@ -94,13 +94,13 @@ describe('FaithfulnessCheckerService', () => {
       expect(result.score).toBe(1.0);
     });
 
-    it('採点に claude-haiku-4-5-20251001 を使用する', async () => {
+    it('採点に claude-sonnet-4-6 を使用する', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse(0.9, '根拠あり'));
 
       await service.check('質問', '回答', ['ソース1']);
 
       expect(mockMessagesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }),
+        expect.objectContaining({ model: 'claude-sonnet-4-6' }),
       );
     });
   });
