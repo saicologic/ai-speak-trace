@@ -44,35 +44,14 @@ export class InterviewService {
     transcriptionId: string,
     speakerId: string,
     keywords: string[],
+    conversationContext?: string,
   ): Promise<string[]> {
     const speakerName = await this.getSpeakerName(
       transcriptionId,
       speakerId,
     );
 
-    return this.analysisService.generateQuestions(keywords, speakerName);
-  }
-
-  /** プロンプトのプレビューを返す */
-  async previewPrompts(
-    transcriptionId: string,
-    speakerId: string,
-    keywords: string[],
-    questions: string[],
-  ): Promise<{ generateQuestionsPrompt: string; analyzePrompts: string[] }> {
-    const speakerName = await this.getSpeakerName(
-      transcriptionId,
-      speakerId,
-    );
-
-    const generateQuestionsPrompt =
-      this.analysisService.buildGenerateQuestionsPrompt(keywords, speakerName);
-
-    const analyzePrompts = questions.map((q) =>
-      this.analysisService.buildAnalysisPrompt(q, keywords, speakerName),
-    );
-
-    return { generateQuestionsPrompt, analyzePrompts };
+    return this.analysisService.generateQuestions(keywords, speakerName, conversationContext);
   }
 
   /** Web検索付き分析を実行 */
@@ -81,6 +60,7 @@ export class InterviewService {
     speakerId: string,
     keywords: string[],
     questions: string[],
+    conversationContext?: string,
   ): Promise<InterviewAnalysis> {
     const speakerName = await this.getSpeakerName(
       transcriptionId,
@@ -95,6 +75,7 @@ export class InterviewService {
       questions,
       keywords,
       speakerName,
+      conversationContext,
     );
 
     const analysis: InterviewAnalysis = {

@@ -103,7 +103,7 @@ describe('InterviewService', () => {
 
       const result = await service.generateQuestions('sample', 'speaker_0', ['キーワード']);
 
-      expect(claudeService.generateQuestions).toHaveBeenCalledWith(['キーワード'], 'Aさん');
+      expect(claudeService.generateQuestions).toHaveBeenCalledWith(['キーワード'], 'Aさん', undefined);
       expect(result).toEqual(['質問1', '質問2']);
     });
 
@@ -121,20 +121,7 @@ describe('InterviewService', () => {
 
       await service.generateQuestions('sample', 'unknown_speaker', []);
 
-      expect(claudeService.generateQuestions).toHaveBeenCalledWith([], 'unknown_speaker');
-    });
-  });
-
-  describe('previewPrompts', () => {
-    it('質問生成プロンプトと分析プロンプトを返す', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
-      claudeService.buildGenerateQuestionsPrompt.mockReturnValue('質問生成プロンプト');
-      claudeService.buildAnalysisPrompt.mockReturnValue('分析プロンプト1');
-
-      const result = await service.previewPrompts('sample', 'speaker_0', ['kw'], ['q1']);
-
-      expect(result.generateQuestionsPrompt).toBe('質問生成プロンプト');
-      expect(result.analyzePrompts).toEqual(['分析プロンプト1']);
+      expect(claudeService.generateQuestions).toHaveBeenCalledWith([], 'unknown_speaker', undefined);
     });
   });
 

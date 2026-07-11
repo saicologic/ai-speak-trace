@@ -489,11 +489,12 @@ export async function generateQuestions(
   transcriptionId: string,
   speakerId: string,
   keywords: string[],
+  conversationContext?: string,
 ): Promise<string[]> {
   const res = await fetch(`${BASE_URL}/interview/generate-questions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcriptionId, speakerId, keywords }),
+    body: JSON.stringify({ transcriptionId, speakerId, keywords, conversationContext }),
   });
   if (!res.ok) {
     throw new Error(`質問生成に失敗しました: ${res.status}`);
@@ -508,11 +509,12 @@ export async function analyzeInterview(
   speakerId: string,
   keywords: string[],
   questions: string[],
+  conversationContext?: string,
 ): Promise<InterviewAnalysis> {
   const res = await fetch(`${BASE_URL}/interview/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
+    body: JSON.stringify({ transcriptionId, speakerId, keywords, questions, conversationContext }),
   });
   if (!res.ok) {
     throw new Error(`分析に失敗しました: ${res.status}`);
@@ -541,24 +543,6 @@ export async function fetchAnalysisLog(id: string): Promise<InterviewAnalysis> {
   return data.log;
 }
 
-/** プロンプトプレビューを取得 */
-export async function previewPrompts(
-  transcriptionId: string,
-  speakerId: string,
-  keywords: string[],
-  questions: string[],
-): Promise<{ generateQuestionsPrompt: string; analyzePrompts: string[] }> {
-  const res = await fetch(`${BASE_URL}/interview/preview-prompts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
-  });
-  if (!res.ok) {
-    throw new Error(`プロンプト取得に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.prompts;
-}
 
 /** 話者名を更新 */
 export async function updateSpeakerNames(

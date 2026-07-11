@@ -129,6 +129,18 @@ export function InterviewPage({
     .filter((kw) => selectedKeywords.has(kw.text))
     .map((kw) => kw.text);
 
+  // 選択キーワードを含む発話を抽出して会話の文脈を組み立てる
+  const conversationContext = useMemo(() => {
+    if (activeKeywords.length === 0) return undefined;
+    const relevantUtterances = utterances.filter(
+      (u) =>
+        u.speakerId === selectedSpeakerId &&
+        activeKeywords.some((kw) => u.text.includes(kw)),
+    );
+    if (relevantUtterances.length === 0) return undefined;
+    return relevantUtterances.map((u) => `${u.speakerName}: ${u.text}`).join('\n');
+  }, [utterances, selectedSpeakerId, activeKeywords]);
+
   // チェック済み質問数
   const checkedCount = questions.filter((q) => q.checked).length;
 
@@ -158,6 +170,7 @@ export function InterviewPage({
         transcriptionId,
         selectedSpeakerId,
         activeKeywords,
+        conversationContext,
       );
       setQuestions(result.map((text) => ({ text, checked: true })));
     } catch (e) {
@@ -186,6 +199,7 @@ export function InterviewPage({
         selectedSpeakerId,
         activeKeywords,
         checkedQuestions,
+        conversationContext,
       );
       setAnalysis(result);
       // 分析完了後にログ一覧を更新（新規タブに戻った場合用）
