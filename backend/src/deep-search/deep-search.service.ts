@@ -120,7 +120,17 @@ export class DeepSearchService {
         10,
       );
 
-      const results: DeepSearchResultItem[] = vectorResults.map((r) => ({
+      // S3 VectorsのdistanceはL2距離（小さいほど類似）。
+      // 閾値を超えるものは無関係なチャンクとして除外しグラウンディング品質を高める。
+      const DISTANCE_THRESHOLD = 0.5;
+      const filteredResults = vectorResults.filter(
+        (r) => r.score <= DISTANCE_THRESHOLD,
+      );
+      this.logger.log(
+        `PDF検索スコアフィルタリング: ${vectorResults.length}件 → ${filteredResults.length}件（閾値=${DISTANCE_THRESHOLD}）`,
+      );
+
+      const results: DeepSearchResultItem[] = filteredResults.map((r) => ({
         sourceType: 'pdf' as const,
         sourceName: r.fileName,
         sourceId: r.documentId,

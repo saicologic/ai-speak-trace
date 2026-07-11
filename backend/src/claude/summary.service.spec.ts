@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SummaryService } from './summary.service';
 import { ClaudeClientService } from './claude-client.service';
+import { GuardrailService } from './guardrail.service';
 
 /** Anthropic messages.create のモック */
 const mockMessagesCreate = jest.fn();
@@ -10,6 +11,10 @@ const mockClaudeClientService = {
       create: mockMessagesCreate,
     },
   }),
+};
+
+const mockGuardrailService = {
+  groundingSystemPrompt: 'グラウンディングシステムプロンプト',
 };
 
 /** 正常なJSONレスポンスを返すヘルパー */
@@ -30,6 +35,7 @@ describe('SummaryService', () => {
       providers: [
         SummaryService,
         { provide: ClaudeClientService, useValue: mockClaudeClientService },
+        { provide: GuardrailService, useValue: mockGuardrailService },
       ],
     }).compile();
 
@@ -84,6 +90,16 @@ describe('SummaryService', () => {
         expect.objectContaining({
           messages: [{ role: 'user', content: '要約してください: 実際の会話内容' }],
         }),
+      );
+    });
+
+    it('グラウンディングシステムプロンプトを渡す', async () => {
+      mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要', key_points: [], decisions: [] }));
+
+      await service.summarize('会話テキスト');
+
+      expect(mockMessagesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ system: 'グラウンディングシステムプロンプト' }),
       );
     });
   });
