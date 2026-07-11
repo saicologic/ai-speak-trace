@@ -147,7 +147,7 @@ describe('DeepSearchService', () => {
     it('includePdfs=trueのときPDF検索を実行する', async () => {
       embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
       vectorSearchService.search.mockResolvedValue([
-        { text: 'PDF内容', score: 0.9, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
+        { text: 'PDF内容', score: 0.3, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
       ]);
 
       const dto: DeepSearchDto = {
