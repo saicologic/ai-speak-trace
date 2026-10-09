@@ -89,7 +89,9 @@ export class VectorSearchService {
       const metadata = vector.metadata ?? {};
       results.push({
         text: metadata['text'] ?? '',
-        score: vector.distance ?? 0,
+        // S3 Vectorsのdistanceはcosine距離（0〜2、小さいほど類似）のため、
+        // 1から引いてcosine類似度（1に近いほど類似）に変換する
+        score: 1 - (vector.distance ?? 1),
         documentId: metadata['documentId'] ?? '',
         fileName: metadata['fileName'] ?? '',
         chunkIndex: parseInt(metadata['chunkIndex'] ?? '0', 10),
