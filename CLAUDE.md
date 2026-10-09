@@ -136,6 +136,19 @@ ai-speak-trace/
 
 トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
 
+## ブラウザ操作（Claude Code）
+
+Playwright MCP と Claude in Chrome を使い分ける。
+
+| 用途 | 使うもの |
+|------|---------|
+| ログインが必要なページ、ボット対策があるサイト | Claude in Chrome（`claude --chrome` で起動） |
+| 自動テスト、公開ページの確認 | Playwright MCP |
+
+- Playwright MCP は `.mcp.json` から `.claude/scripts/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
+- Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
+- Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
+
 ## PRテストプラン
 
 PRのTest planには以下の条件に従って記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。
