@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit のレビュー設定
+# CLAUDE.md は CodeRabbit が既定で読み込むガイドライン（**/CLAUDE.md）に含まれるため、
+# プロジェクト全体のルール（ブランチ運用・CIのpaths分類・PRテストプラン等）はそちらを参照させる。
+
+language: ja-JP
+
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # fix/*・feature/* → release/* → main の順でマージするため、release/* 宛てのPRもレビューする
+    base_branches:
+      - "release/.*"
+  path_instructions:
+    - path: "backend/**/*.ts"
+      instructions: |
+        NestJS 11 + TypeScript のバックエンド。以下の観点で具体的かつ建設的にレビューする。
+        - セキュリティ: 入力検証、ハードコードされた秘密情報、認証の問題
+        - パフォーマンス: 非効率なループ、外部API（Claude・ElevenLabs・Bedrock・S3 Vectors）の不要な呼び出し
+        - テスト: 新しい処理に対応する *.spec.ts が追加・更新されているか
+        - 可読性: 命名のわかりやすさ、コメントが日本語で書かれているか
+    - path: "frontend/**/*.{ts,tsx}"
+      instructions: |
+        Vite + React 19 + TypeScript のフロントエンド。以下の観点で具体的かつ建設的にレビューする。
+        - セキュリティ: dangerouslySetInnerHTML に渡すHTMLの安全性、外部リンクの rel 属性
+        - パフォーマンス: 不要な再レンダリング、重い計算の useMemo 漏れ
+        - テスト: 新しいコンポーネントやユーティリティに対応するテストがあるか
+        - 可読性: 命名のわかりやすさ、コメントが日本語で書かれているか、UIテキストが日本語か
