@@ -135,6 +135,19 @@ describe('AnalysisService', () => {
       expect(result.answer).toBe('調査結果');
     });
 
+    it('再開上限に達してもpause_turnのままなら例外を投げる', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '途中までの回答' }],
+        stop_reason: 'pause_turn',
+      });
+
+      await expect(service.searchAndAnalyze(['AI'], '質問')).rejects.toThrow(
+        'pause_turnの再開上限',
+      );
+      // 初回 + 再開3回
+      expect(mockMessagesCreate).toHaveBeenCalledTimes(4);
+    });
+
     it('Web検索がエラーを返しても参照元なしで回答を返す', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [

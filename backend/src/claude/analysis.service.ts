@@ -246,6 +246,7 @@ ${resultsText}
       { role: 'user', content: prompt },
     ];
     const content: Anthropic.ContentBlock[] = [];
+    let lastStopReason: Anthropic.Message['stop_reason'] = null;
 
     // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
@@ -264,8 +265,13 @@ ${resultsText}
       });
       assertCompleteResponse(response);
       content.push(...response.content);
+      lastStopReason = response.stop_reason;
       if (response.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: response.content });
+    }
+    // 再開上限に達しても中断されたままの場合、途中までの回答を成功として返さない
+    if (lastStopReason === 'pause_turn') {
+      throw new Error('Web検索がpause_turnの再開上限に達しました');
     }
 
     const sources: { title: string; url: string }[] = [];
