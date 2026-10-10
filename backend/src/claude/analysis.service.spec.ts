@@ -81,6 +81,25 @@ describe('AnalysisService', () => {
     });
   });
 
+  describe('analyze（会話分析）', () => {
+    it('会話分析のWeb検索は新しい版のツールを使う', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '回答' }],
+        stop_reason: 'end_turn',
+      });
+
+      await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(mockMessagesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: [
+            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
+          ],
+        }),
+      );
+    });
+  });
+
   describe('searchAndAnalyze', () => {
     it('Web検索の回答テキストと参照元を返す', async () => {
       mockMessagesCreate.mockResolvedValue({
@@ -95,19 +114,24 @@ describe('AnalysisService', () => {
 
       expect(result).toEqual({
         answer: '調査結果',
-        sources: [{ title: '記事A', url: 'https://example.com/a' }],
+        sources: [
+          { title: '記事A', url: 'https://example.com/a', excerpts: [] },
+        ],
       });
       expect(mockMessagesCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           tools: [
-            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
+            { type: 'web_search_20250305', name: 'web_search', max_uses: 3 },
           ],
         }),
       );
     });
 
     it('pause_turnで中断されたら応答を履歴に足して再開し、両方の結果をまとめる', async () => {
-      const firstContent = [searchResult('記事A', 'https://example.com/a')];
+      const firstContent = [
+        { type: 'text', text: '検索します。' },
+        searchResult('記事A', 'https://example.com/a'),
+      ];
       mockMessagesCreate
         .mockResolvedValueOnce({
           content: firstContent,
@@ -148,6 +172,33 @@ describe('AnalysisService', () => {
       expect(mockMessagesCreate).toHaveBeenCalledTimes(4);
     });
 
+    it('空の引用本文は抜粋に含めない', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          {
+            type: 'text',
+            text: '回答。',
+            citations: [
+              {
+                type: 'web_search_result_location',
+                url: 'https://example.com/a',
+                title: '記事A',
+                cited_text: '  ',
+                encrypted_index: 'idx',
+              },
+            ],
+          },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const result = await service.searchAndAnalyze(['AI'], '質問');
+
+      expect(result.sources).toEqual([
+        { title: '記事A', url: 'https://example.com/a', excerpts: [] },
+      ]);
+    });
+
     it('Web検索がエラーを返しても参照元なしで回答を返す', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [
@@ -167,6 +218,55 @@ describe('AnalysisService', () => {
       const result = await service.searchAndAnalyze(['AI'], '質問');
 
       expect(result).toEqual({ answer: '調査結果', sources: [] });
+    });
+
+    it('回答の引用（citations）から記事ごとに引用本文を集める', async () => {
+      const citation = (url: string, title: string, citedText: string) => ({
+        type: 'web_search_result_location',
+        url,
+        title,
+        cited_text: citedText,
+        encrypted_index: 'idx',
+      });
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          searchResult('記事A', 'https://example.com/a'),
+          {
+            type: 'text',
+            text: '前半。',
+            citations: [
+              citation('https://example.com/a', '記事A', '引用1'),
+              citation('https://example.com/c', '記事C', '引用3'),
+            ],
+          },
+          {
+            type: 'text',
+            text: '後半。',
+            citations: [
+              citation('https://example.com/a', '記事A', '引用2'),
+              citation('https://example.com/a', '記事A', '引用1'),
+            ],
+          },
+          { type: 'text', text: '引用なし。', citations: null },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const result = await service.searchAndAnalyze(['AI'], '質問');
+
+      expect(result.answer).toBe('前半。後半。引用なし。');
+      expect(result.sources).toEqual([
+        {
+          title: '記事A',
+          url: 'https://example.com/a',
+          excerpts: ['引用1', '引用2'],
+        },
+        {
+          title: '記事C',
+          url: 'https://example.com/c',
+          excerpts: ['引用3'],
+        },
+      ]);
     });
   });
 });

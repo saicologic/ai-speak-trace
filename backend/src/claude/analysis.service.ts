@@ -16,6 +16,21 @@ const MAX_TOKENS = 16000;
 /** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
 const MAX_PAUSE_CONTINUATIONS = 3;
 
+/**
+ * Web検索ツールの版
+ * - web_search_20260209: 検索結果をサーバー側のコード実行で絞り込む新しい版。回答に引用（citations）が付かない
+ * - web_search_20250305: 従来版。回答の各文に引用が付く
+ */
+type WebSearchToolType = 'web_search_20260209' | 'web_search_20250305';
+
+/** Web検索の参照元 */
+export interface WebSource {
+  title: string;
+  url: string;
+  /** 回答の根拠として引用された本文の抜粋（引用されなかった参照元は空配列） */
+  excerpts: string[];
+}
+
 /** 会話分析・Web検索・ディープサーチ分析を担うサービス */
 @Injectable()
 export class AnalysisService {
@@ -122,7 +137,11 @@ ${targetList}
 
     for (const question of questions) {
       try {
-        const result = await this.analyzeQuestion(question, keywords, speakerName);
+        const result = await this.analyzeQuestion(
+          question,
+          keywords,
+          speakerName,
+        );
         results.push(result);
       } catch (error) {
         this.logger.error(`質問の分析に失敗: ${question}`, error);
@@ -146,7 +165,10 @@ ${targetList}
   ): Promise<AnalysisResult> {
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
-    const { answer, sources } = await this.createWithWebSearch(prompt);
+    const { answer, sources } = await this.createWithWebSearch(
+      prompt,
+      'web_search_20260209',
+    );
 
     return { question, answer, sources };
   }
@@ -158,7 +180,10 @@ ${targetList}
   ): Promise<{ index: number; intent: string; topic: string }[]> {
     this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
 
-    const prompt = this.buildContextAnalysisPrompt(allUtterances, targetIndices);
+    const prompt = this.buildContextAnalysisPrompt(
+      allUtterances,
+      targetIndices,
+    );
 
     const text = await this.createText(prompt);
 
@@ -182,7 +207,7 @@ ${targetList}
   async searchAndAnalyze(
     keywords: string[],
     context: string,
-  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+  ): Promise<{ answer: string; sources: WebSource[] }> {
     const prompt = `以下のキーワードと文脈に基づいて、Web検索で調査し回答してください。
 
 ## キーワード
@@ -195,7 +220,11 @@ ${context}
 - Markdown形式で回答してください
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
-    const { answer, sources } = await this.createWithWebSearch(prompt);
+    // ディープサーチでは引用本文を検索結果として使うため、引用が付く従来版を使う
+    const { answer, sources } = await this.createWithWebSearch(
+      prompt,
+      'web_search_20250305',
+    );
 
     return { answer, sources };
   }
@@ -241,12 +270,14 @@ ${resultsText}
   /** Web検索付きでClaudeを呼び出し、回答テキストと参照元を返す */
   private async createWithWebSearch(
     prompt: string,
-  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+    toolType: WebSearchToolType,
+  ): Promise<{ answer: string; sources: WebSource[] }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
     ];
     const content: Anthropic.ContentBlock[] = [];
-    let lastStopReason: Anthropic.Message['stop_reason'] = null;
+    // 回答テキストは最後（完了した）応答だけから取り出す。中断前の途中の文章を混ぜないため
+    let finalContent: Anthropic.ContentBlock[] | null = null;
 
     // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
@@ -256,7 +287,7 @@ ${resultsText}
         output_config: { effort: CLAUDE_EFFORT },
         tools: [
           {
-            type: 'web_search_20260209',
+            type: toolType,
             name: 'web_search',
             max_uses: 3,
           },
@@ -265,30 +296,52 @@ ${resultsText}
       });
       assertCompleteResponse(response);
       content.push(...response.content);
-      lastStopReason = response.stop_reason;
-      if (response.stop_reason !== 'pause_turn') break;
+      if (response.stop_reason !== 'pause_turn') {
+        finalContent = response.content;
+        break;
+      }
       messages.push({ role: 'assistant', content: response.content });
     }
     // 再開上限に達しても中断されたままの場合、途中までの回答を成功として返さない
-    if (lastStopReason === 'pause_turn') {
+    if (finalContent === null) {
       throw new Error('Web検索がpause_turnの再開上限に達しました');
     }
 
-    const sources: { title: string; url: string }[] = [];
+    // 検索でヒットした記事を URL ごとにまとめ、回答の引用（citations）から本文の抜粋を集める
+    const sourcesByUrl = new Map<string, WebSource>();
+    const getSource = (url: string, title: string | null): WebSource => {
+      let source = sourcesByUrl.get(url);
+      if (!source) {
+        source = { title: title || url, url, excerpts: [] };
+        sourcesByUrl.set(url, source);
+      }
+      return source;
+    };
     for (const block of content) {
       if (
         block.type === 'web_search_tool_result' &&
         Array.isArray(block.content)
       ) {
         for (const searchResult of block.content) {
-          sources.push({
-            title: searchResult.title || searchResult.url,
-            url: searchResult.url,
-          });
+          getSource(searchResult.url, searchResult.title);
+        }
+      }
+      if (block.type === 'text') {
+        for (const citation of block.citations ?? []) {
+          if (citation.type !== 'web_search_result_location') continue;
+          const excerpt = citation.cited_text.trim();
+          const source = getSource(citation.url, citation.title);
+          // 空の抜粋を入れると「引用あり」と判定され、本文が空の結果になるため除外する
+          if (excerpt && !source.excerpts.includes(excerpt)) {
+            source.excerpts.push(excerpt);
+          }
         }
       }
     }
 
-    return { answer: extractText(content), sources };
+    return {
+      answer: extractText(finalContent),
+      sources: Array.from(sourcesByUrl.values()),
+    };
   }
 }
