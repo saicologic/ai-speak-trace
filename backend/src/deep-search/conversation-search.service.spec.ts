@@ -89,6 +89,7 @@ describe('ConversationSearchService', () => {
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -199,6 +200,40 @@ describe('ConversationSearchService', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].score).toBe(0);
+  });
+
+  it('キャッシュの保存に失敗しても、生成したベクトルで検索する', async () => {
+    jest
+      .spyOn(UtteranceEmbeddingStore.prototype, 'save')
+      .mockRejectedValue(new Error('容量不足'));
+    transcriptionStore.findById.mockResolvedValue(
+      makeTranscription(['関係のない雑談', '人工知能の評価について']),
+    );
+
+    const results = await service.search(['AI'], ['t1']);
+
+    // キーワード一致に切り替わっていれば「人工知能の評価について」は見つからない
+    expect(results.map((r) => r.text)).toEqual(['人工知能の評価について']);
+    expect(results[0].score).toBe(0.9);
+  });
+
+  it('キャッシュのベクトル数が発話数と合わなければ作り直す', async () => {
+    const transcription = makeTranscription(['AIの話です', '関係のない雑談']);
+    transcriptionStore.findById.mockResolvedValue(transcription);
+    await service.search(['AI'], ['t1']);
+
+    // ハッシュ等は一致したまま、ベクトルを1件だけにしたキャッシュに書き換える
+    const cachePath = path.join(tmpDir, 'utterance-embeddings', 't1.json');
+    const cache = JSON.parse(await fs.readFile(cachePath, 'utf-8')) as {
+      embeddings: number[][];
+    };
+    cache.embeddings = cache.embeddings.slice(0, 1);
+    await fs.writeFile(cachePath, JSON.stringify(cache));
+
+    const results = await service.search(['AI'], ['t1']);
+
+    expect(embeddingService.generateEmbeddings).toHaveBeenCalledTimes(2);
+    expect(results.map((r) => r.text)).toEqual(['AIの話です']);
   });
 
   it('ベクトル化に失敗したらキーワード一致で検索する', async () => {

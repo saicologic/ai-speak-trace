@@ -76,6 +76,24 @@ describe('UtteranceEmbeddingStore', () => {
     expect(await store.find('broken')).toBeNull();
   });
 
+  it.each([
+    ['embeddings がない', { ...CACHE, embeddings: undefined }],
+    ['ベクトルの次元が dimensions と異なる', { ...CACHE, embeddings: [[1]] }],
+    ['ベクトルに数値以外が入っている', { ...CACHE, embeddings: [[1, 'x']] }],
+    ['modelId がない', { ...CACHE, modelId: undefined }],
+    ['オブジェクトではない', [CACHE]],
+  ])('キャッシュの形式が不正な場合は null を返す（%s）', async (_, value) => {
+    await fs.mkdir(path.join(tmpDir, 'utterance-embeddings'), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(tmpDir, 'utterance-embeddings', 't1.json'),
+      JSON.stringify(value),
+    );
+
+    expect(await store.find('t1')).toBeNull();
+  });
+
   it('文字起こしを削除すると発話ベクトルのキャッシュも削除する', async () => {
     await store.save('t1', CACHE);
 

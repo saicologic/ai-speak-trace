@@ -174,7 +174,8 @@ export class ConversationSearchService {
       cache &&
       cache.modelId === modelId &&
       cache.dimensions === dimensions &&
-      cache.textsHash === textsHash
+      cache.textsHash === textsHash &&
+      cache.embeddings.length === texts.length
     ) {
       return cache.embeddings;
     }
@@ -193,12 +194,20 @@ export class ConversationSearchService {
       embeddings[textIndex] = generated[i];
     });
 
-    await this.utteranceEmbeddingStore.save(transcription.id, {
-      modelId,
-      dimensions,
-      textsHash,
-      embeddings,
-    });
+    // 保存に失敗しても、生成したベクトルで検索は続ける（次回の検索で作り直す）
+    try {
+      await this.utteranceEmbeddingStore.save(transcription.id, {
+        modelId,
+        dimensions,
+        textsHash,
+        embeddings,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `発話ベクトルのキャッシュを保存できません: ${transcription.id}`,
+        error,
+      );
+    }
     this.logger.log(
       `発話ベクトルを生成しました: ${transcription.id}（${embeddings.length}件）`,
     );

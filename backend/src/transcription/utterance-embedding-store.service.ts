@@ -32,14 +32,19 @@ export class UtteranceEmbeddingStore {
     return path.join(this.storeDir, `${path.basename(transcriptionId)}.json`);
   }
 
-  /** キャッシュを読み込む。存在しない・壊れている場合は null */
+  /** キャッシュを読み込む。存在しない・壊れている・形式が不正な場合は null */
   async find(transcriptionId: string): Promise<UtteranceEmbeddingCache | null> {
     const filePath = this.getFilePath(transcriptionId);
     if (!existsSync(filePath)) return null;
     try {
-      return JSON.parse(
-        await fs.readFile(filePath, 'utf-8'),
-      ) as UtteranceEmbeddingCache;
+      const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+      if (!isUtteranceEmbeddingCache(parsed)) {
+        this.logger.warn(
+          `発話ベクトルのキャッシュの形式が不正です: ${filePath}`,
+        );
+        return null;
+      }
+      return parsed;
     } catch (error) {
       this.logger.warn(
         `発話ベクトルのキャッシュを読めません: ${filePath}`,
@@ -65,4 +70,24 @@ export class UtteranceEmbeddingStore {
   async delete(transcriptionId: string): Promise<void> {
     await fs.rm(this.getFilePath(transcriptionId), { force: true });
   }
+}
+
+/** 読み込んだ値がキャッシュの形（各ベクトルが dimensions 次元の数値配列）か */
+function isUtteranceEmbeddingCache(
+  value: unknown,
+): value is UtteranceEmbeddingCache {
+  if (typeof value !== 'object' || value === null) return false;
+  const c = value as Partial<UtteranceEmbeddingCache>;
+  return (
+    typeof c.modelId === 'string' &&
+    typeof c.dimensions === 'number' &&
+    typeof c.textsHash === 'string' &&
+    Array.isArray(c.embeddings) &&
+    c.embeddings.every(
+      (e) =>
+        Array.isArray(e) &&
+        e.length === c.dimensions &&
+        e.every((n) => typeof n === 'number'),
+    )
+  );
 }
