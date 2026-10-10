@@ -128,7 +128,10 @@ describe('AnalysisService', () => {
     });
 
     it('pause_turnで中断されたら応答を履歴に足して再開し、両方の結果をまとめる', async () => {
-      const firstContent = [searchResult('記事A', 'https://example.com/a')];
+      const firstContent = [
+        { type: 'text', text: '検索します。' },
+        searchResult('記事A', 'https://example.com/a'),
+      ];
       mockMessagesCreate
         .mockResolvedValueOnce({
           content: firstContent,
@@ -154,6 +157,44 @@ describe('AnalysisService', () => {
       });
       expect(result.sources.map((s) => s.title)).toEqual(['記事A', '記事B']);
       expect(result.answer).toBe('調査結果');
+    });
+
+    it('再開の上限を超えても pause_turn のままなら例外を投げる', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '検索中' }],
+        stop_reason: 'pause_turn',
+      });
+
+      await expect(service.searchAndAnalyze(['AI'], '質問')).rejects.toThrow(
+        '完了しませんでした',
+      );
+    });
+
+    it('空の引用本文は抜粋に含めない', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          {
+            type: 'text',
+            text: '回答。',
+            citations: [
+              {
+                type: 'web_search_result_location',
+                url: 'https://example.com/a',
+                title: '記事A',
+                cited_text: '  ',
+                encrypted_index: 'idx',
+              },
+            ],
+          },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const result = await service.searchAndAnalyze(['AI'], '質問');
+
+      expect(result.sources).toEqual([
+        { title: '記事A', url: 'https://example.com/a', excerpts: [] },
+      ]);
     });
 
     it('Web検索がエラーを返しても参照元なしで回答を返す', async () => {

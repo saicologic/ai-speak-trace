@@ -137,7 +137,11 @@ ${targetList}
 
     for (const question of questions) {
       try {
-        const result = await this.analyzeQuestion(question, keywords, speakerName);
+        const result = await this.analyzeQuestion(
+          question,
+          keywords,
+          speakerName,
+        );
         results.push(result);
       } catch (error) {
         this.logger.error(`質問の分析に失敗: ${question}`, error);
@@ -176,7 +180,10 @@ ${targetList}
   ): Promise<{ index: number; intent: string; topic: string }[]> {
     this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
 
-    const prompt = this.buildContextAnalysisPrompt(allUtterances, targetIndices);
+    const prompt = this.buildContextAnalysisPrompt(
+      allUtterances,
+      targetIndices,
+    );
 
     const text = await this.createText(prompt);
 
@@ -269,6 +276,8 @@ ${resultsText}
       { role: 'user', content: prompt },
     ];
     const content: Anthropic.ContentBlock[] = [];
+    // 回答テキストは最後（完了した）応答だけから取り出す。中断前の途中の文章を混ぜないため
+    let finalContent: Anthropic.ContentBlock[] | null = null;
 
     // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
@@ -287,8 +296,16 @@ ${resultsText}
       });
       assertCompleteResponse(response);
       content.push(...response.content);
-      if (response.stop_reason !== 'pause_turn') break;
+      if (response.stop_reason !== 'pause_turn') {
+        finalContent = response.content;
+        break;
+      }
       messages.push({ role: 'assistant', content: response.content });
+    }
+    if (finalContent === null) {
+      throw new Error(
+        `Web検索が${MAX_PAUSE_CONTINUATIONS}回の再開後も完了しませんでした`,
+      );
     }
 
     // 検索でヒットした記事を URL ごとにまとめ、回答の引用（citations）から本文の抜粋を集める
@@ -313,16 +330,18 @@ ${resultsText}
       if (block.type === 'text') {
         for (const citation of block.citations ?? []) {
           if (citation.type !== 'web_search_result_location') continue;
+          const excerpt = citation.cited_text.trim();
           const source = getSource(citation.url, citation.title);
-          if (!source.excerpts.includes(citation.cited_text)) {
-            source.excerpts.push(citation.cited_text);
+          // 空の抜粋を入れると「引用あり」と判定され、本文が空の結果になるため除外する
+          if (excerpt && !source.excerpts.includes(excerpt)) {
+            source.excerpts.push(excerpt);
           }
         }
       }
     }
 
     return {
-      answer: extractText(content),
+      answer: extractText(finalContent),
       sources: Array.from(sourcesByUrl.values()),
     };
   }
