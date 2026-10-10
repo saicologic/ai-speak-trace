@@ -71,4 +71,9 @@ export class EmbeddingService {
   getDimensions(): number {
     return this.dimensions;
   }
+
+  /** EmbeddingモデルIDを返す */
+  getModelId(): string {
+    return this.modelId;
+  }
 }

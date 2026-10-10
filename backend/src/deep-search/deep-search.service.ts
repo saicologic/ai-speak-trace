@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { ConfigService } from '@nestjs/config';
-import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
 import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
 import { DeepSearchLogStorage } from './deep-search-log.storage';
+import { ConversationSearchService } from './conversation-search.service';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 import {
   DeepSearchResponse,
@@ -25,7 +25,7 @@ export class DeepSearchService {
   private readonly minPdfSimilarity: number;
 
   constructor(
-    private readonly transcriptionStore: TranscriptionStoreService,
+    private readonly conversationSearch: ConversationSearchService,
     private readonly embeddingService: EmbeddingService,
     private readonly vectorSearchService: VectorSearchService,
     private readonly analysisService: AnalysisService,
@@ -64,7 +64,7 @@ export class DeepSearchService {
 
     if (dto.transcriptionIds.length > 0) {
       promises.push(
-        this.searchConversations(dto.keywords, dto.transcriptionIds),
+        this.conversationSearch.search(dto.keywords, dto.transcriptionIds),
       );
     }
     if (dto.includePdfs) {
@@ -167,37 +167,6 @@ export class DeepSearchService {
     }
   }
 
-  /** 会話データからキーワード検索（部分一致） */
-  private async searchConversations(
-    keywords: string[],
-    transcriptionIds: string[],
-  ): Promise<DeepSearchResultItem[]> {
-    const results: DeepSearchResultItem[] = [];
-
-    for (const id of transcriptionIds) {
-      const transcription = await this.transcriptionStore.findById(id);
-      if (!transcription) continue;
-
-      for (const utterance of transcription.utterances) {
-        const matchedKeywords = keywords.filter((kw) =>
-          utterance.text.includes(kw),
-        );
-        if (matchedKeywords.length > 0) {
-          results.push({
-            sourceType: 'conversation',
-            sourceName: `${transcription.audioFileName} - ${utterance.speakerName}`,
-            sourceId: id,
-            text: utterance.text,
-            speakerName: utterance.speakerName,
-          });
-        }
-      }
-    }
-
-    this.logger.log(`会話検索完了: ${results.length}件`);
-    return results;
-  }
-
   /** PDFからベクトル類似検索 */
   private async searchPdfs(
     keywords: string[],
@@ -249,25 +218,39 @@ export class DeepSearchService {
         `キーワード「${queryText}」に関連する最新情報を調査してください。`,
       );
 
-      const results: DeepSearchResultItem[] = [
-        {
+      // 回答に引用された記事ごとに、引用本文の抜粋を検索結果にする。
+      // Claude の要約やタイトルだけを渡すと、分析が元記事ではなく要約に基づいてしまい、
+      // 出典の確認やハルシネーションの検証ができないため
+      const results: DeepSearchResultItem[] = sources
+        .filter((source) => source.excerpts.length > 0)
+        .map((source) => ({
+          sourceType: 'web' as const,
+          sourceName: source.title,
+          sourceId: '',
+          text: source.excerpts.join('\n…\n'),
+          url: source.url,
+        }));
+
+      // 引用が1件もない場合は、Claude の回答を1件の結果として返す。
+      // 回答も空の場合（応答が検索結果だけで終わった等）は、見つかった記事のタイトルを返す
+      if (results.length === 0 && answer) {
+        results.push({
           sourceType: 'web',
           sourceName: 'Web検索結果',
           sourceId: '',
           text: answer,
           url: sources[0]?.url,
-        },
-      ];
-
-      // 個別のソースも結果に追加
-      for (const source of sources) {
-        results.push({
-          sourceType: 'web',
-          sourceName: source.title,
-          sourceId: '',
-          text: source.title,
-          url: source.url,
         });
+      } else if (results.length === 0) {
+        for (const source of sources) {
+          results.push({
+            sourceType: 'web',
+            sourceName: source.title,
+            sourceId: '',
+            text: source.title,
+            url: source.url,
+          });
+        }
       }
 
       this.logger.log(`Web検索完了: ${results.length}件`);

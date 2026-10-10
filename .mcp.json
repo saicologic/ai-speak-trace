@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "sh",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/playwright-mcp.sh"]
+    }
+  }
+}

@@ -5,11 +5,16 @@ import { ClaudeModule } from '../claude/claude.module';
 import { DeepSearchController } from './deep-search.controller';
 import { DeepSearchService } from './deep-search.service';
 import { DeepSearchLogStorage } from './deep-search-log.storage';
+import { ConversationSearchService } from './conversation-search.service';
 
 /** ディープサーチモジュール（会話・PDF・Webの横断検索） */
 @Module({
   imports: [TranscriptionModule, DocumentModule, ClaudeModule],
   controllers: [DeepSearchController],
-  providers: [DeepSearchService, DeepSearchLogStorage],
+  providers: [
+    DeepSearchService,
+    DeepSearchLogStorage,
+    ConversationSearchService,
+  ],
 })
 export class DeepSearchModule {}
