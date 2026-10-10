@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ClaudeClientService } from './claude-client.service';
+import { assertCompleteResponse, extractText } from './claude-response.utils';
 
 /** 会話要約を担うサービス */
 @Injectable()
@@ -31,12 +32,9 @@ export class SummaryService {
 
   /** 要約で選択可能なモデル一覧（要約向き順） */
   static readonly SUMMARY_MODELS = [
-    { id: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6（推奨）' },
-    {
-      id: 'claude-haiku-4-5-20251001',
-      label: 'claude-haiku-4-5-20251001（高速・低コスト）',
-    },
-    { id: 'claude-opus-4-7', label: 'claude-opus-4-7（高品質）' },
+    { id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5（推奨）' },
+    { id: 'claude-haiku-5-5', label: 'claude-haiku-5-5（高速・低コスト）' },
+    { id: 'claude-opus-5-5', label: 'claude-opus-5-5（高品質）' },
   ];
 
   constructor(private readonly claudeClient: ClaudeClientService) {}
@@ -44,7 +42,7 @@ export class SummaryService {
   /** 会話全文を要約してJSON構造で返す */
   async summarize(
     fullText: string,
-    model: string = 'claude-sonnet-4-6',
+    model: string = 'claude-sonnet-5-5',
     promptTemplate: string = SummaryService.DEFAULT_SUMMARY_PROMPT,
   ): Promise<{
     overview?: string;
@@ -57,11 +55,14 @@ export class SummaryService {
 
     const response = await this.claudeClient.getClient().messages.create({
       model,
-      max_tokens: 8192,
+      // 思考のトークンも上限に含まれるため余裕を持たせる
+      max_tokens: 16000,
+      output_config: { effort: 'medium' },
       messages: [{ role: 'user', content: prompt }],
     });
+    assertCompleteResponse(response);
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    const text = extractText(response.content);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       this.logger.error(`要約のJSON抽出に失敗。レスポンス: ${text.slice(0, 200)}`);
