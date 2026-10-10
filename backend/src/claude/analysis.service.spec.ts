@@ -159,15 +159,17 @@ describe('AnalysisService', () => {
       expect(result.answer).toBe('調査結果');
     });
 
-    it('再開の上限を超えても pause_turn のままなら例外を投げる', async () => {
+    it('再開上限に達してもpause_turnのままなら例外を投げる', async () => {
       mockMessagesCreate.mockResolvedValue({
-        content: [{ type: 'text', text: '検索中' }],
+        content: [{ type: 'text', text: '途中までの回答' }],
         stop_reason: 'pause_turn',
       });
 
       await expect(service.searchAndAnalyze(['AI'], '質問')).rejects.toThrow(
-        '完了しませんでした',
+        'pause_turnの再開上限',
       );
+      // 初回 + 再開3回
+      expect(mockMessagesCreate).toHaveBeenCalledTimes(4);
     });
 
     it('空の引用本文は抜粋に含めない', async () => {

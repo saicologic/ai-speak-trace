@@ -302,10 +302,9 @@ ${resultsText}
       }
       messages.push({ role: 'assistant', content: response.content });
     }
+    // 再開上限に達しても中断されたままの場合、途中までの回答を成功として返さない
     if (finalContent === null) {
-      throw new Error(
-        `Web検索が${MAX_PAUSE_CONTINUATIONS}回の再開後も完了しませんでした`,
-      );
+      throw new Error('Web検索がpause_turnの再開上限に達しました');
     }
 
     // 検索でヒットした記事を URL ごとにまとめ、回答の引用（citations）から本文の抜粋を集める

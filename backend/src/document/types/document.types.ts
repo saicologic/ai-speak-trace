@@ -34,7 +34,7 @@ export interface DocumentChunk {
 export interface VectorSearchResult {
   /** チャンクのテキスト */
   text: string;
-  /** 類似度スコア */
+  /** cosine類似度（1に近いほど類似） */
   score: number;
   /** ドキュメントID */
   documentId: string;
