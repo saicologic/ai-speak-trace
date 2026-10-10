@@ -62,6 +62,21 @@ describe('DerivedLogCleaner', () => {
     await expect(cleaner.deleteLogsForTranscription('t1')).resolves.toBe(0);
   });
 
+  it('ログを削除できなかった場合は例外を投げる', async () => {
+    await writeLog('summary-logs', 's1.json', { transcriptionId: 't1' });
+    // フォルダを読み取り専用にして、ログの削除を失敗させる
+    const dir = path.join(tmpDir, 'summary-logs');
+    await fs.chmod(dir, 0o500);
+    try {
+      await expect(cleaner.deleteLogsForTranscription('t1')).rejects.toThrow(
+        '削除できませんでした',
+      );
+      expect(exists('summary-logs', 's1.json')).toBe(true);
+    } finally {
+      await fs.chmod(dir, 0o700);
+    }
+  });
+
   it('壊れたログは消さずにスキップする', async () => {
     await fs.mkdir(path.join(tmpDir, 'summary-logs'), { recursive: true });
     await fs.writeFile(path.join(tmpDir, 'summary-logs', 'broken.json'), '{');

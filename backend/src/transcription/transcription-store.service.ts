@@ -35,8 +35,9 @@ export class TranscriptionStoreService {
    * ディープサーチのログ）を削除する。削除した会話の内容をディスクに残さないため
    */
   async delete(id: string): Promise<void> {
-    await this.storage.delete(id);
-    await this.utteranceEmbeddingStore.delete(id);
+    // 派生データを先に削除する。失敗した場合は文字起こしを残し、やり直せるようにする
     await this.derivedLogCleaner.deleteLogsForTranscription(id);
+    await this.utteranceEmbeddingStore.delete(id);
+    await this.storage.delete(id);
   }
 }

@@ -32,36 +32,59 @@ export class DerivedLogCleaner {
     );
   }
 
-  /** 指定した文字起こしを使ったログを削除し、削除した件数を返す */
+  /**
+   * 指定した文字起こしを使ったログを削除し、削除した件数を返す
+   * 読み込みや削除に失敗したログがある場合は、削除が完了していないため例外を投げる
+   * （呼び出し元はやり直せるよう、元の文字起こしを残す）
+   */
   async deleteLogsForTranscription(transcriptionId: string): Promise<number> {
     let deleted = 0;
+    const failures: string[] = [];
     for (const dir of DERIVED_LOG_DIRS) {
       const dirPath = path.join(this.dataDir, dir);
       let entries: string[];
       try {
         entries = await fs.readdir(dirPath);
-      } catch {
+      } catch (error) {
+        // ディレクトリがない（ログが1件もない）場合だけ許容する
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        failures.push(dirPath);
         continue;
       }
       for (const name of entries) {
         if (!name.endsWith('.json')) continue;
         const filePath = path.join(dirPath, name);
+        let log: { transcriptionId?: string; transcriptionIds?: string[] };
         try {
-          const log = JSON.parse(await fs.readFile(filePath, 'utf-8')) as {
-            transcriptionId?: string;
-            transcriptionIds?: string[];
-          };
-          if (
-            log.transcriptionId === transcriptionId ||
-            log.transcriptionIds?.includes(transcriptionId)
-          ) {
-            await fs.rm(filePath, { force: true });
-            deleted++;
-          }
+          log = JSON.parse(await fs.readFile(filePath, 'utf-8')) as typeof log;
         } catch (error) {
-          this.logger.warn(`ログを確認できません: ${filePath}`, error);
+          // 壊れたログはどの文字起こしのものか判断できない。関係のない文字起こしの削除まで
+          // 止めないよう、警告して残す
+          this.logger.warn(
+            `ログを読めないため確認できません: ${filePath}`,
+            error,
+          );
+          continue;
+        }
+        if (
+          log.transcriptionId !== transcriptionId &&
+          !log.transcriptionIds?.includes(transcriptionId)
+        ) {
+          continue;
+        }
+        try {
+          await fs.rm(filePath, { force: true });
+          deleted++;
+        } catch (error) {
+          this.logger.warn(`ログを削除できません: ${filePath}`, error);
+          failures.push(filePath);
         }
       }
+    }
+    if (failures.length > 0) {
+      throw new Error(
+        `文字起こしを使ったログを削除できませんでした（${failures.length}件）: ${failures.join(', ')}`,
+      );
     }
     if (deleted > 0) {
       this.logger.log(
