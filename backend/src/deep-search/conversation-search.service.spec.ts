@@ -8,14 +8,15 @@ import {
   ConversationSearchService,
 } from './conversation-search.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
+import { UtteranceEmbeddingStore } from '../transcription/utterance-embedding-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { Transcription } from '../transcription/types/transcription.types';
 
 /** 発話テキストから文字起こしデータを作る */
-function makeTranscription(texts: string[]): Transcription {
+function makeTranscription(texts: string[], id = 't1'): Transcription {
   return {
-    id: 't1',
-    audioFileName: 'talk.mp3',
+    id,
+    audioFileName: `${id}.mp3`,
     createdAt: '2024-01-01T00:00:00Z',
     languageCode: 'ja',
     fullText: texts.join(''),
@@ -41,6 +42,7 @@ const VECTORS: Record<string, number[]> = {
   AIの話です: [0.6, 0.8],
   人工知能の評価について: [0.9, 0.436],
   関係のない雑談: [0, 1],
+  AIとは反対の話: [-0.6, 0.8],
 };
 
 describe('ConversationSearchService', () => {
@@ -71,6 +73,7 @@ describe('ConversationSearchService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ConversationSearchService,
+        UtteranceEmbeddingStore,
         {
           provide: ConfigService,
           useValue: {
@@ -100,11 +103,11 @@ describe('ConversationSearchService', () => {
 
     const results = await service.search(['AI'], ['t1']);
 
-    // 「人工知能の評価について」は類似度 0.9、「AIの話です」は 0.6 + キーワード加点 0.1
+    // 「人工知能の評価について」は類似度 0.9、「AIの話です」は 0.6 + キーワード加点 0.1。
+    // 「関係のない雑談」はキーワードを含まず類似度 0 のため結果に入らない
     expect(results.map((r) => r.text)).toEqual([
       '人工知能の評価について',
       'AIの話です',
-      '関係のない雑談',
     ]);
     expect(results[0]).toMatchObject({
       sourceType: 'conversation',
@@ -149,9 +152,9 @@ describe('ConversationSearchService', () => {
     expect(embeddingService.generateEmbeddings).toHaveBeenCalledTimes(2);
   });
 
-  it('空の発話はベクトル化せず、類似度0として扱う', async () => {
+  it('空の発話はベクトル化せず、結果にも入れない', async () => {
     transcriptionStore.findById.mockResolvedValue(
-      makeTranscription(['', 'AIの話です']),
+      makeTranscription(['', '  ', 'AIの話です']),
     );
 
     const results = await service.search(['AI'], ['t1']);
@@ -159,7 +162,43 @@ describe('ConversationSearchService', () => {
     expect(embeddingService.generateEmbeddings).toHaveBeenCalledWith([
       'AIの話です',
     ]);
-    expect(results.map((r) => r.score)).toEqual([0.6, 0]);
+    expect(results.map((r) => r.text)).toEqual(['AIの話です']);
+  });
+
+  it('関連する発話がない会話からは何も返さない', async () => {
+    transcriptionStore.findById.mockResolvedValue(
+      makeTranscription(['関係のない雑談', '関係のない雑談']),
+    );
+
+    const results = await service.search(['AI'], ['t1']);
+
+    expect(results).toEqual([]);
+  });
+
+  it('複数の会話を選んだ場合は、すべての会話をまとめて関連度順に並べる', async () => {
+    transcriptionStore.findById.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === 't1'
+          ? makeTranscription(['AIの話です'], 't1')
+          : makeTranscription(['人工知能の評価について'], 't2'),
+      ),
+    );
+
+    const results = await service.search(['AI'], ['t1', 't2']);
+
+    // 2件目に選んだ会話の発話のほうが類似度が高いため先に来る
+    expect(results.map((r) => r.sourceId)).toEqual(['t2', 't1']);
+  });
+
+  it('類似度が負の発話でも、表示用の関連度は0未満にしない', async () => {
+    transcriptionStore.findById.mockResolvedValue(
+      makeTranscription(['AIとは反対の話']),
+    );
+
+    const results = await service.search(['AI'], ['t1']);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].score).toBe(0);
   });
 
   it('ベクトル化に失敗したらキーワード一致で検索する', async () => {
