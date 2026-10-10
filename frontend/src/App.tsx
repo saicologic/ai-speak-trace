@@ -6,7 +6,7 @@ import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
 import { SummaryPage } from './components/SummaryPage';
-import { DeepSearchPage } from './components/DeepSearchPage';
+import { ResearchPage } from './components/ResearchPage';
 import { TranscribePage } from './components/TranscribePage';
 import { JobProgressPage } from './components/JobProgressPage';
 import { ResumableJobsPage } from './components/ResumableJobsPage';
@@ -270,11 +270,7 @@ function App() {
   /** ディープサーチページの場合 */
   if (page === 'deep-search') {
     return (
-      <DeepSearchPage
-        initialTranscriptionId={transcription?.id}
-        initialKeywords={Array.from(highlightedKeywords)}
-        onBack={() => setPage('main')}
-      />
+      <ResearchPage onBack={() => setPage('main')} />
     );
   }
 
@@ -349,6 +345,16 @@ function App() {
               ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
+          {enableDeepSearch && (
+            <div className="sidebar-tabs">
+              <button
+                className="sidebar-tab-action"
+                onClick={() => setPage('deep-search')}
+              >
+                ディープサーチ（ベータ）
+              </button>
+            </div>
+          )}
           <div className="sidebar-section-title">履歴</div>
           <TranscriptionList
             selectedId={selectedTranscriptionId}
@@ -410,7 +416,6 @@ function App() {
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateSummary={() => setPage('summary')}
               onNavigateInterview={() => setPage('interview')}
-              onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
               onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
               contextSelectMode={contextSelectMode}
               speakers={transcription.speakers}

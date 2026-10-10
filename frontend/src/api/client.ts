@@ -2,8 +2,6 @@ import type {
   AppSettings,
   AudioFileInfo,
   ContextAnalysisResponse,
-  DeepSearchAnalysis,
-  DeepSearchResponse,
   DocumentInfo,
   InterviewAnalysis,
   InterviewAnalysisSummary,
@@ -12,6 +10,7 @@ import type {
   TranscriptionSummaryLog,
   SummaryConfig,
 } from '../types';
+import type { ResearchJob, ResearchJobSummary } from '../types/research';
 
 /**
  * バックエンドのベースURL
@@ -644,43 +643,6 @@ export async function deleteDocument(id: string): Promise<void> {
   }
 }
 
-// === ディープサーチ ===
-
-/** ディープサーチ実行 */
-export async function deepSearch(
-  keywords: string[],
-  transcriptionIds: string[],
-  includePdfs: boolean,
-  includeWeb: boolean,
-): Promise<DeepSearchResponse> {
-  const res = await fetch(`${BASE_URL}/deep-search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, transcriptionIds, includePdfs, includeWeb }),
-  });
-  if (!res.ok) {
-    throw new Error(`ディープサーチに失敗しました: ${res.status}`);
-  }
-  return res.json();
-}
-
-/** ディープサーチ結果をClaude分析 */
-export async function analyzeDeepSearchResults(
-  keywords: string[],
-  results: { sourceType: string; sourceName: string; text: string; url?: string }[],
-  searchId?: string,
-): Promise<DeepSearchAnalysis> {
-  const res = await fetch(`${BASE_URL}/deep-search/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, searchId, results }),
-  });
-  if (!res.ok) {
-    throw new Error(`分析に失敗しました: ${res.status}`);
-  }
-  return res.json();
-}
-
 // === Podcastファイル ===
 
 /** Podcastキャッシュファイル情報 */
@@ -821,4 +783,64 @@ export async function updateSettings(
     throw new Error(`設定の更新に失敗しました: ${res.status}`);
   }
   return res.json();
+}
+
+// === ディープサーチ（調査） ===
+
+/** 調査の一覧を取得 */
+export async function fetchResearchJobs(): Promise<ResearchJobSummary[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/research`);
+  if (!res.ok) {
+    throw new Error(`調査の一覧の取得に失敗しました: ${res.status}`);
+  }
+  return (await res.json()).jobs;
+}
+
+/** 調査の状態と結果を取得 */
+export async function fetchResearchJob(id: string): Promise<ResearchJob> {
+  const res = await fetchWithRetry(`${BASE_URL}/research/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    throw new Error(`調査の取得に失敗しました: ${res.status}`);
+  }
+  return (await res.json()).job;
+}
+
+/** エラー応答のメッセージを取り出す */
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => null);
+  const message = body?.message;
+  return typeof message === 'string' ? message : `${fallback}: ${res.status}`;
+}
+
+/** 調査を開始する（会話の読み込みとキーワードの提案） */
+export async function startResearch(
+  transcriptionIds: string[],
+  frequentWords: { word: string; count: number }[],
+): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionIds, frequentWords }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '調査を開始できませんでした'));
+  }
+  return (await res.json()).job;
+}
+
+/** キーワードと公式サイトを確定し、Web調査・統合分析・評価を始める */
+export async function confirmResearch(
+  id: string,
+  keywords: string[],
+  domains: string[],
+): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords, domains }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '調査を進められませんでした'));
+  }
+  return (await res.json()).job;
 }

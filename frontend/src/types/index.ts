@@ -106,36 +106,6 @@ export interface DocumentInfo {
   processedAt?: string;
 }
 
-/** 検索ソース種類 */
-export type SearchSourceType = 'conversation' | 'pdf' | 'web';
-
-/** ディープサーチ結果アイテム */
-export interface DeepSearchResultItem {
-  sourceType: SearchSourceType;
-  sourceName: string;
-  sourceId: string;
-  text: string;
-  score?: number;
-  speakerName?: string;
-  url?: string;
-}
-
-/** ディープサーチレスポンス */
-export interface DeepSearchResponse {
-  /** 検索ログID（分析時に渡すと同じログに分析結果を記録する） */
-  id: string;
-  keywords: string[];
-  results: DeepSearchResultItem[];
-  searchedAt: string;
-}
-
-/** ディープサーチ分析レスポンス */
-export interface DeepSearchAnalysis {
-  searchResults: DeepSearchResultItem[];
-  analysis: string;
-  analyzedAt: string;
-}
-
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
