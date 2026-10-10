@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
 import { AnalysisService } from '../claude/analysis.service';
+import { ConversationSearchService } from './conversation-search.service';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 import {
   DeepSearchResponse,
@@ -16,7 +16,7 @@ export class DeepSearchService {
   private readonly logger = new Logger(DeepSearchService.name);
 
   constructor(
-    private readonly transcriptionStore: TranscriptionStoreService,
+    private readonly conversationSearch: ConversationSearchService,
     private readonly embeddingService: EmbeddingService,
     private readonly vectorSearchService: VectorSearchService,
     private readonly analysisService: AnalysisService,
@@ -33,7 +33,7 @@ export class DeepSearchService {
 
     if (dto.transcriptionIds.length > 0) {
       promises.push(
-        this.searchConversations(dto.keywords, dto.transcriptionIds),
+        this.conversationSearch.search(dto.keywords, dto.transcriptionIds),
       );
     }
     if (dto.includePdfs) {
@@ -71,37 +71,6 @@ export class DeepSearchService {
       analysis,
       analyzedAt: new Date().toISOString(),
     };
-  }
-
-  /** 会話データからキーワード検索（部分一致） */
-  private async searchConversations(
-    keywords: string[],
-    transcriptionIds: string[],
-  ): Promise<DeepSearchResultItem[]> {
-    const results: DeepSearchResultItem[] = [];
-
-    for (const id of transcriptionIds) {
-      const transcription = await this.transcriptionStore.findById(id);
-      if (!transcription) continue;
-
-      for (const utterance of transcription.utterances) {
-        const matchedKeywords = keywords.filter((kw) =>
-          utterance.text.includes(kw),
-        );
-        if (matchedKeywords.length > 0) {
-          results.push({
-            sourceType: 'conversation',
-            sourceName: `${transcription.audioFileName} - ${utterance.speakerName}`,
-            sourceId: id,
-            text: utterance.text,
-            speakerName: utterance.speakerName,
-          });
-        }
-      }
-    }
-
-    this.logger.log(`会話検索完了: ${results.length}件`);
-    return results;
   }
 
   /** PDFからベクトル類似検索 */
