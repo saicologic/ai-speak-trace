@@ -8,8 +8,10 @@ import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { ChunkedJobStoreService } from './chunked-job-store.service';
 import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
 import { DerivedLogCleaner } from './derived-log-cleaner.service';
+import { PrivacyModule } from '../privacy/privacy.module';
 
 @Module({
+  imports: [PrivacyModule],
   controllers: [TranscriptionController],
   providers: [
     TranscriptionService,

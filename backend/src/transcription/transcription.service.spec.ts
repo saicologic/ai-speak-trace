@@ -4,6 +4,7 @@ import { TranscriptionService } from './transcription.service';
 import { ElevenLabsService } from './elevenlabs.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 
 /** テスト用の文字起こしデータを生成するヘルパー */
@@ -107,6 +108,10 @@ describe('TranscriptionService', () => {
         {
           provide: AUDIO_STORAGE,
           useValue: audioStorage,
+        },
+        {
+          provide: PrivacyService,
+          useValue: { scanInBackground: jest.fn() },
         },
       ],
     }).compile();

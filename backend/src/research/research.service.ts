@@ -235,7 +235,8 @@ export class ResearchService implements OnModuleInit {
   private async loadTranscriptions(ids: string[]): Promise<Transcription[]> {
     const transcriptions: Transcription[] = [];
     for (const id of ids) {
-      const t = await this.transcriptionStore.findById(id);
+      // 個人情報チェックで「伏せる」と選んだ文字列は置き換えてから使う
+      const t = await this.transcriptionStore.findForSending(id);
       if (!t) throw new NotFoundException(`文字起こしが見つかりません: ${id}`);
       transcriptions.push(t);
     }

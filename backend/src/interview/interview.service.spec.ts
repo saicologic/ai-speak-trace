@@ -68,7 +68,7 @@ describe('InterviewService', () => {
         {
           provide: TranscriptionStoreService,
           useValue: {
-            findById: jest.fn(),
+            findForSending: jest.fn(),
           },
         },
         {
@@ -98,7 +98,7 @@ describe('InterviewService', () => {
 
   describe('generateQuestions', () => {
     it('話者名を取得してClaude APIで調査質問を生成する', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.generateQuestions.mockResolvedValue(['質問1', '質問2']);
 
       const result = await service.generateQuestions('sample', 'speaker_0', ['キーワード']);
@@ -108,7 +108,7 @@ describe('InterviewService', () => {
     });
 
     it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
-      store.findById.mockResolvedValue(null);
+      store.findForSending.mockResolvedValue(null);
 
       await expect(
         service.generateQuestions('missing', 'speaker_0', ['キーワード']),
@@ -116,7 +116,7 @@ describe('InterviewService', () => {
     });
 
     it('話者IDが見つからない場合は話者IDをそのまま使う', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.generateQuestions.mockResolvedValue([]);
 
       await service.generateQuestions('sample', 'unknown_speaker', []);
@@ -127,7 +127,7 @@ describe('InterviewService', () => {
 
   describe('previewPrompts', () => {
     it('質問生成プロンプトと分析プロンプトを返す', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.buildGenerateQuestionsPrompt.mockReturnValue('質問生成プロンプト');
       claudeService.buildAnalysisPrompt.mockReturnValue('分析プロンプト1');
 
@@ -140,7 +140,7 @@ describe('InterviewService', () => {
 
   describe('analyze', () => {
     it('分析を実行してログに保存する', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.analyze.mockResolvedValue([
         { question: 'q1', answer: 'a1', sources: [] },
       ]);
@@ -204,7 +204,7 @@ describe('InterviewService', () => {
     it('SummaryServiceを呼び出してログを保存し結果を返す', async () => {
       const summaryService = module.get<jest.Mocked<SummaryService>>(SummaryService);
       const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       summaryService.summarize.mockResolvedValue({
         overview: '会話の概要',
         key_points: [{ topic: 'テーマ1', summary: '要点1' }],
@@ -237,7 +237,7 @@ describe('InterviewService', () => {
 
   describe('analyzeContext', () => {
     it('発話の文脈を分析して結果を返す', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.analyzeContext.mockResolvedValue([
         { index: 1, intent: '説明', topic: '挨拶' },
       ]);
@@ -254,7 +254,7 @@ describe('InterviewService', () => {
     });
 
     it('インデックス0の発話はpreviousUtteranceがnull', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.analyzeContext.mockResolvedValue([
         { index: 0, intent: '質問', topic: '挨拶' },
       ]);
@@ -265,7 +265,7 @@ describe('InterviewService', () => {
     });
 
     it('LLMの結果がない発話はデフォルト値を使う', async () => {
-      store.findById.mockResolvedValue(sampleTranscription);
+      store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.analyzeContext.mockResolvedValue([]);
 
       const result = await service.analyzeContext('sample', [0]);
@@ -275,7 +275,7 @@ describe('InterviewService', () => {
     });
 
     it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
-      store.findById.mockResolvedValue(null);
+      store.findForSending.mockResolvedValue(null);
 
       await expect(service.analyzeContext('missing', [0])).rejects.toThrow(NotFoundException);
     });

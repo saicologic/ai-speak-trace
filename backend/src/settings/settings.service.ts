@@ -10,6 +10,9 @@ interface SettingsFile {
   anthropicApiKey?: string;
   enableDeepSearch?: boolean;
   enableContextAnalysis?: boolean;
+  /** 個人情報チェックに使う Amazon Bedrock Guardrails の ID とバージョン */
+  bedrockGuardrailId?: string;
+  bedrockGuardrailVersion?: string;
 }
 
 /** API レスポンス用の設定情報 */
@@ -30,6 +33,10 @@ export interface AppSettings {
   };
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
+  guardrail: {
+    id: string;
+    version: string;
+  };
 }
 
 @Injectable()
@@ -82,6 +89,11 @@ export class SettingsService {
       enableDeepSearch: this.readSettingsFile().enableDeepSearch ?? false,
       enableContextAnalysis:
         this.readSettingsFile().enableContextAnalysis ?? false,
+      guardrail: {
+        id: this.configService.get<string>('BEDROCK_GUARDRAIL_ID') || '',
+        version:
+          this.configService.get<string>('BEDROCK_GUARDRAIL_VERSION') || '',
+      },
     };
   }
 
@@ -92,6 +104,8 @@ export class SettingsService {
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
+    bedrockGuardrailId?: string;
+    bedrockGuardrailVersion?: string;
   }): {
     settings: AppSettings;
     restartRequired: boolean;
@@ -120,6 +134,14 @@ export class SettingsService {
     }
     if (dto.enableContextAnalysis !== undefined) {
       updated.enableContextAnalysis = dto.enableContextAnalysis;
+    }
+    if (dto.bedrockGuardrailId !== undefined) {
+      updated.bedrockGuardrailId = dto.bedrockGuardrailId.trim();
+      process.env.BEDROCK_GUARDRAIL_ID = updated.bedrockGuardrailId;
+    }
+    if (dto.bedrockGuardrailVersion !== undefined) {
+      updated.bedrockGuardrailVersion = dto.bedrockGuardrailVersion.trim();
+      process.env.BEDROCK_GUARDRAIL_VERSION = updated.bedrockGuardrailVersion;
     }
 
     this.writeSettingsFile(updated);
@@ -195,6 +217,13 @@ export class SettingsService {
         console.log(
           '[Settings] ANTHROPIC_API_KEY を settings.json から読み込み',
         );
+      }
+      if (settings.bedrockGuardrailId) {
+        process.env.BEDROCK_GUARDRAIL_ID = settings.bedrockGuardrailId;
+      }
+      if (settings.bedrockGuardrailVersion) {
+        process.env.BEDROCK_GUARDRAIL_VERSION =
+          settings.bedrockGuardrailVersion;
       }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);
