@@ -24,6 +24,7 @@ S3 Vectors のチャンク ──(Claude)──> 評価セット（質問・模�
 |---|---|---|---|
 | 会話検索 | conversation_recall | 根拠の発話を検索結果に含められたか | 自前実装 |
 | 会話検索 | conversation_precision | 会話の検索結果のうち、根拠を含む発話の割合 | 自前実装 |
+| 会話検索 | conversation_mrr / conversation_hit@k | 根拠を含む発話が何番目に来るか（PDF 検索の MRR / Hit@k と同じ計算） | 自前実装 |
 | 検索 | Hit@k | 上位 k 件に正解の根拠を含むチャンクがあるか | 自前実装 |
 | 検索 | Recall@k | 上位 k 件で見つかった根拠の割合 | 自前実装 |
 | 検索 | MRR | 最初に正解が現れる順位の逆数の平均 | 自前実装 |

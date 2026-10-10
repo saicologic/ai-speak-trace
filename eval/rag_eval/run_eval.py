@@ -80,8 +80,12 @@ def score_search(case: TestCase, results: list[dict], ks: list[int]) -> dict[str
     scores: dict[str, float] = {f"num_{k}": len(v) for k, v in texts_by_source.items()}
 
     if case.transcription_id is not None:
-        # 会話検索はキーワードの完全一致で、結果に順位がない
-        conversation = score_unranked(texts_by_source["conversation"], case.evidence)
+        # 件数ベースの指標（何件返し、そのうち何件が根拠を含むか）と、
+        # 順位ベースの指標（根拠を含む発話が何番目に来るか）の両方を記録する
+        conversation = {
+            **score_unranked(texts_by_source["conversation"], case.evidence),
+            **score_retrieval(texts_by_source["conversation"], case.evidence, ks),
+        }
         scores.update({f"conversation_{k}": v for k, v in conversation.items()})
     else:
         scores.update(score_retrieval(texts_by_source["pdf"], case.evidence, ks))

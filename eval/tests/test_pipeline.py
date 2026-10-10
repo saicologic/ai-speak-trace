@@ -86,6 +86,8 @@ def test_score_search_conversation_case_scores_conversation_results():
     scores = score_search(CONVERSATION_CASE, results, [1])
     assert scores["conversation_recall"] == 1.0
     assert scores["conversation_precision"] == 0.5
+    assert scores["conversation_mrr"] == 1.0
+    assert scores["conversation_hit@1"] == 1.0
     assert scores["num_conversation"] == 2
     assert scores["num_web"] == 1
     assert "mrr" not in scores
