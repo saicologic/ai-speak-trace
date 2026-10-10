@@ -1,6 +1,8 @@
-import { RawJudgement } from './research-claude.service';
-import { evaluate } from './research.service';
-import { ReportSegment } from './types/research.types';
+import { TranscriptionStoreService } from '../transcription/transcription-store.service';
+import { RawJudgement, ResearchClaudeService } from './research-claude.service';
+import { ResearchJobStore } from './research-job.store';
+import { evaluate, ResearchService } from './research.service';
+import { ReportSegment, ResearchJob } from './types/research.types';
 
 const cite = (official?: boolean) => ({
   sourceKind:
@@ -99,5 +101,68 @@ describe('evaluate', () => {
     expect(finalReport).toEqual([]);
     expect(evaluation.citationCoverage).toBe(0);
     expect(evaluation.removedClaims).toHaveLength(1);
+  });
+});
+
+describe('ResearchService', () => {
+  const baseJob: ResearchJob = {
+    id: 'job-1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'awaiting_confirmation',
+    transcriptionIds: ['t1'],
+    transcriptionNames: { t1: 'a.mp3' },
+    models: { analysis: 'model' },
+  };
+
+  const setup = (stored: ResearchJob | null) => {
+    let current = stored;
+    const jobStore = {
+      findById: jest.fn(() => Promise.resolve(current)),
+      save: jest.fn((job: ResearchJob) => {
+        current = job;
+        return Promise.resolve();
+      }),
+      findAllSummaries: jest.fn(() => Promise.resolve([])),
+    };
+    const transcriptionStore = {
+      // 会話の読み込みで止めて、Claude を呼ばないようにする
+      findById: jest.fn(() => new Promise(() => {})),
+    };
+    const service = new ResearchService(
+      transcriptionStore as unknown as TranscriptionStoreService,
+      jobStore as unknown as ResearchJobStore,
+      {} as ResearchClaudeService,
+    );
+    return {
+      service,
+      jobStore,
+      remove: () => {
+        current = null;
+      },
+    };
+  };
+
+  it('同じ調査の確定を同時に2回受けた場合、2回目を拒否する', async () => {
+    const { service, jobStore } = setup(baseJob);
+    const results = await Promise.allSettled([
+      service.confirm('job-1', ['ハーネス'], []),
+      service.confirm('job-1', ['ハーネス'], []),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
+    expect(
+      jobStore.save.mock.calls.filter(([job]) => job.status === 'researching'),
+    ).toHaveLength(1);
+  });
+
+  it('削除された調査ジョブは、失敗の記録でも保存し直さない', async () => {
+    const { service, jobStore, remove } = setup(baseJob);
+    remove();
+    await (
+      service as unknown as {
+        fail: (job: ResearchJob, error: unknown) => Promise<void>;
+      }
+    ).fail(baseJob, new Error('失敗'));
+    expect(jobStore.save).not.toHaveBeenCalled();
   });
 });

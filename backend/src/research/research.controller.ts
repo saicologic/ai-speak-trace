@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { ResearchService } from './research.service';
 
 /** ディープサーチ（調査）のAPI */
@@ -23,14 +30,31 @@ export class ResearchController {
   async start(
     @Body()
     body: {
-      transcriptionIds: string[];
-      frequentWords?: { word: string; count: number }[];
+      transcriptionIds?: unknown;
+      frequentWords?: unknown;
     },
   ) {
+    const transcriptionIds = requireStringArray(
+      body?.transcriptionIds,
+      'transcriptionIds',
+    );
+    const frequentWords = body?.frequentWords ?? [];
+    if (
+      !Array.isArray(frequentWords) ||
+      !frequentWords.every(
+        (w: unknown) =>
+          typeof w === 'object' &&
+          w !== null &&
+          typeof (w as { word?: unknown }).word === 'string' &&
+          typeof (w as { count?: unknown }).count === 'number',
+      )
+    ) {
+      throw new BadRequestException('frequentWords の形式が正しくありません');
+    }
     return {
       job: await this.researchService.start(
-        body.transcriptionIds,
-        body.frequentWords,
+        transcriptionIds,
+        frequentWords as { word: string; count: number }[],
       ),
     };
   }
@@ -39,14 +63,22 @@ export class ResearchController {
   @Post(':id/confirm')
   async confirm(
     @Param('id') id: string,
-    @Body() body: { keywords: string[]; domains: string[] },
+    @Body() body: { keywords?: unknown; domains?: unknown },
   ) {
     return {
       job: await this.researchService.confirm(
         id,
-        body.keywords ?? [],
-        body.domains ?? [],
+        requireStringArray(body?.keywords ?? [], 'keywords'),
+        requireStringArray(body?.domains ?? [], 'domains'),
       ),
     };
   }
+}
+
+/** 文字列の配列であることを確認する（違う場合は 400 を返す） */
+function requireStringArray(value: unknown, name: string): string[] {
+  if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
+    throw new BadRequestException(`${name} は文字列の配列で指定してください`);
+  }
+  return value;
 }

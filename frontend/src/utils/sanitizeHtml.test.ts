@@ -18,4 +18,11 @@ describe('sanitizeHtml', () => {
     const html = '<h2>見出し</h2><a href="https://example.com" target="_blank">公式</a><a href="#c1">[1]</a>';
     expect(sanitizeHtml(html)).toBe(html);
   });
+
+  it('SVG の xlink:href に入った javascript: も取り除く', () => {
+    const result = sanitizeHtml(
+      '<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>',
+    );
+    expect(result).not.toMatch(/javascript:/);
+  });
 });

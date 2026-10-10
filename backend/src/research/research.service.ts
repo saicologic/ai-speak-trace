@@ -48,9 +48,14 @@ const RUNNING_STATUSES = [
  * 開始すると ①会話の読み込み・②提案 を行い、ユーザーの確定を待つ。
  * 確定後に ③Web調査 → ④統合分析 → ⑤評価 を行う。各段階の結果は ResearchJobStore に保存する。
  */
+/** 実行中に調査ジョブが削除された（会話の削除など）ことを表すエラー */
+class ResearchJobDeletedError extends Error {}
+
 @Injectable()
 export class ResearchService implements OnModuleInit {
   private readonly logger = new Logger(ResearchService.name);
+  /** 確定の処理中の調査ID（同じ調査を二重に開始しないため） */
+  private readonly confirming = new Set<string>();
 
   constructor(
     private readonly transcriptionStore: TranscriptionStoreService,
@@ -120,6 +125,22 @@ export class ResearchService implements OnModuleInit {
 
   /** ② ユーザーが確定したキーワードと公式サイトで、③④⑤ を実行する（バックグラウンド） */
   async confirm(
+    id: string,
+    keywords: string[],
+    domains: string[],
+  ): Promise<ResearchJob> {
+    if (this.confirming.has(id)) {
+      throw new BadRequestException('この調査はすでに確定の処理中です');
+    }
+    this.confirming.add(id);
+    try {
+      return await this.confirmJob(id, keywords, domains);
+    } finally {
+      this.confirming.delete(id);
+    }
+  }
+
+  private async confirmJob(
     id: string,
     keywords: string[],
     domains: string[],
@@ -229,20 +250,35 @@ export class ResearchService implements OnModuleInit {
     }));
   }
 
+  /**
+   * 調査ジョブを更新して保存する
+   * 実行中に会話の削除でジョブが消された場合は、会話の内容を含む結果を再び保存しないよう、保存せずに中断する
+   */
   private async update(
     job: ResearchJob,
     changes: Partial<ResearchJob>,
   ): Promise<ResearchJob> {
+    if (!(await this.jobStore.findById(job.id))) {
+      throw new ResearchJobDeletedError(
+        `調査ジョブが削除されました: ${job.id}`,
+      );
+    }
     const updated = { ...job, ...changes, updatedAt: new Date().toISOString() };
     await this.jobStore.save(updated);
     return updated;
   }
 
   private async fail(job: ResearchJob, error: unknown): Promise<void> {
+    if (error instanceof ResearchJobDeletedError) {
+      this.logger.log(`削除された調査を中断しました: ${job.id}`);
+      return;
+    }
     this.logger.error(`調査に失敗: ${job.id}`, error);
     // 失敗の記録自体に失敗しても、例外を外に出さない（バックグラウンド処理のため）
     try {
-      const latest = (await this.jobStore.findById(job.id)) ?? job;
+      const latest = await this.jobStore.findById(job.id);
+      // 削除されたジョブは記録し直さない
+      if (!latest) return;
       await this.update(latest, {
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),

@@ -14,7 +14,7 @@ export function sanitizeHtml(html: string): string {
       const value = attr.value.trim().toLowerCase();
       if (name.startsWith('on') || name === 'style' || name === 'srcset') {
         el.removeAttribute(attr.name);
-      } else if ((name === 'href' || name === 'src') && !/^(https?:|#|mailto:)/.test(value)) {
+      } else if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'action' || name === 'formaction') && !/^(https?:|#|mailto:)/.test(value)) {
         el.removeAttribute(attr.name);
       }
     }

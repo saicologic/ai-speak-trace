@@ -131,7 +131,8 @@ export function ResearchPage({ onBack }: Props) {
     const timer = setInterval(async () => {
       try {
         const latest = await fetchResearchJob(jobId);
-        setJob(latest);
+        // 取得中に別の調査を選んだ場合は、選んだ調査を上書きしない
+        setJob((current) => (current?.id === jobId ? latest : current));
         if (!RUNNING.includes(latest.status)) void refreshJobs();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
