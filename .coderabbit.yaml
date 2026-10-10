@@ -21,7 +21,8 @@ reviews:
   poem: false
   auto_review:
     enabled: true
-    drafts: false
+    # PRは最初にドラフトで作成するため、ドラフトの段階からレビューして指摘を反映してからReadyにする
+    drafts: true
     # fix/*・feature/* → release/* → main の順でマージするため、release/* 宛てのPRもレビューする
     base_branches:
       - "release/.*"
