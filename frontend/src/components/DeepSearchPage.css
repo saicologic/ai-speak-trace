@@ -991,3 +991,10 @@
 .deepsearch-analysis-content a.deepsearch-cite:hover {
   text-decoration: underline;
 }
+
+/* 外部サービスへの送信の明示 */
+.deepsearch-source-card-notice {
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: #6b7280;
+}

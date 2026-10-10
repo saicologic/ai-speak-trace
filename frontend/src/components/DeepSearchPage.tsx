@@ -690,6 +690,9 @@ export function DeepSearchPage({
               <p className="deepsearch-source-card-text">
                 会話の中から、キーワードに関連する発言を関連度順に探します
               </p>
+              <p className="deepsearch-source-card-notice">
+                関連度の計算のため、選んだ会話の発言を Amazon Bedrock（AWS）に送信します
+              </p>
             </div>
             <div
               className={`deepsearch-source-card web${includeWeb ? '' : ' disabled'}`}
@@ -705,6 +708,9 @@ export function DeepSearchPage({
               </label>
               <p className="deepsearch-source-card-text">
                 インターネットの記事を検索し、引用された本文を根拠にします
+              </p>
+              <p className="deepsearch-source-card-notice">
+                キーワードを Claude（Anthropic）に送信して検索します
               </p>
             </div>
           </div>
@@ -727,6 +733,9 @@ export function DeepSearchPage({
                   {searchablePdfCount}件検索可能
                 </span>
               </label>
+              <p className="deepsearch-source-card-notice">
+                アップロードした資料の本文は Amazon Bedrock と S3 Vectors（AWS）に送信・保存されます
+              </p>
             </div>
 
           {includePdfs && (
