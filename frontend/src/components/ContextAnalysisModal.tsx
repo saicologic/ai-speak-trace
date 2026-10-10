@@ -1,5 +1,6 @@
 import type { ContextAnalysisResponse, Speaker } from '../types';
 import './ContextAnalysisModal.css';
+import { AiGeneratedNotice } from './AiGeneratedNotice';
 
 interface Props {
   analysis: ContextAnalysisResponse;
@@ -50,6 +51,7 @@ export function ContextAnalysisModal({ analysis, speakers, onClose }: Props) {
           </span>
         </div>
 
+        <AiGeneratedNotice basis="元の発言" />
         <div className="context-results">
           {analysis.results.map((result) => (
             <div key={result.utteranceIndex} className="context-card">

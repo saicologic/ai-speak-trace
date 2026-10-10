@@ -69,10 +69,21 @@ describe('TranscribePage', () => {
     expect(screen.getByText('文字起こしを実行')).toBeDisabled();
   });
 
-  it('クレジット取得完了後（十分）、「文字起こしを実行」ボタンが有効', async () => {
+  it('クレジットが十分でも、録音の同意を確認するまでは「文字起こしを実行」ボタンが無効', async () => {
     vi.mocked(checkCredits).mockResolvedValue(sufficientCredit);
 
     await goToPreviewStep();
+    await waitFor(() => {
+      expect(checkCredits).toHaveBeenCalled();
+    });
+    expect(screen.getByText('文字起こしを実行')).toBeDisabled();
+  });
+
+  it('クレジット取得完了後（十分）、録音の同意を確認すると「文字起こしを実行」ボタンが有効', async () => {
+    vi.mocked(checkCredits).mockResolvedValue(sufficientCredit);
+
+    await goToPreviewStep();
+    await userEvent.click(screen.getByRole('checkbox', { name: /同意を得ています/ }));
     await waitFor(() => {
       expect(screen.getByText('文字起こしを実行')).toBeEnabled();
     });

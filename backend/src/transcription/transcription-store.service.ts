@@ -3,6 +3,7 @@ import { TRANSCRIPTION_STORAGE } from '../storage/interfaces/transcription-stora
 import type { TranscriptionStorage } from '../storage/interfaces/transcription-storage.interface';
 import { Transcription } from './types/transcription.types';
 import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
+import { DerivedLogCleaner } from './derived-log-cleaner.service';
 
 /** 文字起こし結果ストレージの薄いラッパー（他モジュールとの互換性を維持） */
 @Injectable()
@@ -11,6 +12,7 @@ export class TranscriptionStoreService {
     @Inject(TRANSCRIPTION_STORAGE)
     private readonly storage: TranscriptionStorage,
     private readonly utteranceEmbeddingStore: UtteranceEmbeddingStore,
+    private readonly derivedLogCleaner: DerivedLogCleaner,
   ) {}
 
   /** 文字起こし結果を保存 */
@@ -28,9 +30,13 @@ export class TranscriptionStoreService {
     return this.storage.findAll();
   }
 
-  /** 文字起こし結果と、そこから作った発話ベクトルのキャッシュを削除 */
+  /**
+   * 文字起こし結果と、そこから作ったデータ（発話ベクトルのキャッシュ、会話分析・要約・
+   * ディープサーチのログ）を削除する。削除した会話の内容をディスクに残さないため
+   */
   async delete(id: string): Promise<void> {
     await this.storage.delete(id);
     await this.utteranceEmbeddingStore.delete(id);
+    await this.derivedLogCleaner.deleteLogsForTranscription(id);
   }
 }

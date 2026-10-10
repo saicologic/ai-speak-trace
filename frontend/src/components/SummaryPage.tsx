@@ -3,6 +3,7 @@ import { summarizeTranscription, fetchSummaryLogs, fetchSummaryLog, fetchSummary
 import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint } from '../types';
 import './InterviewPage.css';
 import './SummaryPage.css';
+import { AiGeneratedNotice } from './AiGeneratedNotice';
 
 interface Props {
   transcriptionId: string;
@@ -467,6 +468,7 @@ function SummaryResult({
 }) {
   return (
     <div className="interview-results">
+      <AiGeneratedNotice basis="元の会話" />
       {summary.overview && (
         <div className="interview-result-card">
           <h3 className="result-question">概要</h3>
