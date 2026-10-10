@@ -1,0 +1,57 @@
+name: Tag Release
+
+# release/vX.Y.Z → main のPRがマージされたら、src-tauri/tauri.conf.json のバージョンで
+# マージコミットにタグ（vX.Y.Z）を作成し、Release ワークフローを起動する。
+# GITHUB_TOKEN で push したタグでは他のワークフローが起動しないため、
+# GITHUB_TOKEN でも起動できる workflow_dispatch で release.yml をタグ指定で実行する。
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # タグの push
+      contents: write
+      # release.yml の起動
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: バージョン確認とタグ作成
+        id: tag
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          TAG="v${VERSION}"
+
+          # ブランチ名と tauri.conf.json のバージョンが一致しない場合は中断する
+          if [ "$HEAD_REF" != "release/${TAG}" ]; then
+            echo "::error::ブランチ名 ${HEAD_REF} と tauri.conf.json のバージョン ${VERSION} が一致しません"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+            echo "::error::タグ ${TAG} は既に存在します"
+            exit 1
+          fi
+
+          git tag "$TAG" "$MERGE_SHA"
+          git push origin "refs/tags/${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "タグ ${TAG} を ${MERGE_SHA} に作成しました"
+
+      - name: Release ワークフローを起動
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
