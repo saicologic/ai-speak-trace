@@ -212,17 +212,17 @@ describe('InterviewService', () => {
       });
       summaryLogStorage.save.mockResolvedValue(undefined);
 
-      const result = await service.summarize('sample', 'claude-sonnet-4-6', 'プロンプト {{fullText}}');
+      const result = await service.summarize('sample', 'claude-sonnet-5-5', 'プロンプト {{fullText}}');
 
       expect(summaryService.summarize).toHaveBeenCalledWith(
         sampleTranscription.fullText,
-        'claude-sonnet-4-6',
+        'claude-sonnet-5-5',
         'プロンプト {{fullText}}',
       );
       expect(summaryLogStorage.save).toHaveBeenCalledWith(result);
       expect(result.transcriptionId).toBe('sample');
       expect(result.overview).toBe('会話の概要');
-      expect(result.model).toBe('claude-sonnet-4-6');
+      expect(result.model).toBe('claude-sonnet-5-5');
     });
   });
 
