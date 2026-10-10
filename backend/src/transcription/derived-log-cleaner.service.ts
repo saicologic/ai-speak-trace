@@ -54,9 +54,9 @@ export class DerivedLogCleaner {
       for (const name of entries) {
         if (!name.endsWith('.json')) continue;
         const filePath = path.join(dirPath, name);
-        let log: { transcriptionId?: string; transcriptionIds?: string[] };
+        let log: unknown;
         try {
-          log = JSON.parse(await fs.readFile(filePath, 'utf-8')) as typeof log;
+          log = JSON.parse(await fs.readFile(filePath, 'utf-8'));
         } catch (error) {
           // 壊れたログはどの文字起こしのものか判断できない。関係のない文字起こしの削除まで
           // 止めないよう、警告して残す
@@ -66,12 +66,7 @@ export class DerivedLogCleaner {
           );
           continue;
         }
-        if (
-          log.transcriptionId !== transcriptionId &&
-          !log.transcriptionIds?.includes(transcriptionId)
-        ) {
-          continue;
-        }
+        if (!referencesTranscription(log, transcriptionId)) continue;
         try {
           await fs.rm(filePath, { force: true });
           deleted++;
@@ -93,4 +88,20 @@ export class DerivedLogCleaner {
     }
     return deleted;
   }
+}
+
+/** ログが指定した文字起こしを使っているか（想定外の形のログは「使っていない」とみなす） */
+function referencesTranscription(
+  log: unknown,
+  transcriptionId: string,
+): boolean {
+  if (typeof log !== 'object' || log === null) return false;
+  const { transcriptionId: id, transcriptionIds: ids } = log as Record<
+    string,
+    unknown
+  >;
+  return (
+    id === transcriptionId ||
+    (Array.isArray(ids) && ids.includes(transcriptionId))
+  );
 }

@@ -58,6 +58,17 @@ describe('DerivedLogCleaner', () => {
     expect(exists('deep-search-logs', 'd2.json')).toBe(true);
   });
 
+  it('想定外の形のログ（null や配列でない transcriptionIds）は消さずに残す', async () => {
+    await writeLog('summary-logs', 'null.json', null as unknown as object);
+    await writeLog('deep-search-logs', 'bad.json', { transcriptionIds: 123 });
+    await writeLog('analysis-logs', 'a1.json', { transcriptionId: 't1' });
+
+    await expect(cleaner.deleteLogsForTranscription('t1')).resolves.toBe(1);
+    expect(exists('summary-logs', 'null.json')).toBe(true);
+    expect(exists('deep-search-logs', 'bad.json')).toBe(true);
+    expect(exists('analysis-logs', 'a1.json')).toBe(false);
+  });
+
   it('ログのディレクトリがなくても失敗しない', async () => {
     await expect(cleaner.deleteLogsForTranscription('t1')).resolves.toBe(0);
   });
