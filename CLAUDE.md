@@ -136,28 +136,14 @@ ai-speak-trace/
 
 トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
 
-## PRテストプラン
+## PRの手動確認項目
 
-PRのTest planには以下の条件に従って記載する。記載する項目はすべて必須とし、「任意」「オプション」と記載しない。
+CIの結果（`build`・`backend-test`・`frontend-test`）はPRのチェック欄と必須チェックで確認するため、PR本文には書かない。コードレビューはCodeRabbitが行う。
 
-### CI自動チェック
+PR本文には、CIとコードレビューでは確認できない動作がある場合のみ「## 手動確認項目」を書く。例：
 
-以下の変更がある場合のみ記載する：
+- 外部API（ElevenLabs・Claude・Amazon Bedrock・S3 Vectors）につないだときの動作
+- Tauriのデスクトップアプリとして起動したときの動作（sidecar・DMG）
+- 画面の表示やユーザー操作
 
-- `backend/` 配下の変更 → `backend-test` が通過する
-- `frontend/` 配下の変更 → `frontend-test` が通過する
-- `src-tauri/`・`frontend/`・`backend/`・`package.json`・`package-lock.json`・`scripts/` の変更 → `build` が通過する
-
-`.github/workflows/`・`CLAUDE.md`・`.gitignore`・`docs/` のみの変更はCI自動チェック不要。
-
-### 手動確認項目
-
-`npm run build`（backendディレクトリで実行）は、以下の場合のみ含める：
-
-- `backend/` 配下のコード（`*.spec.ts` 以外）を変更した場合
-- `backend/package.json` または `backend/package-lock.json` を変更した場合
-
-### Test planが不要な場合
-
-以下のみの変更はTest planに「手動確認項目なし」と記載する：
-- `.github/workflows/`・`CLAUDE.md`・`.gitignore`・`docs/` のみの変更
+書く項目はすべて必須とし、「任意」「オプション」と記載しない。確認する必要がない場合はセクションごと省略する。
