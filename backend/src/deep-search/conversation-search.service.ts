@@ -194,6 +194,14 @@ export class ConversationSearchService {
       embeddings[textIndex] = generated[i];
     });
 
+    // ベクトル生成中に文字起こしが削除された場合は、削除済みのデータからキャッシュを作らない
+    if (!(await this.transcriptionStore.findById(transcription.id))) {
+      this.logger.warn(
+        `ベクトル生成中に文字起こしが削除されたため、キャッシュを保存しません: ${transcription.id}`,
+      );
+      return embeddings;
+    }
+
     // 保存に失敗しても、生成したベクトルで検索は続ける（次回の検索で作り直す）
     try {
       await this.utteranceEmbeddingStore.save(transcription.id, {

@@ -1,6 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -137,6 +138,19 @@ describe('ConversationSearchService', () => {
     await service.search(['AI'], ['t1']);
 
     expect(embeddingService.generateEmbeddings).toHaveBeenCalledTimes(1);
+  });
+
+  it('ベクトル生成中に文字起こしが削除されたらキャッシュを保存しない', async () => {
+    transcriptionStore.findById
+      .mockResolvedValueOnce(makeTranscription(['AIの話です']))
+      .mockResolvedValueOnce(null);
+
+    const results = await service.search(['AI'], ['t1']);
+
+    expect(results.map((r) => r.text)).toEqual(['AIの話です']);
+    expect(
+      existsSync(path.join(tmpDir, 'utterance-embeddings', 't1.json')),
+    ).toBe(false);
   });
 
   it('発話が編集されたらベクトルを作り直す', async () => {
