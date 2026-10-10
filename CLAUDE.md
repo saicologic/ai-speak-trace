@@ -118,10 +118,12 @@ ai-speak-trace/
 1. `fix/*` または `feature/*` ブランチで修正・実装する
 2. `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新
 3. `fix/*` → `release/vX.Y.Z` へPR作成・マージ
-4. `release/vX.Y.Z` → `main` へPR作成・マージ
+4. `release/vX.Y.Z` → `main` へPR作成・マージ（PRタイトルは `release: vX.Y.Z`、本文に `## Summary` または `## 変更内容` を書く。リリースノートに使われる）
 5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
+   - `tag-release.yml` がマージコミットに `vX.Y.Z` タグを作成し、`release.yml` を起動する
+   - ブランチ名（`release/vX.Y.Z`）と `tauri.conf.json` のバージョンが一致しない場合、タグは作成されない
 
-`fix/*` を直接 `main` にマージしない。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
+`fix/*`・`feature/*` を直接 `main` にマージしない（`release/*` から作成したブランチも同様。PRの宛先が `release/vX.Y.Z` になっていることをマージ前に確認する）。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
 
 `release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
 
