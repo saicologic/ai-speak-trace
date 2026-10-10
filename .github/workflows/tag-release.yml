@@ -12,7 +12,11 @@ on:
 
 jobs:
   tag:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    # フォーク由来のPRは対象外（同一リポジトリの release/v* ブランチのみ）
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
     runs-on: ubuntu-latest
     permissions:
       # タグの push
@@ -40,15 +44,22 @@ jobs:
             exit 1
           fi
 
+          # 同じマージコミットを指すタグが既にある場合は、起動処理の再実行とみなして続行する
+          # 異なるコミットを指す場合のみ中断する
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
-            echo "::error::タグ ${TAG} は既に存在します"
-            exit 1
+            git fetch --no-tags --depth=1 origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            EXISTING_SHA=$(git rev-parse "${TAG}^{commit}")
+            if [ "$EXISTING_SHA" != "$MERGE_SHA" ]; then
+              echo "::error::タグ ${TAG} は既に別のコミット ${EXISTING_SHA} を指しています"
+              exit 1
+            fi
+            echo "タグ ${TAG} は既に ${MERGE_SHA} を指しているため、作成をスキップします"
+          else
+            git tag "$TAG" "$MERGE_SHA"
+            git push origin "refs/tags/${TAG}"
+            echo "タグ ${TAG} を ${MERGE_SHA} に作成しました"
           fi
-
-          git tag "$TAG" "$MERGE_SHA"
-          git push origin "refs/tags/${TAG}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "タグ ${TAG} を ${MERGE_SHA} に作成しました"
 
       - name: Release ワークフローを起動
         env:
