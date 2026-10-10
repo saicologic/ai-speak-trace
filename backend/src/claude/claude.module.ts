@@ -6,6 +6,6 @@ import { SummaryService } from './summary.service';
 /** Claude API共有モジュール */
 @Module({
   providers: [ClaudeClientService, AnalysisService, SummaryService],
-  exports: [AnalysisService, SummaryService],
+  exports: [ClaudeClientService, AnalysisService, SummaryService],
 })
 export class ClaudeModule {}

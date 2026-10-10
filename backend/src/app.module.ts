@@ -9,6 +9,7 @@ import { TranscriptionModule } from './transcription/transcription.module';
 import { InterviewModule } from './interview/interview.module';
 import { DocumentModule } from './document/document.module';
 import { DeepSearchModule } from './deep-search/deep-search.module';
+import { ResearchModule } from './research/research.module';
 import { SettingsModule } from './settings/settings.module';
 import { PodcastModule } from './podcast/podcast.module';
 
@@ -42,6 +43,7 @@ import { PodcastModule } from './podcast/podcast.module';
     InterviewModule,
     DocumentModule,
     DeepSearchModule,
+    ResearchModule,
     SettingsModule,
     PodcastModule,
   ],

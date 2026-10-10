@@ -1,0 +1,337 @@
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { TranscriptionStoreService } from '../transcription/transcription-store.service';
+import { Transcription } from '../transcription/types/transcription.types';
+import { CLAUDE_MODEL } from '../claude/analysis.service';
+import { ResearchJobStore } from './research-job.store';
+import {
+  JUDGE_MODEL,
+  RawJudgement,
+  ResearchClaudeService,
+  TranscriptDocument,
+} from './research-claude.service';
+import {
+  ClaimCheck,
+  ReportSegment,
+  ResearchEvaluation,
+  ResearchJob,
+  ResearchJobSummary,
+} from './types/research.types';
+import {
+  checkPersonalData,
+  countOccurrences,
+  normalizeDomain,
+  toTranscriptDocument,
+  verifyQuotes,
+} from './research.utils';
+
+/** Claude に全文を渡す会話の合計文字数の上限（超える場合は会話を減らしてもらう） */
+export const MAX_TRANSCRIPT_CHARS = 300_000;
+
+/** 実行中の状態（アプリの再起動で中断された調査の判定に使う） */
+const RUNNING_STATUSES = [
+  'proposing',
+  'researching',
+  'analyzing',
+  'evaluating',
+];
+
+/**
+ * ディープサーチ（調査）を段階的に進めるサービス
+ *
+ * 開始すると ①会話の読み込み・②提案 を行い、ユーザーの確定を待つ。
+ * 確定後に ③Web調査 → ④統合分析 → ⑤評価 を行う。各段階の結果は ResearchJobStore に保存する。
+ */
+@Injectable()
+export class ResearchService implements OnModuleInit {
+  private readonly logger = new Logger(ResearchService.name);
+
+  constructor(
+    private readonly transcriptionStore: TranscriptionStoreService,
+    private readonly jobStore: ResearchJobStore,
+    private readonly claude: ResearchClaudeService,
+  ) {}
+
+  /** アプリの再起動で中断された調査を、失敗として記録する */
+  async onModuleInit(): Promise<void> {
+    for (const summary of await this.jobStore.findAllSummaries()) {
+      if (!RUNNING_STATUSES.includes(summary.status)) continue;
+      const job = await this.jobStore.findById(summary.id);
+      if (job) {
+        await this.update(job, {
+          status: 'failed',
+          error: 'アプリの再起動で中断しました。もう一度調査を開始してください',
+        });
+      }
+    }
+  }
+
+  async findAll(): Promise<ResearchJobSummary[]> {
+    return this.jobStore.findAllSummaries();
+  }
+
+  async findById(id: string): Promise<ResearchJob> {
+    const job = await this.jobStore.findById(id);
+    if (!job) throw new NotFoundException('調査が見つかりません');
+    return job;
+  }
+
+  /** ①② 調査を開始する（提案はバックグラウンドで行い、すぐにジョブを返す） */
+  async start(
+    transcriptionIds: string[],
+    frequentWords: { word: string; count: number }[] = [],
+  ): Promise<ResearchJob> {
+    if (!Array.isArray(transcriptionIds) || transcriptionIds.length === 0) {
+      throw new BadRequestException('調査する会話を選択してください');
+    }
+    const transcriptions = await this.loadTranscriptions(transcriptionIds);
+    const totalChars = transcriptions.reduce(
+      (sum, t) => sum + toTranscriptDocument(t).length,
+      0,
+    );
+    if (totalChars > MAX_TRANSCRIPT_CHARS) {
+      throw new BadRequestException(
+        `選んだ会話が長すぎます（${totalChars.toLocaleString()}文字）。合計${MAX_TRANSCRIPT_CHARS.toLocaleString()}文字以内になるよう、会話を減らしてください`,
+      );
+    }
+
+    const now = new Date().toISOString();
+    const job: ResearchJob = {
+      id: randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+      status: 'proposing',
+      transcriptionIds,
+      transcriptionNames: Object.fromEntries(
+        transcriptions.map((t) => [t.id, t.audioFileName]),
+      ),
+      models: { analysis: CLAUDE_MODEL },
+    };
+    await this.jobStore.save(job);
+    void this.runProposal(job, transcriptions, frequentWords);
+    return job;
+  }
+
+  /** ② ユーザーが確定したキーワードと公式サイトで、③④⑤ を実行する（バックグラウンド） */
+  async confirm(
+    id: string,
+    keywords: string[],
+    domains: string[],
+  ): Promise<ResearchJob> {
+    const job = await this.findById(id);
+    if (job.status !== 'awaiting_confirmation') {
+      throw new BadRequestException('この調査は確定できる状態ではありません');
+    }
+    const cleanKeywords = [...new Set(keywords.map((k) => k.trim()))].filter(
+      Boolean,
+    );
+    if (cleanKeywords.length === 0) {
+      throw new BadRequestException('キーワードを1つ以上選んでください');
+    }
+    const cleanDomains = [...new Set(domains.map(normalizeDomain))].filter(
+      Boolean,
+    );
+    const updated = await this.update(job, {
+      status: 'researching',
+      confirmed: { keywords: cleanKeywords, domains: cleanDomains },
+    });
+    void this.runResearch(updated);
+    return updated;
+  }
+
+  private async runProposal(
+    job: ResearchJob,
+    transcriptions: Transcription[],
+    frequentWords: { word: string; count: number }[],
+  ): Promise<void> {
+    try {
+      const raw = await this.claude.proposeKeywords(
+        this.toDocuments(transcriptions),
+        frequentWords.slice(0, 30),
+      );
+      const keywords = raw.keywords
+        .map((k) => ({
+          keyword: k.keyword.trim(),
+          reason: k.reason,
+          frequency: countOccurrences(transcriptions, k.keyword),
+          quotes: verifyQuotes(k.quotes, transcriptions),
+        }))
+        // 会話に出てこないキーワードは提案しない
+        .filter((k) => k.keyword && k.frequency > 0)
+        .sort((a, b) => b.frequency - a.frequency);
+      const seen = new Set<string>();
+      const domains = raw.domains
+        .map((d) => ({ ...d, domain: normalizeDomain(d.domain) }))
+        .filter((d) => d.domain && !seen.has(d.domain) && seen.add(d.domain));
+      await this.update(job, {
+        status: 'awaiting_confirmation',
+        proposal: { keywords, domains },
+      });
+    } catch (error) {
+      await this.fail(job, error);
+    }
+  }
+
+  private async runResearch(job: ResearchJob): Promise<void> {
+    try {
+      const { keywords, domains } = job.confirmed!;
+      const transcriptions = await this.loadTranscriptions(
+        job.transcriptionIds,
+      );
+
+      // ③ Web調査
+      const webSources = await this.claude.researchWeb(keywords, domains);
+      job = await this.update(job, { status: 'analyzing', webSources });
+
+      // ④ 統合分析
+      const report = await this.claude.analyze(
+        this.toDocuments(transcriptions),
+        webSources,
+        keywords,
+      );
+      job = await this.update(job, { status: 'evaluating', report });
+
+      // ⑤ 評価（根拠のない主張は表示から除く）
+      const judgement = await this.claude.judge(report, keywords);
+      const { finalReport, evaluation } = evaluate(report, judgement);
+      await this.update(job, {
+        status: 'completed',
+        report: finalReport,
+        evaluation,
+        models: { analysis: CLAUDE_MODEL, judge: JUDGE_MODEL },
+      });
+    } catch (error) {
+      await this.fail(job, error);
+    }
+  }
+
+  private async loadTranscriptions(ids: string[]): Promise<Transcription[]> {
+    const transcriptions: Transcription[] = [];
+    for (const id of ids) {
+      const t = await this.transcriptionStore.findById(id);
+      if (!t) throw new NotFoundException(`文字起こしが見つかりません: ${id}`);
+      transcriptions.push(t);
+    }
+    return transcriptions;
+  }
+
+  private toDocuments(transcriptions: Transcription[]): TranscriptDocument[] {
+    return transcriptions.map((t) => ({
+      id: t.id,
+      name: t.audioFileName,
+      text: toTranscriptDocument(t),
+    }));
+  }
+
+  private async update(
+    job: ResearchJob,
+    changes: Partial<ResearchJob>,
+  ): Promise<ResearchJob> {
+    const updated = { ...job, ...changes, updatedAt: new Date().toISOString() };
+    await this.jobStore.save(updated);
+    return updated;
+  }
+
+  private async fail(job: ResearchJob, error: unknown): Promise<void> {
+    this.logger.error(`調査に失敗: ${job.id}`, error);
+    // 失敗の記録自体に失敗しても、例外を外に出さない（バックグラウンド処理のため）
+    try {
+      const latest = (await this.jobStore.findById(job.id)) ?? job;
+      await this.update(latest, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } catch (saveError) {
+      this.logger.error(`調査の失敗を記録できません: ${job.id}`, saveError);
+    }
+  }
+}
+
+/** 見出しの行（「## 見出し」「**見出し**」） */
+const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
+
+/**
+ * ⑤ 判定結果から評価を計算し、根拠のない主張を除いたレポートを返す
+ * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く
+ */
+export function evaluate(
+  report: ReportSegment[],
+  judgement: RawJudgement,
+): { finalReport: ReportSegment[]; evaluation: ResearchEvaluation } {
+  const verdicts = new Map(judgement.claims.map((c) => [c.index, c]));
+  const removedIndexes = new Set<number>();
+  const removedClaims: ClaimCheck[] = [];
+  let factual = 0;
+  let cited = 0;
+  let supported = 0;
+
+  report.forEach((segment, index) => {
+    const v = verdicts.get(index);
+    // 判定が返らなかった文は、根拠の有無で扱いを決める
+    const isFactual = v ? v.factual : segment.citations.length > 0;
+    if (!isFactual) return;
+    factual++;
+    const hasCitation = segment.citations.length > 0;
+    if (hasCitation) cited++;
+    const verdict = v?.verdict ?? (hasCitation ? 'partial' : 'unsupported');
+    if (hasCitation && verdict === 'supported') supported++;
+    if (!hasCitation || verdict === 'unsupported') {
+      removedIndexes.add(index);
+      removedClaims.push({
+        claim: segment.text.trim(),
+        factual: true,
+        verdict: 'unsupported',
+        reason: v?.reason ?? '根拠が付いていません',
+      });
+    }
+  });
+
+  // 除いた文に含まれる見出しは、レポートの構成を保つために残す
+  const finalReport = report.flatMap((segment, i) => {
+    if (!removedIndexes.has(i)) return [segment];
+    const headings = segment.text
+      .split('\n')
+      .filter((line) => STRUCTURE_LINE.test(line.trim()));
+    return headings.length > 0
+      ? [{ text: `\n\n${headings.join('\n\n')}\n`, citations: [] }]
+      : [];
+  });
+  const webCitations = finalReport
+    .flatMap((s) => s.citations)
+    .filter((c) => c.sourceKind === 'web');
+
+  return {
+    finalReport,
+    evaluation: {
+      factualClaims: factual,
+      citationCoverage: factual === 0 ? 1 : cited / factual,
+      supportedRate: cited === 0 ? 0 : supported / cited,
+      removedClaims,
+      officialSourceRate:
+        webCitations.length === 0
+          ? null
+          : webCitations.filter((c) => c.official).length / webCitations.length,
+      relevance: judgement.relevance,
+      ethics: [
+        checkPersonalData(finalReport),
+        {
+          item: '会話に登場する個人の性格・健康・思想・属性を推測していない',
+          passed: judgement.ethics.no_sensitive_inference.passed,
+          detail: judgement.ethics.no_sensitive_inference.detail,
+        },
+        {
+          item: '個人を評価・選別する記述がない',
+          passed: judgement.ethics.no_individual_judgement.passed,
+          detail: judgement.ethics.no_individual_judgement.detail,
+        },
+      ],
+      judgeModel: JUDGE_MODEL,
+    },
+  };
+}

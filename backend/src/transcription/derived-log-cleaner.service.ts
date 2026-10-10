@@ -8,11 +8,13 @@ import * as path from 'path';
  * - analysis-logs: 会話分析（transcriptionId を持つ）
  * - summary-logs: 要約（transcriptionId を持つ）
  * - deep-search-logs: ディープサーチ（transcriptionIds を持つ）
+ * - research-jobs: ディープサーチの調査（transcriptionIds を持つ）
  */
 export const DERIVED_LOG_DIRS = [
   'analysis-logs',
   'summary-logs',
   'deep-search-logs',
+  'research-jobs',
 ] as const;
 
 /**
