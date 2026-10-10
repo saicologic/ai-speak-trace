@@ -1,4 +1,4 @@
-"""ディープサーチ（PDF 検索 + Claude 分析）を評価セットで評価する
+"""ディープサーチ（検索 + Claude 分析）を評価セットで評価する
 
 使い方:
   uv run python -m rag_eval.run_eval \\
@@ -8,6 +8,13 @@
 
 起動中のバックエンドの API を外から呼ぶため、評価対象のブランチを切り替えても同じ評価セット・
 同じスクリプトで比較できる。結果は results/ と MLflow（./mlruns）に記録する。
+
+評価セットの問題の種類によって検索対象が変わる。
+- transcription_id あり: その会話（+ --include-web で Web、--include-pdfs で PDF）を検索する
+- transcription_id なし: PDF のみを検索する
+
+Web 検索は実行のたびに結果が変わるため、--reuse-search で前回の検索結果を使い回すと
+「分析（生成）」の変更だけを同じ条件で比較できる。
 """
 
 import argparse
@@ -23,27 +30,30 @@ import pandas as pd
 from ragas.metrics.collections import ContextPrecisionWithReference, ContextRecall, Faithfulness
 
 from rag_eval.config import DEFAULT_MODEL
-from rag_eval.judge import create_judge_llm
-from rag_eval.retrieval_metrics import score_retrieval
+from rag_eval.judge import UsageTracker, create_judge_llm
+from rag_eval.retrieval_metrics import score_retrieval, score_unranked
 from rag_eval.testset import TestCase, load_testset
 
 # 分析の生成とバックエンドの検索に時間がかかるため長めにとる
 REQUEST_TIMEOUT = 300.0
 
 
-async def search_pdfs(http: httpx.AsyncClient, case: TestCase) -> list[dict]:
-    """ディープサーチ API で PDF のみを検索し、順位順の結果を返す"""
+async def search(
+    http: httpx.AsyncClient, case: TestCase, include_web: bool, include_pdfs: bool
+) -> list[dict]:
+    """ディープサーチ API で検索し、結果を返す"""
+    is_conversation = case.transcription_id is not None
     response = await http.post(
         "/deep-search",
         json={
             "keywords": case.keywords,
-            "transcriptionIds": [],
-            "includePdfs": True,
-            "includeWeb": False,
+            "transcriptionIds": [case.transcription_id] if is_conversation else [],
+            "includePdfs": include_pdfs if is_conversation else True,
+            "includeWeb": include_web if is_conversation else False,
         },
     )
     response.raise_for_status()
-    return [r for r in response.json()["results"] if r["sourceType"] == "pdf"]
+    return response.json()["results"]
 
 
 async def analyze(http: httpx.AsyncClient, case: TestCase, results: list[dict]) -> str:
@@ -60,6 +70,22 @@ async def analyze(http: httpx.AsyncClient, case: TestCase, results: list[dict]) 
     )
     response.raise_for_status()
     return response.json()["analysis"]
+
+
+def score_search(case: TestCase, results: list[dict], ks: list[int]) -> dict[str, float]:
+    """検索結果の指標を計算する。会話の問題は会話の結果を、PDF の問題は PDF の結果を採点する"""
+    texts_by_source: dict[str, list[str]] = {"conversation": [], "pdf": [], "web": []}
+    for r in results:
+        texts_by_source.setdefault(r["sourceType"], []).append(r["text"])
+    scores: dict[str, float] = {f"num_{k}": len(v) for k, v in texts_by_source.items()}
+
+    if case.transcription_id is not None:
+        # 会話検索はキーワードの完全一致で、結果に順位がない
+        conversation = score_unranked(texts_by_source["conversation"], case.evidence)
+        scores.update({f"conversation_{k}": v for k, v in conversation.items()})
+    else:
+        scores.update(score_retrieval(texts_by_source["pdf"], case.evidence, ks))
+    return scores
 
 
 async def score_generation(
@@ -92,41 +118,64 @@ async def score_generation(
     return scores
 
 
-async def evaluate_cases(args: argparse.Namespace, cases: list[TestCase]) -> pd.DataFrame:
+def load_saved_searches(path: Path) -> dict[str, list[dict]]:
+    """前回の実行で保存した検索結果を問題IDごとに読み込む"""
+    saved = {}
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                record = json.loads(line)
+                saved[record["id"]] = record["results"]
+    return saved
+
+
+async def evaluate_cases(
+    args: argparse.Namespace, cases: list[TestCase], out_dir: Path, tracker: UsageTracker
+) -> pd.DataFrame:
     """評価セットの全問を順に評価する"""
     metrics = None
     if not args.retrieval_only:
-        llm = create_judge_llm(args.model)
+        llm = create_judge_llm(args.model, tracker)
         metrics = {
             "context_precision": ContextPrecisionWithReference(llm=llm),
             "context_recall": ContextRecall(llm=llm),
             "faithfulness": Faithfulness(llm=llm),
         }
+    saved_searches = load_saved_searches(args.reuse_search) if args.reuse_search else {}
 
     rows = []
     async with httpx.AsyncClient(base_url=args.api_url, timeout=REQUEST_TIMEOUT) as http:
-        for i, case in enumerate(cases, start=1):
-            print(f"[{i}/{len(cases)}] {case.id}: {case.question}")
-            results = await search_pdfs(http, case)
-            contexts = [r["text"] for r in results]
-            row = {
-                "id": case.id,
-                "question": case.question,
-                "keywords": " ".join(case.keywords),
-                "num_results": len(results),
-                **score_retrieval(contexts, case.evidence, args.ks),
-            }
-            if metrics is not None:
-                answer = await analyze(http, case, results) if results else ""
-                row.update(await score_generation(metrics, case, contexts, answer))
-            rows.append(row)
+        with (out_dir / "search_results.jsonl").open("w", encoding="utf-8") as search_log:
+            for i, case in enumerate(cases, start=1):
+                print(f"[{i}/{len(cases)}] {case.id}: {case.question}")
+                if case.id in saved_searches:
+                    results = saved_searches[case.id]
+                else:
+                    results = await search(http, case, args.include_web, args.include_pdfs)
+                search_log.write(
+                    json.dumps({"id": case.id, "results": results}, ensure_ascii=False) + "\n"
+                )
+
+                row = {
+                    "id": case.id,
+                    "question": case.question,
+                    "keywords": " ".join(case.keywords),
+                    **score_search(case, results, args.ks),
+                }
+                if metrics is not None:
+                    contexts = [r["text"] for r in results]
+                    answer = await analyze(http, case, results) if results else ""
+                    row.update(await score_generation(metrics, case, contexts, answer))
+                rows.append(row)
     return pd.DataFrame(rows)
 
 
 def summarize(df: pd.DataFrame) -> dict[str, float]:
-    """問題ごとのスコアを平均する（NaN は除外）"""
+    """問題ごとのスコアを平均する（NaN は除外し、全問 NaN の指標は出さない）"""
     metric_columns = [c for c in df.columns if c not in ("id", "question", "keywords")]
-    return {c: round(float(df[c].mean(skipna=True)), 4) for c in metric_columns}
+    return {
+        c: round(float(df[c].mean(skipna=True)), 4) for c in metric_columns if df[c].notna().any()
+    }
 
 
 def main() -> None:
@@ -137,19 +186,31 @@ def main() -> None:
     parser.add_argument("--model", default=DEFAULT_MODEL, help="LLM-as-a-Judge に使う Claude モデル")
     parser.add_argument("--ks", type=lambda s: [int(k) for k in s.split(",")], default=[1, 3, 5, 10])
     parser.add_argument("--limit", type=int, help="先頭から指定件数だけ評価する（動作確認用）")
+    parser.add_argument("--include-web", action="store_true", help="会話の問題で Web 検索も行う")
+    parser.add_argument("--include-pdfs", action="store_true", help="会話の問題で PDF 検索も行う")
+    parser.add_argument(
+        "--reuse-search", type=Path, help="前回の results/<実行>/search_results.jsonl の検索結果を使い回す"
+    )
     parser.add_argument("--retrieval-only", action="store_true", help="検索指標のみ計算し、Claude を呼ばない")
     parser.add_argument("--no-mlflow", action="store_true", help="MLflow に記録しない")
     args = parser.parse_args()
 
     cases = load_testset(args.testset)[: args.limit]
-    df = asyncio.run(evaluate_cases(args, cases))
-    summary = summarize(df)
-
     out_dir = Path("results") / f"{datetime.now():%Y%m%d-%H%M%S}_{args.label}"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    tracker = UsageTracker(model=args.model)
+    df = asyncio.run(evaluate_cases(args, cases, out_dir, tracker))
+    summary = summarize(df)
+    usage = {} if args.retrieval_only else tracker.summary()
+
     df.to_csv(out_dir / "per_case.csv", index=False)
     (out_dir / "summary.json").write_text(
-        json.dumps({"label": args.label, "num_cases": len(df), **summary}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {"label": args.label, "num_cases": len(df), **summary, **usage},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -162,14 +223,28 @@ def main() -> None:
                     "testset": str(args.testset),
                     "num_cases": len(df),
                     "judge_model": "-" if args.retrieval_only else args.model,
+                    "include_web": args.include_web,
+                    "include_pdfs": args.include_pdfs,
+                    "reuse_search": str(args.reuse_search or "-"),
                 }
             )
-            mlflow.log_metrics({k.replace("@", "_at_"): v for k, v in summary.items() if not math.isnan(v)})
+            mlflow.log_metrics(
+                {
+                    k.replace("@", "_at_"): v
+                    for k, v in {**summary, **usage}.items()
+                    if not math.isnan(v)
+                }
+            )
             mlflow.log_artifacts(str(out_dir))
 
     print(f"\n評価結果（{args.label}、{len(df)}問）")
     for name, value in summary.items():
-        print(f"  {name:<18} {value:.4f}")
+        print(f"  {name:<22} {value:.4f}")
+    if usage:
+        print(
+            f"採点の使用量: {usage['judge_requests']}回 / 入力 {usage['judge_input_tokens']} / "
+            f"出力 {usage['judge_output_tokens']} トークン（約 ${usage['judge_cost_usd']}）"
+        )
     print(f"詳細: {out_dir}")
 
 

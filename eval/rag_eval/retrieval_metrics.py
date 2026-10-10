@@ -61,3 +61,18 @@ def score_retrieval(
         scores[f"hit@{k}"] = hit_at_k(retrieved, evidence, k)
         scores[f"recall@{k}"] = recall_at_k(retrieved, evidence, k)
     return scores
+
+
+def precision(retrieved: Sequence[str], evidence: Sequence[str]) -> float:
+    """検索結果のうち、根拠を含む結果の割合（順位のない検索用）"""
+    if not retrieved:
+        return 0.0
+    return sum(1 for text in retrieved if matched_evidence(text, evidence)) / len(retrieved)
+
+
+def score_unranked(retrieved: Sequence[str], evidence: Sequence[str]) -> dict[str, float]:
+    """順位のない検索（会話のキーワード一致検索）の指標"""
+    return {
+        "recall": recall_at_k(retrieved, evidence, len(retrieved)),
+        "precision": precision(retrieved, evidence),
+    }

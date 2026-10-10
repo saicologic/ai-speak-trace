@@ -4,9 +4,11 @@ from rag_eval.retrieval_metrics import (
     hit_at_k,
     matched_evidence,
     normalize,
+    precision,
     recall_at_k,
     reciprocal_rank,
     score_retrieval,
+    score_unranked,
 )
 
 RETRIEVED = [
@@ -52,3 +54,15 @@ def test_reciprocal_rank():
 def test_score_retrieval_returns_all_metrics():
     scores = score_retrieval(RETRIEVED, ["港区にある電波塔"], [1, 3])
     assert scores == {"mrr": 1.0, "hit@1": 1.0, "recall@1": 1.0, "hit@3": 1.0, "recall@3": 1.0}
+
+
+def test_precision_is_ratio_of_results_containing_evidence():
+    assert precision(RETRIEVED, ["高さは"]) == pytest.approx(2 / 3)
+    assert precision([], ["高さは"]) == 0.0
+
+
+def test_score_unranked():
+    assert score_unranked(RETRIEVED, ["港区", "634メートル"]) == {
+        "recall": 1.0,
+        "precision": pytest.approx(2 / 3),
+    }

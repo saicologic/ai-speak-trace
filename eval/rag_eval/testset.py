@@ -22,6 +22,8 @@ class TestCase(BaseModel):
     # 正解の根拠となる原文の抜粋。検索結果にいずれかが含まれていれば「正解チャンク」とみなす。
     # チャンク ID ではなく原文で判定するため、チャンクサイズを変えても同じ評価セットを使える。
     evidence: list[str] = Field(min_length=1)
+    # 会話を起点にした問題の場合、検索対象の文字起こしID。None なら PDF のみを検索する
+    transcription_id: str | None = None
     # 生成元の情報（documentId など）。評価には使わない
     source: dict[str, str] = Field(default_factory=dict)
 

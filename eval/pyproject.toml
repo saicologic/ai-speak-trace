@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.43.111",
     "httpx>=0.28.1",
     # ragas 0.4.3 が langchain_community.chat_models.vertexai を import するため 0.4 未満に固定
+    "httpx2>=2.13.1",
     "langchain-community<0.4",
     "mlflow>=3.17.0",
     "pandas>=3.0.6",

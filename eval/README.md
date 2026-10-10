@@ -22,6 +22,8 @@ S3 Vectors のチャンク ──(Claude)──> 評価セット（質問・模�
 
 | 区分 | 指標 | 内容 | 使うもの |
 |---|---|---|---|
+| 会話検索 | conversation_recall | 根拠の発話を検索結果に含められたか | 自前実装 |
+| 会話検索 | conversation_precision | 会話の検索結果のうち、根拠を含む発話の割合 | 自前実装 |
 | 検索 | Hit@k | 上位 k 件に正解の根拠を含むチャンクがあるか | 自前実装 |
 | 検索 | Recall@k | 上位 k 件で見つかった根拠の割合 | 自前実装 |
 | 検索 | MRR | 最初に正解が現れる順位の逆数の平均 | 自前実装 |
@@ -52,6 +54,21 @@ API キーと接続先は次の順で読み込みます。
 ## 使い方
 
 ### 1. 評価セットを作る
+
+評価セットは「会話から作る」方法と「PDF から作る」方法の2種類があります。
+
+#### 会話（文字起こし）から作る
+
+```bash
+uv run python -m rag_eval.generate_conversation_testset \
+  --transcription-id <文字起こしID> --size 10 --output datasets/<名前>.jsonl
+```
+
+文字起こし全文を Claude に読ませ、会話から答えられる問題を作ります。
+根拠が発話と一字一句一致しない問題や、会話に出てこないキーワードは自動で捨てます。
+評価時は、その会話をディープサーチの検索対象にします。
+
+#### PDF から作る
 
 アプリで PDF をアップロードしてから実行します。
 
@@ -86,6 +103,9 @@ uv run python -m rag_eval.run_eval \
 | オプション | 内容 |
 |---|---|
 | `--label` | 評価対象の名前。MLflow の run 名と結果フォルダ名になる |
+| `--include-web` | 会話の問題で Web 検索も行う |
+| `--include-pdfs` | 会話の問題で PDF 検索も行う |
+| `--reuse-search PATH` | 前回の `results/<実行>/search_results.jsonl` の検索結果を使い回す。Web 検索は毎回結果が変わるため、分析（生成）の変更だけを比べたいときに使う |
 | `--retrieval-only` | 検索指標だけを計算する（Claude を呼ばないので無料・高速） |
 | `--limit N` | 先頭 N 問だけ評価する（動作確認用） |
 | `--model` | LLM-as-a-Judge に使う Claude モデル（既定: `claude-opus-5-5`） |
@@ -98,6 +118,8 @@ uv run mlflow ui
 ```
 
 ブラウザで開き、実験 `deep-search-rag` の run を選んで比較します。
+採点（LLM-as-a-Judge）に使ったトークン数と概算費用（`judge_cost_usd`）も記録されます。
+バックエンド側（ディープサーチの Web 検索・分析）の費用は含まれないため、[Claude Console](https://platform.claude.com/cost) で確認してください。
 各 run の `per_case.csv` には問題ごとのスコアがあり、どの質問で失敗したかを分析できます。
 
 ## テスト
