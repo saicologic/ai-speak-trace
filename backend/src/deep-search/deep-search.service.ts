@@ -1,14 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { ConfigService } from '@nestjs/config';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
-import { AnalysisService } from '../claude/analysis.service';
+import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
+import { DeepSearchLogStorage } from './deep-search-log.storage';
 import { ConversationSearchService } from './conversation-search.service';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 import {
   DeepSearchResponse,
   DeepSearchResultItem,
   DeepSearchAnalysis,
+  DeepSearchLog,
 } from './types/deep-search.types';
 
 /** PDF検索結果として採用するcosine類似度の下限の既定値 */
@@ -26,6 +29,7 @@ export class DeepSearchService {
     private readonly embeddingService: EmbeddingService,
     private readonly vectorSearchService: VectorSearchService,
     private readonly analysisService: AnalysisService,
+    private readonly logStorage: DeepSearchLogStorage,
     private readonly configService: ConfigService,
   ) {
     this.minPdfSimilarity = this.resolveMinPdfSimilarity(
@@ -75,10 +79,23 @@ export class DeepSearchService {
 
     this.logger.log(`ディープサーチ完了: ${results.length}件`);
 
-    return {
+    const log: DeepSearchLog = {
+      id: uuidv4(),
       keywords: dto.keywords,
+      transcriptionIds: dto.transcriptionIds,
+      includePdfs: dto.includePdfs,
+      includeWeb: dto.includeWeb,
+      ...(dto.includeWeb && { webSearchModel: CLAUDE_MODEL }),
       results,
       searchedAt: new Date().toISOString(),
+    };
+    await this.saveLog(log);
+
+    return {
+      id: log.id,
+      keywords: log.keywords,
+      results: log.results,
+      searchedAt: log.searchedAt,
     };
   }
 
@@ -93,11 +110,69 @@ export class DeepSearchService {
       dto.results,
     );
 
+    const analyzedAt = new Date().toISOString();
+    if (dto.searchId) {
+      await this.attachAnalysisToLog(dto, analysis, analyzedAt);
+    }
+
     return {
       searchResults: dto.results as DeepSearchResultItem[],
       analysis,
-      analyzedAt: new Date().toISOString(),
+      analyzedAt,
     };
+  }
+
+  /** ディープサーチログ一覧（サマリー） */
+  async findLogs() {
+    return this.logStorage.findAllSummaries();
+  }
+
+  /** ディープサーチログ詳細 */
+  async findLogById(id: string): Promise<DeepSearchLog | null> {
+    return this.logStorage.findById(id);
+  }
+
+  /** ログを保存（保存に失敗しても検索自体は成功させる） */
+  private async saveLog(log: DeepSearchLog): Promise<void> {
+    try {
+      await this.logStorage.save(log);
+    } catch (error) {
+      this.logger.warn(`ディープサーチログの保存に失敗: ${log.id}`, error);
+    }
+  }
+
+  /** 既存の検索ログに分析結果を記録する */
+  private async attachAnalysisToLog(
+    dto: DeepSearchAnalyzeDto,
+    text: string,
+    analyzedAt: string,
+  ): Promise<void> {
+    const searchId = dto.searchId as string;
+    try {
+      const log = await this.logStorage.findById(searchId);
+      if (!log) {
+        this.logger.warn(
+          `分析対象のディープサーチログが見つかりません: ${searchId}`,
+        );
+        return;
+      }
+      // 別の検索のログに、異なる検索結果から作った分析を記録しないよう、内容が一致する場合だけ記録する
+      if (!isSameSearch(log, dto)) {
+        this.logger.warn(
+          `分析の検索条件・結果がディープサーチログと一致しないため記録しません: ${searchId}`,
+        );
+        return;
+      }
+      await this.logStorage.save({
+        ...log,
+        analysis: { text, model: CLAUDE_MODEL, analyzedAt },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `ディープサーチログへの分析結果の記録に失敗: ${searchId}`,
+        error,
+      );
+    }
   }
 
   /** PDFからベクトル類似検索 */
@@ -193,4 +268,19 @@ export class DeepSearchService {
       return [];
     }
   }
+}
+
+/** 分析リクエストのキーワードと検索結果が、保存済みの検索ログと一致するか */
+function isSameSearch(log: DeepSearchLog, dto: DeepSearchAnalyzeDto): boolean {
+  const sameKeywords =
+    log.keywords.length === dto.keywords.length &&
+    log.keywords.every((kw, i) => kw === dto.keywords[i]);
+  const sameResults =
+    log.results.length === dto.results.length &&
+    log.results.every(
+      (r, i) =>
+        r.sourceType === dto.results[i].sourceType &&
+        r.text === dto.results[i].text,
+    );
+  return sameKeywords && sameResults;
 }

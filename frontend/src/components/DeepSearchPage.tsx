@@ -88,6 +88,10 @@ export function DeepSearchPage({
 
   // 検索結果
   const [results, setResults] = useState<DeepSearchResultItem[]>([]);
+  // 検索ログID（分析結果を同じログに記録するために保持）
+  const [searchId, setSearchId] = useState<string | undefined>(undefined);
+  // 表示中の検索結果を得たときのキーワード（検索後にキーワードを変えても、分析は結果と同じ条件で行う）
+  const [resultKeywords, setResultKeywords] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -293,6 +297,8 @@ export function DeepSearchPage({
         includeWeb,
       );
       setResults(response.results);
+      setSearchId(response.id);
+      setResultKeywords(keywords);
       setSearched(true);
     } catch (e) {
       setError(
@@ -311,13 +317,14 @@ export function DeepSearchPage({
     setError(null);
     try {
       const response = await analyzeDeepSearchResults(
-        keywords,
+        resultKeywords,
         results.map((r) => ({
           sourceType: r.sourceType,
           sourceName: r.sourceName,
           text: r.text,
           url: r.url,
         })),
+        searchId,
       );
       setAnalysis(response);
     } catch (e) {

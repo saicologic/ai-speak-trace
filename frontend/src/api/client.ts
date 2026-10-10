@@ -668,11 +668,12 @@ export async function deepSearch(
 export async function analyzeDeepSearchResults(
   keywords: string[],
   results: { sourceType: string; sourceName: string; text: string; url?: string }[],
+  searchId?: string,
 ): Promise<DeepSearchAnalysis> {
   const res = await fetch(`${BASE_URL}/deep-search/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, results }),
+    body: JSON.stringify({ keywords, searchId, results }),
   });
   if (!res.ok) {
     throw new Error(`分析に失敗しました: ${res.status}`);

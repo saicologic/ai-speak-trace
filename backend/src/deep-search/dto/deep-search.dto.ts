@@ -18,6 +18,9 @@ export class DeepSearchAnalyzeDto {
   /** 検索キーワード */
   keywords: string[];
 
+  /** 検索ログID（指定すると分析結果をそのログに記録する） */
+  searchId?: string;
+
   /** 分析対象の検索結果 */
   results: {
     sourceType: string;

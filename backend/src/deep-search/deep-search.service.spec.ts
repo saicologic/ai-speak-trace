@@ -4,7 +4,9 @@ import { DeepSearchService } from './deep-search.service';
 import { ConversationSearchService } from './conversation-search.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
-import { AnalysisService } from '../claude/analysis.service';
+import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
+import { DeepSearchLogStorage } from './deep-search-log.storage';
+import { DeepSearchLog } from './types/deep-search.types';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 
 describe('DeepSearchService', () => {
@@ -13,6 +15,7 @@ describe('DeepSearchService', () => {
   let embeddingService: jest.Mocked<EmbeddingService>;
   let vectorSearchService: jest.Mocked<VectorSearchService>;
   let claudeService: jest.Mocked<AnalysisService>;
+  let logStorage: jest.Mocked<DeepSearchLogStorage>;
 
   /** 指定した環境変数でサービスを生成する */
   const createService = async (
@@ -47,6 +50,14 @@ describe('DeepSearchService', () => {
           },
         },
         {
+          provide: DeepSearchLogStorage,
+          useValue: {
+            save: jest.fn(),
+            findById: jest.fn(),
+            findAllSummaries: jest.fn(),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => env[key]),
@@ -60,6 +71,7 @@ describe('DeepSearchService', () => {
     embeddingService = module.get(EmbeddingService);
     vectorSearchService = module.get(VectorSearchService);
     claudeService = module.get(AnalysisService);
+    logStorage = module.get(DeepSearchLogStorage);
   };
 
   beforeEach(async () => {
@@ -367,7 +379,9 @@ describe('DeepSearchService', () => {
     });
 
     it('Web検索が失敗した場合は空配列でスキップする', async () => {
-      claudeService.searchAndAnalyze.mockRejectedValue(new Error('Claude error'));
+      claudeService.searchAndAnalyze.mockRejectedValue(
+        new Error('Claude error'),
+      );
 
       const dto: DeepSearchDto = {
         keywords: ['AI'],
@@ -393,6 +407,90 @@ describe('DeepSearchService', () => {
 
       expect(result.searchedAt).toBeTruthy();
     });
+
+    it('検索条件と結果をログに保存し、ログIDを返す', async () => {
+      conversationSearch.search.mockResolvedValue([
+        {
+          sourceType: 'conversation',
+          sourceName: 'talk.mp3 - Aさん',
+          sourceId: 't1',
+          text: 'AIエコシステムについて話しました',
+          score: 0.8,
+          speakerName: 'Aさん',
+        },
+      ]);
+      claudeService.searchAndAnalyze.mockResolvedValue({
+        answer: 'Web調査結果',
+        sources: [
+          { title: '記事', url: 'https://example.com', excerpts: ['引用'] },
+        ],
+      });
+
+      const dto: DeepSearchDto = {
+        keywords: ['AI'],
+        transcriptionIds: ['t1'],
+        includePdfs: false,
+        includeWeb: true,
+      };
+
+      const result = await service.search(dto);
+
+      expect(logStorage.save).toHaveBeenCalledTimes(1);
+      const saved = logStorage.save.mock.calls[0][0];
+      expect(saved).toEqual({
+        id: result.id,
+        keywords: ['AI'],
+        transcriptionIds: ['t1'],
+        includePdfs: false,
+        includeWeb: true,
+        webSearchModel: CLAUDE_MODEL,
+        results: result.results,
+        searchedAt: result.searchedAt,
+      });
+      expect(saved.results.map((r) => r.sourceType)).toEqual([
+        'conversation',
+        'web',
+      ]);
+    });
+
+    it('Web検索をしない場合はwebSearchModelを記録しない', async () => {
+      const dto: DeepSearchDto = {
+        keywords: ['AI'],
+        transcriptionIds: [],
+        includePdfs: false,
+        includeWeb: false,
+      };
+
+      await service.search(dto);
+
+      expect(logStorage.save.mock.calls[0][0]).not.toHaveProperty(
+        'webSearchModel',
+      );
+    });
+
+    it('ログの保存に失敗しても検索結果を返す', async () => {
+      logStorage.save.mockRejectedValue(new Error('disk full'));
+      conversationSearch.search.mockResolvedValue([
+        {
+          sourceType: 'conversation',
+          sourceName: 'talk.mp3 - Aさん',
+          sourceId: 't1',
+          text: 'AIエコシステムについて話しました',
+          speakerName: 'Aさん',
+        },
+      ]);
+
+      const dto: DeepSearchDto = {
+        keywords: ['AI'],
+        transcriptionIds: ['t1'],
+        includePdfs: false,
+        includeWeb: false,
+      };
+
+      const result = await service.search(dto);
+
+      expect(result.results).toHaveLength(1);
+    });
   });
 
   describe('analyzeResults', () => {
@@ -416,6 +514,80 @@ describe('DeepSearchService', () => {
       expect(result.analysis).toBe('分析レポート');
       expect(result.searchResults).toHaveLength(1);
       expect(result.analyzedAt).toBeTruthy();
+    });
+
+    it('searchIdを指定すると検索ログに分析結果を記録する', async () => {
+      const log: DeepSearchLog = {
+        id: 'search-1',
+        keywords: ['AI'],
+        transcriptionIds: ['t1'],
+        includePdfs: false,
+        includeWeb: false,
+        results: [],
+        searchedAt: '2024-01-01T00:00:00Z',
+      };
+      logStorage.findById.mockResolvedValue(log);
+      claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
+
+      const result = await service.analyzeResults({
+        keywords: ['AI'],
+        searchId: 'search-1',
+        results: [],
+      });
+
+      expect(logStorage.findById).toHaveBeenCalledWith('search-1');
+      expect(logStorage.save).toHaveBeenCalledWith({
+        ...log,
+        analysis: {
+          text: '分析レポート',
+          model: CLAUDE_MODEL,
+          analyzedAt: result.analyzedAt,
+        },
+      });
+    });
+
+    it('分析の検索結果がログと一致しない場合は記録しない', async () => {
+      logStorage.findById.mockResolvedValue({
+        id: 'search-1',
+        keywords: ['AI'],
+        transcriptionIds: [],
+        includePdfs: false,
+        includeWeb: false,
+        results: [],
+        searchedAt: '2024-01-01T00:00:00Z',
+      });
+      claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
+
+      await service.analyzeResults({
+        keywords: ['別のキーワード'],
+        searchId: 'search-1',
+        results: [],
+      });
+
+      expect(logStorage.save).not.toHaveBeenCalled();
+    });
+
+    it('searchIdがない場合はログを更新しない', async () => {
+      claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
+
+      await service.analyzeResults({ keywords: ['AI'], results: [] });
+
+      expect(logStorage.findById).not.toHaveBeenCalled();
+      expect(logStorage.save).not.toHaveBeenCalled();
+    });
+
+    it('検索ログが見つからなくても分析結果を返す', async () => {
+      logStorage.findById.mockResolvedValue(null);
+      claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
+
+      const result = await service.analyzeResults({
+        keywords: ['AI'],
+        searchId: 'missing',
+        results: [],
+      });
+
+      expect(result.analysis).toBe('分析レポート');
+      expect(logStorage.save).not.toHaveBeenCalled();
     });
   });
 });
