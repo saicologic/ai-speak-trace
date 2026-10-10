@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ClaudeClientService } from './claude-client.service';
 import { AnalysisResult } from '../interview/types/interview.types';
 
+/** 会話分析・Web検索・ディープサーチ分析に使うClaudeモデル */
+export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
+
 /** 会話分析・Web検索・ディープサーチ分析を担うサービス */
 @Injectable()
 export class AnalysisService {
@@ -87,7 +90,7 @@ ${targetList}
     const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
 
     const response = await this.claudeClient.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -140,7 +143,7 @@ ${targetList}
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
     const response = await this.claudeClient.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 4096,
       tools: [
         {
@@ -184,7 +187,7 @@ ${targetList}
     const prompt = this.buildContextAnalysisPrompt(allUtterances, targetIndices);
 
     const response = await this.claudeClient.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -226,7 +229,7 @@ ${context}
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
     const response = await this.claudeClient.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 4096,
       tools: [
         {
@@ -284,7 +287,7 @@ ${resultsText}
 - 重要なポイントを箇条書きでまとめてください`;
 
     const response = await this.claudeClient.getClient().messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });

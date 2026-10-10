@@ -122,6 +122,8 @@ export interface DeepSearchResultItem {
 
 /** ディープサーチレスポンス */
 export interface DeepSearchResponse {
+  /** 検索ログID（分析時に渡すと同じログに分析結果を記録する） */
+  id: string;
   keywords: string[];
   results: DeepSearchResultItem[];
   searchedAt: string;

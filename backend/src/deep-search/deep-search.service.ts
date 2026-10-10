@@ -1,13 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
-import { AnalysisService } from '../claude/analysis.service';
+import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
+import { DeepSearchLogStorage } from './deep-search-log.storage';
 import { DeepSearchDto, DeepSearchAnalyzeDto } from './dto/deep-search.dto';
 import {
   DeepSearchResponse,
   DeepSearchResultItem,
   DeepSearchAnalysis,
+  DeepSearchLog,
 } from './types/deep-search.types';
 
 /** 会話・PDF・Webを横断検索するサービス */
@@ -20,6 +23,7 @@ export class DeepSearchService {
     private readonly embeddingService: EmbeddingService,
     private readonly vectorSearchService: VectorSearchService,
     private readonly analysisService: AnalysisService,
+    private readonly logStorage: DeepSearchLogStorage,
   ) {}
 
   /** ディープサーチ実行（3ソース横断） */
@@ -48,10 +52,23 @@ export class DeepSearchService {
 
     this.logger.log(`ディープサーチ完了: ${results.length}件`);
 
-    return {
+    const log: DeepSearchLog = {
+      id: uuidv4(),
       keywords: dto.keywords,
+      transcriptionIds: dto.transcriptionIds,
+      includePdfs: dto.includePdfs,
+      includeWeb: dto.includeWeb,
+      ...(dto.includeWeb && { webSearchModel: CLAUDE_MODEL }),
       results,
       searchedAt: new Date().toISOString(),
+    };
+    await this.saveLog(log);
+
+    return {
+      id: log.id,
+      keywords: log.keywords,
+      results: log.results,
+      searchedAt: log.searchedAt,
     };
   }
 
@@ -66,11 +83,61 @@ export class DeepSearchService {
       dto.results,
     );
 
+    const analyzedAt = new Date().toISOString();
+    if (dto.searchId) {
+      await this.attachAnalysisToLog(dto.searchId, analysis, analyzedAt);
+    }
+
     return {
       searchResults: dto.results as DeepSearchResultItem[],
       analysis,
-      analyzedAt: new Date().toISOString(),
+      analyzedAt,
     };
+  }
+
+  /** ディープサーチログ一覧（サマリー） */
+  async findLogs() {
+    return this.logStorage.findAllSummaries();
+  }
+
+  /** ディープサーチログ詳細 */
+  async findLogById(id: string): Promise<DeepSearchLog | null> {
+    return this.logStorage.findById(id);
+  }
+
+  /** ログを保存（保存に失敗しても検索自体は成功させる） */
+  private async saveLog(log: DeepSearchLog): Promise<void> {
+    try {
+      await this.logStorage.save(log);
+    } catch (error) {
+      this.logger.warn(`ディープサーチログの保存に失敗: ${log.id}`, error);
+    }
+  }
+
+  /** 既存の検索ログに分析結果を記録する */
+  private async attachAnalysisToLog(
+    searchId: string,
+    text: string,
+    analyzedAt: string,
+  ): Promise<void> {
+    try {
+      const log = await this.logStorage.findById(searchId);
+      if (!log) {
+        this.logger.warn(
+          `分析対象のディープサーチログが見つかりません: ${searchId}`,
+        );
+        return;
+      }
+      await this.logStorage.save({
+        ...log,
+        analysis: { text, model: CLAUDE_MODEL, analyzedAt },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `ディープサーチログへの分析結果の記録に失敗: ${searchId}`,
+        error,
+      );
+    }
   }
 
   /** 会話データからキーワード検索（部分一致） */

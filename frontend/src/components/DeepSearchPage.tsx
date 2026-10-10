@@ -88,6 +88,8 @@ export function DeepSearchPage({
 
   // 検索結果
   const [results, setResults] = useState<DeepSearchResultItem[]>([]);
+  // 検索ログID（分析結果を同じログに記録するために保持）
+  const [searchId, setSearchId] = useState<string | undefined>(undefined);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -293,6 +295,7 @@ export function DeepSearchPage({
         includeWeb,
       );
       setResults(response.results);
+      setSearchId(response.id);
       setSearched(true);
     } catch (e) {
       setError(
@@ -318,6 +321,7 @@ export function DeepSearchPage({
           text: r.text,
           url: r.url,
         })),
+        searchId,
       );
       setAnalysis(response);
     } catch (e) {
