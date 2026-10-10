@@ -17,9 +17,9 @@ def normalize(text: str) -> str:
 
 
 def matched_evidence(text: str, evidence: Sequence[str]) -> set[int]:
-    """テキストに含まれる根拠のインデックスを返す"""
+    """テキストに含まれる根拠のインデックスを返す。正規化後に空になる根拠は一致とみなさない"""
     normalized = normalize(text)
-    return {i for i, e in enumerate(evidence) if normalize(e) in normalized}
+    return {i for i, e in enumerate(evidence) if (n := normalize(e)) and n in normalized}
 
 
 def first_relevant_rank(retrieved: Sequence[str], evidence: Sequence[str]) -> int | None:

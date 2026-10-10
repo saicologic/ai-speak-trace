@@ -38,20 +38,20 @@ from rag_eval.testset import TestCase, load_testset
 REQUEST_TIMEOUT = 300.0
 
 
-async def search(
-    http: httpx.AsyncClient, case: TestCase, include_web: bool, include_pdfs: bool
-) -> list[dict]:
-    """ディープサーチ API で検索し、結果を返す"""
+def search_request(case: TestCase, include_web: bool, include_pdfs: bool) -> dict:
+    """ディープサーチ API に送る検索条件。検索結果を使い回すときの照合にも使う"""
     is_conversation = case.transcription_id is not None
-    response = await http.post(
-        "/deep-search",
-        json={
-            "keywords": case.keywords,
-            "transcriptionIds": [case.transcription_id] if is_conversation else [],
-            "includePdfs": include_pdfs if is_conversation else True,
-            "includeWeb": include_web if is_conversation else False,
-        },
-    )
+    return {
+        "keywords": case.keywords,
+        "transcriptionIds": [case.transcription_id] if is_conversation else [],
+        "includePdfs": include_pdfs if is_conversation else True,
+        "includeWeb": include_web if is_conversation else False,
+    }
+
+
+async def search(http: httpx.AsyncClient, request: dict) -> list[dict]:
+    """ディープサーチ API で検索し、結果を返す"""
+    response = await http.post("/deep-search", json=request)
     response.raise_for_status()
     return response.json()["results"]
 
@@ -93,9 +93,12 @@ def score_search(case: TestCase, results: list[dict], ks: list[int]) -> dict[str
 
 
 async def score_generation(
-    metrics: dict, case: TestCase, contexts: list[str], answer: str
+    metrics: dict, case: TestCase, contexts: list[str], answer: str | None
 ) -> dict[str, float]:
-    """Ragas で検索結果と分析結果の品質を採点する。失敗した指標は NaN"""
+    """Ragas で検索結果と分析結果の品質を採点する。失敗した指標は NaN
+
+    answer が None（分析 API が失敗した）の場合、忠実性は採点せず NaN にする
+    """
     if not contexts:
         # 何も検索できなかった場合、文脈系の指標は 0、忠実性は判定不能
         return {"context_precision": 0.0, "context_recall": 0.0, "faithfulness": math.nan}
@@ -107,12 +110,13 @@ async def score_generation(
         "context_recall": metrics["context_recall"].ascore(
             user_input=case.question, retrieved_contexts=contexts, reference=case.reference_answer
         ),
-        "faithfulness": metrics["faithfulness"].ascore(
-            user_input=case.question, response=answer, retrieved_contexts=contexts
-        ),
     }
+    if answer is not None:
+        jobs["faithfulness"] = metrics["faithfulness"].ascore(
+            user_input=case.question, response=answer, retrieved_contexts=contexts
+        )
     results = await asyncio.gather(*jobs.values(), return_exceptions=True)
-    scores = {}
+    scores = {"faithfulness": math.nan}
     for name, result in zip(jobs, results):
         if isinstance(result, Exception):
             print(f"    {name} の採点に失敗: {result}")
@@ -122,15 +126,30 @@ async def score_generation(
     return scores
 
 
-def load_saved_searches(path: Path) -> dict[str, list[dict]]:
-    """前回の実行で保存した検索結果を問題IDごとに読み込む"""
+def load_saved_searches(path: Path) -> dict[str, dict]:
+    """前回の実行で保存した検索結果（検索条件と結果）を問題IDごとに読み込む"""
     saved = {}
     with path.open(encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 record = json.loads(line)
-                saved[record["id"]] = record["results"]
+                saved[record["id"]] = record
     return saved
+
+
+def reusable_results(saved: dict[str, dict], case_id: str, request: dict) -> list[dict] | None:
+    """保存済みの検索結果のうち、検索条件が今回と同じものだけを返す
+
+    問題IDは評価セットが違っても重なる（q001 など）ため、IDだけでなく検索条件も照合する。
+    検索条件を記録していない古い結果も、同一性を確かめられないため使わない。
+    """
+    record = saved.get(case_id)
+    if record is None:
+        return None
+    if record.get("request") != request:
+        print("    保存済みの検索結果は検索条件が異なるため、検索し直します")
+        return None
+    return record["results"]
 
 
 async def evaluate_cases(
@@ -152,23 +171,34 @@ async def evaluate_cases(
         with (out_dir / "search_results.jsonl").open("w", encoding="utf-8") as search_log:
             for i, case in enumerate(cases, start=1):
                 print(f"[{i}/{len(cases)}] {case.id}: {case.question}")
-                if case.id in saved_searches:
-                    results = saved_searches[case.id]
-                else:
-                    results = await search(http, case, args.include_web, args.include_pdfs)
+                row = {"id": case.id, "question": case.question, "keywords": " ".join(case.keywords)}
+                request = search_request(case, args.include_web, args.include_pdfs)
+                results = reusable_results(saved_searches, case.id, request)
+                if results is None:
+                    try:
+                        results = await search(http, request)
+                    except httpx.HTTPError as e:
+                        # 1問の失敗で評価全体を止めない。指標の列は DataFrame 上で NaN になる
+                        print(f"    検索に失敗: {e}")
+                        rows.append(row)
+                        continue
                 search_log.write(
-                    json.dumps({"id": case.id, "results": results}, ensure_ascii=False) + "\n"
+                    json.dumps(
+                        {"id": case.id, "request": request, "results": results}, ensure_ascii=False
+                    )
+                    + "\n"
                 )
 
-                row = {
-                    "id": case.id,
-                    "question": case.question,
-                    "keywords": " ".join(case.keywords),
-                    **score_search(case, results, args.ks),
-                }
+                row.update(score_search(case, results, args.ks))
                 if metrics is not None:
                     contexts = [r["text"] for r in results]
-                    answer = await analyze(http, case, results) if results else ""
+                    answer: str | None = ""
+                    if results:
+                        try:
+                            answer = await analyze(http, case, results)
+                        except httpx.HTTPError as e:
+                            print(f"    分析に失敗: {e}")
+                            answer = None
                     row.update(await score_generation(metrics, case, contexts, answer))
                 rows.append(row)
     return pd.DataFrame(rows)
@@ -236,7 +266,7 @@ def main() -> None:
                 {
                     k.replace("@", "_at_"): v
                     for k, v in {**summary, **usage}.items()
-                    if not math.isnan(v)
+                    if v is not None and not math.isnan(v)
                 }
             )
             mlflow.log_artifacts(str(out_dir))
@@ -245,9 +275,12 @@ def main() -> None:
     for name, value in summary.items():
         print(f"  {name:<22} {value:.4f}")
     if usage:
+        cost = usage["judge_cost_usd"]
         print(
-            f"採点の使用量: {usage['judge_requests']}回 / 入力 {usage['judge_input_tokens']} / "
-            f"出力 {usage['judge_output_tokens']} トークン（約 ${usage['judge_cost_usd']}）"
+            f"採点の使用量: {usage['judge_requests']}回 / 入力 {usage['judge_input_tokens']}"
+            f"（うちキャッシュ読み取り {usage['judge_cache_read_tokens']}） / "
+            f"出力 {usage['judge_output_tokens']} トークン"
+            + (f"（約 ${cost}）" if cost is not None else "（費用は料金表にないモデルのため不明）")
         )
     print(f"詳細: {out_dir}")
 

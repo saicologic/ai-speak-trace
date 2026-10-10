@@ -1,6 +1,7 @@
 import asyncio
 import json
 import math
+from argparse import Namespace
 from types import SimpleNamespace
 
 import httpx
@@ -12,7 +13,15 @@ from rag_eval.generate_testset import GeneratedCase, generate_case
 from rag_eval.generate_conversation_testset import GeneratedCase as GeneratedConversationCase
 from rag_eval.generate_conversation_testset import validate_case
 from rag_eval.judge import UsageTracker
-from rag_eval.run_eval import load_saved_searches, score_search, search, summarize
+from rag_eval.run_eval import (
+    evaluate_cases,
+    load_saved_searches,
+    reusable_results,
+    score_search,
+    search,
+    search_request,
+    summarize,
+)
 from rag_eval.testset import TestCase, load_testset, save_testset
 
 CONVERSATION_CASE = TestCase(
@@ -56,7 +65,7 @@ def _run_search(case: TestCase, include_web: bool, include_pdfs: bool) -> dict:
         async with httpx.AsyncClient(
             base_url="http://test/api", transport=httpx.MockTransport(handler)
         ) as http:
-            await search(http, case, include_web, include_pdfs)
+            await search(http, search_request(case, include_web, include_pdfs))
 
     asyncio.run(run())
     assert requests[0].url.path == "/api/deep-search"
@@ -106,11 +115,51 @@ def test_score_search_pdf_case_uses_ranked_metrics():
 
 def test_load_saved_searches(tmp_path):
     path = tmp_path / "search_results.jsonl"
-    path.write_text(
-        json.dumps({"id": "q001", "results": [{"sourceType": "web", "text": "x"}]}) + "\n",
-        encoding="utf-8",
+    record = {"id": "q001", "request": {"keywords": ["x"]}, "results": [{"sourceType": "web", "text": "x"}]}
+    path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    assert load_saved_searches(path) == {"q001": record}
+
+
+def test_reusable_results_returns_results_when_request_matches():
+    request = search_request(CASE, include_web=False, include_pdfs=False)
+    saved = {"q001": {"id": "q001", "request": request, "results": [{"text": "x"}]}}
+    assert reusable_results(saved, "q001", request) == [{"text": "x"}]
+
+
+def test_reusable_results_rejects_same_id_with_different_request():
+    # 別の評価セットの q001（検索キーワードが違う）は使い回さない
+    saved = {"q001": {"id": "q001", "request": {"keywords": ["別の語"]}, "results": [{"text": "x"}]}}
+    assert reusable_results(saved, "q001", search_request(CASE, False, False)) is None
+
+
+def test_reusable_results_rejects_legacy_record_without_request():
+    saved = {"q001": {"id": "q001", "results": [{"text": "x"}]}}
+    assert reusable_results(saved, "q001", search_request(CASE, False, False)) is None
+
+
+def test_evaluate_cases_continues_after_http_error(tmp_path, monkeypatch):
+    second = CASE.model_copy(update={"id": "q002"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if json.loads(request.read())["keywords"] == CASE.keywords and not handler.failed:
+            handler.failed = True
+            return httpx.Response(500)
+        return httpx.Response(200, json={"results": [{"sourceType": "pdf", "text": "1958年に完成した"}]})
+
+    handler.failed = False
+    args = Namespace(
+        api_url="http://test/api", retrieval_only=True, reuse_search=None,
+        include_web=False, include_pdfs=False, ks=[1], model="model",
     )
-    assert load_saved_searches(path) == {"q001": [{"sourceType": "web", "text": "x"}]}
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: original(transport=httpx.MockTransport(handler), **kw)
+    )
+    df = asyncio.run(evaluate_cases(args, [CASE, second], tmp_path, UsageTracker(model="model")))
+    assert list(df["id"]) == ["q001", "q002"]
+    assert math.isnan(df.loc[0, "mrr"])
+    assert df.loc[1, "mrr"] == 1.0
+    assert summarize(df)["mrr"] == 1.0
 
 
 def test_summarize_drops_metrics_that_are_all_nan():
@@ -182,6 +231,15 @@ def test_validate_case_returns_none_when_keywords_not_in_conversation():
     assert validate_case(_generated(["事前ガイドと事後センサー"], ["存在しない語"]), UTTERANCES) is None
 
 
+def test_validate_case_rejects_whitespace_only_and_non_verbatim_text():
+    utterances = ["Aさん: hello world の話です。"]
+    # 空白を詰めた「helloworld」は発話の原文にないため捨てる
+    case = validate_case(_generated(["helloworld", "   ", "hello world"], ["helloworld", " ", "hello"]), utterances)
+    assert case is not None
+    assert case.evidence == ["hello world"]
+    assert case.keywords == ["hello"]
+
+
 def test_usage_tracker_sums_messages_usage():
     tracker = UsageTracker(model="claude-sonnet-5-5")
 
@@ -199,5 +257,12 @@ def test_usage_tracker_sums_messages_usage():
     summary = tracker.summary()
     assert summary["judge_requests"] == 2
     assert summary["judge_input_tokens"] == 2000
+    assert summary["judge_cache_read_tokens"] == 500
     assert summary["judge_output_tokens"] == 500
-    assert summary["judge_cost_usd"] == pytest.approx((2000 * 2 + 500 * 10) / 1_000_000, abs=1e-4)
+    # キャッシュ読み取りは入力単価の0.1倍で計算する
+    expected = (1500 * 2 + 500 * 2 * 0.1 + 500 * 10) / 1_000_000
+    assert summary["judge_cost_usd"] == pytest.approx(expected, abs=1e-4)
+
+
+def test_usage_tracker_cost_is_none_for_unknown_model():
+    assert UsageTracker(model="unknown-model").summary()["judge_cost_usd"] is None

@@ -22,7 +22,6 @@ from rag_eval.config import (
     estimate_cost,
     get_anthropic_api_key,
 )
-from rag_eval.retrieval_metrics import matched_evidence, normalize
 from rag_eval.testset import TestCase, save_testset
 
 PROMPT_TEMPLATE = """以下はポッドキャスト（会話）の文字起こしです。
@@ -67,12 +66,13 @@ def load_utterances(transcription_id: str) -> tuple[str, list[str]]:
 
 
 def validate_case(case: GeneratedCase, utterances: list[str]) -> GeneratedCase | None:
-    """根拠とキーワードが会話に実在するものだけを残す。どちらかが空になれば None"""
-    full_text = normalize("".join(utterances))
-    evidence = [
-        e for e in case.evidence if any(matched_evidence(u, [e]) for u in utterances)
-    ]
-    keywords = [k for k in case.keywords if normalize(k) in full_text]
+    """根拠とキーワードが会話に実在するものだけを残す。どちらかが空になれば None
+
+    文字起こしは PDF と違って空白の揺れがないため、正規化せず発話の原文との部分一致で確かめる
+    （正規化すると、発話にない「helloworld」が「hello world」に一致してしまう）
+    """
+    evidence = [e for e in case.evidence if e.strip() and any(e in u for u in utterances)]
+    keywords = [k for k in case.keywords if k.strip() and any(k in u for u in utterances)]
     if not evidence or not keywords:
         return None
     return case.model_copy(update={"evidence": evidence, "keywords": keywords})
@@ -124,7 +124,13 @@ def main() -> None:
 
     save_testset(args.output, cases)
     usage = response.usage
-    cost = estimate_cost(args.model, usage.input_tokens, usage.output_tokens)
+    cost = estimate_cost(
+        args.model,
+        usage.input_tokens,
+        usage.output_tokens,
+        cache_creation_tokens=usage.cache_creation_input_tokens or 0,
+        cache_read_tokens=usage.cache_read_input_tokens or 0,
+    )
     print(f"評価セットを保存しました: {args.output}（{len(cases)}問）")
     print(
         f"使用量: 入力 {usage.input_tokens} / 出力 {usage.output_tokens} トークン"

@@ -26,6 +26,10 @@ def test_matched_evidence_ignores_line_breaks_in_pdf_text():
     assert matched_evidence(RETRIEVED[1], ["高さは333メートル"]) == {0}
 
 
+def test_matched_evidence_ignores_blank_evidence():
+    assert matched_evidence(RETRIEVED[0], ["  \n", ""]) == set()
+
+
 def test_matched_evidence_returns_empty_when_not_found():
     assert matched_evidence(RETRIEVED[0], ["634メートル"]) == set()
 

@@ -17,6 +17,9 @@ APP_SETTINGS_PATH = APP_SUPPORT_DIR / "settings.json"
 TRANSCRIPTIONS_DIR = Path(os.environ.get("DATA_DIR", APP_SUPPORT_DIR / "data")) / "transcriptions"
 
 # Claude の料金（USD / 100万トークン）。費用の概算に使う
+# キャッシュの書き込み（5分）は入力単価の1.25倍、読み取りは0.1倍
+CACHE_WRITE_MULTIPLIER = 1.25
+CACHE_READ_MULTIPLIER = 0.1
 MODEL_PRICES = {
     "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5-5": (2.0, 10.0),
@@ -24,12 +27,26 @@ MODEL_PRICES = {
 }
 
 
-def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
-    """トークン数から費用（USD）を概算する。料金表にないモデルは None"""
+def estimate_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> float | None:
+    """トークン数から費用（USD）を概算する。料金表にないモデルは None
+
+    input_tokens はキャッシュを除いた入力トークン数（Messages API の usage.input_tokens）
+    """
     if model not in MODEL_PRICES:
         return None
     input_price, output_price = MODEL_PRICES[model]
-    return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
+    return (
+        input_tokens * input_price
+        + cache_creation_tokens * input_price * CACHE_WRITE_MULTIPLIER
+        + cache_read_tokens * input_price * CACHE_READ_MULTIPLIER
+        + output_tokens * output_price
+    ) / 1_000_000
 
 
 def get_anthropic_api_key() -> str:

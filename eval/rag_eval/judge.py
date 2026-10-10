@@ -17,7 +17,10 @@ class UsageTracker:
 
     model: str
     requests: int = 0
+    # キャッシュ以外の入力・キャッシュ書き込み・キャッシュ読み取りは単価が違うため分けて持つ
     input_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
     output_tokens: int = 0
 
     async def on_response(self, response: httpx2.Response) -> None:
@@ -27,21 +30,28 @@ class UsageTracker:
         await response.aread()
         usage = json.loads(response.content).get("usage") or {}
         self.requests += 1
-        self.input_tokens += (
-            usage.get("input_tokens", 0)
-            + usage.get("cache_creation_input_tokens", 0)
-            + usage.get("cache_read_input_tokens", 0)
-        )
+        self.input_tokens += usage.get("input_tokens") or 0
+        self.cache_creation_tokens += usage.get("cache_creation_input_tokens") or 0
+        self.cache_read_tokens += usage.get("cache_read_input_tokens") or 0
         self.output_tokens += usage.get("output_tokens", 0)
 
-    def summary(self) -> dict[str, float]:
-        """集計結果（費用は概算）"""
-        cost = estimate_cost(self.model, self.input_tokens, self.output_tokens)
+    def summary(self) -> dict[str, float | None]:
+        """集計結果（費用は概算。料金表にないモデルは None）"""
+        cost = estimate_cost(
+            self.model,
+            self.input_tokens,
+            self.output_tokens,
+            cache_creation_tokens=self.cache_creation_tokens,
+            cache_read_tokens=self.cache_read_tokens,
+        )
         return {
             "judge_requests": self.requests,
-            "judge_input_tokens": self.input_tokens,
+            # 表示用の合計（キャッシュ分を含む）
+            "judge_input_tokens": self.input_tokens + self.cache_creation_tokens + self.cache_read_tokens,
+            "judge_cache_creation_tokens": self.cache_creation_tokens,
+            "judge_cache_read_tokens": self.cache_read_tokens,
             "judge_output_tokens": self.output_tokens,
-            "judge_cost_usd": round(cost, 4) if cost is not None else float("nan"),
+            "judge_cost_usd": round(cost, 4) if cost is not None else None,
         }
 
 

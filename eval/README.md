@@ -106,7 +106,7 @@ uv run python -m rag_eval.run_eval \
 | `--label` | 評価対象の名前。MLflow の run 名と結果フォルダ名になる |
 | `--include-web` | 会話の問題で Web 検索も行う |
 | `--include-pdfs` | 会話の問題で PDF 検索も行う |
-| `--reuse-search PATH` | 前回の `results/<実行>/search_results.jsonl` の検索結果を使い回す。Web 検索は毎回結果が変わるため、分析（生成）の変更だけを比べたいときに使う |
+| `--reuse-search PATH` | 前回の `results/<実行>/search_results.jsonl` の検索結果を使い回す。Web 検索は毎回結果が変わるため、分析（生成）の変更だけを比べたいときに使う。検索条件（キーワード・文字起こしID・検索対象）が今回と異なる問題は検索し直す |
 | `--retrieval-only` | 検索指標だけを計算する（Claude を呼ばないので無料・高速） |
 | `--limit N` | 先頭 N 問だけ評価する（動作確認用） |
 | `--model` | LLM-as-a-Judge に使う Claude モデル（既定: `claude-opus-5-5`） |
@@ -119,7 +119,7 @@ uv run mlflow ui
 ```
 
 ブラウザで開き、実験 `deep-search-rag` の run を選んで比較します。
-採点（LLM-as-a-Judge）に使ったトークン数と概算費用（`judge_cost_usd`）も記録されます。
+採点（LLM-as-a-Judge）に使ったトークン数と概算費用（`judge_cost_usd`）も記録されます。費用はキャッシュの書き込み・読み取りを別の単価で計算し、料金表にないモデルでは `null` になります。
 バックエンド側（ディープサーチの Web 検索・分析）の費用は含まれないため、[Claude Console](https://platform.claude.com/cost) で確認してください。
 各 run の `per_case.csv` には問題ごとのスコアがあり、どの質問で失敗したかを分析できます。
 

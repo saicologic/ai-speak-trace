@@ -111,7 +111,12 @@ def main() -> None:
     for chunk in candidates:
         if len(cases) >= args.size:
             break
-        generated = generate_case(client, args.model, chunk)
+        try:
+            generated = generate_case(client, args.model, chunk)
+        except anthropic.APIError as e:
+            # レート制限などで1件失敗しても、生成済みのケースを失わないよう次のチャンクへ進む
+            print(f"  生成失敗: {chunk.get('fileName')} #{chunk.get('chunkIndex')}: {e}")
+            continue
         if generated is None:
             print(f"  スキップ: {chunk.get('fileName')} #{chunk.get('chunkIndex')}")
             continue
