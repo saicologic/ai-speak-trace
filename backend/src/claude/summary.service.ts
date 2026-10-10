@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ClaudeClientService } from './claude-client.service';
-import { assertNotRefused, extractText } from './claude-response.utils';
+import { assertCompleteResponse, extractText } from './claude-response.utils';
 
 /** 会話要約を担うサービス */
 @Injectable()
@@ -60,7 +60,7 @@ export class SummaryService {
       output_config: { effort: 'medium' },
       messages: [{ role: 'user', content: prompt }],
     });
-    assertNotRefused(response);
+    assertCompleteResponse(response);
 
     const text = extractText(response.content);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
