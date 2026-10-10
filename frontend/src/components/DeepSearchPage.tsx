@@ -120,6 +120,10 @@ export function DeepSearchPage({
   const [results, setResults] = useState<DeepSearchResultItem[]>([]);
   // 検索ログID（分析結果を同じログに記録するために保持）
   const [searchId, setSearchId] = useState<string | undefined>(undefined);
+  // 表示中の検索結果を得たときの検索ソースの設定
+  const [searchedSources, setSearchedSources] = useState<
+    { type: string; enabled: boolean }[] | null
+  >(null);
   // 表示中の検索結果を得たときのキーワード（検索後にキーワードを変えても、分析は結果と同じ条件で行う）
   const [resultKeywords, setResultKeywords] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
@@ -328,6 +332,11 @@ export function DeepSearchPage({
       );
       setResults(response.results);
       setSearchId(response.id);
+      setSearchedSources([
+        { type: 'conversation', enabled: selectedTranscriptionIds.size > 0 },
+        { type: 'pdf', enabled: includePdfs },
+        { type: 'web', enabled: includeWeb },
+      ]);
       setResultKeywords(keywords);
       setSearched(true);
     } catch (e) {
@@ -382,32 +391,56 @@ export function DeepSearchPage({
     return groups;
   }, [results]);
 
-  /** 分析結果のMarkdownをHTMLに変換し、根拠番号 [n] を検索結果へのリンクにする（メモ化） */
-  const analysisHtml = useMemo(() => {
-    if (!analysis) return '';
-    const html = marked.parse(analysis.analysis) as string;
-    return html.replace(/\[(\d+)\]/g, (match, num: string) => {
-      const n = Number(num);
-      const source = results[n - 1]?.sourceType;
-      if (!source) return match;
-      return `<a href="#deepsearch-result-${n}" class="deepsearch-cite ${source}" data-result="${n}" title="${sourceTypeLabel(source)}の検索結果 ${n}">[${n}]</a>`;
-    });
-  }, [analysis, results]);
-
-  /** 分析で引用された根拠の件数（情報源ごと） */
-  const citationCounts = useMemo(() => {
+  /**
+   * 分析結果のMarkdownをHTMLに変換し、本文中の根拠番号 [n] を検索結果へのリンクにする（メモ化）
+   * コード・既存のリンク・属性の中の [n] は変えない
+   */
+  const { analysisHtml, citationCounts } = useMemo(() => {
     const counts: Record<string, number> = {};
-    if (!analysis) return counts;
-    const cited = new Set(
-      Array.from(analysis.analysis.matchAll(/\[(\d+)\]/g), (m) =>
-        Number(m[1]),
-      ),
+    if (!analysis) return { analysisHtml: '', citationCounts: counts };
+    const doc = new DOMParser().parseFromString(
+      marked.parse(analysis.analysis) as string,
+      'text/html',
     );
-    for (const n of cited) {
-      const source = results[n - 1]?.sourceType;
-      if (source) counts[source] = (counts[source] ?? 0) + 1;
+    const cited = new Set<number>();
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+    for (const node of textNodes) {
+      if (node.parentElement?.closest('code, pre, a')) continue;
+      const text = node.textContent ?? '';
+      const pattern = /\[(\d+)\]/g;
+      if (!pattern.test(text)) continue;
+      pattern.lastIndex = 0;
+      const fragment = doc.createDocumentFragment();
+      let last = 0;
+      for (const match of text.matchAll(pattern)) {
+        const n = Number(match[1]);
+        const source = results[n - 1]?.sourceType;
+        const start = match.index ?? 0;
+        fragment.append(text.slice(last, start));
+        if (source) {
+          const link = doc.createElement('a');
+          link.href = `#deepsearch-result-${n}`;
+          link.className = `deepsearch-cite ${source}`;
+          link.dataset.result = String(n);
+          link.title = `${sourceTypeLabel(source)}の検索結果 ${n}`;
+          link.textContent = `[${n}]`;
+          fragment.append(link);
+          cited.add(n);
+        } else {
+          fragment.append(match[0]);
+        }
+        last = start + match[0].length;
+      }
+      fragment.append(text.slice(last));
+      node.replaceWith(fragment);
     }
-    return counts;
+    for (const n of cited) {
+      const source = results[n - 1].sourceType;
+      counts[source] = (counts[source] ?? 0) + 1;
+    }
+    return { analysisHtml: doc.body.innerHTML, citationCounts: counts };
   }, [analysis, results]);
 
   /** 根拠番号をクリックしたら、該当する検索結果までスクロールして強調する */
@@ -435,8 +468,8 @@ export function DeepSearchPage({
     });
   };
 
-  // 検索ソースごとの状態（流れの表示用）
-  const sourceStates = [
+  // 検索ソースごとの状態（流れの表示用）。検索後は、検索したときの設定で件数を出す
+  const sourceStates = searchedSources ?? [
     { type: 'conversation', enabled: selectedTranscriptionIds.size > 0 },
     { type: 'pdf', enabled: includePdfs },
     { type: 'web', enabled: includeWeb },

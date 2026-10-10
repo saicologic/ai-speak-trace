@@ -998,3 +998,9 @@
   font-size: 0.7rem;
   color: #6b7280;
 }
+
+/* 流れの表示（画面上部に固定）に見出しが隠れないよう、移動先に余白を取る */
+.deepsearch-section,
+#deepsearch-step-analysis {
+  scroll-margin-top: 150px;
+}
