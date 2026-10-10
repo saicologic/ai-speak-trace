@@ -37,6 +37,26 @@ describe('SummaryService', () => {
   });
 
   describe('summarize', () => {
+    it('先頭がthinkingブロックでもJSONを取り出してパースする', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          { type: 'thinking', thinking: '', signature: 'sig' },
+          { type: 'text', text: JSON.stringify({ overview: '概要' }) },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const result = await service.summarize('会話');
+
+      expect(result.overview).toBe('概要');
+    });
+
+    it('応答が拒否された場合は例外を投げる', async () => {
+      mockMessagesCreate.mockResolvedValue({ content: [], stop_reason: 'refusal' });
+
+      await expect(service.summarize('会話')).rejects.toThrow('拒否');
+    });
+
     it('Claudeから正常なJSONが返ったときパースして返す', async () => {
       mockMessagesCreate.mockResolvedValue(
         makeResponse({
@@ -67,7 +87,7 @@ describe('SummaryService', () => {
     it('JSONが壊れているときパースエラーをスロー', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [{ type: 'text', text: '{ "overview": "未完了の' }],
-        stop_reason: 'max_tokens',
+        stop_reason: 'end_turn',
       });
 
       await expect(service.summarize('会話テキスト')).rejects.toThrow(
@@ -75,10 +95,21 @@ describe('SummaryService', () => {
       );
     });
 
+    it('出力が上限で途中で切れたときは、その旨のエラーをスロー', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '{ "overview": "未完了の' }],
+        stop_reason: 'max_tokens',
+      });
+
+      await expect(service.summarize('会話テキスト')).rejects.toThrow(
+        '上限に達したため',
+      );
+    });
+
     it('{{fullText}} が会話全文に置換されてClaudeに渡される', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要', key_points: [], decisions: [] }));
 
-      await service.summarize('実際の会話内容', 'claude-sonnet-4-6', '要約してください: {{fullText}}');
+      await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約してください: {{fullText}}');
 
       expect(mockMessagesCreate).toHaveBeenCalledWith(
         expect.objectContaining({
