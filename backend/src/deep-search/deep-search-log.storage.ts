@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { DeepSearchLog, DeepSearchLogSummary } from './types/deep-search.types';
 
 /** ディープサーチログをローカルファイルに保存・取得するサービス */
@@ -13,11 +13,8 @@ export class DeepSearchLogStorage {
 
   constructor(private readonly configService: ConfigService) {
     const dataDir = this.configService.get<string>('DATA_DIR') || './data';
+    // ディレクトリは保存時に作る。起動時に作成に失敗してもバックエンド全体を止めないため
     this.storeDir = path.resolve(path.join(dataDir, 'deep-search-logs'));
-
-    if (!existsSync(this.storeDir)) {
-      mkdirSync(this.storeDir, { recursive: true });
-    }
     this.logger.log(`ディープサーチログ保存ディレクトリ: ${this.storeDir}`);
   }
 
@@ -27,13 +24,13 @@ export class DeepSearchLogStorage {
     return path.join(this.storeDir, `${path.basename(id)}.json`);
   }
 
-  /** ログを保存（同じIDは上書き） */
+  /** ログを保存（同じIDは上書き。書き込み途中のファイルを残さないよう、一時ファイルから置き換える） */
   async save(log: DeepSearchLog): Promise<void> {
-    await fs.writeFile(
-      this.getFilePath(log.id),
-      JSON.stringify(log, null, 2),
-      'utf-8',
-    );
+    await fs.mkdir(this.storeDir, { recursive: true });
+    const filePath = this.getFilePath(log.id);
+    const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(log, null, 2), 'utf-8');
+    await fs.rename(tmpPath, filePath);
     this.logger.log(`ディープサーチログ保存完了: ${log.id}`);
   }
 

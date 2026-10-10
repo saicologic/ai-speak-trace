@@ -546,6 +546,27 @@ describe('DeepSearchService', () => {
       });
     });
 
+    it('分析の検索結果がログと一致しない場合は記録しない', async () => {
+      logStorage.findById.mockResolvedValue({
+        id: 'search-1',
+        keywords: ['AI'],
+        transcriptionIds: [],
+        includePdfs: false,
+        includeWeb: false,
+        results: [],
+        searchedAt: '2024-01-01T00:00:00Z',
+      });
+      claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
+
+      await service.analyzeResults({
+        keywords: ['別のキーワード'],
+        searchId: 'search-1',
+        results: [],
+      });
+
+      expect(logStorage.save).not.toHaveBeenCalled();
+    });
+
     it('searchIdがない場合はログを更新しない', async () => {
       claudeService.analyzeSearchResults.mockResolvedValue('分析レポート');
 

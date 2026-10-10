@@ -112,7 +112,7 @@ export class DeepSearchService {
 
     const analyzedAt = new Date().toISOString();
     if (dto.searchId) {
-      await this.attachAnalysisToLog(dto.searchId, analysis, analyzedAt);
+      await this.attachAnalysisToLog(dto, analysis, analyzedAt);
     }
 
     return {
@@ -143,15 +143,23 @@ export class DeepSearchService {
 
   /** 既存の検索ログに分析結果を記録する */
   private async attachAnalysisToLog(
-    searchId: string,
+    dto: DeepSearchAnalyzeDto,
     text: string,
     analyzedAt: string,
   ): Promise<void> {
+    const searchId = dto.searchId as string;
     try {
       const log = await this.logStorage.findById(searchId);
       if (!log) {
         this.logger.warn(
           `分析対象のディープサーチログが見つかりません: ${searchId}`,
+        );
+        return;
+      }
+      // 別の検索のログに、異なる検索結果から作った分析を記録しないよう、内容が一致する場合だけ記録する
+      if (!isSameSearch(log, dto)) {
+        this.logger.warn(
+          `分析の検索条件・結果がディープサーチログと一致しないため記録しません: ${searchId}`,
         );
         return;
       }
@@ -260,4 +268,19 @@ export class DeepSearchService {
       return [];
     }
   }
+}
+
+/** 分析リクエストのキーワードと検索結果が、保存済みの検索ログと一致するか */
+function isSameSearch(log: DeepSearchLog, dto: DeepSearchAnalyzeDto): boolean {
+  const sameKeywords =
+    log.keywords.length === dto.keywords.length &&
+    log.keywords.every((kw, i) => kw === dto.keywords[i]);
+  const sameResults =
+    log.results.length === dto.results.length &&
+    log.results.every(
+      (r, i) =>
+        r.sourceType === dto.results[i].sourceType &&
+        r.text === dto.results[i].text,
+    );
+  return sameKeywords && sameResults;
 }

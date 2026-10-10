@@ -55,8 +55,18 @@ describe('DeepSearchLogStorage', () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('保存ディレクトリを作成する', () => {
-    expect(existsSync(path.join(tmpDir, 'deep-search-logs'))).toBe(true);
+  it('起動時にはディレクトリを作らず、保存時に作る', async () => {
+    expect(existsSync(path.join(tmpDir, 'deep-search-logs'))).toBe(false);
+
+    await storage.save(makeLog('log-1', '2024-01-01T00:00:00Z'));
+
+    expect(await fs.readdir(path.join(tmpDir, 'deep-search-logs'))).toEqual([
+      'log-1.json',
+    ]);
+  });
+
+  it('保存ディレクトリがなくても一覧は空で返す', async () => {
+    expect(await storage.findAllSummaries()).toEqual([]);
   });
 
   describe('save / findById', () => {
