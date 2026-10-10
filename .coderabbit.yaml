@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit のレビュー設定
+# CLAUDE.md は CodeRabbit が既定で読み込むガイドライン（**/CLAUDE.md）に含まれるため、
+# プロジェクト全体のルール（ブランチ運用・CIのpaths分類・PRの手動確認項目等）はそちらを参照させる。
+
+language: ja-JP
+# language だけでは英語で出力される文章が残るため、日本語での記述を口調として指示する（上限250文字）
+tone_instructions: "すべてのコメント・要約・説明文を日本語で簡潔に書くこと。指摘がない場合も、何を確認したかを日本語で1〜3行で説明すること。"
+
+reviews:
+  profile: chill
+  high_level_summary: true
+  # 変更点の要約をPR本文だけでなくレビューコメントにも含め、何が変わったかをコメント上で分かるようにする
+  high_level_summary_in_walkthrough: true
+  high_level_summary_instructions: |
+    日本語で「変更内容」「変更理由」「影響範囲」の3つの見出しを立て、それぞれ箇条書きで記述する。
+  # 日本語の Walkthrough を折りたたまずに表示する
+  collapse_walkthrough: false
+  # レビュー中に表示される英語のメッセージを出さない
+  in_progress_fortune: false
+  poem: false
+  auto_review:
+    enabled: true
+    # PRは最初にドラフトで作成するため、ドラフトの段階からレビューして指摘を反映してからReadyにする
+    drafts: true
+    # fix/*・feature/* → release/* → main の順でマージするため、release/* 宛てのPRもレビューする
+    base_branches:
+      - "release/.*"
+  path_instructions:
+    - path: "backend/**/*.ts"
+      instructions: |
+        NestJS 11 + TypeScript のバックエンド。以下の観点で具体的かつ建設的にレビューする。
+        - セキュリティ: 入力検証、ハードコードされた秘密情報、認証の問題
+        - パフォーマンス: 非効率なループ、外部API（Claude・ElevenLabs・Bedrock・S3 Vectors）の不要な呼び出し
+        - テスト: 新しい処理に対応する *.spec.ts が追加・更新されているか
+        - 可読性: 命名のわかりやすさ、コメントが日本語で書かれているか
+    - path: "frontend/**/*.{ts,tsx}"
+      instructions: |
+        Vite + React 19 + TypeScript のフロントエンド。以下の観点で具体的かつ建設的にレビューする。
+        - セキュリティ: dangerouslySetInnerHTML に渡すHTMLの安全性、外部リンクの rel 属性
+        - パフォーマンス: 不要な再レンダリング、重い計算の useMemo 漏れ
+        - テスト: 新しいコンポーネントやユーティリティに対応するテストがあるか
+        - 可読性: 命名のわかりやすさ、コメントが日本語で書かれているか、UIテキストが日本語か

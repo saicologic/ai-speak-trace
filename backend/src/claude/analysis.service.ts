@@ -1,9 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type Anthropic from '@anthropic-ai/sdk';
 import { ClaudeClientService } from './claude-client.service';
 import { AnalysisResult } from '../interview/types/interview.types';
+import { assertCompleteResponse, extractText } from './claude-response.utils';
 
 /** 会話分析・Web検索・ディープサーチ分析に使うClaudeモデル */
-export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
+export const CLAUDE_MODEL = 'claude-sonnet-5-5';
+
+/** 思考の深さ（Sonnet 5.5 の既定は high。分析・要約用途のため medium に下げる） */
+const CLAUDE_EFFORT = 'medium';
+
+/** 出力の上限トークン数（思考のトークンも含まれるため余裕を持たせる） */
+const MAX_TOKENS = 16000;
+
+/** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
+const MAX_PAUSE_CONTINUATIONS = 3;
 
 /** 会話分析・Web検索・ディープサーチ分析を担うサービス */
 @Injectable()
@@ -89,14 +100,7 @@ ${targetList}
 
     const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
 
-    const response = await this.claudeClient.getClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text =
-      response.content[0].type === 'text' ? response.content[0].text : '';
+    const text = await this.createText(prompt);
     const questions = text
       .split('\n')
       .map((line) => line.trim())
@@ -142,37 +146,7 @@ ${targetList}
   ): Promise<AnalysisResult> {
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
-    const response = await this.claudeClient.getClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 4096,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-        },
-      ],
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    let answer = '';
-    const sources: { title: string; url: string }[] = [];
-
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        answer += block.text;
-      }
-      if (block.type === 'web_search_tool_result') {
-        for (const searchResult of (block as any).content || []) {
-          if (searchResult.type === 'web_search_result') {
-            sources.push({
-              title: searchResult.title || searchResult.url,
-              url: searchResult.url,
-            });
-          }
-        }
-      }
-    }
+    const { answer, sources } = await this.createWithWebSearch(prompt);
 
     return { question, answer, sources };
   }
@@ -186,14 +160,7 @@ ${targetList}
 
     const prompt = this.buildContextAnalysisPrompt(allUtterances, targetIndices);
 
-    const response = await this.claudeClient.getClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text =
-      response.content[0].type === 'text' ? response.content[0].text : '';
+    const text = await this.createText(prompt);
 
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -228,37 +195,7 @@ ${context}
 - Markdown形式で回答してください
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
-    const response = await this.claudeClient.getClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 4096,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-        },
-      ],
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    let answer = '';
-    const sources: { title: string; url: string }[] = [];
-
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        answer += block.text;
-      }
-      if (block.type === 'web_search_tool_result') {
-        for (const searchResult of (block as any).content || []) {
-          if (searchResult.type === 'web_search_result') {
-            sources.push({
-              title: searchResult.title || searchResult.url,
-              url: searchResult.url,
-            });
-          }
-        }
-      }
-    }
+    const { answer, sources } = await this.createWithWebSearch(prompt);
 
     return { answer, sources };
   }
@@ -286,14 +223,72 @@ ${resultsText}
 - Markdown形式で構造化して出力してください
 - 重要なポイントを箇条書きでまとめてください`;
 
+    return this.createText(prompt);
+  }
+
+  /** Web検索なしでClaudeを呼び出し、テキストを返す */
+  private async createText(prompt: string): Promise<string> {
     const response = await this.claudeClient.getClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      max_tokens: MAX_TOKENS,
+      output_config: { effort: CLAUDE_EFFORT },
       messages: [{ role: 'user', content: prompt }],
     });
+    assertCompleteResponse(response);
+    return extractText(response.content);
+  }
 
-    return response.content[0].type === 'text'
-      ? response.content[0].text
-      : '';
+  /** Web検索付きでClaudeを呼び出し、回答テキストと参照元を返す */
+  private async createWithWebSearch(
+    prompt: string,
+  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+    const messages: Anthropic.MessageParam[] = [
+      { role: 'user', content: prompt },
+    ];
+    const content: Anthropic.ContentBlock[] = [];
+    let lastStopReason: Anthropic.Message['stop_reason'] = null;
+
+    // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
+    for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
+      const response = await this.claudeClient.getClient().messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: MAX_TOKENS,
+        output_config: { effort: CLAUDE_EFFORT },
+        tools: [
+          {
+            type: 'web_search_20260209',
+            name: 'web_search',
+            max_uses: 3,
+          },
+        ],
+        messages,
+      });
+      assertCompleteResponse(response);
+      content.push(...response.content);
+      lastStopReason = response.stop_reason;
+      if (response.stop_reason !== 'pause_turn') break;
+      messages.push({ role: 'assistant', content: response.content });
+    }
+    // 再開上限に達しても中断されたままの場合、途中までの回答を成功として返さない
+    if (lastStopReason === 'pause_turn') {
+      throw new Error('Web検索がpause_turnの再開上限に達しました');
+    }
+
+    const sources: { title: string; url: string }[] = [];
+    for (const block of content) {
+      if (
+        block.type === 'web_search_tool_result' &&
+        Array.isArray(block.content)
+      ) {
+        for (const searchResult of block.content) {
+          sources.push({
+            title: searchResult.title || searchResult.url,
+            url: searchResult.url,
+          });
+        }
+      }
+    }
+
+    return { answer: extractText(content), sources };
   }
 }

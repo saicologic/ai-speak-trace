@@ -14,9 +14,11 @@ on:
       - '.github/**'
       - '.gitignore'
       - '.nvmrc'
+      - '.coderabbit.yaml'
       - 'LICENSE'
       - '.claude/**'
       - 'docs/**'
+      - 'eval/**'
       - '**.md'
 
 jobs:

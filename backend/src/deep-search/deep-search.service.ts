@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { EmbeddingService } from '../document/embedding.service';
 import { VectorSearchService } from '../document/vector-search.service';
@@ -13,10 +14,15 @@ import {
   DeepSearchLog,
 } from './types/deep-search.types';
 
+/** PDF検索結果として採用するcosine類似度の下限の既定値 */
+export const DEFAULT_MIN_PDF_SIMILARITY = 0.3;
+
 /** 会話・PDF・Webを横断検索するサービス */
 @Injectable()
 export class DeepSearchService {
   private readonly logger = new Logger(DeepSearchService.name);
+  /** PDF検索結果として採用するcosine類似度の下限 */
+  private readonly minPdfSimilarity: number;
 
   constructor(
     private readonly transcriptionStore: TranscriptionStoreService,
@@ -24,7 +30,28 @@ export class DeepSearchService {
     private readonly vectorSearchService: VectorSearchService,
     private readonly analysisService: AnalysisService,
     private readonly logStorage: DeepSearchLogStorage,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.minPdfSimilarity = this.resolveMinPdfSimilarity(
+      this.configService.get<string>('DEEP_SEARCH_MIN_SIMILARITY'),
+    );
+  }
+
+  /** 環境変数からcosine類似度の下限を決定する（不正値は既定値にフォールバック） */
+  private resolveMinPdfSimilarity(raw: string | undefined): number {
+    if (!raw) {
+      return DEFAULT_MIN_PDF_SIMILARITY;
+    }
+    const configured = Number(raw);
+    // cosine類似度は-1〜1の範囲のため、範囲外の値は設定ミスとみなす
+    if (!Number.isFinite(configured) || configured < -1 || configured > 1) {
+      this.logger.warn(
+        `DEEP_SEARCH_MIN_SIMILARITY=${raw} は不正な値です（-1〜1の数値を指定してください）。既定値 ${DEFAULT_MIN_PDF_SIMILARITY} を使用します`,
+      );
+      return DEFAULT_MIN_PDF_SIMILARITY;
+    }
+    return configured;
+  }
 
   /** ディープサーチ実行（3ソース横断） */
   async search(dto: DeepSearchDto): Promise<DeepSearchResponse> {
@@ -187,7 +214,15 @@ export class DeepSearchService {
         10,
       );
 
-      const results: DeepSearchResultItem[] = vectorResults.map((r) => ({
+      // 類似度が下限未満のチャンクは無関係とみなして除外する
+      const relevantResults = vectorResults.filter(
+        (r) => r.score >= this.minPdfSimilarity,
+      );
+      this.logger.log(
+        `PDF検索の類似度フィルタ: ${vectorResults.length}件 → ${relevantResults.length}件（下限=${this.minPdfSimilarity}）`,
+      );
+
+      const results: DeepSearchResultItem[] = relevantResults.map((r) => ({
         sourceType: 'pdf' as const,
         sourceName: r.fileName,
         sourceId: r.documentId,

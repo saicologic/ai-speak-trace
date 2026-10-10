@@ -11,7 +11,7 @@ export interface DeepSearchResultItem {
   sourceId: string;
   /** マッチしたテキスト */
   text: string;
-  /** 関連度スコア（0-1、ベクトル検索の場合） */
+  /** cosine類似度（1に近いほど関連が高い、ベクトル検索の場合） */
   score?: number;
   /** 話者名（会話の場合） */
   speakerName?: string;
