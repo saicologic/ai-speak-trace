@@ -28,11 +28,25 @@ export class DeepSearchService {
     private readonly analysisService: AnalysisService,
     private readonly configService: ConfigService,
   ) {
-    const raw = this.configService.get<string>('DEEP_SEARCH_MIN_SIMILARITY');
-    const configured = raw ? Number(raw) : NaN;
-    this.minPdfSimilarity = Number.isFinite(configured)
-      ? configured
-      : DEFAULT_MIN_PDF_SIMILARITY;
+    this.minPdfSimilarity = this.resolveMinPdfSimilarity(
+      this.configService.get<string>('DEEP_SEARCH_MIN_SIMILARITY'),
+    );
+  }
+
+  /** 環境変数からcosine類似度の下限を決定する（不正値は既定値にフォールバック） */
+  private resolveMinPdfSimilarity(raw: string | undefined): number {
+    if (!raw) {
+      return DEFAULT_MIN_PDF_SIMILARITY;
+    }
+    const configured = Number(raw);
+    // cosine類似度は-1〜1の範囲のため、範囲外の値は設定ミスとみなす
+    if (!Number.isFinite(configured) || configured < -1 || configured > 1) {
+      this.logger.warn(
+        `DEEP_SEARCH_MIN_SIMILARITY=${raw} は不正な値です（-1〜1の数値を指定してください）。既定値 ${DEFAULT_MIN_PDF_SIMILARITY} を使用します`,
+      );
+      return DEFAULT_MIN_PDF_SIMILARITY;
+    }
+    return configured;
   }
 
   /** ディープサーチ実行（3ソース横断） */

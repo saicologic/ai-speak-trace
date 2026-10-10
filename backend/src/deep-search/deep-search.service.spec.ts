@@ -161,7 +161,13 @@ describe('DeepSearchService', () => {
     it('includePdfs=trueのときPDF検索を実行する', async () => {
       embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
       vectorSearchService.search.mockResolvedValue([
-        { text: 'PDF内容', score: 0.9, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
+        {
+          text: 'PDF内容',
+          score: 0.9,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 0,
+        },
       ]);
 
       const dto: DeepSearchDto = {
@@ -180,9 +186,27 @@ describe('DeepSearchService', () => {
     it('類似度が既定の下限（0.3）未満のPDFチャンクは除外する', async () => {
       embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
       vectorSearchService.search.mockResolvedValue([
-        { text: '関連あり', score: 0.45, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
-        { text: '境界値', score: 0.3, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 1 },
-        { text: '関連なし', score: 0.29, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 2 },
+        {
+          text: '関連あり',
+          score: 0.45,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 0,
+        },
+        {
+          text: '境界値',
+          score: 0.3,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 1,
+        },
+        {
+          text: '関連なし',
+          score: 0.29,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 2,
+        },
       ]);
 
       const dto: DeepSearchDto = {
@@ -201,8 +225,20 @@ describe('DeepSearchService', () => {
       await createService({ DEEP_SEARCH_MIN_SIMILARITY: '0.5' });
       embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
       vectorSearchService.search.mockResolvedValue([
-        { text: '関連あり', score: 0.6, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
-        { text: '関連なし', score: 0.45, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 1 },
+        {
+          text: '関連あり',
+          score: 0.6,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 0,
+        },
+        {
+          text: '関連なし',
+          score: 0.45,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 1,
+        },
       ]);
 
       const dto: DeepSearchDto = {
@@ -221,7 +257,13 @@ describe('DeepSearchService', () => {
       await createService({ DEEP_SEARCH_MIN_SIMILARITY: 'abc' });
       embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
       vectorSearchService.search.mockResolvedValue([
-        { text: '関連なし', score: 0.29, documentId: 'doc-1', fileName: 'doc.pdf', chunkIndex: 0 },
+        {
+          text: '関連なし',
+          score: 0.29,
+          documentId: 'doc-1',
+          fileName: 'doc.pdf',
+          chunkIndex: 0,
+        },
       ]);
 
       const dto: DeepSearchDto = {
@@ -236,8 +278,45 @@ describe('DeepSearchService', () => {
       expect(result.results).toHaveLength(0);
     });
 
+    it.each(['1.5', '-2'])(
+      'DEEP_SEARCH_MIN_SIMILARITYが範囲外（%s）の場合は既定の下限を使う',
+      async (value) => {
+        await createService({ DEEP_SEARCH_MIN_SIMILARITY: value });
+        embeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2]);
+        vectorSearchService.search.mockResolvedValue([
+          {
+            text: '関連あり',
+            score: 0.45,
+            documentId: 'doc-1',
+            fileName: 'doc.pdf',
+            chunkIndex: 0,
+          },
+          {
+            text: '関連なし',
+            score: 0.29,
+            documentId: 'doc-1',
+            fileName: 'doc.pdf',
+            chunkIndex: 1,
+          },
+        ]);
+
+        const dto: DeepSearchDto = {
+          keywords: ['AI'],
+          transcriptionIds: [],
+          includePdfs: true,
+          includeWeb: false,
+        };
+
+        const result = await service.search(dto);
+
+        expect(result.results.map((r) => r.text)).toEqual(['関連あり']);
+      },
+    );
+
     it('PDF検索が失敗した場合は空配列でスキップする', async () => {
-      embeddingService.generateEmbedding.mockRejectedValue(new Error('Bedrock error'));
+      embeddingService.generateEmbedding.mockRejectedValue(
+        new Error('Bedrock error'),
+      );
 
       const dto: DeepSearchDto = {
         keywords: ['AI'],
