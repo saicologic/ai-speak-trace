@@ -212,6 +212,30 @@ describe('DeepSearchService', () => {
       ]);
     });
 
+    it('引用も回答もない場合は、見つかった記事のタイトルを結果にする', async () => {
+      claudeService.searchAndAnalyze.mockResolvedValue({
+        answer: '',
+        sources: [
+          { url: 'https://example.com/a', title: '記事A', excerpts: [] },
+          { url: 'https://example.com/b', title: '記事B', excerpts: [] },
+        ],
+      });
+
+      const dto: DeepSearchDto = {
+        keywords: ['AI'],
+        transcriptionIds: [],
+        includePdfs: false,
+        includeWeb: true,
+      };
+
+      const result = await service.search(dto);
+
+      expect(result.results.map((r) => [r.sourceName, r.url])).toEqual([
+        ['記事A', 'https://example.com/a'],
+        ['記事B', 'https://example.com/b'],
+      ]);
+    });
+
     it('引用が1件もない場合はClaudeの回答を結果にする', async () => {
       claudeService.searchAndAnalyze.mockResolvedValue({
         answer: 'Web検索結果テキスト',

@@ -16,6 +16,13 @@ const MAX_TOKENS = 16000;
 /** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
 const MAX_PAUSE_CONTINUATIONS = 3;
 
+/**
+ * Web検索ツールの版
+ * - web_search_20260209: 検索結果をサーバー側のコード実行で絞り込む新しい版。回答に引用（citations）が付かない
+ * - web_search_20250305: 従来版。回答の各文に引用が付く
+ */
+type WebSearchToolType = 'web_search_20260209' | 'web_search_20250305';
+
 /** Web検索の参照元 */
 export interface WebSource {
   title: string;
@@ -154,7 +161,10 @@ ${targetList}
   ): Promise<AnalysisResult> {
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
-    const { answer, sources } = await this.createWithWebSearch(prompt);
+    const { answer, sources } = await this.createWithWebSearch(
+      prompt,
+      'web_search_20260209',
+    );
 
     return { question, answer, sources };
   }
@@ -203,7 +213,11 @@ ${context}
 - Markdown形式で回答してください
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
 
-    const { answer, sources } = await this.createWithWebSearch(prompt);
+    // ディープサーチでは引用本文を検索結果として使うため、引用が付く従来版を使う
+    const { answer, sources } = await this.createWithWebSearch(
+      prompt,
+      'web_search_20250305',
+    );
 
     return { answer, sources };
   }
@@ -249,6 +263,7 @@ ${resultsText}
   /** Web検索付きでClaudeを呼び出し、回答テキストと参照元を返す */
   private async createWithWebSearch(
     prompt: string,
+    toolType: WebSearchToolType,
   ): Promise<{ answer: string; sources: WebSource[] }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
@@ -263,9 +278,7 @@ ${resultsText}
         output_config: { effort: CLAUDE_EFFORT },
         tools: [
           {
-            // 新しい web_search_20260209 は検索結果をサーバー側のコード実行で絞り込むため、
-            // 回答に引用（citations）が付かない。引用本文を検索結果として使うため従来版を使う
-            type: 'web_search_20250305',
+            type: toolType,
             name: 'web_search',
             max_uses: 3,
           },

@@ -81,6 +81,25 @@ describe('AnalysisService', () => {
     });
   });
 
+  describe('analyze（会話分析）', () => {
+    it('会話分析のWeb検索は新しい版のツールを使う', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '回答' }],
+        stop_reason: 'end_turn',
+      });
+
+      await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(mockMessagesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: [
+            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
+          ],
+        }),
+      );
+    });
+  });
+
   describe('searchAndAnalyze', () => {
     it('Web検索の回答テキストと参照元を返す', async () => {
       mockMessagesCreate.mockResolvedValue({

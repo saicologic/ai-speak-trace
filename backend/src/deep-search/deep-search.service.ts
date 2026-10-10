@@ -160,7 +160,8 @@ export class DeepSearchService {
           url: source.url,
         }));
 
-      // 引用が1件もない場合は、従来どおり Claude の回答を1件の結果として返す
+      // 引用が1件もない場合は、Claude の回答を1件の結果として返す。
+      // 回答も空の場合（応答が検索結果だけで終わった等）は、見つかった記事のタイトルを返す
       if (results.length === 0 && answer) {
         results.push({
           sourceType: 'web',
@@ -169,6 +170,16 @@ export class DeepSearchService {
           text: answer,
           url: sources[0]?.url,
         });
+      } else if (results.length === 0) {
+        for (const source of sources) {
+          results.push({
+            sourceType: 'web',
+            sourceName: source.title,
+            sourceId: '',
+            text: source.title,
+            url: source.url,
+          });
+        }
       }
 
       this.logger.log(`Web検索完了: ${results.length}件`);
