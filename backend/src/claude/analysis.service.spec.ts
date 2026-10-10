@@ -38,6 +38,33 @@ describe('AnalysisService', () => {
   });
 
   describe('analyzeSearchResults', () => {
+    it('実際に検索した情報源だけを指示に書き、根拠番号を付けるよう指示する', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'レポート [1]' }],
+        stop_reason: 'end_turn',
+      });
+
+      await service.analyzeSearchResults(
+        ['ハーネス', '評価'],
+        [
+          { sourceType: 'conversation', sourceName: '会話', text: '発言' },
+          { sourceType: 'web', sourceName: '記事', text: '引用' },
+        ],
+      );
+
+      const prompt = (
+        mockMessagesCreate.mock.calls[0][0] as {
+          messages: { content: string }[];
+        }
+      ).messages[0].content;
+      expect(prompt).toContain('[1] (会話) 会話');
+      expect(prompt).toContain('[2] (Web) 記事');
+      expect(prompt).toContain('情報源（会話・Web）');
+      expect(prompt).toContain('ほかの情報源の情報がどう関連するか');
+      expect(prompt).not.toContain('PDF');
+      expect(prompt).toContain('根拠となる検索結果の番号');
+    });
+
     it('先頭がthinkingブロックでも本文のテキストを返す', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [
