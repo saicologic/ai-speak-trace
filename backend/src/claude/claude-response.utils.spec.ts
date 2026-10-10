@@ -34,6 +34,17 @@ describe('assertCompleteResponse', () => {
     ).toThrow('上限');
   });
 
+  it('stop_reasonがmodel_context_window_exceededならコンテキスト上限の例外を投げる', () => {
+    const response = {
+      stop_reason: 'model_context_window_exceeded',
+      content: [],
+    };
+
+    expect(() =>
+      assertCompleteResponse(response as unknown as Anthropic.Message),
+    ).toThrow('コンテキスト上限');
+  });
+
   it('それ以外は何もしない', () => {
     const response = { stop_reason: 'end_turn', content: [] };
 
