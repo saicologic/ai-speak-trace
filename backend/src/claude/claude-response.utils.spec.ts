@@ -1,5 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import { assertNotRefused, extractText } from './claude-response.utils';
+import { assertCompleteResponse, extractText } from './claude-response.utils';
 
 describe('extractText', () => {
   it('thinkingブロックを飛ばしてテキストブロックを連結する', () => {
@@ -17,20 +17,28 @@ describe('extractText', () => {
   });
 });
 
-describe('assertNotRefused', () => {
+describe('assertCompleteResponse', () => {
   it('stop_reasonがrefusalなら例外を投げる', () => {
     const response = { stop_reason: 'refusal', content: [] };
 
     expect(() =>
-      assertNotRefused(response as unknown as Anthropic.Message),
+      assertCompleteResponse(response as unknown as Anthropic.Message),
     ).toThrow('拒否');
+  });
+
+  it('stop_reasonがmax_tokensなら途中で切れた旨の例外を投げる', () => {
+    const response = { stop_reason: 'max_tokens', content: [] };
+
+    expect(() =>
+      assertCompleteResponse(response as unknown as Anthropic.Message),
+    ).toThrow('上限');
   });
 
   it('それ以外は何もしない', () => {
     const response = { stop_reason: 'end_turn', content: [] };
 
     expect(() =>
-      assertNotRefused(response as unknown as Anthropic.Message),
+      assertCompleteResponse(response as unknown as Anthropic.Message),
     ).not.toThrow();
   });
 });

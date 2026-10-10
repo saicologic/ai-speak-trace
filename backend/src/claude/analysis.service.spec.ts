@@ -58,6 +58,17 @@ describe('AnalysisService', () => {
       );
     });
 
+    it('出力が上限で途中で切れた場合は例外を投げる', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'thinking', thinking: '', signature: 'sig' }],
+        stop_reason: 'max_tokens',
+      });
+
+      await expect(service.analyzeSearchResults(['AI'], [])).rejects.toThrow(
+        '上限に達したため',
+      );
+    });
+
     it('応答が拒否された場合は例外を投げる', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [],

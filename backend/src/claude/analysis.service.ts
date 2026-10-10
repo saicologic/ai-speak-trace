@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type Anthropic from '@anthropic-ai/sdk';
 import { ClaudeClientService } from './claude-client.service';
 import { AnalysisResult } from '../interview/types/interview.types';
-import { assertNotRefused, extractText } from './claude-response.utils';
+import { assertCompleteResponse, extractText } from './claude-response.utils';
 
 /** 会話分析・Web検索・ディープサーチ分析に使うClaudeモデル */
 export const CLAUDE_MODEL = 'claude-sonnet-5-5';
@@ -234,7 +234,7 @@ ${resultsText}
       output_config: { effort: CLAUDE_EFFORT },
       messages: [{ role: 'user', content: prompt }],
     });
-    assertNotRefused(response);
+    assertCompleteResponse(response);
     return extractText(response.content);
   }
 
@@ -262,7 +262,7 @@ ${resultsText}
         ],
         messages,
       });
-      assertNotRefused(response);
+      assertCompleteResponse(response);
       content.push(...response.content);
       if (response.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: response.content });

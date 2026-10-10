@@ -87,11 +87,22 @@ describe('SummaryService', () => {
     it('JSONが壊れているときパースエラーをスロー', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [{ type: 'text', text: '{ "overview": "未完了の' }],
-        stop_reason: 'max_tokens',
+        stop_reason: 'end_turn',
       });
 
       await expect(service.summarize('会話テキスト')).rejects.toThrow(
         '要約結果のパースに失敗しました',
+      );
+    });
+
+    it('出力が上限で途中で切れたときは、その旨のエラーをスロー', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: '{ "overview": "未完了の' }],
+        stop_reason: 'max_tokens',
+      });
+
+      await expect(service.summarize('会話テキスト')).rejects.toThrow(
+        '上限に達したため',
       );
     });
 
