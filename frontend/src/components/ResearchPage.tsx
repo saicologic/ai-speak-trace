@@ -17,6 +17,7 @@ import type {
 import { extractKeywords } from '../utils/keywords';
 import { buildReport } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { PrivacySendNotice } from './PrivacyPanel';
 import './ResearchPage.css';
 
 interface Props {
@@ -291,6 +292,9 @@ export function ResearchPage({ onBack }: Props) {
               <p className="research-notice">
                 選んだ会話の全文を Anthropic（Claude）に送信します。この後のWeb調査では、確定したキーワードだけを検索に使います。
               </p>
+              {selectedIds.size > 0 && (
+                <PrivacySendNotice transcriptionIds={Array.from(selectedIds)} />
+              )}
               <button
                 className="research-primary-button"
                 disabled={selectedIds.size === 0 || busy}

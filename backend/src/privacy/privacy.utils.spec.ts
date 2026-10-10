@@ -30,7 +30,7 @@ const transcription: Transcription = {
 };
 
 describe('toFindings', () => {
-  it('種類と文字列ごとにまとめ、回数を数え、初期値は伏せる', () => {
+  it('種類と文字列ごとにまとめて回数を数え、氏名は伏せずに要確認、連絡先は伏せる', () => {
     const text = '山田太郎です。山田太郎より。090-1234-5678';
     const findings = toFindings(
       [
@@ -42,27 +42,42 @@ describe('toFindings', () => {
       text,
     );
     expect(findings).toEqual([
-      { type: 'NAME', label: '氏名', text: '山田太郎', count: 2, mask: true },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '山田太郎',
+        count: 2,
+        mask: false,
+        needsReview: true,
+      },
       {
         type: 'PHONE',
         label: '電話番号',
         text: '090-1234-5678',
         count: 1,
         mask: true,
+        needsReview: false,
       },
     ]);
   });
 
-  it('前回の「伏せない」の選択を引き継ぐ', () => {
+  it('前回の選択と確認済みの状態を引き継ぐ', () => {
     const previous: PiiFinding[] = [
-      { type: 'NAME', label: '氏名', text: '加賀谷', count: 3, mask: false },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '山田',
+        count: 3,
+        mask: true,
+        needsReview: false,
+      },
     ];
     const [finding] = toFindings(
-      [{ type: 'NAME', match: '加賀谷' }],
-      '加賀谷',
+      [{ type: 'NAME', match: '山田' }],
+      '山田',
       previous,
     );
-    expect(finding.mask).toBe(false);
+    expect(finding).toMatchObject({ mask: true, needsReview: false });
   });
 
   it('独自の正規表現（マイナンバー）にも表示名を付ける', () => {
@@ -70,16 +85,41 @@ describe('toFindings', () => {
       [{ type: 'JP_MY_NUMBER', match: '123456789012' }],
       '123456789012',
     );
-    expect(finding.label).toBe('マイナンバー');
+    expect(finding).toMatchObject({
+      label: 'マイナンバー',
+      mask: true,
+      needsReview: false,
+    });
   });
 });
 
 describe('maskText', () => {
   it('伏せると選んだ文字列だけを、長いものから置き換える', () => {
     const findings: PiiFinding[] = [
-      { type: 'NAME', label: '氏名', text: '山田', count: 1, mask: true },
-      { type: 'NAME', label: '氏名', text: '山田太郎', count: 1, mask: true },
-      { type: 'NAME', label: '氏名', text: '加賀谷', count: 1, mask: false },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '山田',
+        count: 1,
+        mask: true,
+        needsReview: false,
+      },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '山田太郎',
+        count: 1,
+        mask: true,
+        needsReview: false,
+      },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '加賀谷',
+        count: 1,
+        mask: false,
+        needsReview: false,
+      },
     ];
     expect(maskText('山田太郎と山田と加賀谷', findings)).toBe(
       '[氏名]と[氏名]と加賀谷',
@@ -89,13 +129,21 @@ describe('maskText', () => {
 
 describe('maskTranscription', () => {
   const findings: PiiFinding[] = [
-    { type: 'NAME', label: '氏名', text: '山田太郎', count: 2, mask: true },
+    {
+      type: 'NAME',
+      label: '氏名',
+      text: '山田太郎',
+      count: 2,
+      mask: true,
+      needsReview: false,
+    },
     {
       type: 'PHONE',
       label: '電話番号',
       text: '090-1234-5678',
       count: 1,
       mask: true,
+      needsReview: false,
     },
   ];
 

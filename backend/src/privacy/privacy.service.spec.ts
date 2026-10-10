@@ -57,14 +57,21 @@ const setup = (configured = true, saved: PrivacyScan | null = null) => {
 };
 
 describe('PrivacyService', () => {
-  it('検出して保存し、前回の「伏せない」の選択を引き継ぐ', async () => {
+  it('検出して保存し、前回の選択を引き継ぐ（新しい氏名は伏せずに要確認）', async () => {
     const previous: PrivacyScan = {
       transcriptionId: 't1',
       scannedAt: '2026-01-01T00:00:00.000Z',
       guardrailId: 'gr-1',
       guardrailVersion: 'DRAFT',
       findings: [
-        { type: 'NAME', label: '氏名', text: '加賀谷', count: 1, mask: false },
+        {
+          type: 'NAME',
+          label: '氏名',
+          text: '加賀谷',
+          count: 1,
+          mask: false,
+          needsReview: false,
+        },
       ],
     };
     const { service, guardrail } = setup(true, previous);
@@ -73,9 +80,9 @@ describe('PrivacyService', () => {
       'Aさん: 加賀谷さんと山田太郎',
       'INPUT',
     );
-    expect(scan.findings.map((f) => [f.text, f.mask])).toEqual([
-      ['加賀谷', false],
-      ['山田太郎', true],
+    expect(scan.findings.map((f) => [f.text, f.mask, f.needsReview])).toEqual([
+      ['加賀谷', false, false],
+      ['山田太郎', false, true],
     ]);
   });
 
@@ -98,9 +105,11 @@ describe('PrivacyService', () => {
   it('送る用の文字起こしは、伏せると選んだ文字列だけを置き換える', async () => {
     const { service } = setup();
     await service.scan(transcription);
-    await service.updateMasks('t1', [
+    const updated = await service.updateMasks('t1', [
       { type: 'NAME', text: '加賀谷', mask: false },
+      { type: 'NAME', text: '山田太郎', mask: true },
     ]);
+    expect(updated.findings.every((f) => !f.needsReview)).toBe(true);
     const masked = await service.maskForSending(transcription);
     expect(masked.utterances[0].text).toBe('加賀谷さんと[氏名]');
   });

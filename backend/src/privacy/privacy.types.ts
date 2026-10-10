@@ -8,8 +8,13 @@ export interface PiiFinding {
   text: string;
   /** 会話に出てくる回数 */
   count: number;
-  /** Claude などに送るときに伏せるか（初期値は伏せる） */
+  /**
+   * Claude などに送るときに伏せるか
+   * 初期値は種類で決める（連絡先などは伏せる。誤検出の多い氏名などは伏せずに要確認にする）
+   */
   mask: boolean;
+  /** 利用者がまだ確認していないか（誤検出の多い種類だけ true で始まる） */
+  needsReview: boolean;
 }
 
 /** 文字起こしの個人情報チェックの結果 */

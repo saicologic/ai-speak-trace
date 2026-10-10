@@ -20,6 +20,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [guardrailId, setGuardrailId] = useState('');
+  const [guardrailVersion, setGuardrailVersion] = useState('');
 
   // 設定を読み込み
   useEffect(() => {
@@ -39,6 +41,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
         }
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setGuardrailId(s.guardrail?.id ?? '');
+        setGuardrailVersion(s.guardrail?.version ?? '');
       })
       .catch((err) => {
         if (cancelled) return;
@@ -63,6 +67,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
+      bedrockGuardrailId?: string;
+      bedrockGuardrailVersion?: string;
     } = {};
 
     if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
@@ -77,6 +83,12 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     if (enableContextAnalysis !== (settings?.enableContextAnalysis ?? false)) {
       dto.enableContextAnalysis = enableContextAnalysis;
     }
+    if (guardrailId !== (settings?.guardrail?.id ?? '')) {
+      dto.bedrockGuardrailId = guardrailId;
+    }
+    if (guardrailVersion !== (settings?.guardrail?.version ?? '')) {
+      dto.bedrockGuardrailVersion = guardrailVersion;
+    }
 
     try {
       const result = await updateSettings(dto);
@@ -86,6 +98,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       setAnthropicApiKey(result.settings.apiKeys?.anthropicApiKey || '');
       setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
       setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
+      setGuardrailId(result.settings.guardrail?.id ?? '');
+      setGuardrailVersion(result.settings.guardrail?.version ?? '');
       setShowSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '保存に失敗しました');
@@ -99,7 +113,9 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     ? elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
       anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '') ||
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
-      enableContextAnalysis !== (settings.enableContextAnalysis ?? false)
+      enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
+      guardrailId !== (settings.guardrail?.id ?? '') ||
+      guardrailVersion !== (settings.guardrail?.version ?? '')
     : false;
 
   // サブディレクトリ（相対パス表示）
@@ -206,6 +222,42 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               </div>
             </div>
 
+            {/* 個人情報チェック */}
+            <div className="settings-section">
+              <h2>個人情報チェック（Amazon Bedrock Guardrails）</h2>
+              <p className="settings-checkbox-hint">
+                文字起こしが終わったときに、会話に含まれる個人情報（氏名・電話番号など）を検出します。
+                会話分析・要約・ディープサーチで Claude に送る前に、検出した文字列を伏せられます。
+                会話の本文は AWS（APAC リージョン内）で処理されます。AWS の認証情報は、この Mac の AWS CLI の設定を使います。
+              </p>
+              <div className="settings-input-group">
+                <label>Guardrail ID</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={guardrailId}
+                  onChange={(e) => {
+                    setGuardrailId(e.target.value);
+                    setShowSuccess(false);
+                  }}
+                  placeholder="未設定の場合、個人情報チェックは行いません"
+                />
+              </div>
+              <div className="settings-input-group">
+                <label>バージョン</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={guardrailVersion}
+                  onChange={(e) => {
+                    setGuardrailVersion(e.target.value);
+                    setShowSuccess(false);
+                  }}
+                  placeholder="DRAFT"
+                />
+              </div>
+            </div>
+
             {/* データ保存先 */}
             <div className="settings-section">
               <div className="settings-section-header">
@@ -251,7 +303,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                 ディープサーチを有効にする
               </label>
               <p className="settings-checkbox-hint">
-                有効にすると、右サイドバーに「ディープサーチ」ボタンが表示されます。
+                有効にすると、左のメニューに「ディープサーチ（ベータ）」が表示されます。
               </p>
               <label className="settings-checkbox-label" style={{ marginTop: '0.75rem' }}>
                 <input

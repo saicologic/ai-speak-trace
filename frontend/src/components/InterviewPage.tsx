@@ -5,6 +5,7 @@ import { extractKeywords } from '../utils/keywords';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { PrivacySendNotice } from './PrivacyPanel';
 
 // markedの設定: リンクを新しいタブで開く
 marked.use({
@@ -335,6 +336,9 @@ export function InterviewPage({
               </div>
             )}
 
+            {questions.length > 0 && (
+              <PrivacySendNotice transcriptionIds={[transcriptionId]} />
+            )}
             {questions.length > 0 && (
               <div className="interview-actions">
                 <button

@@ -89,7 +89,7 @@ export class PrivacyService {
     }
   }
 
-  /** 検出した文字列ごとに「伏せる／伏せない」を更新する */
+  /** 検出した文字列ごとに「伏せる／伏せない」を更新する（保存したものは確認済みにする） */
   async updateMasks(
     transcriptionId: string,
     masks: { type: string; text: string; mask: boolean }[],
@@ -100,7 +100,7 @@ export class PrivacyService {
     }
     const findings: PiiFinding[] = scan.findings.map((f) => {
       const choice = masks.find((m) => m.type === f.type && m.text === f.text);
-      return choice ? { ...f, mask: choice.mask } : f;
+      return choice ? { ...f, mask: choice.mask, needsReview: false } : f;
     });
     const updated = { ...scan, findings };
     await this.store.save(updated);

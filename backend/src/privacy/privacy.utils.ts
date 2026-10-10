@@ -17,6 +17,12 @@ const PII_LABELS: Record<string, string> = {
   JP_MY_NUMBER: 'マイナンバー',
 };
 
+/**
+ * 誤検出が多い種類（製品名・会社名・国名・公開されている人の名前なども検出される）
+ * 初期状態では伏せずに「要確認」にし、利用者に選んでもらう
+ */
+const REVIEW_TYPES = new Set(['NAME', 'USERNAME', 'ADDRESS', 'AGE']);
+
 export function piiLabel(type: string): string {
   return PII_LABELS[type] ?? type;
 }
@@ -35,7 +41,8 @@ function countIn(text: string, target: string): number {
 
 /**
  * Guardrails の検出結果を、種類・文字列ごとにまとめる
- * 前回のチェックで利用者が選んだ「伏せる／伏せない」は引き継ぐ（新しく見つかったものは伏せる）
+ * 前回のチェックで利用者が選んだ「伏せる／伏せない」は引き継ぐ。
+ * 新しく見つかったものは、連絡先などは伏せ、誤検出の多い種類は伏せずに要確認にする
  */
 export function toFindings(
   detected: { type: string; match: string }[],
@@ -49,12 +56,14 @@ export function toFindings(
     const key = `${type}\u0000${value}`;
     if (byKey.has(key)) continue;
     const before = previous.find((p) => p.type === type && p.text === value);
+    const review = REVIEW_TYPES.has(type);
     byKey.set(key, {
       type,
       label: piiLabel(type),
       text: value,
       count: Math.max(countIn(text, value), 1),
-      mask: before?.mask ?? true,
+      mask: before?.mask ?? !review,
+      needsReview: before?.needsReview ?? review,
     });
   }
   return Array.from(byKey.values()).sort(
