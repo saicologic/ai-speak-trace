@@ -65,6 +65,21 @@ describe('DeepSearchLogStorage', () => {
     ]);
   });
 
+  it('同じログを同時に保存しても一時ファイルが重ならない', async () => {
+    const log = makeLog('log-1', '2024-01-01T00:00:00Z');
+
+    await Promise.all([
+      storage.save(log),
+      storage.save(log),
+      storage.save(log),
+    ]);
+
+    expect(await fs.readdir(path.join(tmpDir, 'deep-search-logs'))).toEqual([
+      'log-1.json',
+    ]);
+    expect(await storage.findById('log-1')).toEqual(log);
+  });
+
   it('保存ディレクトリがなくても一覧は空で返す', async () => {
     expect(await storage.findAllSummaries()).toEqual([]);
   });

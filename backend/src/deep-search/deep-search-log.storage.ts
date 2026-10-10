@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { DeepSearchLog, DeepSearchLogSummary } from './types/deep-search.types';
 
@@ -28,7 +29,8 @@ export class DeepSearchLogStorage {
   async save(log: DeepSearchLog): Promise<void> {
     await fs.mkdir(this.storeDir, { recursive: true });
     const filePath = this.getFilePath(log.id);
-    const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    // 同時に複数回保存しても一時ファイルが重ならないよう、保存ごとに一意の名前を使う
+    const tmpPath = `${filePath}.${randomUUID()}.tmp`;
     await fs.writeFile(tmpPath, JSON.stringify(log, null, 2), 'utf-8');
     await fs.rename(tmpPath, filePath);
     this.logger.log(`ディープサーチログ保存完了: ${log.id}`);
