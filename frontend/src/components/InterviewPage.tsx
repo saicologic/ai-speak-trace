@@ -4,6 +4,7 @@ import { generateQuestions, analyzeInterview, fetchAnalysisLogs, fetchAnalysisLo
 import { extractKeywords } from '../utils/keywords';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
+import { AiGeneratedNotice } from './AiGeneratedNotice';
 
 // markedの設定: リンクを新しいタブで開く
 marked.use({
@@ -464,6 +465,7 @@ function AnalysisResultList({
 }) {
   return (
     <div className="interview-results">
+      <AiGeneratedNotice basis="出典" />
       {results.map((result, i) => (
         <div key={i} className="interview-result-card">
           <h3 className="result-question">

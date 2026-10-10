@@ -82,6 +82,8 @@ export function TranscribePage({
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
   const [creditCheckError, setCreditCheckError] = useState<string | null>(null);
+  // 録音されている人の同意を確認したか（確認するまで文字起こしを実行できない）
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
 
   // JobProgressPageに遷移済みフラグ（遷移後はtranscribeAudioの結果を無視する）
   const navigatedToJobProgressRef = useRef(false);
@@ -316,6 +318,7 @@ export function TranscribePage({
   /** 別のファイルを選択し直す */
   const handleReset = () => {
     navigatedToJobProgressRef.current = false;
+    setConsentConfirmed(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setStep('select');
     setFile(null);
@@ -445,10 +448,25 @@ export function TranscribePage({
             <div className="transcribe-preview-player">
               <audio controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
             </div>
+            <label className="transcribe-consent">
+              <input
+                type="checkbox"
+                checked={consentConfirmed}
+                onChange={(e) => setConsentConfirmed(e.target.checked)}
+              />
+              <span>
+                録音されている全員から、録音と文字起こし（音声を ElevenLabs に送信して処理すること）の同意を得ています。または、一般に公開されている音声です
+              </span>
+            </label>
             <button
               className="transcribe-start-button"
               onClick={handleTranscribe}
-              disabled={creditCheckLoading || !creditInfo || !isCreditSufficient}
+              disabled={
+                creditCheckLoading ||
+                !creditInfo ||
+                !isCreditSufficient ||
+                !consentConfirmed
+              }
             >
               文字起こしを実行
             </button>

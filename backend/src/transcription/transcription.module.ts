@@ -7,6 +7,7 @@ import { AudioSplitterService } from './audio-splitter.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { ChunkedJobStoreService } from './chunked-job-store.service';
 import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
+import { DerivedLogCleaner } from './derived-log-cleaner.service';
 
 @Module({
   controllers: [TranscriptionController],
@@ -18,6 +19,7 @@ import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
     ChunkedTranscriptionService,
     ChunkedJobStoreService,
     UtteranceEmbeddingStore,
+    DerivedLogCleaner,
   ],
   exports: [
     TranscriptionStoreService,

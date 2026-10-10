@@ -9,6 +9,7 @@ import {
   UtteranceEmbeddingStore,
 } from './utterance-embedding-store.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { DerivedLogCleaner } from './derived-log-cleaner.service';
 import { TRANSCRIPTION_STORAGE } from '../storage/interfaces/transcription-storage.interface';
 
 const CACHE: UtteranceEmbeddingCache = {
@@ -32,6 +33,7 @@ describe('UtteranceEmbeddingStore', () => {
       providers: [
         UtteranceEmbeddingStore,
         TranscriptionStoreService,
+        DerivedLogCleaner,
         { provide: TRANSCRIPTION_STORAGE, useValue: storage },
         {
           provide: ConfigService,
