@@ -178,10 +178,17 @@ describe('DeepSearchService', () => {
       expect(result.results).toHaveLength(0);
     });
 
-    it('includeWeb=trueのときWeb検索を実行する', async () => {
+    it('includeWeb=trueのとき、引用された記事ごとに引用本文を結果にする', async () => {
       claudeService.searchAndAnalyze.mockResolvedValue({
         answer: 'Web検索結果テキスト',
-        sources: [{ url: 'https://example.com', title: '例サイト' }],
+        sources: [
+          {
+            url: 'https://example.com/a',
+            title: '記事A',
+            excerpts: ['引用1', '引用2'],
+          },
+          { url: 'https://example.com/b', title: '記事B', excerpts: [] },
+        ],
       });
 
       const dto: DeepSearchDto = {
@@ -193,8 +200,44 @@ describe('DeepSearchService', () => {
 
       const result = await service.search(dto);
 
-      const webResults = result.results.filter((r) => r.sourceType === 'web');
-      expect(webResults.length).toBeGreaterThan(0);
+      // 引用されなかった記事B と Claude の回答テキストは結果に含めない
+      expect(result.results).toEqual([
+        {
+          sourceType: 'web',
+          sourceName: '記事A',
+          sourceId: '',
+          text: '引用1\n…\n引用2',
+          url: 'https://example.com/a',
+        },
+      ]);
+    });
+
+    it('引用が1件もない場合はClaudeの回答を結果にする', async () => {
+      claudeService.searchAndAnalyze.mockResolvedValue({
+        answer: 'Web検索結果テキスト',
+        sources: [
+          { url: 'https://example.com/a', title: '記事A', excerpts: [] },
+        ],
+      });
+
+      const dto: DeepSearchDto = {
+        keywords: ['AI'],
+        transcriptionIds: [],
+        includePdfs: false,
+        includeWeb: true,
+      };
+
+      const result = await service.search(dto);
+
+      expect(result.results).toEqual([
+        {
+          sourceType: 'web',
+          sourceName: 'Web検索結果',
+          sourceId: '',
+          text: 'Web検索結果テキスト',
+          url: 'https://example.com/a',
+        },
+      ]);
     });
 
     it('Web検索が失敗した場合は空配列でスキップする', async () => {

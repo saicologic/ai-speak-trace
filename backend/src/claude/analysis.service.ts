@@ -16,6 +16,14 @@ const MAX_TOKENS = 16000;
 /** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
 const MAX_PAUSE_CONTINUATIONS = 3;
 
+/** Web検索の参照元 */
+export interface WebSource {
+  title: string;
+  url: string;
+  /** 回答の根拠として引用された本文の抜粋（引用されなかった参照元は空配列） */
+  excerpts: string[];
+}
+
 /** 会話分析・Web検索・ディープサーチ分析を担うサービス */
 @Injectable()
 export class AnalysisService {
@@ -182,7 +190,7 @@ ${targetList}
   async searchAndAnalyze(
     keywords: string[],
     context: string,
-  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+  ): Promise<{ answer: string; sources: WebSource[] }> {
     const prompt = `以下のキーワードと文脈に基づいて、Web検索で調査し回答してください。
 
 ## キーワード
@@ -241,7 +249,7 @@ ${resultsText}
   /** Web検索付きでClaudeを呼び出し、回答テキストと参照元を返す */
   private async createWithWebSearch(
     prompt: string,
-  ): Promise<{ answer: string; sources: { title: string; url: string }[] }> {
+  ): Promise<{ answer: string; sources: WebSource[] }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
     ];
@@ -255,7 +263,9 @@ ${resultsText}
         output_config: { effort: CLAUDE_EFFORT },
         tools: [
           {
-            type: 'web_search_20260209',
+            // 新しい web_search_20260209 は検索結果をサーバー側のコード実行で絞り込むため、
+            // 回答に引用（citations）が付かない。引用本文を検索結果として使うため従来版を使う
+            type: 'web_search_20250305',
             name: 'web_search',
             max_uses: 3,
           },
@@ -268,21 +278,39 @@ ${resultsText}
       messages.push({ role: 'assistant', content: response.content });
     }
 
-    const sources: { title: string; url: string }[] = [];
+    // 検索でヒットした記事を URL ごとにまとめ、回答の引用（citations）から本文の抜粋を集める
+    const sourcesByUrl = new Map<string, WebSource>();
+    const getSource = (url: string, title: string | null): WebSource => {
+      let source = sourcesByUrl.get(url);
+      if (!source) {
+        source = { title: title || url, url, excerpts: [] };
+        sourcesByUrl.set(url, source);
+      }
+      return source;
+    };
     for (const block of content) {
       if (
         block.type === 'web_search_tool_result' &&
         Array.isArray(block.content)
       ) {
         for (const searchResult of block.content) {
-          sources.push({
-            title: searchResult.title || searchResult.url,
-            url: searchResult.url,
-          });
+          getSource(searchResult.url, searchResult.title);
+        }
+      }
+      if (block.type === 'text') {
+        for (const citation of block.citations ?? []) {
+          if (citation.type !== 'web_search_result_location') continue;
+          const source = getSource(citation.url, citation.title);
+          if (!source.excerpts.includes(citation.cited_text)) {
+            source.excerpts.push(citation.cited_text);
+          }
         }
       }
     }
 
-    return { answer: extractText(content), sources };
+    return {
+      answer: extractText(content),
+      sources: Array.from(sourcesByUrl.values()),
+    };
   }
 }

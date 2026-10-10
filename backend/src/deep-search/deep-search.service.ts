@@ -147,24 +147,27 @@ export class DeepSearchService {
         `キーワード「${queryText}」に関連する最新情報を調査してください。`,
       );
 
-      const results: DeepSearchResultItem[] = [
-        {
+      // 回答に引用された記事ごとに、引用本文の抜粋を検索結果にする。
+      // Claude の要約やタイトルだけを渡すと、分析が元記事ではなく要約に基づいてしまい、
+      // 出典の確認やハルシネーションの検証ができないため
+      const results: DeepSearchResultItem[] = sources
+        .filter((source) => source.excerpts.length > 0)
+        .map((source) => ({
+          sourceType: 'web' as const,
+          sourceName: source.title,
+          sourceId: '',
+          text: source.excerpts.join('\n…\n'),
+          url: source.url,
+        }));
+
+      // 引用が1件もない場合は、従来どおり Claude の回答を1件の結果として返す
+      if (results.length === 0 && answer) {
+        results.push({
           sourceType: 'web',
           sourceName: 'Web検索結果',
           sourceId: '',
           text: answer,
           url: sources[0]?.url,
-        },
-      ];
-
-      // 個別のソースも結果に追加
-      for (const source of sources) {
-        results.push({
-          sourceType: 'web',
-          sourceName: source.title,
-          sourceId: '',
-          text: source.title,
-          url: source.url,
         });
       }
 
