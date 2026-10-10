@@ -18,6 +18,7 @@ on:
       - 'LICENSE'
       - '.claude/**'
       - 'docs/**'
+      - 'eval/**'
       - '**.md'
 
 jobs:
