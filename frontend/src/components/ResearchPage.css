@@ -617,3 +617,7 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.research-review summary {
+  color: #92400e;
+}

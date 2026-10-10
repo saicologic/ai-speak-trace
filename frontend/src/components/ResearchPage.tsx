@@ -554,9 +554,32 @@ export function ResearchPage({ onBack }: Props) {
                 </ul>
               </details>
             )}
+            {(job.evaluation.reviewClaims?.length ?? 0) > 0 && (
+              <details className="research-removed research-review" open>
+                <summary>
+                  評価モデルと Guardrails の判定が分かれた主張（要確認・
+                  {job.evaluation.reviewClaims!.length}件）
+                </summary>
+                <ul>
+                  {job.evaluation.reviewClaims!.map((c, i) => (
+                    <li key={i}>
+                      <p>{c.claim}</p>
+                      <p className="research-check-detail">{c.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <p className="research-hint">
               評価は、分析とは別のモデル（{job.evaluation.judgeModel}
               ）が、各主張とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
+              {job.evaluation.guardrails
+                ? ` 出力の個人情報・不適切な表現は Amazon Bedrock Guardrails でも確認しています。${
+                    job.evaluation.guardrails.groundingChecked > 0
+                      ? `英語の主張${job.evaluation.guardrails.groundingChecked}件は、Guardrails の根拠スコア（しきい値 ${job.evaluation.guardrails.groundingThreshold}）でも確認し、両方が「根拠と合わない」と判定したものだけを除いています。`
+                      : 'Guardrails の根拠スコアは英語の主張だけが対象のため、今回は使っていません。'
+                  }`
+                : ' Amazon Bedrock Guardrails の Guardrail ID が設定されていないため、Guardrails による確認は行っていません。'}
             </p>
           </section>
         )}

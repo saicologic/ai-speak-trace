@@ -10,6 +10,13 @@ import { TranscriptionStoreService } from '../transcription/transcription-store.
 import { Transcription } from '../transcription/types/transcription.types';
 import { CLAUDE_MODEL } from '../claude/analysis.service';
 import { ResearchJobStore } from './research-job.store';
+import { GuardrailService } from '../privacy/guardrail.service';
+import {
+  extractEnglish,
+  GROUNDING_THRESHOLD,
+  groundingTarget,
+  toOutputChecks,
+} from './research-guardrails';
 import {
   JUDGE_MODEL,
   RawJudgement,
@@ -18,6 +25,7 @@ import {
 } from './research-claude.service';
 import {
   ClaimCheck,
+  EthicsCheck,
   ReportSegment,
   ResearchEvaluation,
   ResearchJob,
@@ -61,6 +69,7 @@ export class ResearchService implements OnModuleInit {
     private readonly transcriptionStore: TranscriptionStoreService,
     private readonly jobStore: ResearchJobStore,
     private readonly claude: ResearchClaudeService,
+    private readonly guardrail: GuardrailService,
   ) {}
 
   /** アプリの再起動で中断された調査を、失敗として記録する */
@@ -220,7 +229,20 @@ export class ResearchService implements OnModuleInit {
 
       // ⑤ 評価（根拠のない主張は表示から除く）
       const judgement = await this.claude.judge(report, keywords);
-      const { finalReport, evaluation } = evaluate(report, judgement);
+      const grounding = await this.groundingScores(report);
+      const { finalReport, evaluation } = evaluate(
+        report,
+        judgement,
+        grounding,
+      );
+      evaluation.ethics.push(...(await this.outputChecks(finalReport)));
+      evaluation.guardrails = this.guardrail.isConfigured()
+        ? {
+            guardrailId: this.guardrail.guardrailId,
+            groundingThreshold: GROUNDING_THRESHOLD,
+            groundingChecked: grounding.size,
+          }
+        : null;
       await this.update(job, {
         status: 'completed',
         report: finalReport,
@@ -229,6 +251,61 @@ export class ResearchService implements OnModuleInit {
       });
     } catch (error) {
       await this.fail(job, error);
+    }
+  }
+
+  /**
+   * 英語の主張の根拠スコアを Guardrails で計算する（Guardrail ID が未設定なら計算しない）
+   * 失敗した主張は、評価モデルの判定だけで扱う
+   */
+  private async groundingScores(
+    report: ReportSegment[],
+  ): Promise<Map<number, number>> {
+    const scores = new Map<number, number>();
+    if (!this.guardrail.isConfigured()) return scores;
+    for (const [index, segment] of report.entries()) {
+      const target = groundingTarget(segment);
+      if (!target) continue;
+      try {
+        const { grounding } = await this.guardrail.checkGrounding(
+          target.source,
+          target.query,
+          target.claim,
+        );
+        scores.set(index, grounding);
+      } catch (error) {
+        this.logger.warn(
+          `根拠スコアを計算できません（${index}番目の文）`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+    return scores;
+  }
+
+  /** 統合分析の出力を Guardrails で確認する（Guardrail ID が未設定なら確認しない） */
+  private async outputChecks(report: ReportSegment[]): Promise<EthicsCheck[]> {
+    if (!this.guardrail.isConfigured()) return [];
+    const text = report.map((s) => s.text).join('');
+    try {
+      const findings = await this.guardrail.inspect(text, 'OUTPUT');
+      const english = extractEnglish(text);
+      const englishWords = english
+        ? (await this.guardrail.inspect(english, 'OUTPUT')).words
+        : [];
+      return toOutputChecks(findings, englishWords);
+    } catch (error) {
+      this.logger.warn(
+        '統合分析の出力を Guardrails で確認できません',
+        error instanceof Error ? error.message : error,
+      );
+      return [
+        {
+          item: 'Guardrails による出力の確認',
+          passed: false,
+          detail: `確認できませんでした: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
     }
   }
 
@@ -295,15 +372,19 @@ const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
 
 /**
  * ⑤ 判定結果から評価を計算し、根拠のない主張を除いたレポートを返す
- * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く
+ * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く。
+ * Guardrails の根拠スコアがある英語の主張は、評価モデルと Guardrails の両方が「根拠と合わない」と
+ * 判定したときだけ除き、判定が分かれたものは表示を残して「要確認」にする
  */
 export function evaluate(
   report: ReportSegment[],
   judgement: RawJudgement,
+  grounding: Map<number, number> = new Map(),
 ): { finalReport: ReportSegment[]; evaluation: ResearchEvaluation } {
   const verdicts = new Map(judgement.claims.map((c) => [c.index, c]));
   const removedIndexes = new Set<number>();
   const removedClaims: ClaimCheck[] = [];
+  const reviewClaims: ClaimCheck[] = [];
   let factual = 0;
   let cited = 0;
   let supported = 0;
@@ -318,7 +399,34 @@ export function evaluate(
     if (hasCitation) cited++;
     const verdict = v?.verdict ?? (hasCitation ? 'partial' : 'unsupported');
     if (hasCitation && verdict === 'supported') supported++;
-    if (!hasCitation || verdict === 'unsupported') {
+    const score = grounding.get(index);
+    const judgeRejects = verdict === 'unsupported';
+    if (hasCitation && score !== undefined) {
+      const guardrailRejects = score < GROUNDING_THRESHOLD;
+      const scoreNote = `Guardrails の根拠スコア ${score.toFixed(2)}`;
+      if (judgeRejects && guardrailRejects) {
+        removedIndexes.add(index);
+        removedClaims.push({
+          claim: segment.text.trim(),
+          factual: true,
+          verdict: 'unsupported',
+          reason: `${v?.reason ?? ''}（${scoreNote}）`,
+          groundingScore: score,
+        });
+      } else if (judgeRejects || guardrailRejects) {
+        reviewClaims.push({
+          claim: segment.text.trim(),
+          factual: true,
+          verdict,
+          reason: judgeRejects
+            ? `評価モデルは裏付けなしと判定: ${v?.reason ?? ''}（${scoreNote}）`
+            : `${scoreNote}（しきい値 ${GROUNDING_THRESHOLD} 未満）。評価モデルの判定: ${verdict}`,
+          groundingScore: score,
+        });
+      }
+      return;
+    }
+    if (!hasCitation || judgeRejects) {
       removedIndexes.add(index);
       removedClaims.push({
         claim: segment.text.trim(),
@@ -350,6 +458,7 @@ export function evaluate(
       citationCoverage: factual === 0 ? 1 : cited / factual,
       supportedRate: cited === 0 ? 0 : supported / cited,
       removedClaims,
+      reviewClaims,
       officialSourceRate:
         webCitations.length === 0
           ? null

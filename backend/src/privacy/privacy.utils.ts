@@ -23,6 +23,11 @@ const PII_LABELS: Record<string, string> = {
  */
 const REVIEW_TYPES = new Set(['NAME', 'USERNAME', 'ADDRESS', 'AGE']);
 
+/** 誤検出が多い種類か（氏名・ユーザー名・住所・年齢） */
+export function isReviewType(type: string): boolean {
+  return REVIEW_TYPES.has(type);
+}
+
 export function piiLabel(type: string): string {
   return PII_LABELS[type] ?? type;
 }
