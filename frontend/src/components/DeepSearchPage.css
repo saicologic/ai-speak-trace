@@ -731,3 +731,263 @@
   background-color: transparent;
   padding: 0;
 }
+
+/* ===== データの流れ（会話 → キーワード → 検索ソース → 統合分析） ===== */
+.deepsearch-flow {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin: -0.5rem 0 2rem;
+  padding: 0.75rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.deepsearch-flow-step {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.deepsearch-flow-step:hover {
+  border-color: #9ca3af;
+}
+
+.deepsearch-flow-step.current {
+  border-color: #6366f1;
+  background-color: #eef2ff;
+}
+
+.deepsearch-flow-step.done {
+  background-color: #ffffff;
+}
+
+.deepsearch-flow-step.todo {
+  opacity: 0.6;
+}
+
+.deepsearch-flow-step-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.deepsearch-flow-step-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: #4b5563;
+  overflow-wrap: anywhere;
+}
+
+.deepsearch-flow-arrow {
+  align-self: center;
+  color: #9ca3af;
+  font-size: 1rem;
+}
+
+.deepsearch-flow-keywords {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.deepsearch-flow-note {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background-color: #eef2ff;
+  color: #4338ca;
+  font-size: 0.65rem;
+}
+
+.deepsearch-flow-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.deepsearch-flow-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.deepsearch-flow-source.disabled {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.deepsearch-flow-count {
+  font-weight: 700;
+}
+
+/* 段の番号（流れと各セクションの見出しで共通） */
+.deepsearch-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background-color: #1a1a2e;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.deepsearch-flow-step-title .deepsearch-step-number {
+  margin-right: 0;
+}
+
+/* 情報源ごとの色（会話・社内資料・Web）を、流れ・カード・根拠番号で統一する */
+.deepsearch-flow-source.conversation,
+.deepsearch-result-number.conversation,
+.deepsearch-cite.conversation {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.deepsearch-flow-source.pdf,
+.deepsearch-result-number.pdf,
+.deepsearch-cite.pdf {
+  background-color: #fce7f3;
+  color: #9d174d;
+}
+
+.deepsearch-flow-source.web,
+.deepsearch-result-number.web,
+.deepsearch-cite.web {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+/* ===== ③ 検索ソースのカード ===== */
+.deepsearch-source-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.deepsearch-source-card {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background-color: #ffffff;
+}
+
+.deepsearch-source-card.conversation {
+  border-left-color: #3b82f6;
+}
+
+.deepsearch-source-card.pdf {
+  border-left-color: #db2777;
+}
+
+.deepsearch-source-card.web {
+  border-left-color: #10b981;
+}
+
+.deepsearch-source-card.disabled {
+  opacity: 0.55;
+}
+
+.deepsearch-source-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.deepsearch-source-card-detail {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.deepsearch-source-card-text {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+/* ===== 検索結果の番号と、根拠番号から飛んだときの強調 ===== */
+.deepsearch-result-card.conversation {
+  border-left: 3px solid #3b82f6;
+}
+
+.deepsearch-result-card.pdf {
+  border-left: 3px solid #db2777;
+}
+
+.deepsearch-result-card.web {
+  border-left: 3px solid #10b981;
+}
+
+.deepsearch-result-number {
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.deepsearch-result-card.highlighted {
+  animation: deepsearch-highlight 1.6s ease-out;
+}
+
+@keyframes deepsearch-highlight {
+  0% {
+    box-shadow: 0 0 0 3px #6366f1;
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+/* ===== ④ 統合分析の根拠番号 ===== */
+.deepsearch-citation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.deepsearch-analysis-content a.deepsearch-cite {
+  padding: 0 0.25rem;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.deepsearch-analysis-content a.deepsearch-cite:hover {
+  text-decoration: underline;
+}

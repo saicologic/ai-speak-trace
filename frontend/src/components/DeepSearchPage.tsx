@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { marked } from 'marked';
 import {
   fetchTranscriptions,
@@ -29,6 +30,35 @@ marked.use({
   },
 });
 
+/** 流れの1段（会話・キーワード・検索ソース・統合分析） */
+function FlowStep({
+  number,
+  title,
+  status,
+  onClick,
+  children,
+}: {
+  number: number;
+  title: string;
+  status: 'done' | 'current' | 'todo';
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`deepsearch-flow-step ${status}`}
+      onClick={onClick}
+    >
+      <span className="deepsearch-flow-step-title">
+        <span className="deepsearch-step-number">{number}</span>
+        {title}
+      </span>
+      <span className="deepsearch-flow-step-body">{children}</span>
+    </button>
+  );
+}
+
 interface Props {
   /** 初期選択する文字起こしID */
   initialTranscriptionId?: string;
@@ -44,7 +74,7 @@ function sourceTypeLabel(type: string): string {
     case 'conversation':
       return '会話';
     case 'pdf':
-      return 'PDF';
+      return '社内資料（PDF）';
     case 'web':
       return 'Web';
     default:
@@ -337,22 +367,80 @@ export function DeepSearchPage({
   };
 
   /** 結果をソースタイプごとにグループ化 */
+  // 番号は分析APIに渡す順（results の並び）と同じで、分析の根拠番号 [n] に対応する
   const groupedResults = useMemo(() => {
-    const groups: Record<string, DeepSearchResultItem[]> = {};
-    for (const result of results) {
-      if (!groups[result.sourceType]) {
-        groups[result.sourceType] = [];
+    const groups: Record<
+      string,
+      { item: DeepSearchResultItem; number: number }[]
+    > = {};
+    results.forEach((item, i) => {
+      if (!groups[item.sourceType]) {
+        groups[item.sourceType] = [];
       }
-      groups[result.sourceType].push(result);
-    }
+      groups[item.sourceType].push({ item, number: i + 1 });
+    });
     return groups;
   }, [results]);
 
-  /** 分析結果のMarkdownをHTMLに変換（メモ化） */
+  /** 分析結果のMarkdownをHTMLに変換し、根拠番号 [n] を検索結果へのリンクにする（メモ化） */
   const analysisHtml = useMemo(() => {
     if (!analysis) return '';
-    return marked.parse(analysis.analysis) as string;
-  }, [analysis]);
+    const html = marked.parse(analysis.analysis) as string;
+    return html.replace(/\[(\d+)\]/g, (match, num: string) => {
+      const n = Number(num);
+      const source = results[n - 1]?.sourceType;
+      if (!source) return match;
+      return `<a href="#deepsearch-result-${n}" class="deepsearch-cite ${source}" data-result="${n}" title="${sourceTypeLabel(source)}の検索結果 ${n}">[${n}]</a>`;
+    });
+  }, [analysis, results]);
+
+  /** 分析で引用された根拠の件数（情報源ごと） */
+  const citationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!analysis) return counts;
+    const cited = new Set(
+      Array.from(analysis.analysis.matchAll(/\[(\d+)\]/g), (m) =>
+        Number(m[1]),
+      ),
+    );
+    for (const n of cited) {
+      const source = results[n - 1]?.sourceType;
+      if (source) counts[source] = (counts[source] ?? 0) + 1;
+    }
+    return counts;
+  }, [analysis, results]);
+
+  /** 根拠番号をクリックしたら、該当する検索結果までスクロールして強調する */
+  const handleAnalysisClick = (e: MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>(
+      '[data-result]',
+    );
+    if (!target) return;
+    e.preventDefault();
+    const card = document.getElementById(
+      `deepsearch-result-${target.dataset.result}`,
+    );
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('highlighted');
+    void card.offsetWidth;
+    card.classList.add('highlighted');
+  };
+
+  /** 流れの各段階へスクロールする */
+  const scrollToStep = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  };
+
+  // 検索ソースごとの状態（流れの表示用）
+  const sourceStates = [
+    { type: 'conversation', enabled: selectedTranscriptionIds.size > 0 },
+    { type: 'pdf', enabled: includePdfs },
+    { type: 'web', enabled: includeWeb },
+  ];
 
   return (
     <div className="deepsearch-page">
@@ -366,9 +454,109 @@ export function DeepSearchPage({
       <div className="deepsearch-content">
         {error && <div className="deepsearch-error">{error}</div>}
 
-        {/* 会話選択 */}
-        <section className="deepsearch-section">
-          <h2>検索対象の会話</h2>
+        {/* データの流れ: 会話 → キーワード → 検索ソース → 統合分析 */}
+        <nav className="deepsearch-flow" aria-label="ディープサーチの流れ">
+          <FlowStep
+            number={1}
+            title="会話"
+            status={selectedTranscriptionIds.size > 0 ? 'done' : 'current'}
+            onClick={() => scrollToStep('deepsearch-step-conversation')}
+          >
+            {selectedTranscriptionIds.size > 0
+              ? `${selectedTranscriptionIds.size}件を選択`
+              : '会話を選択'}
+          </FlowStep>
+          <span className="deepsearch-flow-arrow" aria-hidden="true">
+            →
+          </span>
+          <FlowStep
+            number={2}
+            title="キーワード"
+            status={
+              keywords.length > 0
+                ? 'done'
+                : selectedTranscriptionIds.size > 0
+                  ? 'current'
+                  : 'todo'
+            }
+            onClick={() => scrollToStep('deepsearch-step-keywords')}
+          >
+            {keywords.length > 0 ? (
+              <>
+                <span className="deepsearch-flow-keywords">
+                  {keywords.join(' ＋ ')}
+                </span>
+                {keywords.length > 1 && (
+                  <span className="deepsearch-flow-note">まとめて検索</span>
+                )}
+              </>
+            ) : (
+              '会話から選ぶ'
+            )}
+          </FlowStep>
+          <span className="deepsearch-flow-arrow" aria-hidden="true">
+            →
+          </span>
+          <FlowStep
+            number={3}
+            title="検索ソース"
+            status={
+              searched
+                ? 'done'
+                : searching || keywords.length > 0
+                  ? 'current'
+                  : 'todo'
+            }
+            onClick={() => scrollToStep('deepsearch-step-sources')}
+          >
+            <span className="deepsearch-flow-sources">
+              {sourceStates.map((s) => (
+                <span
+                  key={s.type}
+                  className={`deepsearch-flow-source ${s.type}${s.enabled ? '' : ' disabled'}`}
+                >
+                  {sourceTypeLabel(s.type)}
+                  {searched && s.enabled && (
+                    <span className="deepsearch-flow-count">
+                      {groupedResults[s.type]?.length ?? 0}件
+                    </span>
+                  )}
+                </span>
+              ))}
+            </span>
+          </FlowStep>
+          <span className="deepsearch-flow-arrow" aria-hidden="true">
+            →
+          </span>
+          <FlowStep
+            number={4}
+            title="統合分析"
+            status={
+              analysis
+                ? 'done'
+                : analyzing || results.length > 0
+                  ? 'current'
+                  : 'todo'
+            }
+            onClick={() => scrollToStep('deepsearch-step-analysis')}
+          >
+            {analysis
+              ? `根拠 ${Object.values(citationCounts).reduce((a, b) => a + b, 0)}件`
+              : analyzing
+                ? '分析中...'
+                : '検索後に実行'}
+          </FlowStep>
+        </nav>
+
+        {/* ① 会話選択 */}
+        <section
+          id="deepsearch-step-conversation"
+          className="deepsearch-section"
+        >
+          <h2>
+            <span className="deepsearch-step-number">1</span>
+            検索の起点にする会話
+          </h2>
           <p className="deepsearch-hint">
             検索する会話を選択してください（{selectedTranscriptionIds.size}件選択中）
           </p>
@@ -409,9 +597,15 @@ export function DeepSearchPage({
           )}
         </section>
 
-        {/* キーワード入力 */}
-        <section className="deepsearch-section">
-          <h2>検索キーワード</h2>
+        {/* ② キーワード入力 */}
+        <section id="deepsearch-step-keywords" className="deepsearch-section">
+          <h2>
+            <span className="deepsearch-step-number">2</span>
+            検索キーワード
+          </h2>
+          <p className="deepsearch-hint">
+            選んだ会話からキーワードの候補を出します。複数のキーワードはまとめて1つの検索として、③のすべての検索ソースを調べ、統合分析にもすべて使います
+          </p>
           <div className="deepsearch-keyword-input">
             <input
               type="text"
@@ -475,24 +669,65 @@ export function DeepSearchPage({
           )}
         </section>
 
-        {/* PDFドキュメント */}
-        <section className="deepsearch-section">
-          <div className="deepsearch-pdf-header">
-            <label className="deepsearch-option">
-              <input
-                type="checkbox"
-                checked={includePdfs}
-                onChange={(e) => setIncludePdfs(e.target.checked)}
-                disabled={searching || analyzing}
-              />
-              <h2>PDFドキュメント</h2>
-              {searchablePdfCount > 0 && (
-                <span className="deepsearch-option-badge pdf">
+        {/* ③ 検索ソース */}
+        <section id="deepsearch-step-sources" className="deepsearch-section">
+          <h2>
+            <span className="deepsearch-step-number">3</span>
+            検索ソース
+          </h2>
+          <div className="deepsearch-source-cards">
+            <div
+              className={`deepsearch-source-card conversation${selectedTranscriptionIds.size > 0 ? '' : ' disabled'}`}
+            >
+              <div className="deepsearch-source-card-header">
+                <span className="deepsearch-source-badge conversation">
+                  会話
+                </span>
+                <span className="deepsearch-source-card-detail">
+                  ①で選んだ{selectedTranscriptionIds.size}件
+                </span>
+              </div>
+              <p className="deepsearch-source-card-text">
+                会話の中から、キーワードに関連する発言を関連度順に探します
+              </p>
+            </div>
+            <div
+              className={`deepsearch-source-card web${includeWeb ? '' : ' disabled'}`}
+            >
+              <label className="deepsearch-source-card-header">
+                <input
+                  type="checkbox"
+                  checked={includeWeb}
+                  onChange={(e) => setIncludeWeb(e.target.checked)}
+                  disabled={searching || analyzing}
+                />
+                <span className="deepsearch-source-badge web">Web</span>
+              </label>
+              <p className="deepsearch-source-card-text">
+                インターネットの記事を検索し、引用された本文を根拠にします
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={`deepsearch-source-card pdf deepsearch-source-card-wide${includePdfs ? '' : ' disabled'}`}
+          >
+            <div className="deepsearch-pdf-header">
+              <label className="deepsearch-source-card-header">
+                <input
+                  type="checkbox"
+                  checked={includePdfs}
+                  onChange={(e) => setIncludePdfs(e.target.checked)}
+                  disabled={searching || analyzing}
+                />
+                <span className="deepsearch-source-badge pdf">
+                  社内資料（PDF）
+                </span>
+                <span className="deepsearch-source-card-detail">
                   {searchablePdfCount}件検索可能
                 </span>
-              )}
-            </label>
-          </div>
+              </label>
+            </div>
 
           {includePdfs && (
             <div className="deepsearch-pdf-content">
@@ -562,21 +797,6 @@ export function DeepSearchPage({
               )}
             </div>
           )}
-        </section>
-
-        {/* 検索オプション */}
-        <section className="deepsearch-section">
-          <h2>その他の検索ソース</h2>
-          <div className="deepsearch-options">
-            <label className="deepsearch-option">
-              <input
-                type="checkbox"
-                checked={includeWeb}
-                onChange={(e) => setIncludeWeb(e.target.checked)}
-                disabled={searching || analyzing}
-              />
-              <span>Web検索</span>
-            </label>
           </div>
         </section>
 
@@ -613,6 +833,9 @@ export function DeepSearchPage({
               </p>
             )}
 
+            <p className="deepsearch-hint">
+              番号は統合分析の根拠番号 [n] に対応しています
+            </p>
             {Object.entries(groupedResults).map(([sourceType, items]) => (
               <div key={sourceType} className="deepsearch-result-group">
                 <h3 className="deepsearch-result-group-title">
@@ -626,9 +849,18 @@ export function DeepSearchPage({
                   </span>
                 </h3>
                 <div className="deepsearch-result-items">
-                  {items.map((item, i) => (
-                    <div key={i} className="deepsearch-result-card">
+                  {items.map(({ item, number }) => (
+                    <div
+                      key={number}
+                      id={`deepsearch-result-${number}`}
+                      className={`deepsearch-result-card ${sourceType}`}
+                    >
                       <div className="deepsearch-result-header">
+                        <span
+                          className={`deepsearch-result-number ${sourceType}`}
+                        >
+                          [{number}]
+                        </span>
                         <span className="deepsearch-result-source">
                           {item.sourceName}
                         </span>
@@ -689,12 +921,25 @@ export function DeepSearchPage({
         )}
 
         {/* 分析結果 */}
+        <div id="deepsearch-step-analysis" />
         {analysis && !analyzing && (
           <section className="deepsearch-section">
-            <h2>分析結果</h2>
+            <h2>
+              <span className="deepsearch-step-number">4</span>
+              統合分析
+            </h2>
+            <div className="deepsearch-citation-summary">
+              <span>根拠に使われた検索結果:</span>
+              {Object.keys(groupedResults).map((type) => (
+                <span key={type} className={`deepsearch-source-badge ${type}`}>
+                  {sourceTypeLabel(type)} {citationCounts[type] ?? 0}件
+                </span>
+              ))}
+            </div>
             <div className="deepsearch-analysis-card">
               <div
                 className="deepsearch-analysis-content"
+                onClick={handleAnalysisClick}
                 dangerouslySetInnerHTML={{ __html: analysisHtml }}
               />
             </div>

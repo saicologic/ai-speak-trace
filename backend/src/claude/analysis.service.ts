@@ -13,6 +13,13 @@ const CLAUDE_EFFORT = 'medium';
 /** 出力の上限トークン数（思考のトークンも含まれるため余裕を持たせる） */
 const MAX_TOKENS = 16000;
 
+/** 検索結果の情報源の表示名（分析の指示に使う） */
+const SOURCE_LABELS: Record<string, string> = {
+  conversation: '会話',
+  pdf: '社内資料（PDF）',
+  web: 'Web',
+};
+
 /** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
 const MAX_PAUSE_CONTINUATIONS = 3;
 
@@ -235,20 +242,33 @@ ${context}
     results: { sourceType: string; sourceName: string; text: string }[],
   ): Promise<string> {
     const resultsText = results
-      .map((r, i) => `[${i + 1}] (${r.sourceType}) ${r.sourceName}\n${r.text}`)
+      .map(
+        (r, i) =>
+          `[${i + 1}] (${SOURCE_LABELS[r.sourceType] ?? r.sourceType}) ${r.sourceName}\n${r.text}`,
+      )
       .join('\n\n');
 
-    const prompt = `以下のキーワードに関連する検索結果を分析し、総合的なレポートを作成してください。
+    // 実際に検索した情報源だけを指示に書く（検索していない情報源について書かせないため）
+    const sources = [...new Set(results.map((r) => r.sourceType))].map(
+      (type) => SOURCE_LABELS[type] ?? type,
+    );
+    const relationInstruction =
+      sources.length > 1 && sources.includes(SOURCE_LABELS.conversation)
+        ? '\n- 会話で話された内容と、ほかの情報源の情報がどう関連するかを分析してください'
+        : '';
 
-## キーワード
+    const prompt = `以下のキーワードの組み合わせに関連する検索結果を分析し、総合的なレポートを作成してください。
+
+## キーワード（まとめて1つの観点として扱う）
 ${keywords.map((kw) => `- ${kw}`).join('\n')}
 
 ## 検索結果
 ${resultsText}
 
 ## 指示
-- 各ソース（会話、PDF、Web）の情報を総合してまとめてください
-- 会話での議論内容とPDF資料の情報がどう関連するかを分析してください
+- 検索結果に含まれる情報源（${sources.join('・')}）の情報を総合してまとめてください${relationInstruction}
+- 各主張の末尾に、根拠となる検索結果の番号を [1] や [2][5] の形式で付けてください
+- 検索結果に根拠がない内容は書かないでください。推測を書く場合は推測であると明記してください
 - Markdown形式で構造化して出力してください
 - 重要なポイントを箇条書きでまとめてください`;
 
