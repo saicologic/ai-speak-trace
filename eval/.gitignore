@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+# 評価結果・MLflowの実験ログ
+results/
+mlruns/
+mlflow.db
+# 実際のPDFから生成した評価セットは非公開データを含むためコミットしない
+datasets/*.jsonl
+!datasets/sample.jsonl

@@ -158,6 +158,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 
 [開発者ガイド](docs/developers/)
 
+[RAG 評価基盤](eval/)（ディープサーチの検索精度を Ragas などで評価する Python ツール）
+
 ---
 
 ## ライセンス

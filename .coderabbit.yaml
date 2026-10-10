@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit のレビュー設定
 # CLAUDE.md は CodeRabbit が既定で読み込むガイドライン（**/CLAUDE.md）に含まれるため、
-# プロジェクト全体のルール（ブランチ運用・CIのpaths分類・PRテストプラン等）はそちらを参照させる。
+# プロジェクト全体のルール（ブランチ運用・CIのpaths分類・PRの手動確認項目等）はそちらを参照させる。
 
 language: ja-JP
 # language だけでは英語で出力される文章が残るため、日本語での記述を口調として指示する（上限250文字）
@@ -21,7 +21,8 @@ reviews:
   poem: false
   auto_review:
     enabled: true
-    drafts: false
+    # PRは最初にドラフトで作成するため、ドラフトの段階からレビューして指摘を反映してからReadyにする
+    drafts: true
     # fix/*・feature/* → release/* → main の順でマージするため、release/* 宛てのPRもレビューする
     base_branches:
       - "release/.*"
