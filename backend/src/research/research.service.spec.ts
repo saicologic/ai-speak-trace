@@ -3,7 +3,12 @@ import { RawJudgement, ResearchClaudeService } from './research-claude.service';
 import { ResearchJobStore } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
 import { PrivacyService } from '../privacy/privacy.service';
-import { evaluate, ResearchService, sendableWords } from './research.service';
+import {
+  evaluate,
+  normalizeTitle,
+  ResearchService,
+  sendableWords,
+} from './research.service';
 import { Transcription } from '../transcription/types/transcription.types';
 import { ReportSegment, ResearchJob } from './types/research.types';
 
@@ -287,6 +292,39 @@ describe('ResearchService', () => {
     expect(jobStore.save).not.toHaveBeenCalled();
   });
 
+  it('タイトルを変更する（空のタイトルは拒否する）', async () => {
+    const { service, jobStore } = setup(baseJob);
+    await expect(service.updateTitle('job-1', '  ')).rejects.toThrow(
+      'タイトルを入力してください',
+    );
+    const updated = await service.updateTitle('job-1', ' 新しい題名 ');
+    expect(updated.title).toBe('新しい題名');
+    expect(jobStore.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: '新しい題名' }),
+    );
+  });
+
+  it('調査の途中でタイトルを変更しても、その後の保存で元に戻らない', async () => {
+    const { service, jobStore } = setup(baseJob);
+    // 調査の処理が持っている古い内容（タイトルなし）
+    const stale = { ...baseJob };
+    await service.updateTitle('job-1', '利用者のタイトル');
+    await (
+      service as unknown as {
+        update: (
+          job: ResearchJob,
+          changes: Partial<ResearchJob>,
+        ) => Promise<ResearchJob>;
+      }
+    ).update(stale, { status: 'analyzing' });
+    expect(jobStore.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: 'analyzing',
+        title: '利用者のタイトル',
+      }),
+    );
+  });
+
   it('同じ調査の確定を同時に2回受けた場合、2回目を拒否する', async () => {
     const { service, jobStore } = setup(baseJob);
     const results = await Promise.allSettled([
@@ -355,6 +393,7 @@ describe('ResearchService（送る前の確認）', () => {
     const claude = {
       proposeKeywords: jest.fn(() =>
         Promise.resolve({
+          title: '  ハーネスの\n調査  ',
           keywords: [
             {
               keyword: 'ハーネス',
@@ -380,9 +419,27 @@ describe('ResearchService（送る前の確認）', () => {
           scanning: false,
           scan: {
             findings: [
-              { mask: true, needsReview: false, count: 3 },
-              { mask: false, needsReview: true, count: 1 },
-              { mask: false, needsReview: false, count: 5 },
+              {
+                mask: true,
+                needsReview: false,
+                count: 3,
+                label: 'メールアドレス',
+                text: 'x@example.com',
+              },
+              {
+                mask: false,
+                needsReview: true,
+                count: 1,
+                label: '氏名',
+                text: '山田',
+              },
+              {
+                mask: false,
+                needsReview: false,
+                count: 5,
+                label: '氏名',
+                text: '佐藤',
+              },
             ],
           },
         }),
@@ -410,6 +467,8 @@ describe('ResearchService（送る前の確認）', () => {
       await new Promise((resolve) => setImmediate(resolve));
     }
 
+    // タイトルは空白と改行を整えて保存する
+    expect(saved!.title).toBe('ハーネスの 調査');
     expect(saved!.preSendChecks).toEqual({
       privacyConfigured: true,
       privacy: [
@@ -419,11 +478,91 @@ describe('ResearchService（送る前の確認）', () => {
           maskedKinds: 1,
           maskedCount: 3,
           needsReview: 1,
+          // 調査を始めた時点で、伏せたものと、要確認のまま伏せずに送ったものを記録する
+          masked: [
+            { label: 'メールアドレス', text: 'x@example.com', count: 3 },
+          ],
+          unmasked: [{ label: '氏名', text: '山田', count: 1 }],
         },
       ],
       droppedFrequentWords: 1,
       droppedKeywords: ['会話にない語'],
       droppedQuotes: 1,
     });
+  });
+});
+
+describe('evaluate の除いた文', () => {
+  it('除いた文に、論点と、根拠が付いていなかったかを記録する', () => {
+    const report: ReportSegment[] = [
+      {
+        text: '## ハーネス\n\n**一言でいうと**: 根拠のない定義です。',
+        citations: [],
+      },
+      {
+        text: '合わない根拠の文です。',
+        citations: [
+          {
+            sourceKind: 'web',
+            sourceId: 'https://a.com',
+            title: 'a',
+            citedText: 'x',
+          },
+        ] as ReportSegment['citations'],
+      },
+    ];
+    const { evaluation } = evaluate(
+      report,
+      {
+        claims: [
+          { index: 0, factual: true, verdict: 'unsupported', reason: 'r' },
+          { index: 1, factual: true, verdict: 'unsupported', reason: 'r' },
+        ],
+        relevance: [],
+        ethics: {
+          no_sensitive_inference: { passed: true, detail: '' },
+          no_individual_judgement: { passed: true, detail: '' },
+        },
+      } as unknown as RawJudgement,
+      ['ハーネス'],
+    );
+    expect(
+      evaluation.removedClaims.map((c) => [c.topic, c.missingCitation]),
+    ).toEqual([
+      ['ハーネス', true],
+      ['ハーネス', false],
+    ]);
+  });
+});
+
+describe('evaluate の relevance', () => {
+  it('確定したキーワードの判定だけを使う（関連するキーワードの判定は捨てる）', () => {
+    const report: ReportSegment[] = [{ text: '## ハーネス\n', citations: [] }];
+    const { evaluation } = evaluate(
+      report,
+      {
+        claims: [],
+        relevance: [
+          { keyword: 'ハーネス', answered: true, reason: '説明がある' },
+          { keyword: 'MCP', answered: false, reason: '関連語' },
+        ],
+        ethics: {
+          no_sensitive_inference: { passed: true, detail: '' },
+          no_individual_judgement: { passed: true, detail: '' },
+        },
+      } as unknown as RawJudgement,
+      ['ハーネス'],
+    );
+    expect(evaluation.relevance.map((r) => r.keyword)).toEqual(['ハーネス']);
+  });
+});
+
+describe('normalizeTitle', () => {
+  it('前後の空白と改行を除き、60文字で切り詰める', () => {
+    expect(normalizeTitle('  AI\nエンジニアリング  ')).toBe(
+      'AI エンジニアリング',
+    );
+    expect(normalizeTitle('あ'.repeat(80))).toHaveLength(60);
+    expect(normalizeTitle(undefined)).toBe('');
   });
 });

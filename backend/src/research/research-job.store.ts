@@ -84,6 +84,7 @@ export class ResearchJobStore {
           createdAt: job.createdAt,
           updatedAt: job.updatedAt,
           status: job.status,
+          ...(job.title && { title: job.title }),
           transcriptionIds: job.transcriptionIds,
           transcriptionNames: job.transcriptionNames,
           keywords: job.confirmed?.keywords ?? [],

@@ -77,6 +77,14 @@ export interface TranscriptUtterance {
 }
 
 /** Claude に送る前・提案の直後に行った確認の結果 */
+/** 送る前の確認に記録する、個人情報チェックで検出した文字列 */
+export interface PreSendFinding {
+  /** 種類の表示名（氏名・メールアドレスなど） */
+  label: string;
+  text: string;
+  count: number;
+}
+
 export interface PreSendChecks {
   /** 個人情報チェック（Guardrail ID）が設定されているか */
   privacyConfigured: boolean;
@@ -90,6 +98,10 @@ export interface PreSendChecks {
     maskedCount: number;
     /** 要確認のまま、伏せずに送った文字列の数 */
     needsReview: number;
+    /** 伏せて送った文字列（調査を始めた時点のもの。以前の調査にはない） */
+    masked?: PreSendFinding[];
+    /** 要確認のまま、伏せずに送った文字列（調査を始めた時点のもの。以前の調査にはない） */
+    unmasked?: PreSendFinding[];
   }[];
   /** 伏せた文字列を含むため、キーワード提案の参考に送らなかった頻出語の数 */
   droppedFrequentWords?: number;
@@ -153,6 +165,10 @@ export interface ClaimCheck {
   reason: string;
   /** Guardrails の根拠スコア（0〜1。英語の主張だけ） */
   groundingScore?: number;
+  /** 主張があった論点（キーワード）。以前の調査にはない */
+  topic?: string;
+  /** 根拠が付いていなかったか（false は、根拠はあったが内容を裏付けていない）。以前の調査にはない */
+  missingCitation?: boolean;
 }
 
 /** AI倫理のチェック結果 */
@@ -197,6 +213,8 @@ export interface ResearchJob {
   createdAt: string;
   updatedAt: string;
   status: ResearchStatus;
+  /** 調査のタイトル（② の提案で作り、利用者が変更できる。以前の調査にはない） */
+  title?: string;
   error?: string;
   /** ① 選んだ会話 */
   transcriptionIds: string[];
@@ -240,4 +258,5 @@ export type ResearchJobSummary = Pick<
   | 'status'
   | 'transcriptionIds'
   | 'transcriptionNames'
+  | 'title'
 > & { keywords: string[] };
