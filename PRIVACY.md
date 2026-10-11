@@ -41,6 +41,7 @@ AI Speak Trace は、会話の音声を外部のAIサービスに送って文字
     ├── summary-logs/          # 要約の結果
     ├── analysis-logs/         # 会話分析の結果
     ├── deep-search-logs/      # ディープサーチの検索条件・結果・分析
+    ├── research-jobs/         # ディープサーチの調査（キーワード・Webの情報源・分析・評価）
     └── utterance-embeddings/  # ディープサーチ用の発言の埋め込みベクトル
 ```
 

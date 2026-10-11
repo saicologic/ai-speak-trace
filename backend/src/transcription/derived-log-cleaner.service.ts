@@ -8,12 +8,35 @@ import * as path from 'path';
  * - analysis-logs: 会話分析（transcriptionId を持つ）
  * - summary-logs: 要約（transcriptionId を持つ）
  * - deep-search-logs: ディープサーチ（transcriptionIds を持つ）
+ * - research-jobs: ディープサーチの調査（transcriptionIds を持つ）
  */
 export const DERIVED_LOG_DIRS = [
   'analysis-logs',
   'summary-logs',
   'deep-search-logs',
+  'research-jobs',
 ] as const;
+
+/**
+ * このプロセスで文字起こしのログを削除し始めた時刻（文字起こし ID → ミリ秒）
+ * 削除の前に会話を読み込んだ処理が、削除の後にログを保存して会話の内容を残さないよう、保存側で確認する
+ */
+const deletionStartedAt = new Map<string, number>();
+
+/**
+ * 指定した時刻以降に、いずれかの文字起こしのログが削除されたか
+ * （その時刻より前に読み込んだ会話の内容は、もう保存してはいけない）
+ */
+export function wasDeletedSince(
+  transcriptionIds: string[],
+  since: string,
+): boolean {
+  const sinceMs = Date.parse(since);
+  return transcriptionIds.some((id) => {
+    const deletedAt = deletionStartedAt.get(id);
+    return deletedAt !== undefined && deletedAt >= sinceMs;
+  });
+}
 
 /**
  * 文字起こしを削除したときに、その会話の内容を含むログを削除するサービス
@@ -38,6 +61,8 @@ export class DerivedLogCleaner {
    * （呼び出し元はやり直せるよう、元の文字起こしを残す）
    */
   async deleteLogsForTranscription(transcriptionId: string): Promise<number> {
+    // ログを探す前に記録し、探した後に保存されるログも削除済みの会話のものと分かるようにする
+    deletionStartedAt.set(transcriptionId, Date.now());
     let deleted = 0;
     const failures: string[] = [];
     for (const dir of DERIVED_LOG_DIRS) {
