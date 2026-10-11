@@ -185,6 +185,18 @@ export function toFindings(
       needsReview: before?.needsReview ?? review,
     });
   }
+  // 個人情報として扱わない検出（ユーザー名・国名・会社名など）は Guardrails の結果から除いているため、
+  // 利用者が以前に「伏せる」を選んだものは、会話に残っていれば検出し直した後も引き継ぐ
+  for (const before of previous) {
+    if (!before.mask || !isIgnoredPii(before.type, before.text)) continue;
+    if (!text.includes(before.text)) continue;
+    const key = `${before.type}\u0000${before.text}`;
+    if (byKey.has(key)) continue;
+    byKey.set(key, {
+      ...before,
+      count: Math.max(countIn(text, before.text), 1),
+    });
+  }
   return Array.from(byKey.values()).sort(
     (a, b) => b.count - a.count || a.label.localeCompare(b.label),
   );
