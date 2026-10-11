@@ -18,6 +18,8 @@ import {
   collectWebSources,
   isOfficial,
   mergeWebSources,
+  needsGeneralSearch,
+  parseDefinitionFound,
   toReportSegments,
 } from './research.utils';
 
@@ -149,7 +151,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
 
   /**
    * ③ キーワードごとに、選んだ公式サイトに限定して Web を調べる（キーワードごとの検索は同時に行う）
-   * 公式サイトで見つからないキーワードと、公式サイトを選ばなかったキーワードは、一般のサイトも調べる
+   * 公式サイトで十分な情報が見つからないキーワードと、公式サイトを選ばなかったキーワードは、一般のサイトも調べる
    * 一部のキーワードの調査に失敗しても、ほかのキーワードの結果で続ける（失敗したキーワードは failures で返す）
    * すべてのキーワードで失敗した場合と、失敗があり残りのキーワードでも抜粋が1つもない場合は、
    * 分析に使える情報がないため例外を投げる
@@ -194,17 +196,28 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     domains: string[],
   ): Promise<WebSource[]> {
     const prompt = `キーワード「${keyword}」を詳しく解説するために、公式な情報をWebで調べ、要点を書いてください。定義、構成要素・仕組み、具体例や使いどころ、注意点や限界を探してください。各要点には、根拠となる検索結果を引用してください。`;
-    let sources: WebSource[] = [];
-    if (domains.length > 0) {
-      sources = await this.searchWeb(prompt, 1, domains, domains);
+    if (domains.length === 0) {
+      return (await this.searchWeb(prompt, 1, undefined, domains)).sources;
     }
-    if (!sources.some((s) => s.excerpts.length > 0)) {
-      this.logger.log(
-        `「${keyword}」は公式サイトで情報源が見つからないため、一般のサイトも検索します`,
-      );
-      sources = await this.searchWeb(prompt, 1, undefined, domains);
+    // 公式サイトの情報だけでキーワードの定義がわかったかを、最後の行に書かせる
+    const official = await this.searchWeb(
+      `${prompt}\n最後の行に、検索結果だけでキーワードの定義（何であるか）がわかった場合は「定義: あり」、わからなかった場合は「定義: なし」と書いてください。`,
+      1,
+      domains,
+      domains,
+    );
+    const definitionFound = parseDefinitionFound(official.text);
+    if (!needsGeneralSearch(official.sources, definitionFound)) {
+      return official.sources;
     }
-    return sources;
+    this.logger.log(
+      `「${keyword}」は公式サイトの情報が足りないため、一般のサイトも検索します（定義: ${
+        definitionFound === null ? '不明' : definitionFound ? 'あり' : 'なし'
+      }）`,
+    );
+    // 公式サイトの情報は残し、一般のサイトの情報を足す（公式サイトのページは一般の検索でも公式とする）
+    const general = await this.searchWeb(prompt, 1, undefined, domains);
+    return [...official.sources, ...general.sources];
   }
 
   private async searchWeb(
@@ -212,7 +225,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     keywordCount: number,
     allowedDomains: string[] | undefined,
     officialDomains: string[],
-  ): Promise<WebSource[]> {
+  ): Promise<{ sources: WebSource[]; text: string }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
     ];
@@ -247,9 +260,12 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     }
     const sources = collectWebSources(content, officialDomains);
     // allowed_domains を指定しても、ほかのサイトの検索結果が返ることがあるため、選んだサイトのものだけを残す
-    return allowedDomains
-      ? sources.filter((s) => isOfficial(s.url, allowedDomains))
-      : sources;
+    return {
+      sources: allowedDomains
+        ? sources.filter((s) => isOfficial(s.url, allowedDomains))
+        : sources,
+      text: extractText(content),
+    };
   }
 
   /** ④ 会話とWebの情報源を論点ごとに統合し、根拠付きで分析する */

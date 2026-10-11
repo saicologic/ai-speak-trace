@@ -392,7 +392,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                 <h2>② 調べるキーワードと公式サイトを確定する</h2>
                 <p className="research-hint">
                   AIが会話から提案したキーワードです。回数は選んだ会話全体での出現回数、引用は会話の原文です。
-                  選んだキーワードごとに、調べる公式サイトを選べます。サイトを選ばなかったキーワードや、選んだサイトで見つからなかったキーワードは、一般のサイトも調べます。
+                  選んだキーワードごとに、調べる公式サイトを選べます。サイトを選ばなかったキーワードや、選んだサイトで十分な情報が見つからなかったキーワードは、一般のサイトも調べます。
                 </p>
                 <ul className="research-proposals">
                   {job.proposal.keywords.map((k) => (
