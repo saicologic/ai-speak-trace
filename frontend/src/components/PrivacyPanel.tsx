@@ -131,7 +131,7 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
           {!status.configured ? (
             <p className="privacy-panel-hint">
               設定画面で Amazon Bedrock Guardrails の ID を設定すると、会話に含まれる個人情報を検出し、
-              Claude に送る前に伏せられます。未設定の場合、会話はそのまま送られます。
+              Claude に送る前に伏せられます。未設定の場合、会話分析・要約・ディープサーチは使えません。
             </p>
           ) : (
             <p className="privacy-panel-hint">
@@ -253,20 +253,24 @@ export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) 
     0,
   );
 
-  const notes: string[] = [];
   // Guardrail ID を解除しても保存済みのチェック結果は残るため、結果の有無に関係なく知らせる
   if (!configured) {
-    notes.push('個人情報チェックが設定されていないため、会話は伏せずに送られます');
-  } else {
-    if (unchecked > 0) {
-      notes.push(
-        statuses.length === 1
-          ? 'この会話は個人情報チェックをしていないため、伏せずに送られます'
-          : `個人情報チェックをしていない会話が${unchecked}件あり、伏せずに送られます`,
-      );
-    }
-    if (review > 0) notes.push(`要確認の${review}件（氏名など）は伏せずに送られます`);
+    return (
+      <p className="privacy-send-notice privacy-send-notice--warning">
+        個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
+      </p>
+    );
   }
+  // 連絡先などは Claude に送る前の確認で自動で伏せるため、伏せずに送られるのは氏名・住所など要確認の種類
+  const notes: string[] = [];
+  if (unchecked > 0) {
+    notes.push(
+      statuses.length === 1
+        ? 'この会話は個人情報チェックをしていないため、氏名・住所などは伏せずに送られます'
+        : `個人情報チェックをしていない会話が${unchecked}件あり、氏名・住所などは伏せずに送られます`,
+    );
+  }
+  if (review > 0) notes.push(`要確認の${review}件（氏名など）は伏せずに送られます`);
   if (notes.length === 0) return null;
   return (
     <p className="privacy-send-notice privacy-send-notice--warning">

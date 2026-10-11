@@ -36,11 +36,11 @@ describe('PrivacySendNotice', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('チェックしていない会話は、伏せずに送られることを1行で知らせる', async () => {
+  it('チェックしていない会話は、氏名・住所などが伏せずに送られることを1行で知らせる', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(status(null));
     render(<PrivacySendNotice transcriptionIds={['t1']} />);
     expect(
-      await screen.findByText(/この会話は個人情報チェックをしていないため、伏せずに送られます/),
+      await screen.findByText(/この会話は個人情報チェックをしていないため、氏名・住所などは伏せずに送られます/),
     ).toBeInTheDocument();
   });
 
@@ -53,12 +53,12 @@ describe('PrivacySendNotice', () => {
   it('個人情報チェックが設定されていなければ知らせる', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(status(null, false));
     render(<PrivacySendNotice transcriptionIds={['t1']} />);
-    expect(await screen.findByText(/個人情報チェックが設定されていないため/)).toBeInTheDocument();
+    expect(await screen.findByText(/Guardrail ID）が設定されていないため、Claude に送れません/)).toBeInTheDocument();
   });
 
   it('個人情報チェックの設定を解除した場合は、保存済みのチェック結果があっても知らせる', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(status([finding(true, false)], false));
     render(<PrivacySendNotice transcriptionIds={['t1']} />);
-    expect(await screen.findByText(/個人情報チェックが設定されていないため/)).toBeInTheDocument();
+    expect(await screen.findByText(/Guardrail ID）が設定されていないため、Claude に送れません/)).toBeInTheDocument();
   });
 });

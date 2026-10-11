@@ -774,7 +774,6 @@ export async function updateSettings(
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
     bedrockGuardrailId?: string;
-    bedrockGuardrailVersion?: string;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {

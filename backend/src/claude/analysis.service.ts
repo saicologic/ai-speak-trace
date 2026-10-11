@@ -277,7 +277,7 @@ ${resultsText}
 
   /** Web検索なしでClaudeを呼び出し、テキストを返す */
   private async createText(prompt: string): Promise<string> {
-    const response = await this.claudeClient.getClient().messages.create({
+    const response = await this.claudeClient.createMessage({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
       output_config: { effort: CLAUDE_EFFORT },
@@ -301,7 +301,7 @@ ${resultsText}
 
     // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
-      const response = await this.claudeClient.getClient().messages.create({
+      const response = await this.claudeClient.createMessage({
         model: CLAUDE_MODEL,
         max_tokens: MAX_TOKENS,
         output_config: { effort: CLAUDE_EFFORT },

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApplyGuardrailCommand,
+  ApplyGuardrailCommandOutput,
   BedrockRuntimeClient,
   GuardrailAssessment,
 } from '@aws-sdk/client-bedrock-runtime';
@@ -65,15 +66,32 @@ export class GuardrailService {
     return this.client;
   }
 
-  /** テキストに含まれる個人情報・不適切な語・不適切な表現を検出する（長い場合は分けて送る） */
+  /**
+   * テキストに含まれる個人情報・不適切な語・不適切な表現を検出する（長い場合は分けて送る）
+   * requireFullCoverage が true の場合、Guardrails が一部の文字をチェックしなかったときは例外を投げる
+   * （Claude に送る前のチェックで、チェックされていない文字を送らないため）
+   */
   async inspect(
     text: string,
     source: 'INPUT' | 'OUTPUT',
+    { requireFullCoverage = false }: { requireFullCoverage?: boolean } = {},
   ): Promise<GuardrailFindings> {
     const findings: GuardrailFindings = { pii: [], words: [], content: [] };
     for (const chunk of splitText(text, GUARDRAIL_CHUNK_CHARS)) {
-      const assessments = await this.apply(source, [{ text: { text: chunk } }]);
-      for (const a of assessments) mergeAssessment(findings, a);
+      const response = await this.send(source, [{ text: { text: chunk } }]);
+      const coverage = response.guardrailCoverage?.textCharacters;
+      // カバレッジが返らない場合も、すべての文字がチェックされたか確かめられないため止める
+      if (
+        requireFullCoverage &&
+        (coverage?.guarded === undefined ||
+          coverage.total === undefined ||
+          coverage.guarded < coverage.total)
+      ) {
+        throw new Error(
+          `Guardrails がチェックしなかった文字があります（${coverage?.guarded ?? '不明'}/${coverage?.total ?? '不明'}文字）`,
+        );
+      }
+      for (const a of response.assessments ?? []) mergeAssessment(findings, a);
     }
     return findings;
   }
@@ -103,6 +121,13 @@ export class GuardrailService {
     source: 'INPUT' | 'OUTPUT',
     content: ConstructorParameters<typeof ApplyGuardrailCommand>[0]['content'],
   ): Promise<GuardrailAssessment[]> {
+    return (await this.send(source, content)).assessments ?? [];
+  }
+
+  private async send(
+    source: 'INPUT' | 'OUTPUT',
+    content: ConstructorParameters<typeof ApplyGuardrailCommand>[0]['content'],
+  ): Promise<ApplyGuardrailCommandOutput> {
     if (!this.isConfigured()) {
       throw new Error('Guardrail ID が設定されていません');
     }
@@ -118,7 +143,7 @@ export class GuardrailService {
     this.logger.debug(
       `ApplyGuardrail: source=${source}, action=${response.action}`,
     );
-    return response.assessments ?? [];
+    return response;
   }
 }
 

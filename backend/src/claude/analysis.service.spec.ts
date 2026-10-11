@@ -2,14 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnalysisService, CLAUDE_MODEL } from './analysis.service';
 import { ClaudeClientService } from './claude-client.service';
 
-/** Anthropic messages.create のモック */
+/** ClaudeClientService.createMessage のモック */
 const mockMessagesCreate = jest.fn();
 const mockClaudeClientService = {
-  getClient: () => ({
-    messages: {
-      create: mockMessagesCreate,
-    },
-  }),
+  createMessage: mockMessagesCreate,
 };
 
 /** Web検索結果ブロックを作るヘルパー */

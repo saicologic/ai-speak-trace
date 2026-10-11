@@ -154,7 +154,6 @@ export interface AppSettings {
   /** 個人情報チェックに使う Amazon Bedrock Guardrails */
   guardrail?: {
     id: string;
-    version: string;
   };
 }
 
