@@ -206,8 +206,6 @@ export class TranscriptionService {
 
     // 結果を保存
     await this.store.save(transcription);
-    // 会話を外部に送る前に確認できるよう、個人情報を検出しておく
-    this.privacyService.scanInBackground(transcription);
 
     // チャンクジョブにtranscriptionIdを記録（JobProgressPageからの完了検知用）
     if (needsChunking) {
@@ -290,8 +288,6 @@ export class TranscriptionService {
     };
 
     await this.store.save(transcription);
-    // 会話を外部に送る前に確認できるよう、個人情報を検出しておく
-    this.privacyService.scanInBackground(transcription);
 
     // チャンクジョブにtranscriptionIdを記録
     job.transcriptionId = transcription.id;
@@ -399,8 +395,8 @@ export class TranscriptionService {
     }
 
     await this.store.save(transcription);
-    // 話者名を実名に変えた場合に備えて、個人情報チェックをやり直す（伏せる選択は引き継ぐ）
-    this.privacyService.scanInBackground(transcription);
+    // 話者名を実名に変えた場合に備えて、確認済みの会話は個人情報チェックをやり直す（伏せる選択は引き継ぐ）
+    this.privacyService.rescanIfChecked(transcription);
     this.logger.log(`話者名更新完了: ${id}`);
 
     return transcription;

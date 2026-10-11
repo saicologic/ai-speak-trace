@@ -127,6 +127,56 @@ describe('PrivacyService', () => {
     );
   });
 
+  it('確認済みの会話だけ、話者名の更新時に検出し直す', async () => {
+    const saved: PrivacyScan = {
+      transcriptionId: 't1',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      guardrailId: 'gr-1',
+      guardrailVersion: 'DRAFT',
+      findings: [],
+    };
+    const checked = setup(true, saved);
+    checked.service.rescanIfChecked(transcription);
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(checked.guardrail.inspect).toHaveBeenCalledTimes(1);
+
+    // まだ確認していない会話は、Guardrails に送らない
+    const unchecked = setup(true, null);
+    unchecked.service.rescanIfChecked(transcription);
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(unchecked.guardrail.inspect).not.toHaveBeenCalled();
+  });
+
+  it('初回のチェックの実行中に話者名を変えた場合も、終わってから検出し直す', async () => {
+    const { service, guardrail } = setup(true, null);
+    const first = service.scan(transcription);
+    const renamed = {
+      ...transcription,
+      utterances: [{ ...transcription.utterances[0], speakerName: '山田さん' }],
+    };
+    service.rescanIfChecked(renamed);
+    await first;
+    await service.waitForScans('t1');
+    expect(guardrail.inspect).toHaveBeenCalledTimes(2);
+    expect(guardrail.inspect.mock.calls[1][0]).toContain('山田さん');
+  });
+
+  it('検出し直しが予約されていれば、それが終わるまで待つ', async () => {
+    const { service, guardrail } = setup();
+    const first = service.scan(transcription);
+    service.scanInBackground({
+      ...transcription,
+      utterances: [{ ...transcription.utterances[0], speakerName: '佐藤さん' }],
+    });
+    await service.waitForScans('t1');
+    expect(guardrail.inspect).toHaveBeenCalledTimes(2);
+    await first;
+  });
+
   it('Guardrail ID が未設定ならチェックできない', async () => {
     const { service } = setup(false);
     await expect(service.scan(transcription)).rejects.toBeInstanceOf(
