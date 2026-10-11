@@ -9,6 +9,7 @@ import {
   GetIndexCommand,
 } from '@aws-sdk/client-s3vectors';
 import { VectorSearchResult } from './types/document.types';
+import { awsCredentials } from '../aws/aws-credentials';
 
 /** S3 Vectorsによるベクトル保存・検索サービス */
 @Injectable()
@@ -32,7 +33,10 @@ export class VectorSearchService implements OnModuleInit {
       'documents',
     );
 
-    this.client = new S3VectorsClient({ region });
+    this.client = new S3VectorsClient({
+      region,
+      credentials: awsCredentials(),
+    });
     this.logger.log(
       `S3 Vectorsサービス初期化: bucket=${this.vectorBucketName}, index=${this.indexName}`,
     );

@@ -792,6 +792,7 @@ export async function updateSettings(
     enableContextAnalysis?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
+    awsProfile?: string;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {

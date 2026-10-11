@@ -179,6 +179,8 @@ export interface AppSettings {
     /** 固定したバージョン（空の場合は DRAFT） */
     version: string;
   };
+  /** AWS の認証情報に使う ~/.aws のプロファイル名（空の場合は default） */
+  awsProfile?: string;
 }
 
 /** API キーの状態 */

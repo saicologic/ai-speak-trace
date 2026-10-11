@@ -98,6 +98,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [guardrailId, setGuardrailId] = useState('');
   const [guardrailVersion, setGuardrailVersion] = useState('');
+  const [awsProfile, setAwsProfile] = useState('');
 
   /** 設定値を画面の入力に反映する */
   const applySettings = (s: AppSettings) => {
@@ -110,6 +111,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     setEnableContextAnalysis(s.enableContextAnalysis ?? false);
     setGuardrailId(s.guardrail?.id ?? '');
     setGuardrailVersion(s.guardrail?.version ?? '');
+    setAwsProfile(s.awsProfile ?? '');
   };
 
   // 設定を読み込み
@@ -147,6 +149,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       enableContextAnalysis?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;
+      awsProfile?: string;
     } = {};
 
     if (removeElevenlabsKey) {
@@ -171,6 +174,9 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     if (guardrailVersion.trim() !== (settings?.guardrail?.version ?? '')) {
       dto.bedrockGuardrailVersion = guardrailVersion.trim();
     }
+    if (awsProfile.trim() !== (settings?.awsProfile ?? '')) {
+      dto.awsProfile = awsProfile.trim();
+    }
 
     try {
       const result = await updateSettings(dto);
@@ -193,7 +199,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
       enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
       guardrailId !== (settings.guardrail?.id ?? '') ||
-      guardrailVersion.trim() !== (settings.guardrail?.version ?? '')
+      guardrailVersion.trim() !== (settings.guardrail?.version ?? '') ||
+      awsProfile.trim() !== (settings.awsProfile ?? '')
     : false;
 
   // サブディレクトリ（相対パス表示）
@@ -310,6 +317,25 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                   Guardrail のバージョンを作成し、その番号（1 など）を指定することを勧めます。
                   保存する前に、指定したバージョンで確認できることを確かめます。
                   どのバージョンで確認したかは、Claude の呼び出しの記録（claude-audit-logs/）に残ります。
+                </p>
+              </div>
+              <div className="settings-input-group">
+                <label>AWS プロファイル</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={awsProfile}
+                  onChange={(e) => {
+                    setAwsProfile(e.target.value);
+                    setShowSuccess(false);
+                  }}
+                  placeholder="default"
+                />
+                <p className="settings-checkbox-hint">
+                  AWS の認証情報に使う、~/.aws/credentials のプロファイル名です。空の場合は default を使います。
+                  アプリはターミナルの環境変数（AWS_PROFILE など）を使えないため、default 以外を使う場合はここで指定してください。
+                  アクセスキーで設定したプロファイルに対応します（SSO などには対応していません）。
+                  変えると、保存する前にそのプロファイルで Guardrail を呼べることを確かめます。
                 </p>
               </div>
             </div>
