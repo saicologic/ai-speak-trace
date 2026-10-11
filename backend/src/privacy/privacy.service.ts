@@ -105,10 +105,13 @@ export class PrivacyService {
    * まだ確認していない会話は、ディープサーチで選ばれるまで Guardrails に送らない
    */
   rescanIfChecked(transcription: Transcription): void {
+    // 初回のチェックの実行中は、まだ結果が保存されていないため、実行中かどうかも見る
+    // （変更前の話者名で検出した結果だけが残り、変更後の実名を伏せられなくなるのを防ぐ）
+    const wasRunning = this.running.has(transcription.id);
     this.store
       .find(transcription.id)
       .then((scan) => {
-        if (scan) this.scanInBackground(transcription);
+        if (scan || wasRunning) this.scanInBackground(transcription);
       })
       .catch((error: unknown) => {
         this.logger.warn(
@@ -116,6 +119,17 @@ export class PrivacyService {
           error instanceof Error ? error.message : error,
         );
       });
+  }
+
+  /** 実行中のチェックと、その後に予約された検出し直しが終わるまで待つ（失敗しても待つのをやめる） */
+  async waitForScans(transcriptionId: string): Promise<void> {
+    for (;;) {
+      const running = this.running.get(transcriptionId);
+      if (!running && !this.pending.has(transcriptionId)) return;
+      await (running ?? Promise.resolve()).catch(() => undefined);
+      // 予約された検出し直しが始まるのを待つ
+      await new Promise((resolve) => setImmediate(resolve));
+    }
   }
 
   private async runScan(

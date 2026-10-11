@@ -378,6 +378,8 @@ export class ResearchService implements OnModuleInit {
   /** 個人情報チェックをしていない会話を検出する（チェックに失敗した場合は調査を始めない） */
   private async scanUnchecked(ids: string[]): Promise<void> {
     for (const id of ids) {
+      // 話者名の変更などで検出し直している最中なら、終わってから最新の結果を使う
+      await this.privacy.waitForScans(id);
       const status = await this.privacy.getStatus(id);
       if (status.scan) continue;
       const transcription = await this.transcriptionStore.findById(id);

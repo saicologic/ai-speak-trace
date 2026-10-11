@@ -237,6 +237,7 @@ describe('ResearchService', () => {
       findForSending: jest.fn(() => new Promise(() => {})),
     };
     const privacy = {
+      waitForScans: jest.fn(() => Promise.resolve()),
       getStatus: jest.fn(() =>
         Promise.resolve({ configured: true, scanning: false, scan: null }),
       ),
@@ -267,6 +268,7 @@ describe('ResearchService', () => {
       {} as ResearchClaudeService,
       { isConfigured: () => true } as unknown as GuardrailService,
       {
+        waitForScans: jest.fn(() => Promise.resolve()),
         getStatus: jest.fn(() => Promise.resolve({ scan: null })),
         scan: jest.fn(() => Promise.reject(new Error('throttled'))),
       } as unknown as PrivacyService,
@@ -371,6 +373,7 @@ describe('ResearchService（送る前の確認）', () => {
       ),
     };
     const privacy = {
+      waitForScans: jest.fn(() => Promise.resolve()),
       getStatus: jest.fn(() =>
         Promise.resolve({
           configured: true,
