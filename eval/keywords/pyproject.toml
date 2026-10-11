@@ -1,0 +1,22 @@
+[project]
+name = "keyword-eval"
+version = "0.1.0"
+description = "キーワード抽出の手法を比べる実験用プロジェクト（アプリには含めない）"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "sudachipy>=0.6.8",
+    "sudachidict-core>=20240716",
+    "ginza>=5.2.0",
+    "ja-ginza>=5.2.0",
+    "wordfreq>=3.1.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

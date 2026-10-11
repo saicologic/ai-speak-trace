@@ -1,0 +1,7 @@
+# 実データとそこから作ったファイル（正解を含む）はコミットしない
+.data/
+# 実行結果
+results/
+.venv/
+__pycache__/
+.pytest_cache/
