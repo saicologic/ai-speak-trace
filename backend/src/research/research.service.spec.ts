@@ -78,14 +78,20 @@ describe('evaluate', () => {
     const { finalReport, evaluation } = evaluate(
       [
         { text: '## 見出し\n\n', citations: [] },
+        { text: '**会話では**\n', citations: [] },
         { text: '判定なし・根拠あり。', citations: [cite()] },
         { text: '判定なし・根拠なし。', citations: [] },
+        { text: '**売上が倍増した**\n', citations: [] },
       ],
       { claims: [], relevance: [], ethics: ethicsOk },
     );
-    expect(finalReport.map((s) => s.text)).toEqual(['## 見出し\n\n']);
-    expect(evaluation.factualClaims).toBe(2);
+    expect(finalReport.map((s) => s.text)).toEqual([
+      '## 見出し\n\n',
+      '**会話では**\n',
+    ]);
+    expect(evaluation.factualClaims).toBe(3);
     expect(evaluation.removedClaims.map((c) => c.reason)).toEqual([
+      '判定が返りませんでした',
       '判定が返りませんでした',
       '判定が返りませんでした',
     ]);
