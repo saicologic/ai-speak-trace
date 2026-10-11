@@ -11,30 +11,44 @@ const web: ReportCitation = {
   official: true,
 };
 
+/** テスト用の短い表示 */
+const label = (c: ReportCitation) => (c.sourceKind === 'conversation' ? '会話1' : 'example.com 公式');
+
 describe('buildReport', () => {
-  it('根拠の付いた文の末尾に番号のリンクを付け、同じ根拠は同じ番号にする', () => {
-    const { html, citations } = buildReport([
-      { text: '## 論点\n\n', citations: [] },
-      { text: '会話ではこう語られた。', citations: [conv] },
-      { text: '公式でも同じ説明がある。\n', citations: [web, conv] },
-    ]);
+  it('根拠の付いた文の末尾に出典の短い表示を付け、同じ根拠は同じ番号にする', () => {
+    const { html, citations, topics } = buildReport(
+      [
+        { text: '## 論点\n\n', citations: [] },
+        { text: '会話ではこう語られた。', citations: [conv] },
+        { text: '公式でも同じ説明がある。\n', citations: [web, conv] },
+      ],
+      label,
+    );
     expect(citations.map((c) => [c.number, c.title])).toEqual([
       [1, '前編.mp3'],
       [2, '公式'],
     ]);
-    expect(html).toContain('<h2>論点</h2>');
+    expect(topics).toEqual([{ id: 'research-topic-1', title: '論点' }]);
+    expect(html).toContain('<h2 id="research-topic-1">論点</h2>');
     expect(html).toContain(
-      '会話ではこう語られた。<sup class="research-cite"><a href="#research-citation-1" data-citation="1">[1]</a></sup>',
+      '会話ではこう語られた。<button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
     );
     expect(html).toContain(
-      '<a href="#research-citation-2" data-citation="2">[2]</a><a href="#research-citation-1" data-citation="1">[1]</a>',
+      '<button type="button" class="research-cite web" data-citations="2">example.com 公式</button><button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
     );
     expect(html).not.toContain('⟦');
   });
 
+  it('1つの文に同じ表示の根拠が複数ある場合は、1つの表示にまとめる', () => {
+    const other: ReportCitation = { ...conv, citedText: '別の原文' };
+    const { html } = buildReport([{ text: '会話で何度も語られた。', citations: [conv, other] }], label);
+    expect(html).toContain('data-citations="1,2">会話1</button>');
+    expect(html.match(/research-cite/g)).toHaveLength(1);
+  });
+
   it('AI の出力に含まれるスクリプトは取り除く', () => {
-    const { html } = buildReport([{ text: '本文<script>alert(1)</script>', citations: [conv] }]);
+    const { html } = buildReport([{ text: '本文<script>alert(1)</script>', citations: [conv] }], label);
     expect(html).not.toContain('script');
-    expect(html).toContain('[1]');
+    expect(html).toContain('会話1');
   });
 });

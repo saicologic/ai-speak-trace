@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   confirmResearch,
@@ -574,14 +574,6 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             )}
             {selectedResultId && !resultLoading && resultJob && (
               <div className="research-result">
-                <div className="interview-logs-detail-header">
-                  <div className="interview-logs-detail-meta">
-                    <span className="interview-logs-detail-date">
-                      {formatDate(resultJob.createdAt)}
-                    </span>
-                    <span className="summary-log-model">{resultJob.models.analysis}</span>
-                  </div>
-                </div>
                 <ResearchResult job={resultJob} onOpenTranscription={onOpenTranscription} />
               </div>
             )}
@@ -638,7 +630,27 @@ function formatDate(iso: string): string {
   });
 }
 
-/** 調査の結果（調べた会話・確定したキーワード・評価・統合分析・Web の情報源） */
+/** URL からサイト名（www. を除いたホスト名）を取り出す */
+function siteName(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/** 開いている出典の吹き出し（まとめた根拠と、表示する位置） */
+interface OpenCite {
+  numbers: number[];
+  top: number;
+  left: number;
+}
+
+/**
+ * 調査の結果を、読む人が知りたい順に表示する
+ * 何を調べたか → 信頼度のまとめ → 目次 → 分析の本文 → 参照した情報源 → 評価の詳細
+ * 根拠は本文の各文の末尾に「会話1 34:19」のように短く示し、クリックしたときだけ中身を吹き出しで表示する
+ */
 function ResearchResult({
   job,
   onOpenTranscription,
@@ -646,221 +658,334 @@ function ResearchResult({
   job: ResearchJob;
   onOpenTranscription: Props['onOpenTranscription'];
 }) {
-  const report = useMemo(
-    () => (job.report && job.status === 'completed' ? buildReport(job.report) : null),
-    [job],
-  );
-  const usedWebSources = (job.webSources ?? []).filter((s) => s.excerpts.length > 0);
+  const [openCite, setOpenCite] = useState<OpenCite | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  /** 根拠番号をクリックしたら、根拠の一覧の該当箇所へ移動して強調する */
+  // 会話は、選んだ順に「会話1」「会話2」と呼ぶ（ファイル名は読みにくいため）
+  const conversationNo = useMemo(
+    () => new Map(job.transcriptionIds.map((id, i) => [id, i + 1])),
+    [job.transcriptionIds],
+  );
+  const report = useMemo(() => {
+    if (!job.report || job.status !== 'completed') return null;
+    return buildReport(job.report, (c) => {
+      if (c.sourceKind === 'web') return `${siteName(c.sourceId)}${c.official ? ' 公式' : ''}`;
+      const name = `会話${conversationNo.get(c.sourceId) ?? ''}`;
+      return c.utterance ? `${name} ${formatTime(c.utterance.start)}` : name;
+    });
+  }, [job, conversationNo]);
+
+  // 吹き出しの外をクリックするか Esc キーで閉じる
+  useEffect(() => {
+    if (!openCite) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
+      if (e.target instanceof Element && e.target.closest('.research-cite-popover, .research-cite')) return;
+      setOpenCite(null);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [openCite]);
+
+  /** 出典の表示をクリックしたら、その根拠を吹き出しで表示する */
   const handleReportClick = (e: MouseEvent<HTMLDivElement>) => {
-    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-citation]');
-    if (!link) return;
-    e.preventDefault();
-    const target = document.getElementById(`research-citation-${link.dataset.citation}`);
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.classList.remove('highlight');
-    void target.offsetWidth;
-    target.classList.add('highlight');
+    const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-citations]');
+    if (!chip || !bodyRef.current) return;
+    const numbers = (chip.dataset.citations ?? '').split(',').map(Number);
+    if (openCite && openCite.numbers.join() === numbers.join()) {
+      setOpenCite(null);
+      return;
+    }
+    const box = bodyRef.current.getBoundingClientRect();
+    const rect = chip.getBoundingClientRect();
+    setOpenCite({
+      numbers,
+      top: rect.bottom - box.top + 6,
+      left: Math.max(0, Math.min(rect.left - box.left, box.width - 360)),
+    });
   };
+
+  const scrollToTopic = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const evaluation = job.status === 'completed' ? job.evaluation : undefined;
+  const failedChecks = evaluation
+    ? evaluation.relevance.filter((r) => !r.answered).length +
+      evaluation.ethics.filter((e) => !e.passed).length
+    : 0;
+  const reviewCount = evaluation?.reviewClaims?.length ?? 0;
+
+  // 参照した情報源（本文で実際に引用したものだけ）
+  const citedConversations = job.transcriptionIds
+    .map((id) => ({
+      id,
+      count: new Set(
+        (report?.citations ?? [])
+          .filter((c) => c.sourceKind === 'conversation' && c.sourceId === id)
+          .map((c) => c.utterance?.index ?? c.citedText),
+      ).size,
+    }))
+    .filter((c) => c.count > 0);
+  const citedWebPages = Array.from(
+    new Map(
+      (report?.citations ?? [])
+        .filter((c) => c.sourceKind === 'web')
+        .map((c) => [c.sourceId, c] as const),
+    ).values(),
+  );
 
   return (
     <>
-      <StepFlow status={job.status} />
-
-      <section className="research-section">
-        <h2>調べた会話</h2>
-        <ul className="research-selected-transcriptions">
-          {job.transcriptionIds.map((id) => (
-            <li key={id}>{job.transcriptionNames[id] ?? id}</li>
-          ))}
-        </ul>
+      {/* 何を調べたか */}
+      <section className="research-summary-card">
+        <dl>
+          <dt>日時</dt>
+          <dd>
+            {formatDate(job.createdAt)}
+            <span className="research-summary-model">{job.models.analysis}</span>
+          </dd>
+          <dt>会話</dt>
+          <dd>
+            {job.transcriptionIds.map((id) => (
+              <div key={id}>
+                会話{conversationNo.get(id)}: {job.transcriptionNames[id] ?? id}
+              </div>
+            ))}
+          </dd>
+          {job.confirmed && (
+            <>
+              <dt>キーワード</dt>
+              <dd className="research-chips">
+                {job.confirmed.keywords.map((k) => (
+                  <span key={k} className="research-chip">
+                    {k}
+                  </span>
+                ))}
+              </dd>
+              <dt>公式サイト</dt>
+              <dd className="research-chips">
+                {job.confirmed.domains.map((d) => (
+                  <span key={d} className="research-chip domain">
+                    {d}
+                  </span>
+                ))}
+              </dd>
+            </>
+          )}
+        </dl>
       </section>
 
       {job.status === 'failed' && (
-        <div className="research-error">調査に失敗しました: {job.error}</div>
+        <>
+          <StepFlow status={job.status} />
+          <div className="research-error">調査に失敗しました: {job.error}</div>
+        </>
       )}
 
-      {job.confirmed && (
-        <section className="research-section">
-          <h2>確定したキーワード</h2>
-          <div className="research-chips">
-            {job.confirmed.keywords.map((k) => (
-              <span key={k} className="research-chip">
-                {k}
-              </span>
-            ))}
-            {job.confirmed.domains.map((d) => (
-              <span key={d} className="research-chip domain">
-                {d}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-    {/* ⑤ 評価 */}
-    {job.status === 'completed' && job.evaluation && (
-      <section className="research-section">
-        <h2>⑤ 評価</h2>
-        <div className="research-scores">
-          <div className="research-score">
-            <span className="research-score-value">
-              {percent(job.evaluation.citationCoverage)}
-            </span>
-            <span className="research-score-label">根拠が付いた主張</span>
-          </div>
-          <div className="research-score">
-            <span className="research-score-value">{percent(job.evaluation.supportedRate)}</span>
-            <span className="research-score-label">根拠で裏付けられた主張</span>
-          </div>
-          <div className="research-score">
-            <span className="research-score-value">
-              {percent(job.evaluation.officialSourceRate)}
-            </span>
-            <span className="research-score-label">Webの根拠のうち公式サイト</span>
-          </div>
-          <div className="research-score">
-            <span className="research-score-value">
-              {job.evaluation.removedClaims.length}件
-            </span>
-            <span className="research-score-label">根拠がなく除いた主張</span>
-          </div>
+      {/* 信頼度のまとめ */}
+      {evaluation && (
+        <div className={`research-trust ${failedChecks > 0 ? 'warning' : ''}`}>
+          <span>
+            根拠付き <strong>{percent(evaluation.citationCoverage)}</strong>
+          </span>
+          <span>
+            裏付けあり <strong>{percent(evaluation.supportedRate)}</strong>
+          </span>
+          <span>
+            Webの根拠のうち公式 <strong>{percent(evaluation.officialSourceRate)}</strong>
+          </span>
+          <span>
+            AI倫理{' '}
+            <strong>
+              {evaluation.ethics.filter((e) => e.passed).length}/{evaluation.ethics.length} 合格
+            </strong>
+          </span>
+          <span>
+            根拠がなく除いた主張 <strong>{evaluation.removedClaims.length}件</strong>
+          </span>
+          {failedChecks > 0 && (
+            <span className="research-trust-alert">確認が必要な項目が{failedChecks}件あります（評価の詳細）</span>
+          )}
+          {reviewCount > 0 && (
+            <span className="research-trust-alert">要確認の主張が{reviewCount}件あります（評価の詳細）</span>
+          )}
         </div>
-        <ul className="research-checks">
-          {job.evaluation.relevance.map((r) => (
-            <li key={r.keyword} className={r.answered ? 'passed' : 'failed'}>
-              <span className="research-check-mark">{r.answered ? '✓' : '✕'}</span>
-              論点「{r.keyword}」に答えている
-              <span className="research-check-detail">{r.reason}</span>
-            </li>
-          ))}
-          {job.evaluation.ethics.map((e) => (
-            <li key={e.item} className={e.passed ? 'passed' : 'failed'}>
-              <span className="research-check-mark">{e.passed ? '✓' : '✕'}</span>
-              {e.item}
-              <span className="research-check-detail">{e.detail}</span>
-            </li>
-          ))}
-        </ul>
-        {job.evaluation.removedClaims.length > 0 && (
-          <details className="research-removed">
-            <summary>根拠がないため表示から除いた主張（{job.evaluation.removedClaims.length}件）</summary>
-            <ul>
-              {job.evaluation.removedClaims.map((c, i) => (
-                <li key={i}>
-                  <p>{c.claim}</p>
-                  <p className="research-check-detail">{c.reason}</p>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        {(job.evaluation.reviewClaims?.length ?? 0) > 0 && (
-          <details className="research-removed research-review" open>
-            <summary>
-              評価モデルと Guardrails の判定が分かれた主張（要確認・
-              {job.evaluation.reviewClaims!.length}件）
-            </summary>
-            <ul>
-              {job.evaluation.reviewClaims!.map((c, i) => (
-                <li key={i}>
-                  <p>{c.claim}</p>
-                  <p className="research-check-detail">{c.reason}</p>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        <p className="research-hint">
-          評価は、分析とは別のモデル（{job.evaluation.judgeModel}
-          ）が、各主張とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
-          {job.evaluation.guardrails
-            ? ` 出力の個人情報・不適切な表現は Amazon Bedrock Guardrails でも確認しています。${
-                job.evaluation.guardrails.groundingChecked > 0
-                  ? `英語の主張${job.evaluation.guardrails.groundingChecked}件は、Guardrails の根拠スコア（しきい値 ${job.evaluation.guardrails.groundingThreshold}）でも確認し、両方が「根拠と合わない」と判定したものだけを除いています。`
-                  : 'Guardrails の根拠スコアは英語の主張だけが対象のため、今回は使っていません。'
-              }`
-            : ' Amazon Bedrock Guardrails の Guardrail ID が設定されていないため、Guardrails による確認は行っていません。'}
-        </p>
-      </section>
-    )}
+      )}
 
-    {/* ④ 統合分析 */}
-    {report && (
-      <section className="research-section">
-        <h2>④ 統合分析</h2>
-        <AiGeneratedNotice basis="根拠" />
-        <div
-          className="research-report"
-          onClick={handleReportClick}
-          dangerouslySetInnerHTML={{ __html: report.html }}
-        />
-        <h3 className="research-subheading">根拠（{report.citations.length}件）</h3>
-        <ol className="research-citations">
-          {report.citations.map((c) => (
-            <li
-              key={c.number}
-              id={`research-citation-${c.number}`}
-              className={`research-citation ${c.sourceKind}`}
-            >
-              <div className="research-citation-head">
-                <span className="research-citation-number">[{c.number}]</span>
-                <span className={`research-citation-kind ${c.sourceKind} ${c.official ? 'official' : ''}`}>
-                  {c.sourceKind === 'conversation' ? '会話' : c.official ? 'Web（公式）' : 'Web'}
-                </span>
-                {c.sourceKind === 'web' ? (
+      {report && (
+        <>
+          {/* 目次 */}
+          {report.topics.length > 1 && (
+            <nav className="research-toc">
+              {report.topics.map((t) => (
+                <button key={t.id} onClick={() => scrollToTopic(t.id)}>
+                  {t.title}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          {/* 分析の本文 */}
+          <section className="research-section">
+            <AiGeneratedNotice basis="根拠" />
+            <p className="research-hint">
+              文の後ろの「会話1 34:19」などは、その文の根拠です。クリックすると、根拠になった発言やページを確かめられます。
+            </p>
+            <div className="research-report-body" ref={bodyRef}>
+              <div
+                className="research-report"
+                onClick={handleReportClick}
+                dangerouslySetInnerHTML={{ __html: report.html }}
+              />
+              {openCite && (
+                <div
+                  className="research-cite-popover"
+                  style={{ top: openCite.top, left: openCite.left }}
+                  role="dialog"
+                >
+                  {openCite.numbers.map((n) => {
+                    const c = report.citations[n - 1];
+                    return (
+                      <div key={n} className="research-cite-item">
+                        {c.sourceKind === 'conversation' ? (
+                          <div className="research-citation-meta">
+                            <span className="research-citation-kind conversation">
+                              会話{conversationNo.get(c.sourceId)}
+                            </span>
+                            {c.utterance && (
+                              <>
+                                <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
+                                <span className="research-citation-speaker">{c.utterance.speakerName}</span>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="research-citation-meta">
+                            <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                              {c.official ? 'Web（公式）' : 'Web'}
+                            </span>
+                            <span className="research-citation-title">{c.title}</span>
+                          </div>
+                        )}
+                        <CitedText text={quoteText(c)} />
+                        {c.sourceKind === 'conversation' ? (
+                          <button
+                            className="research-citation-open"
+                            onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
+                          >
+                            {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
+                          </button>
+                        ) : (
+                          <a
+                            className="research-citation-open"
+                            href={c.sourceId}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            ページを開く →
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* 参照した情報源 */}
+          <section className="research-section">
+            <h2>参照した情報源</h2>
+            <ul className="research-sources">
+              {citedConversations.map((c) => (
+                <li key={c.id}>
+                  <span className="research-citation-kind conversation">会話{conversationNo.get(c.id)}</span>
+                  <span className="research-citation-title">{job.transcriptionNames[c.id] ?? c.id}</span>
+                  <span className="research-web-domain">{c.count}か所を引用</span>
+                  <button className="research-citation-open" onClick={() => onOpenTranscription(c.id)}>
+                    文字起こしを開く →
+                  </button>
+                </li>
+              ))}
+              {citedWebPages.map((c) => (
+                <li key={c.sourceId}>
+                  <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                    {c.official ? 'Web（公式）' : 'Web'}
+                  </span>
                   <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
                     {c.title}
                   </a>
-                ) : (
-                  <span className="research-citation-title">{c.title}</span>
-                )}
-              </div>
-              {c.utterance && (
-                <div className="research-citation-meta">
-                  <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
-                  <span className="research-citation-speaker">{c.utterance.speakerName}</span>
-                  {c.utterance.count > 1 && (
-                    <span>ほか{c.utterance.count - 1}件の発言</span>
-                  )}
-                </div>
-              )}
-              <CitedText text={quoteText(c)} />
-              {c.sourceKind === 'conversation' && (
-                <button
-                  className="research-citation-open"
-                  onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
-                >
-                  {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
-                </button>
-              )}
-            </li>
-          ))}
-        </ol>
-      </section>
-    )}
+                  <span className="research-web-domain">{siteName(c.sourceId)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
 
-    {/* ③ Web調査 */}
-    {usedWebSources.length > 0 && (
-      <section className="research-section">
-        <h2>③ Web調査で使った情報源（{usedWebSources.length}件）</h2>
-        <ul className="research-web-sources">
-          {usedWebSources.map((s) => (
-            <li key={s.url}>
-              <span className={`research-citation-kind web ${s.official ? 'official' : ''}`}>
-                {s.official ? '公式' : '一般'}
-              </span>
-              <a href={s.url} target="_blank" rel="noopener noreferrer">
-                {s.title}
-              </a>
-              <span className="research-web-domain">{s.domain}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
+      {/* 評価の詳細（確認が必要な項目があるときは開いておく） */}
+      {evaluation && (
+        <details className="research-section research-eval-details" open={failedChecks > 0 || reviewCount > 0}>
+          <summary>評価の詳細</summary>
+          <ul className="research-checks">
+            {evaluation.relevance.map((r) => (
+              <li key={r.keyword} className={r.answered ? 'passed' : 'failed'}>
+                <span className="research-check-mark">{r.answered ? '✓' : '✕'}</span>
+                論点「{r.keyword}」に答えている
+                <span className="research-check-detail">{r.reason}</span>
+              </li>
+            ))}
+            {evaluation.ethics.map((e) => (
+              <li key={e.item} className={e.passed ? 'passed' : 'failed'}>
+                <span className="research-check-mark">{e.passed ? '✓' : '✕'}</span>
+                {e.item}
+                <span className="research-check-detail">{e.detail}</span>
+              </li>
+            ))}
+          </ul>
+          {reviewCount > 0 && (
+            <details className="research-removed research-review" open>
+              <summary>評価モデルと Guardrails の判定が分かれた主張（要確認・{reviewCount}件）</summary>
+              <ul>
+                {evaluation.reviewClaims!.map((c, i) => (
+                  <li key={i}>
+                    <p>{c.claim}</p>
+                    <p className="research-check-detail">{c.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {evaluation.removedClaims.length > 0 && (
+            <details className="research-removed">
+              <summary>根拠がないため表示から除いた主張（{evaluation.removedClaims.length}件）</summary>
+              <ul>
+                {evaluation.removedClaims.map((c, i) => (
+                  <li key={i}>
+                    <p>{c.claim}</p>
+                    <p className="research-check-detail">{c.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <p className="research-hint">
+            評価は、分析とは別のモデル（{evaluation.judgeModel}
+            ）が、各主張とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
+            {evaluation.guardrails
+              ? ` 出力の個人情報・不適切な表現は Amazon Bedrock Guardrails でも確認しています。${
+                  evaluation.guardrails.groundingChecked > 0
+                    ? `英語の主張${evaluation.guardrails.groundingChecked}件は、Guardrails の根拠スコア（しきい値 ${evaluation.guardrails.groundingThreshold}）でも確認し、両方が「根拠と合わない」と判定したものだけを除いています。`
+                    : 'Guardrails の根拠スコアは英語の主張だけが対象のため、今回は使っていません。'
+                }`
+              : ' Amazon Bedrock Guardrails の Guardrail ID が設定されていないため、Guardrails による確認は行っていません。'}
+          </p>
+        </details>
+      )}
     </>
   );
 }
