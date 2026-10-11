@@ -41,7 +41,7 @@ describe('evaluate', () => {
   };
 
   it('裏付けのない主張と根拠のない主張を除き、評価を計算する', () => {
-    const { finalReport, evaluation } = evaluate(report, judgement);
+    const { finalReport, evaluation } = evaluate(report, judgement, ['見出し']);
     expect(finalReport.map((s) => s.text)).toEqual([
       '## 見出し',
       '裏付けのある主張。',
@@ -64,19 +64,23 @@ describe('evaluate', () => {
       { text: '- 不足: 公式情報には記載がない。\n', citations: [] },
       { text: '- **推測**：今後広がりそうだ。\n', citations: [] },
     ];
-    const { finalReport, evaluation } = evaluate(notes, {
-      ...judgement,
-      claims: [
-        { index: 0, factual: true, verdict: 'unsupported', reason: 'なし' },
-        { index: 1, factual: true, verdict: 'unsupported', reason: 'なし' },
-      ],
-    });
+    const { finalReport, evaluation } = evaluate(
+      notes,
+      {
+        ...judgement,
+        claims: [
+          { index: 0, factual: true, verdict: 'unsupported', reason: 'なし' },
+          { index: 1, factual: true, verdict: 'unsupported', reason: 'なし' },
+        ],
+      },
+      [],
+    );
     expect(finalReport).toEqual(notes);
     expect(evaluation.factualClaims).toBe(0);
     expect(evaluation.removedClaims).toEqual([]);
   });
 
-  it('判定が返らなかった文は、見出しだけを残し、ほかは裏付けを確認できない主張として除く', () => {
+  it('判定が返らなかった文は、論点の見出しと項目名だけを残し、ほかは裏付けを確認できない主張として除く', () => {
     const { finalReport, evaluation } = evaluate(
       [
         { text: '## 見出し\n\n', citations: [] },
@@ -84,15 +88,18 @@ describe('evaluate', () => {
         { text: '判定なし・根拠あり。', citations: [cite()] },
         { text: '判定なし・根拠なし。', citations: [] },
         { text: '**売上が倍増した**\n', citations: [] },
+        { text: '## 売上が倍増した\n', citations: [] },
       ],
       { claims: [], relevance: [], ethics: ethicsOk },
+      ['見出し'],
     );
     expect(finalReport.map((s) => s.text)).toEqual([
       '## 見出し\n\n',
       '**会話では**\n',
     ]);
-    expect(evaluation.factualClaims).toBe(3);
+    expect(evaluation.factualClaims).toBe(4);
     expect(evaluation.removedClaims.map((c) => c.reason)).toEqual([
+      '判定が返りませんでした',
       '判定が返りませんでした',
       '判定が返りませんでした',
       '判定が返りませんでした',
@@ -110,6 +117,7 @@ describe('evaluate', () => {
         relevance: [],
         ethics: ethicsOk,
       },
+      [],
     );
     expect(finalReport).toEqual([{ text: '\n\n**示唆**\n', citations: [] }]);
   });
@@ -124,6 +132,7 @@ describe('evaluate', () => {
         relevance: [],
         ethics: ethicsOk,
       },
+      [],
     );
     expect(finalReport).toEqual([]);
     expect(evaluation.citationCoverage).toBe(0);
@@ -154,6 +163,7 @@ describe('evaluate（Guardrails の根拠スコアあり）', () => {
     const { finalReport, evaluation } = evaluate(
       report,
       judge(['supported', 'unsupported', 'unsupported', 'supported']),
+      [],
       new Map([
         [0, 0.95],
         [1, 0.1],
