@@ -112,6 +112,21 @@ describe('PrivacyService', () => {
     expect(guardrail.inspect.mock.calls[1][0]).toContain('佐藤さん');
   });
 
+  it('待っている間に受け取った内容は、受け取った時刻をチェックの時刻として保存する', async () => {
+    const { service, store } = setup();
+    const first = service.scan(transcription);
+    // 削除の前に受け取った内容は、削除の後に検出しても、受け取った時刻で削除済みかを確認する
+    service.scanInBackground(transcription, '2026-01-01T00:00:00.000Z');
+    await first;
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save.mock.calls[1][0].scannedAt).toBe(
+      '2026-01-01T00:00:00.000Z',
+    );
+  });
+
   it('Guardrail ID が未設定ならチェックできない', async () => {
     const { service } = setup(false);
     await expect(service.scan(transcription)).rejects.toBeInstanceOf(

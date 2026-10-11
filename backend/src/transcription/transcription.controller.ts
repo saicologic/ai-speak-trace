@@ -370,8 +370,10 @@ export class TranscriptionController {
   /** 個人情報チェックの実行: POST /api/transcriptions/:id/privacy/scan */
   @Post('transcriptions/:id/privacy/scan')
   async scanPrivacy(@Param('id') id: string) {
+    // 読み込む前の時刻（読み込んだ後に文字起こしが削除された場合に、結果を保存しないため）
+    const receivedAt = new Date().toISOString();
     const transcription = await this.transcriptionService.getTranscription(id);
-    await this.privacyService.scan(transcription);
+    await this.privacyService.scan(transcription, receivedAt);
     return { privacy: await this.privacyService.getStatus(id) };
   }
 

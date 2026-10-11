@@ -16,8 +16,14 @@ export class PrivacyService {
   private readonly logger = new Logger(PrivacyService.name);
   /** チェック中の文字起こし（同じ文字起こしを同時に二重チェックしないため） */
   private readonly running = new Map<string, Promise<PrivacyScan>>();
-  /** 実行中のチェックが終わった後に検出し直す内容（文字起こしごとに最後に渡されたもの） */
-  private readonly pending = new Map<string, Transcription>();
+  /**
+   * 実行中のチェックが終わった後に検出し直す内容（文字起こしごとに最後に渡されたもの）
+   * receivedAt は内容を受け取った時刻。待っている間に文字起こしが削除された場合に、結果を保存しないため
+   */
+  private readonly pending = new Map<
+    string,
+    { transcription: Transcription; receivedAt: string }
+  >();
   /** 直近のチェックの失敗（画面に表示する） */
   private readonly errors = new Map<string, string>();
 
@@ -38,7 +44,14 @@ export class PrivacyService {
   }
 
   /** 個人情報を検出して保存する（前回の「伏せる／伏せない」の選択は引き継ぐ） */
-  async scan(transcription: Transcription): Promise<PrivacyScan> {
+  /**
+   * 個人情報を検出して保存する
+   * receivedAt は文字起こしの内容を受け取った時刻で、その後に文字起こしが削除された場合は結果を保存しない
+   */
+  async scan(
+    transcription: Transcription,
+    receivedAt = new Date().toISOString(),
+  ): Promise<PrivacyScan> {
     if (!this.guardrail.isConfigured()) {
       throw new BadRequestException(
         '設定画面で Guardrail ID を設定してください',
@@ -46,7 +59,7 @@ export class PrivacyService {
     }
     const inFlight = this.running.get(transcription.id);
     if (inFlight) return inFlight;
-    const task = this.runScan(transcription).finally(() =>
+    const task = this.runScan(transcription, receivedAt).finally(() =>
       this.running.delete(transcription.id),
     );
     this.running.set(transcription.id, task);
@@ -57,12 +70,15 @@ export class PrivacyService {
    * 文字起こしの完了時や話者名の更新時に呼ぶ（Guardrail ID が未設定なら何もしない。失敗しても文字起こしは止めない）
    * 実行中のチェックは変更前の内容（話者名など）で検出しているため、終わるのを待ってから、最後に渡された内容で検出し直す
    */
-  scanInBackground(transcription: Transcription): void {
+  scanInBackground(
+    transcription: Transcription,
+    receivedAt = new Date().toISOString(),
+  ): void {
     if (!this.guardrail.isConfigured()) return;
     const id = transcription.id;
     const running = this.running.get(id);
     if (!running) {
-      this.scan(transcription).catch((error: unknown) => {
+      this.scan(transcription, receivedAt).catch((error: unknown) => {
         this.logger.warn(
           `個人情報チェックに失敗: ${id}`,
           error instanceof Error ? error.message : error,
@@ -72,27 +88,31 @@ export class PrivacyService {
     }
     // 待っている間に何度呼ばれても、最後に渡された内容で1回だけ検出し直す
     const waiting = this.pending.has(id);
-    this.pending.set(id, transcription);
+    this.pending.set(id, { transcription, receivedAt });
     if (waiting) return;
     void running
       .catch(() => undefined)
       .then(() => {
         const latest = this.pending.get(id);
         this.pending.delete(id);
-        if (latest) this.scanInBackground(latest);
+        if (latest) {
+          this.scanInBackground(latest.transcription, latest.receivedAt);
+        }
       });
   }
 
-  private async runScan(transcription: Transcription): Promise<PrivacyScan> {
+  private async runScan(
+    transcription: Transcription,
+    scannedAt: string,
+  ): Promise<PrivacyScan> {
     this.errors.delete(transcription.id);
     try {
-      // チェックを始めた時刻（チェック中に文字起こしが削除された場合に、結果を保存しないため）
-      const scannedAt = new Date().toISOString();
       const text = toScanText(transcription);
       const detected = await this.guardrail.inspect(text, 'INPUT');
       const previous = await this.store.find(transcription.id);
       const scan: PrivacyScan = {
         transcriptionId: transcription.id,
+        // 内容を受け取った時刻（保存時に、この後で文字起こしが削除されていないかを確認する）
         scannedAt,
         guardrailId: this.guardrail.guardrailId,
         guardrailVersion: this.guardrail.guardrailVersion,
