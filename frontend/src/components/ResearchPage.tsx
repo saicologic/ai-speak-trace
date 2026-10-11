@@ -10,6 +10,7 @@ import {
 } from '../api/client';
 import type { TranscriptionSummary } from '../types';
 import type {
+  DomainProposal,
   ReportCitation,
   ResearchJob,
   ResearchJobSummary,
@@ -117,8 +118,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   const [resultLoading, setResultLoading] = useState(false);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
   const [customKeyword, setCustomKeyword] = useState('');
-  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
-  const [customDomain, setCustomDomain] = useState('');
+  // キーワードごとに選んだ公式サイト
+  const [selectedSites, setSelectedSites] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +169,14 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
     setSelectedKeywords(
       new Set(proposal.keywords.slice(0, DEFAULT_KEYWORD_COUNT).map((k) => k.keyword)),
     );
-    setSelectedDomains(new Set(proposal.domains.map((d) => d.domain)));
+    setSelectedSites(
+      Object.fromEntries(
+        proposal.keywords.map((k) => [
+          k.keyword,
+          (k.domains ?? proposal.domains).map((d) => d.domain),
+        ]),
+      ),
+    );
   }, [proposal]);
 
   const toggle = (set: Set<string>, value: string): Set<string> => {
@@ -205,7 +213,13 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
     setError(null);
     try {
       setJob(
-        await confirmResearch(job.id, Array.from(selectedKeywords), Array.from(selectedDomains)),
+        await confirmResearch(
+          job.id,
+          Array.from(selectedKeywords).map((keyword) => ({
+            keyword,
+            domains: selectedSites[keyword] ?? [],
+          })),
+        ),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -252,18 +266,10 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
     setCustomKeyword('');
   };
 
-  const addCustomDomain = () => {
-    const value = customDomain.trim();
-    if (!value) return;
-    setSelectedDomains((prev) => new Set(prev).add(value));
-    setCustomDomain('');
-  };
+
 
   const customKeywords = Array.from(selectedKeywords).filter(
     (k) => !job?.proposal?.keywords.some((p) => p.keyword === k),
-  );
-  const customDomains = Array.from(selectedDomains).filter(
-    (d) => !job?.proposal?.domains.some((p) => p.domain === d),
   );
 
   return (
@@ -370,9 +376,10 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           {job?.status === 'awaiting_confirmation' && job.proposal && (
             <>
               <section className="research-section">
-                <h2>② 調べるキーワードを確定する</h2>
+                <h2>② 調べるキーワードと公式サイトを確定する</h2>
                 <p className="research-hint">
                   AIが会話から提案したキーワードです。回数は選んだ会話全体での出現回数、引用は会話の原文です。
+                  選んだキーワードごとに、調べる公式サイトを選べます。サイトを選ばなかったキーワードや、選んだサイトで見つからなかったキーワードは、一般のサイトも調べます。
                 </p>
                 <ul className="research-proposals">
                   {job.proposal.keywords.map((k) => (
@@ -398,6 +405,13 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                           「{q.text}」
                         </blockquote>
                       ))}
+                      {selectedKeywords.has(k.keyword) && (
+                        <KeywordSites
+                          proposed={k.domains ?? job.proposal!.domains}
+                          selected={selectedSites[k.keyword] ?? []}
+                          onChange={(sites) => setSelectedSites((prev) => ({ ...prev, [k.keyword]: sites }))}
+                        />
+                      )}
                     </li>
                   ))}
                   {customKeywords.map((k) => (
@@ -411,6 +425,11 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                         <span className="research-proposal-keyword">{k}</span>
                         <span className="research-proposal-count">追加</span>
                       </label>
+                      <KeywordSites
+                        proposed={[]}
+                        selected={selectedSites[k] ?? []}
+                        onChange={(sites) => setSelectedSites((prev) => ({ ...prev, [k]: sites }))}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -422,51 +441,6 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                     onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addCustomKeyword()}
                   />
                   <button onClick={addCustomKeyword}>追加</button>
-                </div>
-              </section>
-
-              <section className="research-section">
-                <h2>調べる公式サイト</h2>
-                <p className="research-hint">
-                  Web調査は、ここで選んだサイトに限定して行います。見つからない場合だけ、一般のサイトも調べます。
-                </p>
-                <ul className="research-domains">
-                  {job.proposal.domains.map((d) => (
-                    <li key={d.domain}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={selectedDomains.has(d.domain)}
-                          onChange={() => setSelectedDomains((prev) => toggle(prev, d.domain))}
-                        />
-                        <span className="research-domain">{d.domain}</span>
-                        <span className="research-domain-owner">{d.owner}</span>
-                      </label>
-                      <p className="research-domain-reason">{d.reason}</p>
-                    </li>
-                  ))}
-                  {customDomains.map((d) => (
-                    <li key={d}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={() => setSelectedDomains((prev) => toggle(prev, d))}
-                        />
-                        <span className="research-domain">{d}</span>
-                        <span className="research-domain-owner">追加</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-                <div className="research-add">
-                  <input
-                    value={customDomain}
-                    placeholder="サイトを追加（例: anthropic.com）"
-                    onChange={(e) => setCustomDomain(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addCustomDomain()}
-                  />
-                  <button onClick={addCustomDomain}>追加</button>
                 </div>
                 <p className="research-notice">
                   確定したキーワードを Web 検索に使います。会話の本文は検索に使いません。
@@ -491,19 +465,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
 
           {job?.confirmed && (
             <section className="research-section">
-              <h2>確定したキーワード</h2>
-              <div className="research-chips">
-                {job.confirmed.keywords.map((k) => (
-                  <span key={k} className="research-chip">
-                    {k}
-                  </span>
-                ))}
-                {job.confirmed.domains.map((d) => (
-                  <span key={d} className="research-chip domain">
-                    {d}
-                  </span>
-                ))}
-              </div>
+              <h2>確定したキーワードと公式サイト</h2>
+              <ConfirmedTargets job={job} />
             </section>
           )}
 
@@ -582,6 +545,89 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** キーワードごとに調べる公式サイトを選ぶ（提案されたサイトのチェックと、サイトの追加） */
+function KeywordSites({
+  proposed,
+  selected,
+  onChange,
+}: {
+  proposed: DomainProposal[];
+  selected: string[];
+  onChange: (sites: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+  const added = selected.filter((d) => !proposed.some((p) => p.domain === d));
+  const toggleSite = (domain: string) =>
+    onChange(selected.includes(domain) ? selected.filter((d) => d !== domain) : [...selected, domain]);
+  const add = () => {
+    const value = input.trim();
+    if (!value) return;
+    if (!selected.includes(value)) onChange([...selected, value]);
+    setInput('');
+  };
+  return (
+    <div className="research-keyword-sites">
+      <span className="research-keyword-sites-label">調べる公式サイト</span>
+      <ul className="research-domains">
+        {proposed.map((d) => (
+          <li key={d.domain}>
+            <label>
+              <input type="checkbox" checked={selected.includes(d.domain)} onChange={() => toggleSite(d.domain)} />
+              <span className="research-domain">{d.domain}</span>
+              <span className="research-domain-owner">{d.owner}</span>
+            </label>
+            <p className="research-domain-reason">{d.reason}</p>
+          </li>
+        ))}
+        {added.map((d) => (
+          <li key={d}>
+            <label>
+              <input type="checkbox" checked onChange={() => toggleSite(d)} />
+              <span className="research-domain">{d}</span>
+              <span className="research-domain-owner">追加</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {selected.length === 0 && <p className="research-hint">サイトを選ばない場合は、一般のサイトを調べます。</p>}
+      <div className="research-add">
+        <input
+          value={input}
+          placeholder="サイトを追加（例: anthropic.com）"
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && add()}
+        />
+        <button onClick={add}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+/** 確定したキーワードと、キーワードごとに調べた公式サイト（以前の調査は、全キーワード共通のサイト） */
+function ConfirmedTargets({ job }: { job: ResearchJob }) {
+  const confirmed = job.confirmed;
+  if (!confirmed) return null;
+  const targets = confirmed.targets ?? confirmed.keywords.map((keyword) => ({ keyword, domains: confirmed.domains }));
+  return (
+    <ul className="research-targets">
+      {targets.map((t) => (
+        <li key={t.keyword}>
+          <span className="research-chip">{t.keyword}</span>
+          {t.domains.length > 0 ? (
+            t.domains.map((d) => (
+              <span key={d} className="research-chip domain">
+                {d}
+              </span>
+            ))
+          ) : (
+            <span className="research-web-domain">一般のサイト</span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -759,20 +805,8 @@ function ResearchResult({
           {job.confirmed && (
             <>
               <dt>キーワード</dt>
-              <dd className="research-chips">
-                {job.confirmed.keywords.map((k) => (
-                  <span key={k} className="research-chip">
-                    {k}
-                  </span>
-                ))}
-              </dd>
-              <dt>公式サイト</dt>
-              <dd className="research-chips">
-                {job.confirmed.domains.map((d) => (
-                  <span key={d} className="research-chip domain">
-                    {d}
-                  </span>
-                ))}
+              <dd>
+                <ConfirmedTargets job={job} />
               </dd>
             </>
           )}

@@ -28,11 +28,13 @@ import {
 } from './research-claude.service';
 import {
   ClaimCheck,
+  DomainProposal,
   EthicsCheck,
   ReportSegment,
   ResearchEvaluation,
   ResearchJob,
   ResearchJobSummary,
+  ResearchTarget,
 } from './types/research.types';
 import {
   checkPersonalData,
@@ -136,17 +138,13 @@ export class ResearchService implements OnModuleInit {
   }
 
   /** ② ユーザーが確定したキーワードと公式サイトで、③④⑤ を実行する（バックグラウンド） */
-  async confirm(
-    id: string,
-    keywords: string[],
-    domains: string[],
-  ): Promise<ResearchJob> {
+  async confirm(id: string, targets: ResearchTarget[]): Promise<ResearchJob> {
     if (this.confirming.has(id)) {
       throw new BadRequestException('この調査はすでに確定の処理中です');
     }
     this.confirming.add(id);
     try {
-      return await this.confirmJob(id, keywords, domains);
+      return await this.confirmJob(id, targets);
     } finally {
       this.confirming.delete(id);
     }
@@ -154,25 +152,35 @@ export class ResearchService implements OnModuleInit {
 
   private async confirmJob(
     id: string,
-    keywords: string[],
-    domains: string[],
+    targets: ResearchTarget[],
   ): Promise<ResearchJob> {
     const job = await this.findById(id);
     if (job.status !== 'awaiting_confirmation') {
       throw new BadRequestException('この調査は確定できる状態ではありません');
     }
-    const cleanKeywords = [...new Set(keywords.map((k) => k.trim()))].filter(
-      Boolean,
-    );
-    if (cleanKeywords.length === 0) {
+    // 同じキーワードは1つにまとめ、公式サイトは正規化して重複を除く
+    const byKeyword = new Map<string, Set<string>>();
+    for (const t of targets) {
+      const keyword = t.keyword.trim();
+      if (!keyword) continue;
+      const domains = byKeyword.get(keyword) ?? new Set<string>();
+      for (const d of t.domains.map(normalizeDomain)) if (d) domains.add(d);
+      byKeyword.set(keyword, domains);
+    }
+    if (byKeyword.size === 0) {
       throw new BadRequestException('キーワードを1つ以上選んでください');
     }
-    const cleanDomains = [...new Set(domains.map(normalizeDomain))].filter(
-      Boolean,
-    );
+    const cleanTargets = Array.from(byKeyword, ([keyword, domains]) => ({
+      keyword,
+      domains: Array.from(domains),
+    }));
     const updated = await this.update(job, {
       status: 'researching',
-      confirmed: { keywords: cleanKeywords, domains: cleanDomains },
+      confirmed: {
+        keywords: cleanTargets.map((t) => t.keyword),
+        domains: [...new Set(cleanTargets.flatMap((t) => t.domains))],
+        targets: cleanTargets,
+      },
     });
     void this.runResearch(updated);
     return updated;
@@ -194,14 +202,12 @@ export class ResearchService implements OnModuleInit {
           reason: k.reason,
           frequency: countOccurrences(transcriptions, k.keyword),
           quotes: verifyQuotes(k.quotes, transcriptions),
+          domains: uniqueDomains(k.domains),
         }))
         // 会話に出てこないキーワードは提案しない
         .filter((k) => k.keyword && k.frequency > 0)
         .sort((a, b) => b.frequency - a.frequency);
-      const seen = new Set<string>();
-      const domains = raw.domains
-        .map((d) => ({ ...d, domain: normalizeDomain(d.domain) }))
-        .filter((d) => d.domain && !seen.has(d.domain) && seen.add(d.domain));
+      const domains = uniqueDomains(keywords.flatMap((k) => k.domains));
       await this.update(job, {
         status: 'awaiting_confirmation',
         proposal: { keywords, domains },
@@ -213,13 +219,16 @@ export class ResearchService implements OnModuleInit {
 
   private async runResearch(job: ResearchJob): Promise<void> {
     try {
-      const { keywords, domains } = job.confirmed!;
+      const { keywords, domains, targets } = job.confirmed!;
       const transcriptions = await this.loadTranscriptions(
         job.transcriptionIds,
       );
 
       // ③ Web調査
-      const webSources = await this.claude.researchWeb(keywords, domains);
+      // 以前の形式（キーワードごとの公式サイトがない）は、すべてのキーワードで同じ公式サイトを調べる
+      const webSources = await this.claude.researchWeb(
+        targets ?? keywords.map((keyword) => ({ keyword, domains })),
+      );
       job = await this.update(job, { status: 'analyzing', webSources });
 
       // ④ 統合分析
@@ -373,6 +382,14 @@ export class ResearchService implements OnModuleInit {
       this.logger.error(`調査の失敗を記録できません: ${job.id}`, saveError);
     }
   }
+}
+
+/** 提案された公式サイトを正規化し、重複を除く */
+function uniqueDomains(domains: DomainProposal[]): DomainProposal[] {
+  const seen = new Set<string>();
+  return domains
+    .map((d) => ({ ...d, domain: normalizeDomain(d.domain) }))
+    .filter((d) => d.domain && !seen.has(d.domain) && seen.add(d.domain));
 }
 
 /** 統合分析の指示で決めた、各論点の項目名の行 */

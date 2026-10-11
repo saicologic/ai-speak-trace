@@ -8,12 +8,15 @@ import {
 } from '../claude/claude-response.utils';
 import {
   ReportSegment,
+  ResearchTarget,
   TranscriptUtterance,
   WebSource,
 } from './types/research.types';
 import {
   AnalysisDocument,
   collectWebSources,
+  isOfficial,
+  mergeWebSources,
   toReportSegments,
 } from './research.utils';
 
@@ -34,8 +37,12 @@ export interface TranscriptDocument {
 
 /** ② 提案の出力（Claude が返す形） */
 export interface RawProposal {
-  keywords: { keyword: string; reason: string; quotes: string[] }[];
-  domains: { domain: string; owner: string; reason: string }[];
+  keywords: {
+    keyword: string;
+    reason: string;
+    quotes: string[];
+    domains: { domain: string; owner: string; reason: string }[];
+  }[];
 }
 
 /** ⑤ 判定の出力（Claude が返す形） */
@@ -128,7 +135,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
 - keyword: 会話の中で実際に使われている表記のまま書く。一般的すぎる語（AI、モデル など単独では意味が広すぎるもの）は避け、会話の論点になっている専門用語・固有名詞を選ぶ
 - reason: 会話のどの話題に関係し、何を調べると良いかを1〜2文で書く
 - quotes: そのキーワードが使われている発言を、会話から一字一句そのまま1〜2個抜き出す（各10〜60文字）
-- domains: キーワードの公式情報を調べるべき公式サイトのドメインを提案する（例: 製品・ツールの提供元、標準化団体、カンファレンスの公式サイト）。推測で存在しないドメインを書かない
+- domains: そのキーワードの公式情報を調べるべき公式サイトのドメインを1〜3件提案する（例: 製品・ツールの提供元、提唱した組織、標準化団体、論文の公開先）。owner は運営者、reason はそのサイトで何がわかるかを1文で。推測で存在しないドメインを書かない
 - 会話に登場する個人の評価・性格・健康・思想などには触れない`,
             },
           ],
@@ -140,32 +147,30 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
   }
 
   /**
-   * ③ 確定したキーワードを、公式サイトを中心にWebで調べる
-   * 公式サイトで情報源が見つからなかった場合だけ、一般のサイトも検索する
+   * ③ キーワードごとに、選んだ公式サイトに限定して Web を調べる（キーワードごとの検索は同時に行う）
+   * 公式サイトで見つからないキーワードと、公式サイトを選ばなかったキーワードは、一般のサイトも調べる
    */
-  async researchWeb(
-    keywords: string[],
+  async researchWeb(targets: ResearchTarget[]): Promise<WebSource[]> {
+    const results = await Promise.all(
+      targets.map((t) => this.researchKeyword(t.keyword, t.domains)),
+    );
+    return mergeWebSources(results.flat());
+  }
+
+  private async researchKeyword(
+    keyword: string,
     domains: string[],
   ): Promise<WebSource[]> {
-    const prompt = `次のキーワードを詳しく解説するために、それぞれの公式な情報をWebで調べ、キーワードごとに要点を書いてください。定義、構成要素・仕組み、具体例や使いどころ、注意点や限界を探してください。各要点には、根拠となる検索結果を引用してください。
-
-## キーワード
-${keywords.map((k) => `- ${k}`).join('\n')}`;
-
+    const prompt = `キーワード「${keyword}」を詳しく解説するために、公式な情報をWebで調べ、要点を書いてください。定義、構成要素・仕組み、具体例や使いどころ、注意点や限界を探してください。各要点には、根拠となる検索結果を引用してください。`;
     let sources: WebSource[] = [];
     if (domains.length > 0) {
-      sources = await this.searchWeb(prompt, keywords.length, domains, domains);
+      sources = await this.searchWeb(prompt, 1, domains, domains);
     }
     if (!sources.some((s) => s.excerpts.length > 0)) {
       this.logger.log(
-        '公式サイトで情報源が見つからないため、一般のサイトも検索します',
+        `「${keyword}」は公式サイトで情報源が見つからないため、一般のサイトも検索します`,
       );
-      sources = await this.searchWeb(
-        prompt,
-        keywords.length,
-        undefined,
-        domains,
-      );
+      sources = await this.searchWeb(prompt, 1, undefined, domains);
     }
     return sources;
   }
@@ -208,7 +213,11 @@ ${keywords.map((k) => `- ${k}`).join('\n')}`;
     if (!completed) {
       throw new Error('Web調査がpause_turnの再開上限に達しました');
     }
-    return collectWebSources(content, officialDomains);
+    const sources = collectWebSources(content, officialDomains);
+    // allowed_domains を指定しても、ほかのサイトの検索結果が返ることがあるため、選んだサイトのものだけを残す
+    return allowedDomains
+      ? sources.filter((s) => isOfficial(s.url, allowedDomains))
+      : sources;
   }
 
   /** ④ 会話とWebの情報源を論点ごとに統合し、根拠付きで分析する */
@@ -340,26 +349,26 @@ const PROPOSAL_SCHEMA = {
           keyword: { type: 'string' },
           reason: { type: 'string' },
           quotes: { type: 'array', items: { type: 'string' } },
+          domains: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                domain: { type: 'string' },
+                owner: { type: 'string' },
+                reason: { type: 'string' },
+              },
+              required: ['domain', 'owner', 'reason'],
+              additionalProperties: false,
+            },
+          },
         },
-        required: ['keyword', 'reason', 'quotes'],
-        additionalProperties: false,
-      },
-    },
-    domains: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          domain: { type: 'string' },
-          owner: { type: 'string' },
-          reason: { type: 'string' },
-        },
-        required: ['domain', 'owner', 'reason'],
+        required: ['keyword', 'reason', 'quotes', 'domains'],
         additionalProperties: false,
       },
     },
   },
-  required: ['keywords', 'domains'],
+  required: ['keywords'],
   additionalProperties: false,
 };
 

@@ -5,6 +5,7 @@ import {
   collectWebSources,
   countOccurrences,
   findMentions,
+  mergeWebSources,
   isOfficial,
   mergeIntoSentences,
   normalizeDomain,
@@ -238,6 +239,26 @@ describe('research.utils', () => {
       start: 10,
       speakerName: 'Bさん',
     });
+  });
+
+  it('キーワードごとに調べた情報源を URL ごとにまとめ、抜粋の重複を除く', () => {
+    const page = {
+      url: 'https://a.com/x',
+      title: 'X',
+      domain: 'a.com',
+      official: false,
+      excerpts: ['抜粋1'],
+    };
+    expect(
+      mergeWebSources([
+        page,
+        { ...page, official: true, excerpts: ['抜粋1', '抜粋2'] },
+        { ...page, url: 'https://b.com', domain: 'b.com' },
+      ]),
+    ).toEqual([
+      { ...page, official: true, excerpts: ['抜粋1', '抜粋2'] },
+      { ...page, url: 'https://b.com', domain: 'b.com' },
+    ]);
   });
 
   it('空の発言を除き、文字起こしでの発言の位置を残す', () => {

@@ -27,6 +27,15 @@ export interface KeywordProposal {
   frequency: number;
   /** 会話での使われ方（原文と一致したものだけ残す） */
   quotes: TranscriptQuote[];
+  /** このキーワードを調べる公式サイト（以前の調査にはない） */
+  domains?: DomainProposal[];
+}
+
+/** 確定した、キーワードと調べる公式サイトの組 */
+export interface ResearchTarget {
+  keyword: string;
+  /** 調べる公式サイトのドメイン（空なら一般のサイトを調べる） */
+  domains: string[];
 }
 
 /** 調べる公式サイトの提案 */
@@ -48,7 +57,6 @@ export interface WebSource {
   excerpts: string[];
 }
 
-/** 根拠（統合分析の各文に付く引用） */
 /** 会話でキーワードが話題になった発言 */
 export interface KeywordMention {
   transcriptionId: string;
@@ -65,6 +73,7 @@ export interface KeywordMentions {
   items: KeywordMention[];
 }
 
+/** 根拠（統合分析の各文に付く引用） */
 export interface ReportCitation {
   /** 根拠の種類 */
   sourceKind: 'conversation' | 'web';
@@ -156,7 +165,10 @@ export interface ResearchJob {
   /** ② ユーザーが確定した内容 */
   confirmed?: {
     keywords: string[];
+    /** すべてのキーワードの公式サイトをまとめたもの */
     domains: string[];
+    /** キーワードごとの公式サイト（以前の調査にはない） */
+    targets?: ResearchTarget[];
   };
   /** ③ Web調査の情報源 */
   webSources?: WebSource[];

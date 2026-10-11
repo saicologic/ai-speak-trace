@@ -11,7 +11,7 @@ import type {
   SummaryConfig,
   PrivacyStatus,
 } from '../types';
-import type { ResearchJob, ResearchJobSummary } from '../types/research';
+import type { ResearchJob, ResearchJobSummary, ResearchTarget } from '../types/research';
 
 /**
  * バックエンドのベースURL
@@ -831,16 +831,15 @@ export async function startResearch(
   return (await res.json()).job;
 }
 
-/** キーワードと公式サイトを確定し、Web調査・統合分析・評価を始める */
+/** キーワードとキーワードごとの公式サイトを確定し、Web調査・統合分析・評価を始める */
 export async function confirmResearch(
   id: string,
-  keywords: string[],
-  domains: string[],
+  targets: ResearchTarget[],
 ): Promise<ResearchJob> {
   const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, domains }),
+    body: JSON.stringify({ targets }),
   });
   if (!res.ok) {
     throw new Error(await errorMessage(res, '調査を進められませんでした'));

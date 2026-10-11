@@ -781,3 +781,34 @@
   padding: 0.15rem 0.55rem;
   font-size: 0.75rem;
 }
+
+/* キーワードごとの公式サイト */
+.research-keyword-sites {
+  margin: 0.6rem 0 0 1.6rem;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid #bfdbfe;
+  background-color: #f8fafc;
+  border-radius: 0 6px 6px 0;
+}
+
+.research-keyword-sites-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.research-targets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.research-targets li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
+}
