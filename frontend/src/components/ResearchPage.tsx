@@ -11,11 +11,13 @@ import {
 } from '../api/client';
 import type { TranscriptionSummary } from '../types';
 import type {
+  ClaimCheck,
   DomainProposal,
   ReportCitation,
   ResearchJob,
   ResearchJobSummary,
   ResearchStatus,
+  PreSendFinding,
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
 import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
@@ -372,7 +374,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           {job?.preSendChecks && (
             <section className="research-section">
               <h2>送る前の確認</h2>
-              <PreSendChecksView job={job} />
+              <PreSendChecksView job={job} onOpenTranscription={onOpenTranscription} />
             </section>
           )}
 
@@ -573,53 +575,60 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   );
 }
 
+/** 除いた文を読みやすくする（書式の記号・箇条書きの記号・内部の番号を除く） */
+function plainClaim(text: string): string {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/^[\s\-*]+/, '')
+    .replace(/[（(]\d+-\d+[)）]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 文を除いた理由を、利用者向けの決まった言葉で表す */
+function removedReason(claim: ClaimCheck): string {
+  if (claim.missingCitation === true) return 'この文には根拠のページが付いていませんでした。';
+  if (claim.missingCitation === false) return '根拠のページに、この内容は書かれていませんでした。';
+  return '根拠を確認できませんでした。';
+}
+
+/** 個人情報チェックで検出した文字列を「氏名 金井（4か所）」の形で並べる */
+function findingList(findings: PreSendFinding[]): string {
+  return findings.map((f) => `${f.label} ${f.text}（${f.count}か所）`).join('、');
+}
+
 /**
  * 送る前の確認（① 会話の読み込みの後、Claude に送る前と、キーワード提案の直後に行った確認）
- * 出力のハルシネーション・AI倫理は、出力を見て判定するため、⑤ 最終確認で確認する
+ * 会話ごとに、伏せて送った文字列・伏せずに送った文字列と、文字起こしへのリンクを出す
  */
-function PreSendChecksView({ job }: { job: ResearchJob }) {
+function PreSendChecksView({
+  job,
+  onOpenTranscription,
+}: {
+  job: ResearchJob;
+  onOpenTranscription: Props['onOpenTranscription'];
+}) {
   const checks = job.preSendChecks!;
-  const name = (id: string) => `会話${job.transcriptionIds.indexOf(id) + 1}`;
-  const items: { ok: boolean; text: string }[] = [];
-  if (!checks.privacyConfigured) {
-    items.push({ ok: false, text: '個人情報チェック（Guardrail ID）が設定されていないため、会話は伏せずにそのまま送りました' });
-  } else {
-    for (const p of checks.privacy) {
-      if (!p.scanned) {
-        items.push({ ok: false, text: `${name(p.transcriptionId)}: 個人情報チェックをしていないため、伏せずにそのまま送りました` });
-        continue;
-      }
-      items.push({
-        ok: p.needsReview === 0,
-        text:
-          `${name(p.transcriptionId)}: ` +
-          (p.maskedKinds > 0
-            ? `個人情報 ${p.maskedKinds}種類（${p.maskedCount}か所）を伏せて送りました`
-            : '伏せる個人情報はありませんでした') +
-          (p.needsReview > 0 ? `。要確認の ${p.needsReview}件は伏せずに送りました` : ''),
-      });
-    }
-  }
-  if (checks.droppedFrequentWords !== undefined) {
-    items.push({
+  const conversationLabel = (id: string) =>
+    `会話${job.transcriptionIds.indexOf(id) + 1}（${job.transcriptionNames[id] ?? id}）`;
+  const others: { ok: boolean; text: string }[] = [];
+  if (checks.droppedFrequentWords !== undefined && checks.droppedFrequentWords > 0) {
+    others.push({
       ok: true,
-      text:
-        checks.droppedFrequentWords > 0
-          ? `伏せた文字列を含む頻出語 ${checks.droppedFrequentWords}件は、キーワード提案の参考として送りませんでした`
-          : '頻出語に、伏せた文字列は含まれていませんでした',
+      text: `伏せた文字列を含む頻出語 ${checks.droppedFrequentWords}件は、キーワード提案の参考として送りませんでした`,
     });
   }
   if (checks.droppedKeywords !== undefined) {
-    items.push({
+    others.push({
       ok: true,
       text:
         checks.droppedKeywords.length > 0
-          ? `会話に出てこないキーワード ${checks.droppedKeywords.length}件（${checks.droppedKeywords.join('、')}）を、提案から外しました`
+          ? `会話に出てこないキーワード（${checks.droppedKeywords.join('、')}）を、提案から外しました`
           : '提案されたキーワードは、すべて会話に出てきます',
     });
   }
   if (checks.droppedQuotes !== undefined) {
-    items.push({
+    others.push({
       ok: true,
       text:
         checks.droppedQuotes > 0
@@ -627,20 +636,58 @@ function PreSendChecksView({ job }: { job: ResearchJob }) {
           : '提案の引用は、すべて会話の原文と一致しました',
     });
   }
+
   return (
-    <>
-      <ul className="research-checks">
-        {items.map((item, i) => (
-          <li key={i} className={item.ok ? 'passed' : 'warning'}>
-            <span className="research-check-mark">{item.ok ? '✓' : '!'}</span>
-            {item.text}
+    <ul className="research-checks research-presend">
+      {!checks.privacyConfigured && (
+        <li className="failed">
+          <span className="research-check-mark">!</span>
+          個人情報チェック（Guardrail ID）が設定されていないため、会話は伏せずにそのまま送りました
+        </li>
+      )}
+      {checks.privacyConfigured &&
+        checks.privacy.map((p) => (
+          <li key={p.transcriptionId} className={p.scanned && p.needsReview === 0 ? 'passed' : 'warning'}>
+            <span className="research-check-mark">{p.scanned && p.needsReview === 0 ? '✓' : '!'}</span>
+            <div className="research-presend-body">
+              <div className="research-presend-head">
+                <span>{conversationLabel(p.transcriptionId)}</span>
+                <button className="research-action-button" onClick={() => onOpenTranscription(p.transcriptionId)}>
+                  文字起こしを開く
+                </button>
+              </div>
+              {!p.scanned ? (
+                <p>個人情報チェックをしていないため、伏せずにそのまま送りました。</p>
+              ) : (
+                <>
+                  <p>
+                    伏せて送った:{' '}
+                    {p.maskedKinds === 0
+                      ? 'なし'
+                      : p.masked
+                        ? findingList(p.masked)
+                        : `${p.maskedKinds}種類（${p.maskedCount}か所）`}
+                  </p>
+                  <p>
+                    伏せずに送った（要確認のまま）:{' '}
+                    {p.needsReview === 0
+                      ? 'なし'
+                      : p.unmasked
+                        ? findingList(p.unmasked)
+                        : `${p.needsReview}件`}
+                  </p>
+                </>
+              )}
+            </div>
           </li>
         ))}
-      </ul>
-      <p className="research-hint">
-        分析の出力のハルシネーションと AI 倫理は、出力を見て判定するため、調査の最後（⑤ 最終確認）で確認します。
-      </p>
-    </>
+      {others.map((item, i) => (
+        <li key={i} className={item.ok ? 'passed' : 'warning'}>
+          <span className="research-check-mark">{item.ok ? '✓' : '!'}</span>
+          {item.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -952,6 +999,11 @@ function ResearchResult({
   const evaluation = job.status === 'completed' ? job.evaluation : undefined;
   const reviewCount = evaluation?.reviewClaims?.length ?? 0;
   const topicIndex = (keyword: string) => topics.findIndex((t) => t.title === keyword);
+  // 除いた文は、論点がわかるもの（新しい調査）は解説の中に、わからないもの（以前の調査）は記録に出す
+  const removedIn = (keyword: string | null) =>
+    keyword ? (evaluation?.removedClaims.filter((c) => c.topic === keyword) ?? []) : [];
+  const removedWithoutTopic = evaluation?.removedClaims.filter((c) => !c.topic) ?? [];
+  const removedInTopics = (evaluation?.removedClaims.length ?? 0) - removedWithoutTopic.length;
 
   // 次にできること: 確認が必要なところ（評価・Web調査の失敗・会話との食い違い）と、読むとよい公式ページ
   // 以前の調査は、解説の「関連するキーワード」の判定も保存しているため、確定したキーワードだけを見る
@@ -997,7 +1049,12 @@ function ResearchResult({
                     <button className="research-highlight-keyword" onClick={() => scrollToTopic(i)}>
                       {t.title}
                     </button>
-                    <span>{t.oneLiner ?? '（一言の説明はありません。解説を読んでください）'}</span>
+                    <span>
+                      {t.oneLiner ??
+                        (removedIn(t.title).some((c) => c.claim.includes('一言でいうと'))
+                          ? '（一言の説明は、根拠を確認できなかったため除きました。解説の中に表示しています）'
+                          : '（一言の説明はありません。解説を読んでください）')}
+                    </span>
                   </li>
                 ) : null,
               )}
@@ -1082,6 +1139,22 @@ function ResearchResult({
                   </p>
                 )}
                 <div className="research-report" dangerouslySetInnerHTML={{ __html: t.html }} />
+                {removedIn(t.title).length > 0 && (
+                  <div className="research-removed-inline">
+                    <p className="research-removed-inline-title">根拠を確認できなかったため、表示から除いた文</p>
+                    <ul>
+                      {removedIn(t.title).map((c, j) => (
+                        <li key={j}>
+                          <p className="research-removed-claim">{plainClaim(c.claim)}</p>
+                          <p className="research-check-detail">
+                            {removedReason(c)}
+                            {t.pages.length > 0 && '正しいかどうかは、下の「さらに読む」のページで確かめてください。'}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {t.pages.length > 0 && (
                   <div className="research-topic-extra">
                     <h3>さらに読む</h3>
@@ -1208,7 +1281,7 @@ function ResearchResult({
         {job.preSendChecks && (
           <>
             <h3>送る前の確認</h3>
-            <PreSendChecksView job={job} />
+            <PreSendChecksView job={job} onOpenTranscription={onOpenTranscription} />
           </>
         )}
 
@@ -1240,14 +1313,19 @@ function ResearchResult({
                 </ul>
               </details>
             )}
-            {evaluation.removedClaims.length > 0 && (
+            {removedInTopics > 0 && (
+              <p className="research-record-line">
+                根拠を確認できなかった文 {removedInTopics}件は、各キーワードの解説の中に表示しています。
+              </p>
+            )}
+            {removedWithoutTopic.length > 0 && (
               <details className="research-removed">
-                <summary>根拠がないため表示から除いた文（{evaluation.removedClaims.length}件）</summary>
+                <summary>根拠を確認できなかったため、表示から除いた文（{removedWithoutTopic.length}件）</summary>
                 <ul>
-                  {evaluation.removedClaims.map((c, i) => (
+                  {removedWithoutTopic.map((c, i) => (
                     <li key={i}>
-                      <p>{c.claim}</p>
-                      <p className="research-check-detail">{c.reason}</p>
+                      <p>{plainClaim(c.claim)}</p>
+                      <p className="research-check-detail">{removedReason(c)}</p>
                     </li>
                   ))}
                 </ul>

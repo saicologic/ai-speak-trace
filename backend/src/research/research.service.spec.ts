@@ -368,9 +368,27 @@ describe('ResearchService（送る前の確認）', () => {
           scanning: false,
           scan: {
             findings: [
-              { mask: true, needsReview: false, count: 3 },
-              { mask: false, needsReview: true, count: 1 },
-              { mask: false, needsReview: false, count: 5 },
+              {
+                mask: true,
+                needsReview: false,
+                count: 3,
+                label: 'メールアドレス',
+                text: 'x@example.com',
+              },
+              {
+                mask: false,
+                needsReview: true,
+                count: 1,
+                label: '氏名',
+                text: '山田',
+              },
+              {
+                mask: false,
+                needsReview: false,
+                count: 5,
+                label: '氏名',
+                text: '佐藤',
+              },
             ],
           },
         }),
@@ -409,12 +427,60 @@ describe('ResearchService（送る前の確認）', () => {
           maskedKinds: 1,
           maskedCount: 3,
           needsReview: 1,
+          // 調査を始めた時点で、伏せたものと、要確認のまま伏せずに送ったものを記録する
+          masked: [
+            { label: 'メールアドレス', text: 'x@example.com', count: 3 },
+          ],
+          unmasked: [{ label: '氏名', text: '山田', count: 1 }],
         },
       ],
       droppedFrequentWords: 1,
       droppedKeywords: ['会話にない語'],
       droppedQuotes: 1,
     });
+  });
+});
+
+describe('evaluate の除いた文', () => {
+  it('除いた文に、論点と、根拠が付いていなかったかを記録する', () => {
+    const report: ReportSegment[] = [
+      {
+        text: '## ハーネス\n\n**一言でいうと**: 根拠のない定義です。',
+        citations: [],
+      },
+      {
+        text: '合わない根拠の文です。',
+        citations: [
+          {
+            sourceKind: 'web',
+            sourceId: 'https://a.com',
+            title: 'a',
+            citedText: 'x',
+          },
+        ] as ReportSegment['citations'],
+      },
+    ];
+    const { evaluation } = evaluate(
+      report,
+      {
+        claims: [
+          { index: 0, factual: true, verdict: 'unsupported', reason: 'r' },
+          { index: 1, factual: true, verdict: 'unsupported', reason: 'r' },
+        ],
+        relevance: [],
+        ethics: {
+          no_sensitive_inference: { passed: true, detail: '' },
+          no_individual_judgement: { passed: true, detail: '' },
+        },
+      } as unknown as RawJudgement,
+      ['ハーネス'],
+    );
+    expect(
+      evaluation.removedClaims.map((c) => [c.topic, c.missingCitation]),
+    ).toEqual([
+      ['ハーネス', true],
+      ['ハーネス', false],
+    ]);
   });
 });
 

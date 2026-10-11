@@ -1016,3 +1016,54 @@
   font-size: 14px;
   color: #374151;
 }
+
+/* 送る前の確認: 会話ごとの伏せた・伏せなかった文字列 */
+.research-presend li {
+  align-items: flex-start;
+}
+
+.research-presend-body {
+  flex: 1;
+}
+
+.research-presend-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.research-presend-body p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+/* 解説の中の、表示から除いた文 */
+.research-removed-inline {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.research-removed-inline-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.research-removed-inline ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.research-removed-claim {
+  margin: 0;
+  color: #6b7280;
+  text-decoration: line-through;
+  text-decoration-color: #d1d5db;
+}

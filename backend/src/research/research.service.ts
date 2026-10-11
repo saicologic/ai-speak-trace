@@ -252,12 +252,21 @@ export class ResearchService implements OnModuleInit {
         privacyConfigured = status.configured;
         const findings = status.scan?.findings ?? [];
         const masked = findings.filter((f) => f.mask);
+        const unmasked = findings.filter((f) => !f.mask && f.needsReview);
+        // 調査を始めた時点で、何を伏せ、何を伏せずに送ったかを記録する（個人情報チェックの選択は後から変わるため）
+        const toRecord = (f: (typeof findings)[number]) => ({
+          label: f.label,
+          text: f.text,
+          count: f.count,
+        });
         return {
           transcriptionId,
           scanned: !!status.scan,
           maskedKinds: masked.length,
           maskedCount: masked.reduce((sum, f) => sum + f.count, 0),
-          needsReview: findings.filter((f) => !f.mask && f.needsReview).length,
+          needsReview: unmasked.length,
+          masked: masked.map(toRecord),
+          unmasked: unmasked.map(toRecord),
         };
       }),
     );
@@ -524,8 +533,16 @@ export function evaluate(
   let factual = 0;
   let cited = 0;
   let supported = 0;
+  // 除いた文がどの論点のものかを記録するため、直前の論点の見出しを覚えておく
+  let topic: string | undefined;
 
   report.forEach((segment, index) => {
+    for (const line of segment.text.split('\n')) {
+      const heading = line.trim().match(/^#{1,6}\s+(.+)$/);
+      if (heading && keywords.includes(heading[1].trim())) {
+        topic = heading[1].trim();
+      }
+    }
     const v = verdicts.get(index);
     // 注記の文は、審査員の判定によらず事実の主張として扱わない
     if (NOTE_SENTENCE.test(segment.text.trim())) return;
@@ -552,6 +569,8 @@ export function evaluate(
           verdict: 'unsupported',
           reason: `${judgeReason}（${scoreNote}）`,
           groundingScore: score,
+          ...(topic && { topic }),
+          missingCitation: false,
         });
       } else if (judgeRejects || guardrailRejects) {
         reviewClaims.push({
@@ -573,6 +592,8 @@ export function evaluate(
         factual: true,
         verdict: 'unsupported',
         reason: v ? v.reason : '判定が返りませんでした',
+        ...(topic && { topic }),
+        missingCitation: !hasCitation,
       });
     }
   });

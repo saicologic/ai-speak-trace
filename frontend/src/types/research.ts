@@ -58,6 +58,14 @@ export interface WebSource {
 }
 
 /** Claude に送る前・提案の直後に行った確認の結果 */
+/** 送る前の確認に記録する、個人情報チェックで検出した文字列 */
+export interface PreSendFinding {
+  /** 種類の表示名（氏名・メールアドレスなど） */
+  label: string;
+  text: string;
+  count: number;
+}
+
 export interface PreSendChecks {
   /** 個人情報チェック（Guardrail ID）が設定されているか */
   privacyConfigured: boolean;
@@ -68,6 +76,10 @@ export interface PreSendChecks {
     maskedKinds: number;
     maskedCount: number;
     needsReview: number;
+    /** 伏せて送った文字列（調査を始めた時点のもの。以前の調査にはない） */
+    masked?: PreSendFinding[];
+    /** 要確認のまま、伏せずに送った文字列（調査を始めた時点のもの。以前の調査にはない） */
+    unmasked?: PreSendFinding[];
   }[];
   /** 伏せた文字列を含むため、キーワード提案の参考に送らなかった頻出語の数 */
   droppedFrequentWords?: number;
@@ -129,6 +141,10 @@ export interface ClaimCheck {
   /** 根拠で裏付けられているか */
   verdict: 'supported' | 'partial' | 'unsupported' | 'not_applicable';
   reason: string;
+  /** 主張があった論点（キーワード）。以前の調査にはない */
+  topic?: string;
+  /** 根拠が付いていなかったか（false は、根拠はあったが内容を裏付けていない）。以前の調査にはない */
+  missingCitation?: boolean;
   /** Guardrails の根拠スコア（0〜1。英語の主張だけ） */
   groundingScore?: number;
 }
