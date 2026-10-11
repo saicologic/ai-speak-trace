@@ -192,6 +192,8 @@ export interface ResearchJob {
   };
   /** ③ Web調査の情報源 */
   webSources?: WebSource[];
+  /** ③ Web調査に失敗したキーワード（ほかのキーワードの結果で調査を続けた） */
+  webResearchFailures?: { keyword: string; error: string }[];
   /** ④ 統合分析（⑤で根拠のない主張を除いたもの） */
   report?: ReportSegment[];
   /** ⑤ 評価 */
