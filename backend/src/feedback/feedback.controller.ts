@@ -39,6 +39,7 @@ export class FeedbackController {
       feature?: unknown;
       targetId?: unknown;
       transcriptionId?: unknown;
+      transcriptionIds?: unknown;
       category?: unknown;
       quote?: unknown;
       comment?: unknown;
@@ -56,6 +57,17 @@ export class FeedbackController {
     if (typeof transcriptionId !== 'string' || !transcriptionId.trim()) {
       throw new BadRequestException('transcriptionId を指定してください');
     }
+    const transcriptionIds = body?.transcriptionIds;
+    if (
+      transcriptionIds !== undefined &&
+      (!Array.isArray(transcriptionIds) ||
+        transcriptionIds.length > 10 ||
+        !transcriptionIds.every((id) => typeof id === 'string' && id.trim()))
+    ) {
+      throw new BadRequestException(
+        'transcriptionIds は文字列の配列（10件まで）で指定してください',
+      );
+    }
     const quote = optionalString(body?.quote, 'quote', MAX_QUOTE_CHARS);
     const comment = optionalString(body?.comment, 'comment', MAX_COMMENT_CHARS);
     if (!quote && !comment && category === 'other') {
@@ -66,6 +78,9 @@ export class FeedbackController {
         feature: feature as FeedbackFeature,
         targetId: optionalString(body?.targetId, 'targetId', 200),
         transcriptionId,
+        ...(transcriptionIds !== undefined && {
+          transcriptionIds: transcriptionIds as string[],
+        }),
         category: category as FeedbackCategory,
         quote,
         comment,

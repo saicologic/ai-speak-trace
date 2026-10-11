@@ -178,3 +178,24 @@ describe('ResearchClaudeService.researchKeyword', () => {
     expect(searchWeb.mock.calls[0][2]).toBeUndefined();
   });
 });
+
+describe('ResearchClaudeService の呼び出しの記録', () => {
+  it('キーワードの提案を、research-proposal として記録する', async () => {
+    const createMessage = jest.fn(() =>
+      Promise.resolve({
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: '{"title":"t","keywords":[]}' }],
+      }),
+    );
+    const service = new ResearchClaudeService({
+      createMessage,
+    } as unknown as ClaudeClientService);
+    await service.proposeKeywords(
+      [{ id: 't1', name: 'a.mp3', text: '会話', utterances: [] }],
+      [],
+    );
+    expect(createMessage).toHaveBeenCalledWith(expect.anything(), {
+      purpose: 'research-proposal',
+    });
+  });
+});

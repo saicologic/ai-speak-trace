@@ -25,7 +25,10 @@ export class FeedbackStore {
    */
   async save(feedback: Feedback): Promise<boolean> {
     const deleted = () =>
-      wasDeletedSince([feedback.transcriptionId], feedback.createdAt);
+      wasDeletedSince(
+        [feedback.transcriptionId, ...(feedback.transcriptionIds ?? [])],
+        feedback.createdAt,
+      );
     await fs.mkdir(this.storeDir, { recursive: true });
     const filePath = path.join(
       this.storeDir,
