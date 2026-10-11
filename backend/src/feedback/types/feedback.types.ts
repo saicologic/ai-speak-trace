@@ -34,6 +34,11 @@ export interface Feedback {
   targetId: string;
   /** 結果を作った文字起こし（文字起こしの削除時に、報告も削除する） */
   transcriptionId: string;
+  /**
+   * 結果を作った文字起こしのすべて（ディープサーチのように複数の会話を使う結果だけ）
+   * どれか1つの文字起こしを削除したときにも、報告を削除する
+   */
+  transcriptionIds?: string[];
   category: FeedbackCategory;
   /** 誤りだと思った箇所（任意） */
   quote: string;

@@ -212,6 +212,8 @@ export interface Feedback {
   feature: FeedbackFeature;
   targetId: string;
   transcriptionId: string;
+  /** 結果を作った文字起こしのすべて（ディープサーチのように複数の会話を使う結果だけ） */
+  transcriptionIds?: string[];
   category: FeedbackCategory;
   quote: string;
   comment: string;

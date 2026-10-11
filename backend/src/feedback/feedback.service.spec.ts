@@ -75,4 +75,28 @@ describe('FeedbackService', () => {
       't2',
     ]);
   });
+
+  it('複数の会話を使った結果の報告は、どれか1つの文字起こしを削除しても削除される', async () => {
+    await service.create({
+      ...input,
+      feature: 'research',
+      targetId: 'job-1',
+      transcriptionId: 't1',
+      transcriptionIds: ['t1', 't2'],
+    });
+
+    await new DerivedLogCleaner(config()).deleteLogsForTranscription('t2');
+
+    expect(await service.find({})).toEqual([]);
+  });
+
+  it('複数の会話のうち、見つからない文字起こしがあれば保存しない', async () => {
+    transcriptionStore.findById.mockImplementation((id: string) =>
+      Promise.resolve(id === 't1' ? { id: 't1' } : null),
+    );
+
+    await expect(
+      service.create({ ...input, transcriptionIds: ['t1', 't2'] }),
+    ).rejects.toThrow(NotFoundException);
+  });
 });

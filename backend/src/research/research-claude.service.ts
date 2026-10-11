@@ -117,21 +117,22 @@ export class ResearchClaudeService {
     transcripts: TranscriptDocument[],
     frequentWords: { word: string; count: number }[],
   ): Promise<RawProposal> {
-    const response = await this.claudeClient.createMessage({
-      model: CLAUDE_MODEL,
-      max_tokens: MAX_TOKENS,
-      output_config: {
-        effort: 'medium',
-        format: { type: 'json_schema', schema: PROPOSAL_SCHEMA },
-      },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...transcriptBlocks(transcripts, false),
-            {
-              type: 'text',
-              text: `上の会話（ポッドキャストの文字起こし）を読み、会話で頻繁に使われ、Webで調べると理解が深まるキーワードを5〜8個提案してください。
+    const response = await this.claudeClient.createMessage(
+      {
+        model: CLAUDE_MODEL,
+        max_tokens: MAX_TOKENS,
+        output_config: {
+          effort: 'medium',
+          format: { type: 'json_schema', schema: PROPOSAL_SCHEMA },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...transcriptBlocks(transcripts, false),
+              {
+                type: 'text',
+                text: `上の会話（ポッドキャストの文字起こし）を読み、会話で頻繁に使われ、Webで調べると理解が深まるキーワードを5〜8個提案してください。
 
 ## 会話での出現回数が多い語（参考）
 ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
@@ -143,11 +144,13 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
 - domains: そのキーワードの公式情報を調べるべき公式サイトのドメインを1〜3件提案する（例: 製品・ツールの提供元、提唱した組織、標準化団体、論文の公開先）。owner は運営者、reason はそのサイトで何がわかるかを1文で。推測で存在しないドメインを書かない
 - 会話に登場する個人の評価・性格・健康・思想などには触れない
 - title: この調査の内容を表す日本語のタイトルを、20〜30文字で書く。会話全体の主題と、調べるキーワードの共通点がわかるようにする。番組名が会話からわかれば含めてよい。会話に登場する個人の名前は含めない`,
-            },
-          ],
-        },
-      ],
-    });
+              },
+            ],
+          },
+        ],
+      },
+      { purpose: 'research-proposal' },
+    );
     assertCompleteResponse(response);
     return JSON.parse(extractText(response.content)) as RawProposal;
   }
@@ -250,21 +253,24 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     const content: Anthropic.ContentBlock[] = [];
     let completed = false;
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
-      const response = await this.claudeClient.createMessage({
-        model: CLAUDE_MODEL,
-        max_tokens: MAX_TOKENS,
-        output_config: { effort: 'medium' },
-        tools: [
-          {
-            // 回答に引用（citations）が付く版を使う
-            type: 'web_search_20250305',
-            name: 'web_search',
-            max_uses: Math.min(12, keywordCount * 3),
-            ...(allowedDomains && { allowed_domains: allowedDomains }),
-          },
-        ],
-        messages,
-      });
+      const response = await this.claudeClient.createMessage(
+        {
+          model: CLAUDE_MODEL,
+          max_tokens: MAX_TOKENS,
+          output_config: { effort: 'medium' },
+          tools: [
+            {
+              // 回答に引用（citations）が付く版を使う
+              type: 'web_search_20250305',
+              name: 'web_search',
+              max_uses: Math.min(12, keywordCount * 3),
+              ...(allowedDomains && { allowed_domains: allowedDomains }),
+            },
+          ],
+          messages,
+        },
+        { purpose: 'research-web' },
+      );
       assertCompleteResponse(response);
       content.push(...response.content);
       if (response.stop_reason !== 'pause_turn') {
@@ -309,31 +315,32 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
         official: s.official,
       })),
     ];
-    const response = await this.claudeClient.createMessage({
-      model: CLAUDE_MODEL,
-      max_tokens: MAX_TOKENS,
-      output_config: { effort: 'medium' },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...transcriptContentBlocks(transcripts),
-            ...usableWeb.map(
-              (s): Anthropic.DocumentBlockParam => ({
-                type: 'document',
-                source: {
-                  type: 'text',
-                  media_type: 'text/plain',
-                  data: s.excerpts.join('\n'),
-                },
-                title: `Web${s.official ? '（公式）' : ''}: ${s.title}`,
-                context: s.url,
-                citations: { enabled: true },
-              }),
-            ),
-            {
-              type: 'text',
-              text: `上の会話（ポッドキャストの文字起こし）で話題になった次のキーワードについて、Webで調べた情報をもとに、詳しく解説してください。目的は会話の内容をまとめることではなく、キーワードそのものを理解できるようにすることです。
+    const response = await this.claudeClient.createMessage(
+      {
+        model: CLAUDE_MODEL,
+        max_tokens: MAX_TOKENS,
+        output_config: { effort: 'medium' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...transcriptContentBlocks(transcripts),
+              ...usableWeb.map(
+                (s): Anthropic.DocumentBlockParam => ({
+                  type: 'document',
+                  source: {
+                    type: 'text',
+                    media_type: 'text/plain',
+                    data: s.excerpts.join('\n'),
+                  },
+                  title: `Web${s.official ? '（公式）' : ''}: ${s.title}`,
+                  context: s.url,
+                  citations: { enabled: true },
+                }),
+              ),
+              {
+                type: 'text',
+                text: `上の会話（ポッドキャストの文字起こし）で話題になった次のキーワードについて、Webで調べた情報をもとに、詳しく解説してください。目的は会話の内容をまとめることではなく、キーワードそのものを理解できるようにすることです。
 
 ## キーワード
 ${keywords.map((k) => `- ${k}`).join('\n')}
@@ -348,11 +355,13 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
 - 「会話での説明との違い」の文は、比べた会話の発言と Web の情報の両方を引用する
 - 文書に根拠がない内容は書かない。推測を書く場合は「推測:」と明記する
 - 会話に登場する個人の評価・性格・健康・思想などを推測しない`,
-            },
-          ],
-        },
-      ],
-    });
+              },
+            ],
+          },
+        ],
+      },
+      { purpose: 'research-analysis' },
+    );
     assertCompleteResponse(response);
     return toReportSegments(response.content, documents);
   }
@@ -371,17 +380,18 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
         return `[${index}] ${s.text.trim()}\n  根拠:\n${evidence}`;
       })
       .join('\n\n');
-    const response = await this.claudeClient.createMessage({
-      model: JUDGE_MODEL,
-      max_tokens: MAX_TOKENS,
-      output_config: {
-        effort: 'medium',
-        format: { type: 'json_schema', schema: JUDGEMENT_SCHEMA },
-      },
-      messages: [
-        {
-          role: 'user',
-          content: `あなたは分析レポートの審査員です。次のレポートの各文（[番号] の後）を、その文に付いている根拠だけを使って審査してください。一般知識で補って判断してはいけません。
+    const response = await this.claudeClient.createMessage(
+      {
+        model: JUDGE_MODEL,
+        max_tokens: MAX_TOKENS,
+        output_config: {
+          effort: 'medium',
+          format: { type: 'json_schema', schema: JUDGEMENT_SCHEMA },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: `あなたは分析レポートの審査員です。次のレポートの各文（[番号] の後）を、その文に付いている根拠だけを使って審査してください。一般知識で補って判断してはいけません。
 
 ## レポートの各文と根拠
 ${claims}
@@ -398,9 +408,11 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
 - ethics:
   - no_sensitive_inference: 会話に登場する個人の性格・健康・思想・属性を推測していなければ passed=true
   - no_individual_judgement: 個人を評価・選別する記述（採用・人事などの判断材料になる記述）がなければ passed=true`,
-        },
-      ],
-    });
+          },
+        ],
+      },
+      { purpose: 'research-judge' },
+    );
     assertCompleteResponse(response);
     return JSON.parse(extractText(response.content)) as RawJudgement;
   }

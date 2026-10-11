@@ -21,14 +21,18 @@ export class FeedbackService {
     feature: FeedbackFeature;
     targetId: string;
     transcriptionId: string;
+    transcriptionIds?: string[];
     category: FeedbackCategory;
     quote: string;
     comment: string;
   }): Promise<Feedback> {
-    if (!(await this.transcriptionStore.findById(input.transcriptionId))) {
-      throw new NotFoundException(
-        `文字起こし結果が見つかりません: ${input.transcriptionId}`,
-      );
+    for (const id of [
+      input.transcriptionId,
+      ...(input.transcriptionIds ?? []),
+    ]) {
+      if (!(await this.transcriptionStore.findById(id))) {
+        throw new NotFoundException(`文字起こし結果が見つかりません: ${id}`);
+      }
     }
     const feedback: Feedback = {
       id: uuidv4(),

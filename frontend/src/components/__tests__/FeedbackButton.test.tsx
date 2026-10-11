@@ -76,4 +76,20 @@ describe('FeedbackButton', () => {
     expect(await screen.findByText('文字起こし結果が見つかりません')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '報告する' })).toBeInTheDocument();
   });
+
+  it('複数の会話を使った結果は、すべての会話を報告に付ける', async () => {
+    vi.mocked(submitFeedback).mockResolvedValue(report({ feature: 'research', targetId: 'job-1' }));
+    render(
+      <FeedbackButton feature="research" targetId="job-1" transcriptionId="t1" transcriptionIds={['t1', 't2']} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '誤りを報告' }));
+    fireEvent.click(screen.getByRole('button', { name: '報告する' }));
+
+    await waitFor(() =>
+      expect(submitFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({ feature: 'research', targetId: 'job-1', transcriptionIds: ['t1', 't2'] }),
+      ),
+    );
+  });
 });

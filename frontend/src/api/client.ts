@@ -812,6 +812,7 @@ export async function submitFeedback(input: {
   feature: FeedbackFeature;
   targetId: string;
   transcriptionId: string;
+  transcriptionIds?: string[];
   category: FeedbackCategory;
   quote: string;
   comment: string;

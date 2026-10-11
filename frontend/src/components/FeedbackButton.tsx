@@ -8,6 +8,8 @@ interface Props {
   /** 報告する結果の ID（保存しない結果は空） */
   targetId: string;
   transcriptionId: string;
+  /** 結果を作った文字起こしのすべて（ディープサーチのように複数の会話を使う結果だけ） */
+  transcriptionIds?: string[];
 }
 
 const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
@@ -25,7 +27,7 @@ const categoryLabel = (value: FeedbackCategory) =>
  * AI が生成した結果の誤りを報告するボタンとフォーム
  * 報告は端末にだけ保存し、外部には送らない。結果を見直すときに、報告した内容を一緒に表示する
  */
-export function FeedbackButton({ feature, targetId, transcriptionId }: Props) {
+export function FeedbackButton({ feature, targetId, transcriptionId, transcriptionIds }: Props) {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<FeedbackCategory>('factual_error');
   const [quote, setQuote] = useState('');
@@ -57,6 +59,7 @@ export function FeedbackButton({ feature, targetId, transcriptionId }: Props) {
         feature,
         targetId,
         transcriptionId,
+        ...(transcriptionIds && { transcriptionIds }),
         category,
         quote,
         comment,

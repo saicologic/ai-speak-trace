@@ -23,6 +23,7 @@ import { extractKeywords } from '../utils/keywords';
 import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { FeedbackButton } from './FeedbackButton';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
 import './InterviewPage.css';
@@ -1045,7 +1046,7 @@ function ResearchResult({
 
       {topics.length > 0 && (
         <>
-          <AiGeneratedNotice basis="根拠" />
+          <AiGeneratedNotice basis="根拠" model={job.models.analysis} />
 
           {/* 要点（キーワードごとの「一言でいうと」。キーワードを押すと解説に移る） */}
           <section className="research-section research-highlights">
@@ -1254,6 +1255,15 @@ function ResearchResult({
               </div>
             )}
           </div>
+
+          {/* 誤りの報告（複数の会話を使うため、どれかの文字起こしを削除すると報告も削除する） */}
+          <FeedbackButton
+            key={job.id}
+            feature="research"
+            targetId={job.id}
+            transcriptionId={job.transcriptionIds[0]}
+            transcriptionIds={job.transcriptionIds}
+          />
         </>
       )}
 
