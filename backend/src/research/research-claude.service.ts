@@ -6,7 +6,11 @@ import {
   assertCompleteResponse,
   extractText,
 } from '../claude/claude-response.utils';
-import { ReportSegment, WebSource } from './types/research.types';
+import {
+  ReportSegment,
+  TranscriptUtterance,
+  WebSource,
+} from './types/research.types';
 import {
   AnalysisDocument,
   collectWebSources,
@@ -24,6 +28,8 @@ export interface TranscriptDocument {
   id: string;
   name: string;
   text: string;
+  /** 発言（統合分析で、発言ごとに引用できるよう1発言を1ブロックにして渡す） */
+  utterances: TranscriptUtterance[];
 }
 
 /** ② 提案の出力（Claude が返す形） */
@@ -57,6 +63,30 @@ function transcriptBlocks(
     source: { type: 'text', media_type: 'text/plain', data: t.text },
     title: `会話: ${t.name}`,
     ...(citations && { citations: { enabled: true } }),
+    ...(i === transcripts.length - 1 && {
+      cache_control: { type: 'ephemeral' as const },
+    }),
+  }));
+}
+
+/**
+ * 統合分析用に、会話を1発言1ブロックの文書にする
+ * 文字起こしは句点が少なく、全文を1つの文章として渡すと引用が会話全体になるため、発言ごとに引用できるようにする
+ */
+function transcriptContentBlocks(
+  transcripts: TranscriptDocument[],
+): Anthropic.DocumentBlockParam[] {
+  return transcripts.map((t, i) => ({
+    type: 'document',
+    source: {
+      type: 'content',
+      content: t.utterances.map((u) => ({
+        type: 'text' as const,
+        text: `${u.speakerName}: ${u.text}`,
+      })),
+    },
+    title: `会話: ${t.name}`,
+    citations: { enabled: true },
     ...(i === transcripts.length - 1 && {
       cache_control: { type: 'ephemeral' as const },
     }),
@@ -193,6 +223,7 @@ ${keywords.map((k) => `- ${k}`).join('\n')}`;
         sourceKind: 'conversation' as const,
         sourceId: t.id,
         title: t.name,
+        utterances: t.utterances,
       })),
       ...usableWeb.map((s) => ({
         sourceKind: 'web' as const,
@@ -209,7 +240,7 @@ ${keywords.map((k) => `- ${k}`).join('\n')}`;
         {
           role: 'user',
           content: [
-            ...transcriptBlocks(transcripts, true),
+            ...transcriptContentBlocks(transcripts),
             ...usableWeb.map(
               (s): Anthropic.DocumentBlockParam => ({
                 type: 'document',

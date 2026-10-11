@@ -54,6 +54,14 @@ export interface WebSource {
 }
 
 /** 根拠（統合分析の各文に付く引用） */
+/** 統合分析に渡す発言（index は文字起こしの発言の位置） */
+export interface TranscriptUtterance {
+  index: number;
+  speakerName: string;
+  start: number;
+  text: string;
+}
+
 export interface ReportCitation {
   /** 根拠の種類 */
   sourceKind: 'conversation' | 'web';
@@ -65,6 +73,13 @@ export interface ReportCitation {
   citedText: string;
   /** Web の場合、公式サイトか */
   official?: boolean;
+  /** 会話の場合、引用された最初の発言（文字起こしでの位置・話者・開始時刻）と、引用された発言の数 */
+  utterance?: {
+    index: number;
+    speakerName: string;
+    start: number;
+    count: number;
+  };
 }
 
 /** 統合分析の1文（Citations で返る単位） */

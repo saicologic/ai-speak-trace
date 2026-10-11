@@ -60,6 +60,13 @@ export interface ReportCitation {
   citedText: string;
   /** Web の場合、公式サイトか */
   official?: boolean;
+  /** 会話の場合、引用された最初の発言（文字起こしでの位置・話者・開始時刻）と、引用された発言の数 */
+  utterance?: {
+    index: number;
+    speakerName: string;
+    start: number;
+    count: number;
+  };
 }
 
 /** 統合分析の1文（Citations で返る単位） */

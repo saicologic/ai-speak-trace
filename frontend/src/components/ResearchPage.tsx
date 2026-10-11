@@ -16,6 +16,7 @@ import type {
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
 import { buildReport } from '../utils/researchReport';
+import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { PrivacySendNotice } from './PrivacyPanel';
 import './InterviewPage.css';
@@ -24,6 +25,8 @@ import './ResearchPage.css';
 
 interface Props {
   onBack: () => void;
+  /** 根拠の発言を、元の文字起こしで開く（utteranceIndex がなければ文字起こしの先頭を開く） */
+  onOpenTranscription: (transcriptionId: string, utteranceIndex?: number) => void;
 }
 
 /** 実行中の状態（この間は結果を定期的に取得する） */
@@ -99,7 +102,7 @@ function StepFlow({ status }: { status: ResearchStatus | undefined }) {
 }
 
 /** ディープサーチ（会話の読み込み → キーワード → Web調査 → 統合分析 → 評価） */
-export function ResearchPage({ onBack }: Props) {
+export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   const [activeTab, setActiveTab] = useState<'new' | 'results'>('new');
   const [transcriptions, setTranscriptions] = useState<TranscriptionSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -579,13 +582,48 @@ export function ResearchPage({ onBack }: Props) {
                     <span className="summary-log-model">{resultJob.models.analysis}</span>
                   </div>
                 </div>
-                <ResearchResult job={resultJob} />
+                <ResearchResult job={resultJob} onOpenTranscription={onOpenTranscription} />
               </div>
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** 根拠の引用を短く表示する文字数（これを超える場合は「続きを読む」で開く） */
+const QUOTE_PREVIEW_CHARS = 140;
+
+/** 会話の引用は、先頭の「話者: 」を除く（話者は別に表示する） */
+function quoteText(c: NumberedCitation): string {
+  const text = c.citedText.trim();
+  const prefix = c.utterance ? `${c.utterance.speakerName}: ` : '';
+  return prefix && text.startsWith(prefix) ? text.slice(prefix.length) : text;
+}
+
+/** 秒を「1:02:03」「12:34」の形で表す */
+function formatTime(seconds: number): string {
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/** 根拠の引用（長い場合は先頭だけを表示し、「続きを読む」で全文を表示する） */
+function CitedText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > QUOTE_PREVIEW_CHARS;
+  return (
+    <blockquote className="research-quote">
+      {long && !expanded ? `${text.slice(0, QUOTE_PREVIEW_CHARS)}…` : text}
+      {long && (
+        <button className="research-quote-toggle" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? '閉じる' : '続きを読む'}
+        </button>
+      )}
+    </blockquote>
   );
 }
 
@@ -601,7 +639,13 @@ function formatDate(iso: string): string {
 }
 
 /** 調査の結果（調べた会話・確定したキーワード・評価・統合分析・Web の情報源） */
-function ResearchResult({ job }: { job: ResearchJob }) {
+function ResearchResult({
+  job,
+  onOpenTranscription,
+}: {
+  job: ResearchJob;
+  onOpenTranscription: Props['onOpenTranscription'];
+}) {
   const report = useMemo(
     () => (job.report && job.status === 'completed' ? buildReport(job.report) : null),
     [job],
@@ -761,18 +805,37 @@ function ResearchResult({ job }: { job: ResearchJob }) {
               id={`research-citation-${c.number}`}
               className={`research-citation ${c.sourceKind}`}
             >
-              <span className="research-citation-number">[{c.number}]</span>
-              <span className={`research-citation-kind ${c.sourceKind} ${c.official ? 'official' : ''}`}>
-                {c.sourceKind === 'conversation' ? '会話' : c.official ? 'Web（公式）' : 'Web'}
-              </span>
-              {c.sourceKind === 'web' ? (
-                <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
-                  {c.title}
-                </a>
-              ) : (
-                <span>{c.title}</span>
+              <div className="research-citation-head">
+                <span className="research-citation-number">[{c.number}]</span>
+                <span className={`research-citation-kind ${c.sourceKind} ${c.official ? 'official' : ''}`}>
+                  {c.sourceKind === 'conversation' ? '会話' : c.official ? 'Web（公式）' : 'Web'}
+                </span>
+                {c.sourceKind === 'web' ? (
+                  <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
+                    {c.title}
+                  </a>
+                ) : (
+                  <span className="research-citation-title">{c.title}</span>
+                )}
+              </div>
+              {c.utterance && (
+                <div className="research-citation-meta">
+                  <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
+                  <span className="research-citation-speaker">{c.utterance.speakerName}</span>
+                  {c.utterance.count > 1 && (
+                    <span>ほか{c.utterance.count - 1}件の発言</span>
+                  )}
+                </div>
               )}
-              <blockquote className="research-quote">{c.citedText}</blockquote>
+              <CitedText text={quoteText(c)} />
+              {c.sourceKind === 'conversation' && (
+                <button
+                  className="research-citation-open"
+                  onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
+                >
+                  {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
+                </button>
+              )}
             </li>
           ))}
         </ol>

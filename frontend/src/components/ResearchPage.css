@@ -511,9 +511,8 @@
 
 .research-citation {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.35rem;
   padding: 0.6rem 0.75rem;
   margin-bottom: 0.5rem;
   border: 1px solid #e5e7eb;
@@ -594,4 +593,57 @@
 .research-result {
   max-width: 880px;
   margin: 0 auto;
+}
+
+/* 根拠: 見出し（番号・種類・出典）と、会話の時刻・話者 */
+.research-citation-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.research-citation-title {
+  color: #374151;
+}
+
+.research-citation-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.research-citation-time {
+  font-variant-numeric: tabular-nums;
+  color: #2563eb;
+}
+
+.research-citation-speaker {
+  font-weight: 600;
+  color: #374151;
+}
+
+.research-quote-toggle,
+.research-citation-open {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.research-quote-toggle {
+  margin-left: 0.4rem;
+}
+
+.research-citation-open {
+  align-self: flex-start;
+}
+
+.research-quote-toggle:hover,
+.research-citation-open:hover {
+  text-decoration: underline;
 }

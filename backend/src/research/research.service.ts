@@ -39,6 +39,7 @@ import {
   countOccurrences,
   normalizeDomain,
   toTranscriptDocument,
+  toTranscriptUtterances,
   verifyQuotes,
 } from './research.utils';
 
@@ -328,6 +329,7 @@ export class ResearchService implements OnModuleInit {
       id: t.id,
       name: t.audioFileName,
       text: toTranscriptDocument(t),
+      utterances: toTranscriptUtterances(t),
     }));
   }
 
