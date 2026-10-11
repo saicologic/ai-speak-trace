@@ -187,6 +187,21 @@ describe('isIgnoredPii', () => {
     expect(isIgnoredPii('ADDRESS', ' Japan ')).toBe(true);
   });
 
+  it('会社名・製品名だけの氏名は個人情報として扱わない', () => {
+    expect(isIgnoredPii('NAME', 'Claude')).toBe(true);
+    expect(isIgnoredPii('NAME', 'Claude Code')).toBe(true);
+    expect(isIgnoredPii('NAME', "O'Reilly")).toBe(true);
+    // アポストロフィの違いと大文字小文字は無視する
+    expect(isIgnoredPii('NAME', 'O’Reilly')).toBe(true);
+    expect(isIgnoredPii('NAME', 'claude code')).toBe(true);
+  });
+
+  it('会社名・製品名を含む人名や、公開されている人の名前は、これまでどおり扱う', () => {
+    expect(isIgnoredPii('NAME', 'Claude太郎')).toBe(false);
+    expect(isIgnoredPii('NAME', 'Chip Huyen')).toBe(false);
+    expect(isIgnoredPii('NAME', '金井')).toBe(false);
+  });
+
   it('番地や市区町村を含む住所と、氏名・連絡先はこれまでどおり扱う', () => {
     expect(isIgnoredPii('ADDRESS', '東京都千代田区1-1')).toBe(false);
     expect(isIgnoredPii('ADDRESS', '日本橋')).toBe(false);

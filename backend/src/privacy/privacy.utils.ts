@@ -74,14 +74,66 @@ const COUNTRY_NAMES = new Set(
 );
 
 /**
+ * 会社名・製品名・サービス名（個人の名前ではないため、氏名として扱わない）
+ * Guardrails の氏名（NAME）は「個人の名前」で組織名を含まないが、会話に出てくる製品名などを
+ * 氏名として検出することがある。人名と同じ表記になりにくい、技術の会話でよく出るものに限る
+ */
+const ORGANIZATION_AND_PRODUCT_NAMES = new Set(
+  [
+    'Claude',
+    'Claude Code',
+    'Claude Desktop',
+    'Anthropic',
+    'OpenAI',
+    'ChatGPT',
+    'GPT',
+    'Codex',
+    'Gemini',
+    'Google',
+    'Microsoft',
+    'Copilot',
+    'GitHub',
+    'GitHub Copilot',
+    'AWS',
+    'Amazon',
+    'Amazon Bedrock',
+    'Bedrock',
+    'Meta',
+    'Llama',
+    'LangChain',
+    'LangGraph',
+    'LangSmith',
+    'Langfuse',
+    'Devin',
+    'Cursor',
+    'Grok',
+    'Mistral',
+    'Hugging Face',
+    'NVIDIA',
+    "O'Reilly",
+    'Zenn',
+    'Qiita',
+  ].map(normalizeName),
+);
+
+/** 比べるための表記にそろえる（前後の空白・大文字小文字・アポストロフィの違いを無視する） */
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/[’‘`]/g, "'");
+}
+
+/**
  * 個人情報として扱わない検出か
  * - ユーザー名: 話した会話にログインIDなどが出ることはまずなく、製品名・会社名の誤検出になるため
  * - 国名だけの住所: 個人を特定しないため（番地や市区町村を含む住所はこれまでどおり扱う）
+ * - 会社名・製品名だけの氏名: 個人の名前ではないため（一致するものだけ。公開されている人の名前は利用者が選ぶ）
  */
 export function isIgnoredPii(type: string, match: string): boolean {
   if (type === 'USERNAME') return true;
   if (type === 'ADDRESS') {
     return COUNTRY_NAMES.has(match.trim().toLowerCase());
+  }
+  if (type === 'NAME') {
+    return ORGANIZATION_AND_PRODUCT_NAMES.has(normalizeName(match));
   }
   return false;
 }
