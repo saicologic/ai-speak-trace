@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchPrivacy, scanPrivacy, updatePrivacyMasks } from '../api/client';
+import { usePrivacyStatuses } from '../hooks/usePrivacyStatuses';
 import type { PiiFinding, PrivacyStatus } from '../types';
 import './PrivacyPanel.css';
 
@@ -221,29 +222,26 @@ interface PrivacySendNoticeProps {
   transcriptionIds: string[];
 }
 
+/** Guardrail ID が設定されていないため、Claude に送れないことを知らせる */
+export function GuardrailMissingNotice() {
+  return (
+    <p className="privacy-send-notice privacy-send-notice--warning">
+      個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
+    </p>
+  );
+}
+
+interface PrivacySendNoticeProps {
+  transcriptionIds: string[];
+}
+
 /**
  * 送る前の注意書き: 伏せずに送ってしまう可能性があるときだけ、1行で知らせる
  * （チェックしていない会話・要確認のまま伏せない文字列・個人情報チェックが未設定）
  * 伏せる文字列を選んである場合は、表示しなくても置き換えてから送る
  */
 export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) {
-  const [statuses, setStatuses] = useState<PrivacyStatus[] | null>(null);
-  const idsKey = transcriptionIds.join('\n');
-
-  useEffect(() => {
-    let cancelled = false;
-    const ids = idsKey ? idsKey.split('\n') : [];
-    Promise.all(ids.map((id) => fetchPrivacy(id)))
-      .then((list) => {
-        if (!cancelled) setStatuses(list);
-      })
-      .catch(() => {
-        if (!cancelled) setStatuses(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [idsKey]);
+  const statuses = usePrivacyStatuses(transcriptionIds);
 
   if (!statuses || statuses.length === 0) return null;
   const configured = statuses.some((s) => s.configured);
@@ -254,13 +252,7 @@ export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) 
   );
 
   // Guardrail ID を解除しても保存済みのチェック結果は残るため、結果の有無に関係なく知らせる
-  if (!configured) {
-    return (
-      <p className="privacy-send-notice privacy-send-notice--warning">
-        個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
-      </p>
-    );
-  }
+  if (!configured) return <GuardrailMissingNotice />;
   // 連絡先などは Claude に送る前の確認で自動で伏せるため、伏せずに送られるのは氏名・住所など要確認の種類
   const notes: string[] = [];
   if (unchecked > 0) {

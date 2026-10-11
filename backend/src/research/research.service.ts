@@ -111,6 +111,12 @@ export class ResearchService implements OnModuleInit {
     if (!Array.isArray(transcriptionIds) || transcriptionIds.length === 0) {
       throw new BadRequestException('調査する会話を選択してください');
     }
+    // Guardrail ID が未設定なら Claude に送れないため、調査を作る前に止める（失敗した調査を残さない）
+    if (!this.guardrail.isConfigured()) {
+      throw new BadRequestException(
+        'Claude に送る前のチェックのため、設定画面で Guardrail ID を設定してください',
+      );
+    }
     // 会話を読み込む前の時刻を作成時刻にする（読み込み後に会話が削除された場合に、保存しないため）
     const now = new Date().toISOString();
     const transcriptions = await this.loadTranscriptions(transcriptionIds);

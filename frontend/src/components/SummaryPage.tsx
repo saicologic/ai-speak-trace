@@ -4,6 +4,7 @@ import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint } from '..
 import './InterviewPage.css';
 import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { PrivacySendNotice } from './PrivacyPanel';
 
 interface Props {
@@ -101,6 +102,8 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
   const [summarizing, setSummarizing] = useState(false);
   const [completedId, setCompletedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Guardrail ID が未設定なら Claude に送れないため、要約を実行しない
+  const guardrailConfigured = useGuardrailConfigured([transcriptionId]);
 
   // 設定（モデル一覧・デフォルトプロンプト）
   const [config, setConfig] = useState<SummaryConfig | null>(null);
@@ -354,7 +357,13 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
               <button
                 className="interview-button primary"
                 onClick={handleSummarize}
-                disabled={summarizing || !!completedId || !selectedModel || enabledCount === 0}
+                disabled={
+                  summarizing ||
+                  !!completedId ||
+                  !selectedModel ||
+                  enabledCount === 0 ||
+                  guardrailConfigured === false
+                }
               >
                 {summarizing ? '要約中...' : '要約する'}
               </button>
