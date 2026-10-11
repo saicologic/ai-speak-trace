@@ -265,10 +265,14 @@ export class ResearchService implements OnModuleInit {
 
       // ③ Web調査
       // 以前の形式（キーワードごとの公式サイトがない）は、すべてのキーワードで同じ公式サイトを調べる
-      const webSources = await this.claude.researchWeb(
+      const { sources: webSources, failures } = await this.claude.researchWeb(
         targets ?? keywords.map((keyword) => ({ keyword, domains })),
       );
-      job = await this.update(job, { status: 'analyzing', webSources });
+      job = await this.update(job, {
+        status: 'analyzing',
+        webSources,
+        ...(failures.length > 0 && { webResearchFailures: failures }),
+      });
 
       // ④ 統合分析
       const report = await this.claude.analyze(

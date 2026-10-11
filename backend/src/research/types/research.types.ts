@@ -51,6 +51,12 @@ export interface DomainProposal {
   reason: string;
 }
 
+/** Web調査に失敗したキーワードと、その理由 */
+export interface WebResearchFailure {
+  keyword: string;
+  error: string;
+}
+
 /** Web調査で得た情報源 */
 export interface WebSource {
   url: string;
@@ -211,6 +217,8 @@ export interface ResearchJob {
   };
   /** ③ Web調査の情報源 */
   webSources?: WebSource[];
+  /** ③ Web調査に失敗したキーワード（ほかのキーワードの結果で調査を続けた） */
+  webResearchFailures?: WebResearchFailure[];
   /** ④ 統合分析（⑤で根拠のない主張を除いたもの） */
   report?: ReportSegment[];
   /** ⑤ 評価 */

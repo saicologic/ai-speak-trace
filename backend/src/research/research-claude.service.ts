@@ -10,6 +10,7 @@ import {
   ReportSegment,
   ResearchTarget,
   TranscriptUtterance,
+  WebResearchFailure,
   WebSource,
 } from './types/research.types';
 import {
@@ -149,12 +150,43 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
   /**
    * ③ キーワードごとに、選んだ公式サイトに限定して Web を調べる（キーワードごとの検索は同時に行う）
    * 公式サイトで見つからないキーワードと、公式サイトを選ばなかったキーワードは、一般のサイトも調べる
+   * 一部のキーワードの調査に失敗しても、ほかのキーワードの結果で続ける（失敗したキーワードは failures で返す）
+   * すべてのキーワードで失敗した場合と、失敗があり残りのキーワードでも抜粋が1つもない場合は、
+   * 分析に使える情報がないため例外を投げる
    */
-  async researchWeb(targets: ResearchTarget[]): Promise<WebSource[]> {
-    const results = await Promise.all(
+  async researchWeb(
+    targets: ResearchTarget[],
+  ): Promise<{ sources: WebSource[]; failures: WebResearchFailure[] }> {
+    const results = await Promise.allSettled(
       targets.map((t) => this.researchKeyword(t.keyword, t.domains)),
     );
-    return mergeWebSources(results.flat());
+    const failures: WebResearchFailure[] = [];
+    const sources: WebSource[] = [];
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        sources.push(...result.value);
+        return;
+      }
+      const error =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      this.logger.warn(`「${targets[i].keyword}」の Web調査に失敗: ${error}`);
+      failures.push({ keyword: targets[i].keyword, error });
+    });
+    if (failures.length === targets.length) {
+      throw new Error(
+        `すべてのキーワードで Web調査に失敗しました: ${failures[0].error}`,
+      );
+    }
+    if (failures.length > 0 && !sources.some((s) => s.excerpts.length > 0)) {
+      throw new Error(
+        `Web調査で分析に使える情報源が見つかりませんでした（失敗したキーワード: ${failures
+          .map((f) => f.keyword)
+          .join('、')}）: ${failures[0].error}`,
+      );
+    }
+    return { sources: mergeWebSources(sources), failures };
   }
 
   private async researchKeyword(

@@ -818,3 +818,9 @@
   color: #d97706;
   font-weight: 700;
 }
+
+/* Web調査に失敗したキーワード */
+.research-target-failed {
+  font-size: 0.72rem;
+  color: #b91c1c;
+}
