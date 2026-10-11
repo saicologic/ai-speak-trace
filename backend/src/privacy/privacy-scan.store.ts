@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { wasDeletedSince } from '../transcription/derived-log-cleaner.service';
 import { PrivacyScan } from './privacy.types';
 
 /** 個人情報チェックの結果の保存先（DATA_DIR 配下） */
@@ -23,13 +24,28 @@ export class PrivacyScanStore {
     return path.join(this.storeDir, `${path.basename(transcriptionId)}.json`);
   }
 
-  /** 保存する（書き込み途中のファイルを残さないよう、一時ファイルから置き換える） */
-  async save(scan: PrivacyScan): Promise<void> {
+  /**
+   * 保存する（書き込み途中のファイルを残さないよう、一時ファイルから置き換える）
+   * チェックを始めた後（scannedAt 以降）に文字起こしが削除された場合は、検出した文字列を残さないよう保存せず false を返す
+   * 置き換えと削除が並行した場合に備えて、置き換えの後にも確認し、削除済みなら消し直す
+   */
+  async save(scan: PrivacyScan): Promise<boolean> {
+    const deleted = () =>
+      wasDeletedSince([scan.transcriptionId], scan.scannedAt);
     await fs.mkdir(this.storeDir, { recursive: true });
     const filePath = this.getFilePath(scan.transcriptionId);
     const tmpPath = `${filePath}.${randomUUID()}.tmp`;
     await fs.writeFile(tmpPath, JSON.stringify(scan, null, 2), 'utf-8');
+    if (deleted()) {
+      await fs.rm(tmpPath, { force: true });
+      return false;
+    }
     await fs.rename(tmpPath, filePath);
+    if (deleted()) {
+      await fs.rm(filePath, { force: true });
+      return false;
+    }
+    return true;
   }
 
   async find(transcriptionId: string): Promise<PrivacyScan | null> {

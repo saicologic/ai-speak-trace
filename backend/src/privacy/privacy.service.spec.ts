@@ -46,7 +46,7 @@ const setup = (configured = true, saved: PrivacyScan | null = null) => {
     find: jest.fn(() => Promise.resolve(stored)),
     save: jest.fn((scan: PrivacyScan) => {
       stored = scan;
-      return Promise.resolve();
+      return Promise.resolve(true);
     }),
   };
   const service = new PrivacyService(

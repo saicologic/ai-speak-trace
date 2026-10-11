@@ -86,17 +86,24 @@ export class PrivacyService {
   private async runScan(transcription: Transcription): Promise<PrivacyScan> {
     this.errors.delete(transcription.id);
     try {
+      // チェックを始めた時刻（チェック中に文字起こしが削除された場合に、結果を保存しないため）
+      const scannedAt = new Date().toISOString();
       const text = toScanText(transcription);
       const detected = await this.guardrail.inspect(text, 'INPUT');
       const previous = await this.store.find(transcription.id);
       const scan: PrivacyScan = {
         transcriptionId: transcription.id,
-        scannedAt: new Date().toISOString(),
+        scannedAt,
         guardrailId: this.guardrail.guardrailId,
         guardrailVersion: this.guardrail.guardrailVersion,
         findings: toFindings(detected.pii, text, previous?.findings),
       };
-      await this.store.save(scan);
+      if (!(await this.store.save(scan))) {
+        this.logger.log(
+          `チェック中に文字起こしが削除されたため、結果を保存しません: ${transcription.id}`,
+        );
+        return scan;
+      }
       this.logger.log(
         `個人情報チェック完了: ${transcription.id}（${scan.findings.length}件）`,
       );
@@ -124,7 +131,9 @@ export class PrivacyService {
       return choice ? { ...f, mask: choice.mask, needsReview: false } : f;
     });
     const updated = { ...scan, findings };
-    await this.store.save(updated);
+    if (!(await this.store.save(updated))) {
+      throw new BadRequestException('文字起こしが削除されました');
+    }
     return updated;
   }
 
