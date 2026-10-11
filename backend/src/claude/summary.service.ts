@@ -53,7 +53,7 @@ export class SummaryService {
 
     const prompt = promptTemplate.replace('{{fullText}}', fullText);
 
-    const response = await this.claudeClient.getClient().messages.create({
+    const response = await this.claudeClient.createMessage({
       model,
       // 思考のトークンも上限に含まれるため余裕を持たせる
       max_tokens: 16000,

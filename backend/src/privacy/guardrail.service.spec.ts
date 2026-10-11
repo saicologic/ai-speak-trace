@@ -104,3 +104,45 @@ describe('GuardrailService.checkGrounding', () => {
     ).resolves.toBeNull();
   });
 });
+
+describe('GuardrailService.inspect', () => {
+  /** ApplyGuardrail の応答を固定した GuardrailService */
+  const serviceReturning = (textCharacters: {
+    guarded: number;
+    total: number;
+  }) => {
+    const service = new GuardrailService({
+      get: (key: string, fallback?: string) =>
+        key === 'BEDROCK_GUARDRAIL_ID' ? 'gr-test' : fallback,
+    } as unknown as ConfigService);
+    const send = jest.fn().mockResolvedValue({
+      assessments: [],
+      guardrailCoverage: { textCharacters },
+    });
+    Object.assign(service, { client: { send } });
+    return service;
+  };
+
+  it('requireFullCoverage では、チェックされなかった文字があれば例外を投げる', async () => {
+    const service = serviceReturning({ guarded: 90, total: 100 });
+    await expect(
+      service.inspect('本文', 'INPUT', { requireFullCoverage: true }),
+    ).rejects.toThrow('チェックしなかった文字');
+  });
+
+  it('requireFullCoverage でなければ、チェックされなかった文字があっても結果を返す', async () => {
+    const service = serviceReturning({ guarded: 90, total: 100 });
+    await expect(service.inspect('本文', 'INPUT')).resolves.toEqual({
+      pii: [],
+      words: [],
+      content: [],
+    });
+  });
+
+  it('すべての文字がチェックされていれば結果を返す', async () => {
+    const service = serviceReturning({ guarded: 100, total: 100 });
+    await expect(
+      service.inspect('本文', 'INPUT', { requireFullCoverage: true }),
+    ).resolves.toEqual({ pii: [], words: [], content: [] });
+  });
+});

@@ -131,7 +131,7 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
           {!status.configured ? (
             <p className="privacy-panel-hint">
               設定画面で Amazon Bedrock Guardrails の ID を設定すると、会話に含まれる個人情報を検出し、
-              Claude に送る前に伏せられます。未設定の場合、会話はそのまま送られます。
+              Claude に送る前に伏せられます。未設定の場合、会話分析・要約・ディープサーチは使えません。
             </p>
           ) : (
             <p className="privacy-panel-hint">
@@ -256,7 +256,7 @@ export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) 
   if (!configured && unchecked === statuses.length) {
     return (
       <p className="privacy-send-notice privacy-send-notice--warning">
-        個人情報チェックが設定されていないため、会話はそのまま送られます。
+        個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
       </p>
     );
   }

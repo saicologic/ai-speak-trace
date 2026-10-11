@@ -112,7 +112,7 @@ export class ResearchClaudeService {
     transcripts: TranscriptDocument[],
     frequentWords: { word: string; count: number }[],
   ): Promise<RawProposal> {
-    const response = await this.claudeClient.getClient().messages.create({
+    const response = await this.claudeClient.createMessage({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
       output_config: {
@@ -187,7 +187,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     const content: Anthropic.ContentBlock[] = [];
     let completed = false;
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
-      const response = await this.claudeClient.getClient().messages.create({
+      const response = await this.claudeClient.createMessage({
         model: CLAUDE_MODEL,
         max_tokens: MAX_TOKENS,
         output_config: { effort: 'medium' },
@@ -241,7 +241,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
         official: s.official,
       })),
     ];
-    const response = await this.claudeClient.getClient().messages.create({
+    const response = await this.claudeClient.createMessage({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
       output_config: { effort: 'medium' },
@@ -303,7 +303,7 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
         return `[${index}] ${s.text.trim()}\n  根拠:\n${evidence}`;
       })
       .join('\n\n');
-    const response = await this.claudeClient.getClient().messages.create({
+    const response = await this.claudeClient.createMessage({
       model: JUDGE_MODEL,
       max_tokens: MAX_TOKENS,
       output_config: {

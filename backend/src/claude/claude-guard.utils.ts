@@ -1,0 +1,164 @@
+import type Anthropic from '@anthropic-ai/sdk';
+import { GuardrailFindings } from '../privacy/guardrail.service';
+import { PiiFinding } from '../privacy/privacy.types';
+import { maskText, toFindings } from '../privacy/privacy.utils';
+
+/** Claude に送る前のチェックで、送信を止めるコンテンツフィルターの種類 */
+const BLOCKING_CONTENT_TYPES = new Set(['PROMPT_ATTACK']);
+
+/** Guardrails でチェックできない内容（画像・PDF など）が含まれている場合の例外 */
+export class UnsupportedContentError extends Error {}
+
+/**
+ * Claude に送るリクエストの、Guardrails でチェックするテキストをすべて fn で置き換えた複製を返す
+ * - system と、user の発言（テキスト・テキストの文書・ツールの結果）が対象
+ * - assistant の発言は Claude 自身の応答（受け取ったときにチェック済み）のため対象にしない
+ * - チェックできない内容（画像・PDF・URL の文書など）は、チェックせずに送らないよう例外を投げる
+ * テキストの収集と伏せ字への置き換えで同じ関数を使い、チェックした範囲と置き換える範囲を一致させる
+ */
+export function mapRequestTexts(
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  fn: (text: string) => string,
+): Anthropic.MessageCreateParamsNonStreaming {
+  return {
+    ...params,
+    ...(params.system !== undefined && {
+      system:
+        typeof params.system === 'string'
+          ? fn(params.system)
+          : params.system.map((b) => ({ ...b, text: fn(b.text) })),
+    }),
+    messages: params.messages.map((m) =>
+      m.role === 'user' ? { ...m, content: mapContent(m.content, fn) } : m,
+    ),
+  };
+}
+
+function mapContent(
+  content: Anthropic.MessageParam['content'],
+  fn: (text: string) => string,
+): Anthropic.MessageParam['content'] {
+  if (typeof content === 'string') return fn(content);
+  return content.map((block) => mapBlock(block, fn));
+}
+
+function mapBlock(
+  block: Anthropic.ContentBlockParam,
+  fn: (text: string) => string,
+): Anthropic.ContentBlockParam {
+  switch (block.type) {
+    case 'text':
+      return { ...block, text: fn(block.text) };
+    case 'document':
+      return mapDocument(block, fn);
+    case 'tool_result':
+      return {
+        ...block,
+        ...(block.content !== undefined && {
+          content:
+            typeof block.content === 'string'
+              ? fn(block.content)
+              : block.content.map((c) => {
+                  if (c.type === 'text') return { ...c, text: fn(c.text) };
+                  throw new UnsupportedContentError(
+                    `Guardrails でチェックできない内容です: tool_result.${c.type}`,
+                  );
+                }),
+        }),
+      };
+    default:
+      throw new UnsupportedContentError(
+        `Guardrails でチェックできない内容です: ${block.type}`,
+      );
+  }
+}
+
+function mapDocument(
+  block: Anthropic.DocumentBlockParam,
+  fn: (text: string) => string,
+): Anthropic.DocumentBlockParam {
+  const source = block.source;
+  const meta = {
+    ...(block.title != null && { title: fn(block.title) }),
+    ...(block.context != null && { context: fn(block.context) }),
+  };
+  if (source.type === 'text') {
+    return { ...block, ...meta, source: { ...source, data: fn(source.data) } };
+  }
+  if (source.type === 'content') {
+    return {
+      ...block,
+      ...meta,
+      source: {
+        ...source,
+        content:
+          typeof source.content === 'string'
+            ? fn(source.content)
+            : source.content.map((c) => {
+                if (c.type === 'text') return { ...c, text: fn(c.text) };
+                throw new UnsupportedContentError(
+                  `Guardrails でチェックできない内容です: document.${c.type}`,
+                );
+              }),
+      },
+    };
+  }
+  throw new UnsupportedContentError(
+    `Guardrails でチェックできない内容です: document.${source.type}`,
+  );
+}
+
+/** リクエストの、Guardrails でチェックするテキストを集める */
+export function collectRequestText(
+  params: Anthropic.MessageCreateParamsNonStreaming,
+): string {
+  const texts: string[] = [];
+  mapRequestTexts(params, (text) => {
+    texts.push(text);
+    return text;
+  });
+  return texts.join('\n');
+}
+
+/** 送信を止める検出（プロンプト攻撃など）があれば、その種類を返す */
+export function findBlockingContent(findings: GuardrailFindings): string[] {
+  return [
+    ...new Set(
+      findings.content
+        .filter((c) => BLOCKING_CONTENT_TYPES.has(c.type))
+        .map((c) => c.type),
+    ),
+  ];
+}
+
+/**
+ * 検出した個人情報のうち、自動で伏せるもの
+ * 連絡先・カード番号・アクセスキーなどは伏せる。氏名・住所など誤検出の多い種類は、
+ * 製品名・会社名なども検出されて分析ができなくなるため、個人情報チェックの画面で利用者が選んだものだけを伏せる
+ */
+export function toAutoMaskFindings(
+  findings: GuardrailFindings,
+  text: string,
+): PiiFinding[] {
+  return toFindings(findings.pii, text).filter((f) => f.mask);
+}
+
+/** Claude の応答のテキストブロックを fn で置き換えた複製を返す */
+export function mapResponseTexts(
+  message: Anthropic.Message,
+  fn: (text: string) => string,
+): Anthropic.Message {
+  return {
+    ...message,
+    content: message.content.map((block) =>
+      block.type === 'text' ? { ...block, text: fn(block.text) } : block,
+    ),
+  };
+}
+
+/** 伏せる文字列を置き換える関数を返す（伏せるものがなければ何もしない） */
+export function masker(findings: PiiFinding[]): (text: string) => string {
+  return findings.length > 0
+    ? (text) => maskText(text, findings)
+    : (text) => text;
+}
