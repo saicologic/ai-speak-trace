@@ -28,6 +28,69 @@ export function isReviewType(type: string): boolean {
   return REVIEW_TYPES.has(type);
 }
 
+/**
+ * 国名（国名だけの「住所」は個人を特定しないため、個人情報として扱わない）
+ * Guardrails の機密情報フィルターは、会話に出てくる国名を住所として検出することがある
+ */
+const COUNTRY_NAMES = new Set(
+  [
+    '日本',
+    '日本国',
+    'アメリカ',
+    'アメリカ合衆国',
+    '米国',
+    'イギリス',
+    '英国',
+    '中国',
+    '韓国',
+    '台湾',
+    'フランス',
+    'ドイツ',
+    'イタリア',
+    'スペイン',
+    'カナダ',
+    'オーストラリア',
+    'インド',
+    'シンガポール',
+    'ロシア',
+    'ブラジル',
+    'japan',
+    'america',
+    'united states',
+    'usa',
+    'us',
+    'uk',
+    'united kingdom',
+    'china',
+    'korea',
+    'taiwan',
+    'france',
+    'germany',
+    'canada',
+    'australia',
+    'india',
+    'singapore',
+  ].map((name) => name.toLowerCase()),
+);
+
+/**
+ * 個人情報として扱わない検出か
+ * - ユーザー名: 話した会話にログインIDなどが出ることはまずなく、製品名・会社名の誤検出になるため
+ * - 国名だけの住所: 個人を特定しないため（番地や市区町村を含む住所はこれまでどおり扱う）
+ */
+export function isIgnoredPii(type: string, match: string): boolean {
+  if (type === 'USERNAME') return true;
+  if (type === 'ADDRESS') {
+    return COUNTRY_NAMES.has(match.trim().toLowerCase());
+  }
+  return false;
+}
+
+/** 保存済みの検出結果から、個人情報として扱わないものを除く（利用者が「伏せる」を選んだものは残す） */
+export function withoutIgnoredPii(findings: PiiFinding[]): PiiFinding[] {
+  return findings.filter((f) => f.mask || !isIgnoredPii(f.type, f.text));
+}
+
 export function piiLabel(type: string): string {
   return PII_LABELS[type] ?? type;
 }

@@ -1,10 +1,12 @@
 import { Transcription } from '../transcription/types/transcription.types';
 import { PiiFinding } from './privacy.types';
 import {
+  isIgnoredPii,
   maskText,
   maskTranscription,
   toFindings,
   toScanText,
+  withoutIgnoredPii,
 } from './privacy.utils';
 
 const transcription: Transcription = {
@@ -170,5 +172,50 @@ describe('toScanText', () => {
     expect(toScanText(transcription)).toBe(
       '山田太郎: 山田太郎です。電話は090-1234-5678です。',
     );
+  });
+});
+
+describe('isIgnoredPii', () => {
+  it('ユーザー名は個人情報として扱わない', () => {
+    expect(isIgnoredPii('USERNAME', 'ChatGPT')).toBe(true);
+    expect(isIgnoredPii('USERNAME', 'Anthropic')).toBe(true);
+  });
+
+  it('国名だけの住所は個人情報として扱わない', () => {
+    expect(isIgnoredPii('ADDRESS', '日本')).toBe(true);
+    expect(isIgnoredPii('ADDRESS', 'アメリカ')).toBe(true);
+    expect(isIgnoredPii('ADDRESS', ' Japan ')).toBe(true);
+  });
+
+  it('番地や市区町村を含む住所と、氏名・連絡先はこれまでどおり扱う', () => {
+    expect(isIgnoredPii('ADDRESS', '東京都千代田区1-1')).toBe(false);
+    expect(isIgnoredPii('ADDRESS', '日本橋')).toBe(false);
+    expect(isIgnoredPii('NAME', '日本')).toBe(false);
+    expect(isIgnoredPii('EMAIL', 'x@example.com')).toBe(false);
+  });
+});
+
+describe('withoutIgnoredPii', () => {
+  const finding = (type: string, text: string, mask: boolean): PiiFinding => ({
+    type,
+    label: type,
+    text,
+    count: 1,
+    mask,
+    needsReview: !mask,
+  });
+
+  it('保存済みの検出結果から、ユーザー名と国名だけの住所を除く', () => {
+    const result = withoutIgnoredPii([
+      finding('USERNAME', 'Code', false),
+      finding('ADDRESS', '日本', false),
+      finding('NAME', '山田', false),
+    ]);
+    expect(result.map((f) => f.text)).toEqual(['山田']);
+  });
+
+  it('利用者が「伏せる」を選んだものは残す', () => {
+    const result = withoutIgnoredPii([finding('USERNAME', 'yamada01', true)]);
+    expect(result.map((f) => f.text)).toEqual(['yamada01']);
   });
 });

@@ -21,6 +21,34 @@ describe('splitText', () => {
 });
 
 describe('mergeAssessment', () => {
+  it('ユーザー名と国名だけの住所は、個人情報の検出から除く', () => {
+    const findings: GuardrailFindings = { pii: [], words: [], content: [] };
+    mergeAssessment(findings, {
+      sensitiveInformationPolicy: {
+        piiEntities: [
+          {
+            type: 'USERNAME',
+            match: 'ChatGPT',
+            action: 'NONE',
+            detected: true,
+          },
+          { type: 'ADDRESS', match: '日本', action: 'NONE', detected: true },
+          {
+            type: 'ADDRESS',
+            match: '東京都千代田区1-1',
+            action: 'NONE',
+            detected: true,
+          },
+          { type: 'NAME', match: '山田太郎', action: 'NONE', detected: true },
+        ],
+      },
+    });
+    expect(findings.pii).toEqual([
+      { type: 'ADDRESS', match: '東京都千代田区1-1' },
+      { type: 'NAME', match: '山田太郎' },
+    ]);
+  });
+
   it('個人情報・独自の正規表現・単語・コンテンツの検出を集める', () => {
     const findings: GuardrailFindings = { pii: [], words: [], content: [] };
     mergeAssessment(findings, {

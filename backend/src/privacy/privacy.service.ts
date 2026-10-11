@@ -3,7 +3,12 @@ import { Transcription } from '../transcription/types/transcription.types';
 import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PiiFinding, PrivacyScan, PrivacyStatus } from './privacy.types';
-import { maskTranscription, toFindings, toScanText } from './privacy.utils';
+import {
+  maskTranscription,
+  toFindings,
+  toScanText,
+  withoutIgnoredPii,
+} from './privacy.utils';
 
 /**
  * 会話を外部（Claude など）に送る前の個人情報チェック
@@ -33,13 +38,15 @@ export class PrivacyService {
   ) {}
 
   async getStatus(transcriptionId: string): Promise<PrivacyStatus> {
+    const scan = await this.store.find(transcriptionId);
     return {
       configured: this.guardrail.isConfigured(),
       scanning: this.running.has(transcriptionId),
       ...(this.errors.has(transcriptionId) && {
         error: this.errors.get(transcriptionId),
       }),
-      scan: await this.store.find(transcriptionId),
+      // 以前のチェックで保存した、個人情報として扱わない検出（ユーザー名・国名だけの住所）は表示しない
+      scan: scan && { ...scan, findings: withoutIgnoredPii(scan.findings) },
     };
   }
 
