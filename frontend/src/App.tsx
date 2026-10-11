@@ -163,6 +163,15 @@ function App() {
     });
   };
 
+  /** ディープサーチの根拠から、元の文字起こしを開き、引用された発言へ移動する */
+  const handleOpenFromResearch = async (id: string, utteranceIndex?: number) => {
+    setPage('main');
+    await handleTranscriptionSelect(id);
+    if (utteranceIndex === undefined) return;
+    // 文字起こしの上にある個人情報チェックなどの表示が読み込まれて高さが決まってから移動する
+    setTimeout(() => setScrollToUtteranceIndex(utteranceIndex), 500);
+  };
+
   /** 文字起こし履歴を選択して結果を表示 */
   const handleTranscriptionSelect = async (id: string) => {
     setSelectedTranscriptionId(id);
@@ -271,7 +280,10 @@ function App() {
   /** ディープサーチページの場合 */
   if (page === 'deep-search') {
     return (
-      <ResearchPage onBack={() => setPage('main')} />
+      <ResearchPage
+        onBack={() => setPage('main')}
+        onOpenTranscription={handleOpenFromResearch}
+      />
     );
   }
 

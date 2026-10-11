@@ -49,6 +49,22 @@ export interface WebSource {
 }
 
 /** 根拠（統合分析の各文に付く引用） */
+/** 会話でキーワードが話題になった発言 */
+export interface KeywordMention {
+  transcriptionId: string;
+  /** 文字起こしでの発言の位置 */
+  utteranceIndex: number;
+  start: number;
+  speakerName: string;
+}
+
+/** キーワードが会話で話題になった発言（先頭から表示する数だけ）と、話題になった発言の総数 */
+export interface KeywordMentions {
+  keyword: string;
+  total: number;
+  items: KeywordMention[];
+}
+
 export interface ReportCitation {
   /** 根拠の種類 */
   sourceKind: 'conversation' | 'web';
@@ -60,6 +76,13 @@ export interface ReportCitation {
   citedText: string;
   /** Web の場合、公式サイトか */
   official?: boolean;
+  /** 会話の場合、引用された最初の発言（文字起こしでの位置・話者・開始時刻）と、引用された発言の数 */
+  utterance?: {
+    index: number;
+    speakerName: string;
+    start: number;
+    count: number;
+  };
 }
 
 /** 統合分析の1文（Citations で返る単位） */
@@ -141,6 +164,8 @@ export interface ResearchJob {
   report?: ReportSegment[];
   /** ⑤ 評価 */
   evaluation?: ResearchEvaluation;
+  /** 確定したキーワードが会話で話題になった発言（キーワードごと） */
+  mentions?: KeywordMentions[];
   /** 使ったモデル */
   models: { analysis: string; judge?: string };
 }

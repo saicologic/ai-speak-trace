@@ -4,10 +4,12 @@ import {
   checkPersonalData,
   collectWebSources,
   countOccurrences,
+  findMentions,
   isOfficial,
   mergeIntoSentences,
   normalizeDomain,
   toReportSegments,
+  toTranscriptUtterances,
   toTranscriptDocument,
   verifyQuotes,
 } from './research.utils';
@@ -163,6 +165,90 @@ describe('research.utils', () => {
         ],
       },
     ]);
+  });
+
+  it('会話の発言ブロックの引用を、文字起こしの発言の位置・話者・時刻に対応づける', () => {
+    const content = [
+      {
+        type: 'text',
+        text: 'ハーネスが重要だと述べた。',
+        citations: [
+          {
+            type: 'content_block_location',
+            document_index: 0,
+            start_block_index: 1,
+            end_block_index: 3,
+            cited_text: 'Bさん: ハーネスが大事',
+          },
+        ],
+      },
+    ] as unknown as Anthropic.ContentBlock[];
+    const [segment] = toReportSegments(content, [
+      {
+        sourceKind: 'conversation',
+        sourceId: 't1',
+        title: 't1.mp3',
+        utterances: [
+          { index: 0, speakerName: 'Aさん', start: 0, text: 'こんにちは' },
+          {
+            index: 2,
+            speakerName: 'Bさん',
+            start: 75.5,
+            text: 'ハーネスが大事',
+          },
+          { index: 3, speakerName: 'Aさん', start: 80, text: 'なるほど' },
+        ],
+      },
+    ]);
+    expect(segment.citations[0].utterance).toEqual({
+      index: 2,
+      speakerName: 'Bさん',
+      start: 75.5,
+      count: 2,
+    });
+  });
+
+  it('箇条書きの項目が前の文に続けて書かれた場合は、改行を補う', () => {
+    expect(
+      mergeIntoSentences([
+        { text: '- 相違: 強調点が違う。', citations: [] },
+        { text: '- 不足: 記載がない。', citations: [] },
+      ]).map((s) => s.text),
+    ).toEqual(['- 相違: 強調点が違う。', '\n- 不足: 記載がない。']);
+  });
+
+  it('キーワードが話題になった発言を、空白・全角半角の違いを無視して探し、先頭から5件まで残す', () => {
+    const t = {
+      id: 't1',
+      utterances: [
+        { speakerName: 'Aさん', start: 0, text: 'こんにちは' },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          speakerName: 'Bさん',
+          start: 10 + i,
+          text: 'ＬＬＭ as a Judge の話',
+        })),
+      ],
+    } as unknown as Transcription;
+    const [mentions] = findMentions([t], ['LLM as a Judge']);
+    expect(mentions.total).toBe(6);
+    expect(mentions.items).toHaveLength(5);
+    expect(mentions.items[0]).toEqual({
+      transcriptionId: 't1',
+      utteranceIndex: 1,
+      start: 10,
+      speakerName: 'Bさん',
+    });
+  });
+
+  it('空の発言を除き、文字起こしでの発言の位置を残す', () => {
+    const t = {
+      utterances: [
+        { speakerName: 'Aさん', start: 0, text: 'こんにちは' },
+        { speakerName: 'Bさん', start: 1, text: '  ' },
+        { speakerName: 'Bさん', start: 2, text: 'どうも' },
+      ],
+    } as unknown as Transcription;
+    expect(toTranscriptUtterances(t).map((u) => u.index)).toEqual([0, 2]);
   });
 
   it('根拠の境目で区切られた断片を、1文ずつにまとめる', () => {

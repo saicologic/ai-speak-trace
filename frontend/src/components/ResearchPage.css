@@ -130,13 +130,6 @@
   margin-bottom: 0.75rem;
 }
 
-.research-subheading {
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin: 1.5rem 0 0.75rem;
-  color: #1f2937;
-}
-
 .research-hint {
   font-size: 0.85rem;
   color: #6b7280;
@@ -172,10 +165,8 @@
 
 .research-transcriptions,
 .research-domains,
-.research-jobs,
 .research-proposals,
-.research-web-sources,
-.research-citations,
+.research-sources,
 .research-checks,
 .research-selected-transcriptions {
   list-style: none;
@@ -210,7 +201,6 @@
 }
 
 .research-transcription-date,
-.research-job-date,
 .research-web-domain {
   color: #9ca3af;
   font-size: 0.75rem;
@@ -223,28 +213,9 @@
   overflow-wrap: anywhere;
 }
 
-.research-job {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  text-align: left;
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background-color: #ffffff;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.research-job:hover {
-  border-color: #93c5fd;
-}
-
 .research-job-status {
-  font-size: 0.72rem;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background-color: #dbeafe;
@@ -259,17 +230,6 @@
 .research-job-status.failed {
   background-color: #fee2e2;
   color: #991b1b;
-}
-
-.research-job-names {
-  flex: 1;
-  overflow-wrap: anywhere;
-}
-
-.research-job-keywords {
-  width: 100%;
-  color: #4b5563;
-  font-size: 0.8rem;
 }
 
 .research-progress {
@@ -353,7 +313,7 @@
   line-height: 1.6;
 }
 
-.research-citation .research-quote {
+.research-cite-item .research-quote {
   margin-left: 0;
 }
 
@@ -527,54 +487,6 @@
   padding-left: 1.25rem;
 }
 
-.research-cite {
-  margin-left: 0.15rem;
-}
-
-.research-cite a {
-  color: #2563eb;
-  text-decoration: none;
-  font-size: 0.75rem;
-}
-
-.research-cite a:hover {
-  text-decoration: underline;
-}
-
-.research-citation {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.4rem;
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background-color: #ffffff;
-  font-size: 0.85rem;
-  overflow-wrap: anywhere;
-}
-
-.research-citation.highlight {
-  animation: research-highlight 1.6s ease-out;
-}
-
-@keyframes research-highlight {
-  from {
-    background-color: #fef3c7;
-    border-color: #f59e0b;
-  }
-}
-
-.research-citation .research-quote {
-  width: 100%;
-}
-
-.research-citation-number {
-  font-weight: 600;
-  color: #2563eb;
-}
-
 .research-citation-kind {
   font-size: 0.7rem;
   padding: 0.05rem 0.45rem;
@@ -593,7 +505,7 @@
   color: #065f46;
 }
 
-.research-web-sources li {
+.research-sources li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -620,4 +532,252 @@
 
 .research-review summary {
   color: #92400e;
+}
+
+/* 調査結果タブ: 選んだ調査の結果 */
+.research-result {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+/* 根拠: 出典の名前と、会話の時刻・話者 */
+.research-citation-title {
+  color: #374151;
+}
+
+.research-citation-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.research-citation-time {
+  font-variant-numeric: tabular-nums;
+  color: #2563eb;
+}
+
+.research-citation-speaker {
+  font-weight: 600;
+  color: #374151;
+}
+
+.research-quote-toggle,
+.research-citation-open {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.research-quote-toggle {
+  margin-left: 0.4rem;
+}
+
+.research-citation-open {
+  align-self: flex-start;
+}
+
+.research-quote-toggle:hover,
+.research-citation-open:hover {
+  text-decoration: underline;
+}
+
+/* 何を調べたか */
+.research-summary-card {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font-size: 0.85rem;
+}
+
+.research-summary-card dl {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.research-summary-card dt {
+  color: #6b7280;
+}
+
+.research-summary-card dd {
+  margin: 0;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.research-summary-model {
+  margin-left: 0.75rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+/* 信頼度のまとめ */
+.research-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin-bottom: 1rem;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background-color: #f0fdf4;
+  font-size: 0.82rem;
+  color: #374151;
+}
+
+.research-trust.warning {
+  border-color: #fecaca;
+  background-color: #fef2f2;
+}
+
+.research-trust strong {
+  color: #111827;
+}
+
+.research-trust-alert {
+  width: 100%;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+/* 目次 */
+.research-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.research-toc button {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background-color: #ffffff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.research-toc button:hover {
+  background-color: #eff6ff;
+}
+
+/* 本文の出典の表示（会話1 34:19 など） */
+.research-report-body {
+  position: relative;
+}
+
+.research-cite {
+  margin-left: 0.3rem;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.research-cite.web {
+  background-color: #ecfdf5;
+  color: #065f46;
+}
+
+.research-cite:hover {
+  filter: brightness(0.95);
+  text-decoration: underline;
+}
+
+/* 出典の吹き出し */
+.research-cite-popover {
+  position: absolute;
+  z-index: 10;
+  width: 360px;
+  max-width: 100%;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: 0.82rem;
+}
+
+.research-cite-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.research-cite-item + .research-cite-item {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* 評価の詳細 */
+.research-eval-details > summary {
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+/* キーワードごとの解説 */
+.research-topic {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  scroll-margin-top: 1rem;
+}
+
+.research-topic .research-report {
+  padding: 0;
+  border: none;
+}
+
+.research-topic-extra {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.research-topic-extra h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.research-topic-extra .research-web-domain {
+  margin-left: 0.4rem;
+  font-weight: 400;
+}
+
+.research-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.research-mentions .research-cite {
+  margin-left: 0;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
 }

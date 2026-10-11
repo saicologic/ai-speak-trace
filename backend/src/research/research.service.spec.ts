@@ -59,10 +59,11 @@ describe('evaluate', () => {
     expect(evaluation.ethics.every((e) => e.passed)).toBe(true);
   });
 
-  it('「不足:」「推測:」の注記は、事実の主張と判定されても除かない', () => {
+  it('「不足:」「推測:」の注記と関連するキーワードの列挙は、事実の主張と判定されても除かない', () => {
     const notes: ReportSegment[] = [
       { text: '- 不足: 公式情報には記載がない。\n', citations: [] },
       { text: '- **推測**：今後広がりそうだ。\n', citations: [] },
+      { text: '**関連するキーワード**: Skills、MCP\n', citations: [] },
     ];
     const { finalReport, evaluation } = evaluate(
       notes,

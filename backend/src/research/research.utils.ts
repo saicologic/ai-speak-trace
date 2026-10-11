@@ -2,9 +2,11 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { Transcription } from '../transcription/types/transcription.types';
 import {
   EthicsCheck,
+  KeywordMentions,
   ReportCitation,
   ReportSegment,
   TranscriptQuote,
+  TranscriptUtterance,
   WebSource,
 } from './types/research.types';
 
@@ -19,6 +21,54 @@ export function toTranscriptDocument(transcription: Transcription): string {
     .filter((u) => u.text.trim())
     .map((u) => `${u.speakerName}: ${u.text}`)
     .join('\n');
+}
+
+/** 統合分析に渡す発言（空の発言は除き、文字起こしでの位置を残す） */
+export function toTranscriptUtterances(
+  transcription: Transcription,
+): TranscriptUtterance[] {
+  return transcription.utterances.flatMap((u, index) =>
+    u.text.trim()
+      ? [{ index, speakerName: u.speakerName, start: u.start, text: u.text }]
+      : [],
+  );
+}
+
+/** 1つのキーワードについて表示する、話題になった発言の数 */
+export const MAX_MENTIONS = 5;
+
+/**
+ * 確定したキーワードが会話で話題になった発言を探す（空白・全角半角の違いは無視）
+ * 会話の内容を AI にまとめさせず、元の文字起こしの発言へ移動できるようにするため、文字列の一致で探す
+ */
+export function findMentions(
+  transcriptions: Transcription[],
+  keywords: string[],
+): KeywordMentions[] {
+  return keywords.map((keyword) => {
+    const target = normalize(keyword);
+    const found = transcriptions.flatMap((t) =>
+      target
+        ? t.utterances.flatMap((u, utteranceIndex) =>
+            normalize(u.text).includes(target)
+              ? [
+                  {
+                    transcriptionId: t.id,
+                    utteranceIndex,
+                    start: u.start,
+                    speakerName: u.speakerName,
+                  },
+                ]
+              : [],
+          )
+        : [],
+    );
+    return {
+      keyword,
+      total: found.length,
+      items: found.slice(0, MAX_MENTIONS),
+    };
+  });
 }
 
 /** 選んだ会話全体でのキーワードの出現回数（空白・全角半角の違いは無視） */
@@ -148,6 +198,8 @@ export interface AnalysisDocument {
   sourceId: string;
   title: string;
   official?: boolean;
+  /** 会話の場合、ブロックの順に並べた発言（引用されたブロックを発言に対応づける） */
+  utterances?: TranscriptUtterance[];
 }
 
 /**
@@ -172,12 +224,26 @@ export function toReportSegments(
       }
       const doc = documents[citation.document_index];
       if (!doc) continue;
+      // 会話の引用は、引用された最初の発言の位置・話者・時刻を残す（元の文字起こしへ移動するため）
+      const blocks =
+        citation.type === 'content_block_location'
+          ? { start: citation.start_block_index, end: citation.end_block_index }
+          : null;
+      const utterance = blocks ? doc.utterances?.[blocks.start] : undefined;
       citations.push({
         sourceKind: doc.sourceKind,
         sourceId: doc.sourceId,
         title: doc.title,
         citedText: citation.cited_text,
         ...(doc.sourceKind === 'web' && { official: doc.official }),
+        ...(utterance && {
+          utterance: {
+            index: utterance.index,
+            speakerName: utterance.speakerName,
+            start: utterance.start,
+            count: Math.max(1, blocks!.end - blocks!.start),
+          },
+        }),
       });
     }
     segments.push({ text: block.text, citations });
@@ -220,7 +286,12 @@ export function mergeIntoSentences(segments: ReportSegment[]): ReportSegment[] {
     }
   }
   if (current) merged.push(current);
-  return merged;
+  // 箇条書きの項目が前の文に続けて書かれた場合は、改行を補って別の項目として表示する
+  return merged.map((segment, i) =>
+    i > 0 && /^[-*]\s/.test(segment.text) && !merged[i - 1].text.endsWith('\n')
+      ? { ...segment, text: `\n${segment.text}` }
+      : segment,
+  );
 }
 
 /** 個人を特定できる連絡先などを、ルールで検出する */
