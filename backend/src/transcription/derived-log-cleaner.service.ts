@@ -18,6 +18,17 @@ export const DERIVED_LOG_DIRS = [
 ] as const;
 
 /**
+ * このプロセスで削除したログのファイル（絶対パス）
+ * 実行中の処理が、削除されたログを保存し直して会話の内容を復元しないよう、保存側で確認する
+ */
+const deletedLogFiles = new Set<string>();
+
+/** 文字起こしの削除で、このログのファイルが削除されたか */
+export function isDeletedLogFile(filePath: string): boolean {
+  return deletedLogFiles.has(path.resolve(filePath));
+}
+
+/**
  * 文字起こしを削除したときに、その会話の内容を含むログを削除するサービス
  *
  * ログには会話の抜粋や分析結果が残るため、元の文字起こしだけを消すと、削除したはずの
@@ -69,6 +80,8 @@ export class DerivedLogCleaner {
           continue;
         }
         if (!referencesTranscription(log, transcriptionId)) continue;
+        // 削除の前に記録し、削除と並行して保存しようとした処理にも削除済みと分かるようにする
+        deletedLogFiles.add(path.resolve(filePath));
         try {
           await fs.rm(filePath, { force: true });
           deleted++;

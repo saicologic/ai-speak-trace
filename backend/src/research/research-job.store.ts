@@ -3,10 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { isDeletedLogFile } from '../transcription/derived-log-cleaner.service';
 import { ResearchJob, ResearchJobSummary } from './types/research.types';
 
 /** 調査ジョブの保存先（DATA_DIR 配下） */
 export const RESEARCH_JOBS_DIR = 'research-jobs';
+
+/** 会話の削除で調査ジョブが削除されたため、保存しなかったことを表すエラー */
+export class ResearchJobDeletedError extends Error {}
 
 /** 調査ジョブをローカルファイルに保存・取得するストア */
 @Injectable()
@@ -24,13 +28,27 @@ export class ResearchJobStore {
     return path.join(this.storeDir, `${path.basename(id)}.json`);
   }
 
-  /** 保存する（書き込み途中のファイルを残さないよう、一時ファイルから置き換える） */
+  /**
+   * 保存する（書き込み途中のファイルを残さないよう、一時ファイルから置き換える）
+   * 会話の削除でこのジョブが削除された場合は保存せず、ResearchJobDeletedError を投げる
+   * 置き換えと削除が並行した場合に備えて、置き換えの後にも確認し、削除済みなら消し直す
+   */
   async save(job: ResearchJob): Promise<void> {
     await fs.mkdir(this.storeDir, { recursive: true });
     const filePath = this.getFilePath(job.id);
+    const deleted = () =>
+      new ResearchJobDeletedError(`調査ジョブが削除されました: ${job.id}`);
     const tmpPath = `${filePath}.${randomUUID()}.tmp`;
     await fs.writeFile(tmpPath, JSON.stringify(job, null, 2), 'utf-8');
+    if (isDeletedLogFile(filePath)) {
+      await fs.rm(tmpPath, { force: true });
+      throw deleted();
+    }
     await fs.rename(tmpPath, filePath);
+    if (isDeletedLogFile(filePath)) {
+      await fs.rm(filePath, { force: true });
+      throw deleted();
+    }
   }
 
   async findById(id: string): Promise<ResearchJob | null> {

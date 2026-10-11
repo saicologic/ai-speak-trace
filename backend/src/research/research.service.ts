@@ -9,7 +9,10 @@ import { randomUUID } from 'crypto';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { Transcription } from '../transcription/types/transcription.types';
 import { CLAUDE_MODEL } from '../claude/analysis.service';
-import { ResearchJobStore } from './research-job.store';
+import {
+  ResearchJobDeletedError,
+  ResearchJobStore,
+} from './research-job.store';
 import {
   JUDGE_MODEL,
   RawJudgement,
@@ -48,9 +51,6 @@ const RUNNING_STATUSES = [
  * 開始すると ①会話の読み込み・②提案 を行い、ユーザーの確定を待つ。
  * 確定後に ③Web調査 → ④統合分析 → ⑤評価 を行う。各段階の結果は ResearchJobStore に保存する。
  */
-/** 実行中に調査ジョブが削除された（会話の削除など）ことを表すエラー */
-class ResearchJobDeletedError extends Error {}
-
 @Injectable()
 export class ResearchService implements OnModuleInit {
   private readonly logger = new Logger(ResearchService.name);
@@ -284,6 +284,7 @@ export class ResearchService implements OnModuleInit {
         error: error instanceof Error ? error.message : String(error),
       });
     } catch (saveError) {
+      if (saveError instanceof ResearchJobDeletedError) return;
       this.logger.error(`調査の失敗を記録できません: ${job.id}`, saveError);
     }
   }
@@ -320,7 +321,8 @@ export function evaluate(
     factual++;
     const hasCitation = segment.citations.length > 0;
     if (hasCitation) cited++;
-    const verdict = v?.verdict ?? (hasCitation ? 'partial' : 'unsupported');
+    // 判定が返らなかった事実の主張は、裏付けを確認できないため除く
+    const verdict = v?.verdict ?? 'unsupported';
     if (hasCitation && verdict === 'supported') supported++;
     if (!hasCitation || verdict === 'unsupported') {
       removedIndexes.add(index);
@@ -328,7 +330,9 @@ export function evaluate(
         claim: segment.text.trim(),
         factual: true,
         verdict: 'unsupported',
-        reason: v?.reason ?? '根拠が付いていません',
+        reason:
+          v?.reason ??
+          (hasCitation ? '判定が返りませんでした' : '根拠が付いていません'),
       });
     }
   });

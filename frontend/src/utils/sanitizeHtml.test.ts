@@ -25,4 +25,16 @@ describe('sanitizeHtml', () => {
     );
     expect(result).not.toMatch(/javascript:/);
   });
+
+  it('SVG のアニメーション要素と、文脈で解釈が変わる要素を取り除く', () => {
+    const result = sanitizeHtml(
+      '<svg><a href="#c1"><set attributeName="href" to="javascript:alert(1)"/>' +
+        '<animate attributeName="href" values="javascript:alert(1)"/>' +
+        '<animateMotion path="M0,0"/><text>x</text></a></svg>' +
+        '<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript>' +
+        '<template><p>t</p></template><base href="https://evil.example/">',
+    );
+    expect(result).not.toMatch(/<set|<animate|noscript|<template|<base|javascript:|onerror/i);
+    expect(result).toContain('<text>x</text>');
+  });
 });
