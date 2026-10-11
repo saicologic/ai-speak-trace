@@ -119,6 +119,68 @@ describe('ClaudeClientService.createMessage', () => {
     });
   });
 
+  it('伏せられない部分（検索語）に伏せる対象の個人情報があれば Claude に送らない', async () => {
+    guardrail.inspect.mockResolvedValueOnce({
+      ...noFindings(),
+      pii: [{ type: 'EMAIL', match: 'a@example.com' }],
+    });
+    await expect(
+      service.createMessage({
+        ...params,
+        messages: [
+          { role: 'user', content: '調べて' },
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'server_tool_use',
+                id: 's1',
+                name: 'web_search',
+                input: { query: 'a@example.com' },
+              },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow('伏せられない部分');
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('応答の伏せられない部分（検索結果の題名）に伏せる対象の個人情報があれば、応答を返さない', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        {
+          type: 'web_search_tool_result',
+          tool_use_id: 's1',
+          content: [
+            {
+              type: 'web_search_result',
+              title: '連絡先 090-1234-5678',
+              url: 'https://example.com',
+              encrypted_content: 'enc',
+            },
+          ],
+        },
+      ],
+      stop_reason: 'end_turn',
+    });
+    guardrail.inspect
+      .mockResolvedValueOnce(noFindings())
+      .mockResolvedValueOnce({
+        ...noFindings(),
+        pii: [{ type: 'PHONE', match: '090-1234-5678' }],
+      });
+    await expect(service.createMessage(params)).rejects.toThrow(
+      '応答を使いませんでした',
+    );
+    expect(guardrail.inspect).toHaveBeenNthCalledWith(
+      2,
+      '連絡先 090-1234-5678',
+      'OUTPUT',
+      { requireFullCoverage: true },
+    );
+  });
+
   it('チェックできない内容（画像）が含まれていたら Claude に送らない', async () => {
     await expect(
       service.createMessage({

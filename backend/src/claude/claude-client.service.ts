@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import { GuardrailService } from '../privacy/guardrail.service';
+import { PiiFinding } from '../privacy/privacy.types';
 import {
+  collectImmutableRequestTexts,
+  collectImmutableResponseTexts,
   collectRequestText,
   collectResponseText,
   findBlockingContent,
+  findUnmaskable,
   mapRequestTexts,
   mapResponseTexts,
   masker,
@@ -96,6 +100,15 @@ export class ClaudeClientService {
       );
     }
     const inputMasks = toAutoMaskFindings(inputFindings, inputText);
+    const unmaskableInput = findUnmaskable(
+      collectImmutableRequestTexts(params),
+      inputMasks,
+    );
+    if (unmaskableInput.length > 0) {
+      throw new BadRequestException(
+        `送る内容の、伏せられない部分（思考・検索語・検索結果の題名）に個人情報（${labels(unmaskableInput)}）が含まれるため、Claude に送りませんでした`,
+      );
+    }
     if (inputMasks.length > 0) {
       this.logger.log(`送る内容の個人情報を伏せます: ${inputMasks.length}件`);
     }
@@ -108,6 +121,15 @@ export class ClaudeClientService {
       requireFullCoverage: true,
     });
     const outputMasks = toAutoMaskFindings(outputFindings, outputText);
+    const unmaskableOutput = findUnmaskable(
+      collectImmutableResponseTexts(response),
+      outputMasks,
+    );
+    if (unmaskableOutput.length > 0) {
+      throw new BadRequestException(
+        `Claude の応答の、伏せられない部分（思考・検索語・検索結果の題名）に個人情報（${labels(unmaskableOutput)}）が含まれるため、応答を使いませんでした`,
+      );
+    }
     if (outputMasks.length > 0) {
       this.logger.log(`応答の個人情報を伏せます: ${outputMasks.length}件`);
     }
@@ -121,4 +143,9 @@ export class ClaudeClientService {
       fetch: this.axiosFetch.bind(this),
     });
   }
+}
+
+/** 個人情報の種類の表示名（重複なし） */
+function labels(findings: PiiFinding[]): string {
+  return [...new Set(findings.map((f) => f.label))].join('、');
 }

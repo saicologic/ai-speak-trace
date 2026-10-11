@@ -158,6 +158,19 @@ function mapDocument(
   );
 }
 
+/** リクエストの、チェックはするが書き換えられないテキスト（assistant の思考・検索語・検索結果の題名）を集める */
+export function collectImmutableRequestTexts(
+  params: Anthropic.MessageCreateParamsNonStreaming,
+): string[] {
+  const texts: string[] = [];
+  mapRequestTexts(
+    params,
+    (text) => text,
+    (text) => texts.push(text),
+  );
+  return texts;
+}
+
 /** リクエストの、Guardrails でチェックするテキストを集める */
 export function collectRequestText(
   params: Anthropic.MessageCreateParamsNonStreaming,
@@ -220,14 +233,45 @@ export function mapResponseTexts(
   };
 }
 
-/** 応答の、Guardrails でチェックするテキスト（本文と引用本文）を集める */
+/**
+ * 応答の、チェックはするが書き換えられないテキスト（思考・検索語・検索結果の題名）を集める
+ * 書き換えると、pause_turn の再開で送り返したときに API に拒否されるため
+ */
+export function collectImmutableResponseTexts(
+  message: Anthropic.Message,
+): string[] {
+  const texts: string[] = [];
+  for (const block of message.content) {
+    if (block.type === 'thinking') texts.push(block.thinking);
+    if (block.type === 'server_tool_use') {
+      texts.push(JSON.stringify(block.input));
+    }
+    if (
+      block.type === 'web_search_tool_result' &&
+      Array.isArray(block.content)
+    ) {
+      for (const r of block.content) texts.push(r.title);
+    }
+  }
+  return texts;
+}
+
+/** 応答の、Guardrails でチェックするテキスト（本文・引用本文と、書き換えられないテキスト）を集める */
 export function collectResponseText(message: Anthropic.Message): string {
   const texts: string[] = [];
   mapResponseTexts(message, (text) => {
     texts.push(text);
     return text;
   });
-  return texts.join('\n');
+  return [...texts, ...collectImmutableResponseTexts(message)].join('\n');
+}
+
+/** 伏せる文字列のうち、書き換えられないテキストに含まれているもの（伏せられないため、送らない・返さない） */
+export function findUnmaskable(
+  immutableTexts: string[],
+  masks: PiiFinding[],
+): PiiFinding[] {
+  return masks.filter((m) => immutableTexts.some((t) => t.includes(m.text)));
 }
 
 /** 伏せる文字列を置き換える関数を返す（伏せるものがなければ何もしない） */
