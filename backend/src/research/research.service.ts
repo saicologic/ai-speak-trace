@@ -370,6 +370,9 @@ export class ResearchService implements OnModuleInit {
 /** 見出しの行（「## 見出し」「**見出し**」） */
 const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
 
+/** 「不足:」「推測:」と明記した注記の文（事実の主張として審査しない） */
+const NOTE_SENTENCE = /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測)(?:\*\*)?\s*[:：]/;
+
 /**
  * ⑤ 判定結果から評価を計算し、根拠のない主張を除いたレポートを返す
  * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く。
@@ -391,6 +394,8 @@ export function evaluate(
 
   report.forEach((segment, index) => {
     const v = verdicts.get(index);
+    // 注記の文は、審査員の判定によらず事実の主張として扱わない
+    if (NOTE_SENTENCE.test(segment.text.trim())) return;
     // 判定が返らなかった文は、根拠の有無で扱いを決める
     const isFactual = v ? v.factual : segment.citations.length > 0;
     if (!isFactual) return;
