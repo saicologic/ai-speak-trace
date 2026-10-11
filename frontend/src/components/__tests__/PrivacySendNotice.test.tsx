@@ -55,4 +55,10 @@ describe('PrivacySendNotice', () => {
     render(<PrivacySendNotice transcriptionIds={['t1']} />);
     expect(await screen.findByText(/個人情報チェックが設定されていないため/)).toBeInTheDocument();
   });
+
+  it('個人情報チェックの設定を解除した場合は、保存済みのチェック結果があっても知らせる', async () => {
+    vi.mocked(fetchPrivacy).mockResolvedValue(status([finding(true, false)], false));
+    render(<PrivacySendNotice transcriptionIds={['t1']} />);
+    expect(await screen.findByText(/個人情報チェックが設定されていないため/)).toBeInTheDocument();
+  });
 });

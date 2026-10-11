@@ -254,7 +254,8 @@ export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) 
   );
 
   const notes: string[] = [];
-  if (!configured && unchecked === statuses.length) {
+  // Guardrail ID を解除しても保存済みのチェック結果は残るため、結果の有無に関係なく知らせる
+  if (!configured) {
     notes.push('個人情報チェックが設定されていないため、会話は伏せずに送られます');
   } else {
     if (unchecked > 0) {
