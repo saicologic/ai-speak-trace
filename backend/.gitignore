@@ -62,6 +62,8 @@ data/deep-search-logs/
 data/research-jobs/
 data/privacy-scans/
 data/utterance-embeddings/
+data/claude-audit-logs/
+data/feedback/
 
 # Runtime data
 pids
