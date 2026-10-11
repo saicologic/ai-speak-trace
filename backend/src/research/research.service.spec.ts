@@ -2,7 +2,8 @@ import { TranscriptionStoreService } from '../transcription/transcription-store.
 import { RawJudgement, ResearchClaudeService } from './research-claude.service';
 import { ResearchJobStore } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
-import { evaluate, ResearchService } from './research.service';
+import { evaluate, ResearchService, sendableWords } from './research.service';
+import { Transcription } from '../transcription/types/transcription.types';
 import { ReportSegment, ResearchJob } from './types/research.types';
 
 const cite = (official?: boolean) => ({
@@ -228,5 +229,25 @@ describe('ResearchService', () => {
       }
     ).fail(baseJob, new Error('失敗'));
     expect(jobStore.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendableWords', () => {
+  it('伏せた後の会話に出てこない頻出語を除き、回数を数え直す', () => {
+    const masked = {
+      utterances: [
+        { text: '[氏名]さんと Claude Code の話をした' },
+        { text: 'Claude Code は便利' },
+      ],
+    } as unknown as Transcription;
+    expect(
+      sendableWords(
+        [masked],
+        [
+          { word: '金井', count: 4 },
+          { word: 'Claude Code', count: 5 },
+        ],
+      ),
+    ).toEqual([{ word: 'Claude Code', count: 2 }]);
   });
 });

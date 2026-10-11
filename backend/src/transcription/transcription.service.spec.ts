@@ -49,6 +49,7 @@ describe('TranscriptionService', () => {
   let elevenLabsService: jest.Mocked<ElevenLabsService>;
   let chunkedTranscriptionService: jest.Mocked<ChunkedTranscriptionService>;
   let store: jest.Mocked<TranscriptionStoreService>;
+  let privacyService: { scanInBackground: jest.Mock };
   let audioStorage: {
     listFiles: jest.Mock;
     exists: jest.Mock;
@@ -120,6 +121,7 @@ describe('TranscriptionService', () => {
     elevenLabsService = module.get(ElevenLabsService);
     chunkedTranscriptionService = module.get(ChunkedTranscriptionService);
     store = module.get(TranscriptionStoreService);
+    privacyService = module.get(PrivacyService);
   });
 
   describe('getAudioFiles', () => {
@@ -334,6 +336,8 @@ describe('TranscriptionService', () => {
       expect(result.utterances[0].speakerName).toBe('田中さん');
       // 更新対象でない話者は変わらない
       expect(result.speakers[1].name).toBe('Bさん');
+      // 話者名が変わったため、個人情報チェックをやり直す
+      expect(privacyService.scanInBackground).toHaveBeenCalledWith(result);
     });
 
     it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {

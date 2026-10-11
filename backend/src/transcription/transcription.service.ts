@@ -399,6 +399,8 @@ export class TranscriptionService {
     }
 
     await this.store.save(transcription);
+    // 話者名を実名に変えた場合に備えて、個人情報チェックをやり直す（伏せる選択は引き継ぐ）
+    this.privacyService.scanInBackground(transcription);
     this.logger.log(`話者名更新完了: ${id}`);
 
     return transcription;

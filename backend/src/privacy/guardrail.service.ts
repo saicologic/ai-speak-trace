@@ -78,12 +78,12 @@ export class GuardrailService {
     return findings;
   }
 
-  /** 主張（claim）が根拠（source）に合っているかの点数（英語のみ対応） */
+  /** 主張（claim）が根拠（source）に合っているかの点数（英語のみ対応。根拠チェックの設定がなければ null） */
   async checkGrounding(
     source: string,
     query: string,
     claim: string,
-  ): Promise<GroundingScore> {
+  ): Promise<GroundingScore | null> {
     const assessments = await this.apply('OUTPUT', [
       { text: { text: source, qualifiers: ['grounding_source'] } },
       { text: { text: query, qualifiers: ['query'] } },
@@ -92,9 +92,11 @@ export class GuardrailService {
     const filters = assessments.flatMap(
       (a) => a.contextualGroundingPolicy?.filters ?? [],
     );
-    const score = (type: string) =>
-      filters.find((f) => f.type === type)?.score ?? 0;
-    return { grounding: score('GROUNDING'), relevance: score('RELEVANCE') };
+    // Guardrail に根拠チェック（contextual grounding）の設定がない場合はスコアが返らない
+    const grounding = filters.find((f) => f.type === 'GROUNDING')?.score;
+    if (grounding === undefined) return null;
+    const relevance = filters.find((f) => f.type === 'RELEVANCE')?.score ?? 0;
+    return { grounding, relevance };
   }
 
   private async apply(

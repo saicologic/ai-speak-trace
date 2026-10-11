@@ -183,7 +183,7 @@ export class ResearchService implements OnModuleInit {
     try {
       const raw = await this.claude.proposeKeywords(
         this.toDocuments(transcriptions),
-        frequentWords.slice(0, 30),
+        sendableWords(transcriptions, frequentWords).slice(0, 30),
       );
       const keywords = raw.keywords
         .map((k) => ({
@@ -267,12 +267,13 @@ export class ResearchService implements OnModuleInit {
       const target = groundingTarget(segment);
       if (!target) continue;
       try {
-        const { grounding } = await this.guardrail.checkGrounding(
+        const score = await this.guardrail.checkGrounding(
           target.source,
           target.query,
           target.claim,
         );
-        scores.set(index, grounding);
+        // Guardrail に根拠チェックの設定がない場合は、スコアがないため評価モデルの判定だけで扱う
+        if (score) scores.set(index, score.grounding);
       } catch (error) {
         this.logger.warn(
           `根拠スコアを計算できません（${index}番目の文）`,
@@ -368,6 +369,23 @@ export class ResearchService implements OnModuleInit {
   }
 }
 
+/**
+ * 画面で数えた頻出語のうち、Claude に送る会話（個人情報チェックで伏せた後）に出てくる語だけを返す
+ * 頻出語は伏せる前の会話から数えているため、伏せた氏名などが頻出語として送られないようにする
+ * 回数も伏せた後の会話で数え直す
+ */
+export function sendableWords(
+  transcriptions: Transcription[],
+  frequentWords: { word: string; count: number }[],
+): { word: string; count: number }[] {
+  return frequentWords
+    .map((w) => ({
+      word: w.word,
+      count: countOccurrences(transcriptions, w.word),
+    }))
+    .filter((w) => w.count > 0);
+}
+
 /** 見出しの行（「## 見出し」「**見出し**」） */
 const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
 
@@ -408,6 +426,7 @@ export function evaluate(
     if (hasCitation && verdict === 'supported') supported++;
     const score = grounding.get(index);
     const judgeRejects = verdict === 'unsupported';
+    const judgeReason = v?.reason ?? '判定が返りませんでした';
     if (hasCitation && score !== undefined) {
       const guardrailRejects = score < GROUNDING_THRESHOLD;
       const scoreNote = `Guardrails の根拠スコア ${score.toFixed(2)}`;
@@ -417,7 +436,7 @@ export function evaluate(
           claim: segment.text.trim(),
           factual: true,
           verdict: 'unsupported',
-          reason: `${v?.reason ?? ''}（${scoreNote}）`,
+          reason: `${judgeReason}（${scoreNote}）`,
           groundingScore: score,
         });
       } else if (judgeRejects || guardrailRejects) {
@@ -426,7 +445,7 @@ export function evaluate(
           factual: true,
           verdict,
           reason: judgeRejects
-            ? `評価モデルは裏付けなしと判定: ${v?.reason ?? ''}（${scoreNote}）`
+            ? `評価モデルは裏付けなしと判定: ${judgeReason}（${scoreNote}）`
             : `${scoreNote}（しきい値 ${GROUNDING_THRESHOLD} 未満）。評価モデルの判定: ${verdict}`,
           groundingScore: score,
         });

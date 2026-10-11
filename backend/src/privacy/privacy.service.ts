@@ -51,15 +51,22 @@ export class PrivacyService {
     return task;
   }
 
-  /** 文字起こしの完了時に呼ぶ（Guardrail ID が未設定なら何もしない。失敗しても文字起こしは止めない） */
+  /** 文字起こしの完了時や話者名の更新時に呼ぶ（Guardrail ID が未設定なら何もしない。失敗しても文字起こしは止めない） */
   scanInBackground(transcription: Transcription): void {
     if (!this.guardrail.isConfigured()) return;
-    this.scan(transcription).catch((error: unknown) => {
-      this.logger.warn(
-        `個人情報チェックに失敗: ${transcription.id}`,
-        error instanceof Error ? error.message : error,
-      );
-    });
+    // 実行中のチェックは変更前の内容（話者名など）で検出しているため、終わるのを待ってから検出し直す
+    const running = this.running.get(transcription.id);
+    const previous = running
+      ? running.catch(() => undefined)
+      : Promise.resolve();
+    previous
+      .then(() => this.scan(transcription))
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `個人情報チェックに失敗: ${transcription.id}`,
+          error instanceof Error ? error.message : error,
+        );
+      });
   }
 
   private async runScan(transcription: Transcription): Promise<PrivacyScan> {

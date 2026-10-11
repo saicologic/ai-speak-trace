@@ -1,4 +1,6 @@
+import { ConfigService } from '@nestjs/config';
 import {
+  GuardrailService,
   mergeAssessment,
   splitText,
   GuardrailFindings,
@@ -67,5 +69,38 @@ describe('mergeAssessment', () => {
       words: ['damn'],
       content: [{ type: 'INSULTS', confidence: 'HIGH' }],
     });
+  });
+});
+
+describe('GuardrailService.checkGrounding', () => {
+  /** ApplyGuardrail の応答を固定した GuardrailService */
+  const serviceReturning = (filters: { type: string; score: number }[]) => {
+    const service = new GuardrailService({
+      get: (key: string, fallback?: string) =>
+        key === 'BEDROCK_GUARDRAIL_ID' ? 'gr-test' : fallback,
+    } as unknown as ConfigService);
+    const send = jest.fn().mockResolvedValue({
+      assessments: [{ contextualGroundingPolicy: { filters } }],
+    });
+    Object.assign(service, { client: { send } });
+    return service;
+  };
+
+  it('根拠スコアと関連スコアを返す', async () => {
+    const service = serviceReturning([
+      { type: 'GROUNDING', score: 0.94 },
+      { type: 'RELEVANCE', score: 0.8 },
+    ]);
+    await expect(service.checkGrounding('src', 'q', 'claim')).resolves.toEqual({
+      grounding: 0.94,
+      relevance: 0.8,
+    });
+  });
+
+  it('Guardrail に根拠チェックの設定がなく、スコアが返らない場合は null を返す', async () => {
+    const service = serviceReturning([]);
+    await expect(
+      service.checkGrounding('src', 'q', 'claim'),
+    ).resolves.toBeNull();
   });
 });
