@@ -10,9 +10,11 @@ interface SettingsFile {
   anthropicApiKey?: string;
   enableDeepSearch?: boolean;
   enableContextAnalysis?: boolean;
-  /** 個人情報チェックに使う Amazon Bedrock Guardrails の ID とバージョン */
+  /**
+   * 個人情報チェックと Claude に送る前の確認に使う Amazon Bedrock Guardrails の ID
+   * バージョンは画面では設定せず、DRAFT を使う（固定したい場合は環境変数 BEDROCK_GUARDRAIL_VERSION で指定する）
+   */
   bedrockGuardrailId?: string;
-  bedrockGuardrailVersion?: string;
 }
 
 /** API レスポンス用の設定情報 */
@@ -35,7 +37,6 @@ export interface AppSettings {
   enableContextAnalysis: boolean;
   guardrail: {
     id: string;
-    version: string;
   };
 }
 
@@ -91,8 +92,6 @@ export class SettingsService {
         this.readSettingsFile().enableContextAnalysis ?? false,
       guardrail: {
         id: this.configService.get<string>('BEDROCK_GUARDRAIL_ID') || '',
-        version:
-          this.configService.get<string>('BEDROCK_GUARDRAIL_VERSION') || '',
       },
     };
   }
@@ -105,7 +104,6 @@ export class SettingsService {
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
     bedrockGuardrailId?: string;
-    bedrockGuardrailVersion?: string;
   }): {
     settings: AppSettings;
     restartRequired: boolean;
@@ -138,10 +136,6 @@ export class SettingsService {
     if (dto.bedrockGuardrailId !== undefined) {
       updated.bedrockGuardrailId = dto.bedrockGuardrailId.trim();
       process.env.BEDROCK_GUARDRAIL_ID = updated.bedrockGuardrailId;
-    }
-    if (dto.bedrockGuardrailVersion !== undefined) {
-      updated.bedrockGuardrailVersion = dto.bedrockGuardrailVersion.trim();
-      process.env.BEDROCK_GUARDRAIL_VERSION = updated.bedrockGuardrailVersion;
     }
 
     this.writeSettingsFile(updated);
@@ -220,10 +214,6 @@ export class SettingsService {
       }
       if (settings.bedrockGuardrailId) {
         process.env.BEDROCK_GUARDRAIL_ID = settings.bedrockGuardrailId;
-      }
-      if (settings.bedrockGuardrailVersion) {
-        process.env.BEDROCK_GUARDRAIL_VERSION =
-          settings.bedrockGuardrailVersion;
       }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);

@@ -151,6 +151,29 @@ describe('SettingsService', () => {
       delete process.env.SETTINGS_FILE;
     });
 
+    it('Guardrail ID は読み込み、以前保存したバージョンは読み込まない（DRAFT を使う）', () => {
+      const tempSettings = path.join(tmpDir, 'guardrail-settings.json');
+      fs.writeFileSync(
+        tempSettings,
+        JSON.stringify({
+          bedrockGuardrailId: 'gr-test',
+          bedrockGuardrailVersion: '1',
+        }),
+        'utf-8',
+      );
+      process.env.SETTINGS_FILE = tempSettings;
+      delete process.env.BEDROCK_GUARDRAIL_ID;
+      delete process.env.BEDROCK_GUARDRAIL_VERSION;
+
+      SettingsService.loadSettingsIntoEnv();
+
+      expect(process.env.BEDROCK_GUARDRAIL_ID).toBe('gr-test');
+      expect(process.env.BEDROCK_GUARDRAIL_VERSION).toBeUndefined();
+
+      delete process.env.SETTINGS_FILE;
+      delete process.env.BEDROCK_GUARDRAIL_ID;
+    });
+
     it('settings.jsonが存在しない場合はクラッシュしない', () => {
       process.env.SETTINGS_FILE = path.join(tmpDir, 'nonexistent.json');
 

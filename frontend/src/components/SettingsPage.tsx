@@ -21,7 +21,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [guardrailId, setGuardrailId] = useState('');
-  const [guardrailVersion, setGuardrailVersion] = useState('');
 
   // 設定を読み込み
   useEffect(() => {
@@ -42,7 +41,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
         setGuardrailId(s.guardrail?.id ?? '');
-        setGuardrailVersion(s.guardrail?.version ?? '');
       })
       .catch((err) => {
         if (cancelled) return;
@@ -68,7 +66,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
       bedrockGuardrailId?: string;
-      bedrockGuardrailVersion?: string;
     } = {};
 
     if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
@@ -86,9 +83,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     if (guardrailId !== (settings?.guardrail?.id ?? '')) {
       dto.bedrockGuardrailId = guardrailId;
     }
-    if (guardrailVersion !== (settings?.guardrail?.version ?? '')) {
-      dto.bedrockGuardrailVersion = guardrailVersion;
-    }
 
     try {
       const result = await updateSettings(dto);
@@ -99,7 +93,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
       setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
       setGuardrailId(result.settings.guardrail?.id ?? '');
-      setGuardrailVersion(result.settings.guardrail?.version ?? '');
       setShowSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '保存に失敗しました');
@@ -114,8 +107,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '') ||
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
       enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
-      guardrailId !== (settings.guardrail?.id ?? '') ||
-      guardrailVersion !== (settings.guardrail?.version ?? '')
+      guardrailId !== (settings.guardrail?.id ?? '')
     : false;
 
   // サブディレクトリ（相対パス表示）
@@ -242,19 +234,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     setShowSuccess(false);
                   }}
                   placeholder="未設定の場合、Claude を使う機能は使えません"
-                />
-              </div>
-              <div className="settings-input-group">
-                <label>バージョン</label>
-                <input
-                  type="text"
-                  className="settings-input"
-                  value={guardrailVersion}
-                  onChange={(e) => {
-                    setGuardrailVersion(e.target.value);
-                    setShowSuccess(false);
-                  }}
-                  placeholder="DRAFT"
                 />
               </div>
             </div>
