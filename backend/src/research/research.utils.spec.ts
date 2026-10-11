@@ -5,6 +5,7 @@ import {
   collectWebSources,
   countOccurrences,
   isOfficial,
+  mergeIntoSentences,
   normalizeDomain,
   toReportSegments,
   toTranscriptDocument,
@@ -162,6 +163,48 @@ describe('research.utils', () => {
         ],
       },
     ]);
+  });
+
+  it('根拠の境目で区切られた断片を、1文ずつにまとめる', () => {
+    const a = {
+      sourceKind: 'conversation' as const,
+      sourceId: 't1',
+      title: 't1.mp3',
+      citedText: 'A',
+    };
+    const b = { ...a, citedText: 'B' };
+    expect(
+      mergeIntoSentences([
+        { text: '## 見出し\n\n', citations: [] },
+        { text: 'ハーネスが重要だ', citations: [a] },
+        { text: 'と述べた。\n- ユーザーハーネスの具体例は、', citations: [] },
+        { text: 'Hooks や Skills である', citations: [b] },
+        { text: 'と語られた。LangChainは', citations: [] },
+      ]),
+    ).toEqual([
+      { text: '## 見出し\n\n', citations: [] },
+      { text: 'ハーネスが重要だと述べた。\n', citations: [a] },
+      {
+        text: '- ユーザーハーネスの具体例は、Hooks や Skills であると語られた。',
+        citations: [b],
+      },
+      { text: 'LangChainは', citations: [] },
+    ]);
+  });
+
+  it('根拠の付いた断片は、文の途中に句点があっても分けない', () => {
+    const a = {
+      sourceKind: 'conversation' as const,
+      sourceId: 't1',
+      title: 't1.mp3',
+      citedText: 'A',
+    };
+    expect(
+      mergeIntoSentences([
+        { text: '一文目。二文目', citations: [a] },
+        { text: '。', citations: [] },
+      ]),
+    ).toEqual([{ text: '一文目。二文目。', citations: [a] }]);
   });
 
   it('連絡先などの個人情報を検出する', () => {
