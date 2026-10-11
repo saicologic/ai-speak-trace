@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FeedbackButton } from './FeedbackButton';
 import { marked } from 'marked';
 import { generateQuestions, analyzeInterview, fetchAnalysisLogs, fetchAnalysisLog } from '../api/client';
 import { extractKeywords } from '../utils/keywords';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
+import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
+import { GuardrailMissingNotice } from './PrivacyPanel';
 
 // markedの設定: リンクを新しいタブで開く
 marked.use({
@@ -40,6 +44,8 @@ export function InterviewPage({
     new Set(),
   );
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  // Guardrail ID が未設定なら Claude に送れないため、質問の生成・分析を実行しない
+  const guardrailConfigured = useGuardrailConfigured([transcriptionId]);
   const [analysis, setAnalysis] = useState<InterviewAnalysis | null>(null);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -297,11 +303,17 @@ export function InterviewPage({
           {/* 質問生成・選択 */}
           <section className="interview-section">
             <h2>調査質問</h2>
+            {guardrailConfigured === false && <GuardrailMissingNotice />}
             <div className="interview-actions">
               <button
                 className="interview-button secondary"
                 onClick={handleGenerateQuestions}
-                disabled={generatingQuestions || analyzing || activeKeywords.length === 0}
+                disabled={
+                  generatingQuestions ||
+                  analyzing ||
+                  activeKeywords.length === 0 ||
+                  guardrailConfigured === false
+                }
               >
                 {generatingQuestions ? '生成中...' : '質問を生成'}
               </button>
@@ -339,7 +351,9 @@ export function InterviewPage({
                 <button
                   className="interview-button primary"
                   onClick={handleAnalyze}
-                  disabled={analyzing || generatingQuestions || checkedCount === 0}
+                  disabled={
+                    analyzing || generatingQuestions || checkedCount === 0 || guardrailConfigured === false
+                  }
                 >
                   {analyzing ? '分析中...' : `分析する（${checkedCount}件）`}
                 </button>
@@ -367,7 +381,7 @@ export function InterviewPage({
                   {analysis.speakerName}
                 </span>
               </h2>
-              <AnalysisResultList results={renderedResults} />
+              <AnalysisResultList results={renderedResults} analysis={analysis} />
             </section>
           )}
         </div>
@@ -446,7 +460,7 @@ export function InterviewPage({
                     ))}
                   </div>
                 </div>
-                <AnalysisResultList results={renderedLogResults} />
+                <AnalysisResultList results={renderedLogResults} analysis={logDetail} />
               </>
             )}
           </div>
@@ -459,11 +473,18 @@ export function InterviewPage({
 /** 分析結果カードリスト（新規・過去ログ共通） */
 function AnalysisResultList({
   results,
+  analysis,
 }: {
   results: { question: string; answerHtml: string; sources: { title: string; url: string }[] }[];
+  analysis: InterviewAnalysis;
 }) {
   return (
     <div className="interview-results">
+      <AiGeneratedNotice
+        basis="出典"
+        model={analysis.model}
+        warnings={analysis.contentWarnings}
+      />
       {results.map((result, i) => (
         <div key={i} className="interview-result-card">
           <h3 className="result-question">
@@ -491,6 +512,12 @@ function AnalysisResultList({
           )}
         </div>
       ))}
+      <FeedbackButton
+        key={analysis.id}
+        feature="analysis"
+        targetId={analysis.id}
+        transcriptionId={analysis.transcriptionId}
+      />
     </div>
   );
 }

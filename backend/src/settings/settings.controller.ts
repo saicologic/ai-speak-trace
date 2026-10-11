@@ -22,6 +22,9 @@ export class SettingsController {
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
+      bedrockGuardrailId?: string;
+      bedrockGuardrailVersion?: string;
+      awsProfile?: string;
     },
   ) {
     return this.settingsService.updateSettings(dto);

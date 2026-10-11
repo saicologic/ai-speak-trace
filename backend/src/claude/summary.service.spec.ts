@@ -2,14 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SummaryService } from './summary.service';
 import { ClaudeClientService } from './claude-client.service';
 
-/** Anthropic messages.create のモック */
+/** Claude に送った内容と、応答のモック（ClaudeClientService.createMessageWithReport の中身） */
 const mockMessagesCreate = jest.fn();
-const mockClaudeClientService = {
-  getClient: () => ({
-    messages: {
-      create: mockMessagesCreate,
-    },
+/** 応答に検出された警告のモック */
+let mockWarnings: { type: string; confidence: string }[] = [];
+const mockCreateMessageWithReport = jest.fn(
+  async (params: unknown, options: unknown) => ({
+    message: (await mockMessagesCreate(params, options)) as unknown,
+    warnings: mockWarnings,
   }),
+);
+const mockClaudeClientService = {
+  createMessageWithReport: mockCreateMessageWithReport,
 };
 
 /** 正常なJSONレスポンスを返すヘルパー */
@@ -25,6 +29,8 @@ describe('SummaryService', () => {
 
   beforeEach(async () => {
     mockMessagesCreate.mockReset();
+    mockCreateMessageWithReport.mockClear();
+    mockWarnings = [];
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -46,9 +52,9 @@ describe('SummaryService', () => {
         stop_reason: 'end_turn',
       });
 
-      const result = await service.summarize('会話');
+      const { summary } = await service.summarize('会話');
 
-      expect(result.overview).toBe('概要');
+      expect(summary.overview).toBe('概要');
     });
 
     it('応答が拒否された場合は例外を投げる', async () => {
@@ -66,11 +72,11 @@ describe('SummaryService', () => {
         }),
       );
 
-      const result = await service.summarize('会話テキスト');
+      const { summary } = await service.summarize('会話テキスト');
 
-      expect(result.overview).toBe('概要');
-      expect(result.key_points).toEqual([{ topic: 'テーマ', summary: '要点' }]);
-      expect(result.decisions).toEqual(['決定1']);
+      expect(summary.overview).toBe('概要');
+      expect(summary.key_points).toEqual([{ topic: 'テーマ', summary: '要点' }]);
+      expect(summary.decisions).toEqual(['決定1']);
     });
 
     it('レスポンスにJSONが含まれないとき要約パースエラーをスロー', async () => {
@@ -115,7 +121,45 @@ describe('SummaryService', () => {
         expect.objectContaining({
           messages: [{ role: 'user', content: '要約してください: 実際の会話内容' }],
         }),
+        expect.anything(),
       );
+    });
+
+    it('会話の全文を外からの内容として渡し、プロンプト攻撃はその部分だけで確認させる', async () => {
+      mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
+
+      await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約: {{fullText}}');
+
+      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
+        expect.anything(),
+        { purpose: 'summary', untrusted: ['実際の会話内容'] },
+      );
+    });
+
+    it('会話に $& などの置換パターンが含まれていても、そのまま埋め込む', async () => {
+      mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
+
+      await service.summarize('価格は $& です', 'claude-sonnet-5-5', '要約: {{fullText}}');
+
+      expect(mockMessagesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: [{ role: 'user', content: '要約: 価格は $& です' }],
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('応答に検出された警告を返す', async () => {
+      mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
+      mockWarnings = [{ type: 'VIOLENCE', confidence: 'MEDIUM' }];
+
+      const { warnings } = await service.summarize('会話');
+
+      expect(warnings).toEqual([{ type: 'VIOLENCE', confidence: 'MEDIUM' }]);
+    });
+
+    it('既定のプロンプトは、要点ごとに根拠の発言の引用を求める', () => {
+      expect(SummaryService.DEFAULT_SUMMARY_PROMPT).toContain('evidence');
     });
   });
 });

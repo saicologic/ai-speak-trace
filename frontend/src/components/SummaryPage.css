@@ -338,3 +338,45 @@
 .summary-completed-link:hover {
   color: #1e40af;
 }
+
+/* 要点の根拠（会話から抜き出した発言） */
+.summary-evidence {
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.summary-key-points .summary-evidence li {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  border-left: none;
+  padding-left: 0;
+  font-size: 0.78rem;
+}
+
+.summary-evidence-quote {
+  color: #374151;
+}
+
+.summary-evidence-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.summary-evidence-source,
+.summary-evidence-none {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.summary-evidence-dropped {
+  margin: 0.5rem 0 0;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}

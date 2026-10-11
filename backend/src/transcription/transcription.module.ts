@@ -6,8 +6,12 @@ import { TranscriptionStoreService } from './transcription-store.service';
 import { AudioSplitterService } from './audio-splitter.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { ChunkedJobStoreService } from './chunked-job-store.service';
+import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
+import { DerivedLogCleaner } from './derived-log-cleaner.service';
+import { PrivacyModule } from '../privacy/privacy.module';
 
 @Module({
+  imports: [PrivacyModule],
   controllers: [TranscriptionController],
   providers: [
     TranscriptionService,
@@ -16,7 +20,13 @@ import { ChunkedJobStoreService } from './chunked-job-store.service';
     AudioSplitterService,
     ChunkedTranscriptionService,
     ChunkedJobStoreService,
+    UtteranceEmbeddingStore,
+    DerivedLogCleaner,
   ],
-  exports: [TranscriptionStoreService, TranscriptionService],
+  exports: [
+    TranscriptionStoreService,
+    TranscriptionService,
+    UtteranceEmbeddingStore,
+  ],
 })
 export class TranscriptionModule {}

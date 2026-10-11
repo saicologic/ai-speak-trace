@@ -11,6 +11,7 @@ import {
 import type { ChunkedJobStatus, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
 import { CREDITS_PER_MINUTE, formatTime, formatDuration } from '../utils/transcription';
+import { confirmDialog, isTauri } from '../utils/platform';
 import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
@@ -82,9 +83,13 @@ export function TranscribePage({
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [creditCheckLoading, setCreditCheckLoading] = useState(false);
   const [creditCheckError, setCreditCheckError] = useState<string | null>(null);
+  // 録音されている人の同意を確認したか（確認するまで文字起こしを実行できない）
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
 
   // JobProgressPageに遷移済みフラグ（遷移後はtranscribeAudioの結果を無視する）
   const navigatedToJobProgressRef = useRef(false);
+  // ブラウザ（開発サーバー）で使うファイル選択
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 推定必要クレジット数（音声の長さから算出）
   const estimatedCredits = audioDurationSec !== null
@@ -206,12 +211,7 @@ export function TranscribePage({
       const blob = new Blob([bytes], { type: mimeType });
       const fileObj = new File([blob], fileName, { type: mimeType });
 
-      // 前のプレビューURLを解放
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setFile(fileObj);
-      setPreviewUrl(URL.createObjectURL(blob));
-      setError('');
-      setStep('preview');
+      loadSelectedFile(fileObj);
     } catch (err) {
       // エラー詳細を表示
       const detail = err instanceof Error ? err.message : JSON.stringify(err);
@@ -230,9 +230,31 @@ export function TranscribePage({
     [],
   );
 
-  /** ファイル選択ボタンのクリック処理 */
+  /** 選んだファイルを読み込んで、プレビューの段階に進む */
+  const loadSelectedFile = (fileObj: File) => {
+    // 前のプレビューURLを解放
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(fileObj);
+    setPreviewUrl(URL.createObjectURL(fileObj));
+    setError('');
+    setStep('preview');
+  };
+
+  /** ブラウザ（開発サーバー）でのファイル選択 */
+  const handleBrowserFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    // 同じファイルを選び直しても change が起きるよう、選択を空に戻す
+    e.target.value = '';
+    if (selected) loadSelectedFile(selected);
+  };
+
+  /** ファイル選択ボタンのクリック処理（Tauri ではネイティブダイアログ、ブラウザではファイル選択） */
   const handleSelectClick = () => {
-    handleTauriFileSelect();
+    if (isTauri()) {
+      void handleTauriFileSelect();
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   /** 文字起こし実行（アップロード→文字起こし） */
@@ -242,8 +264,7 @@ export function TranscribePage({
     // 既存ファイルの上書き確認
     const fileExists = await checkAudioFileExists(file.name);
     if (fileExists) {
-      const { confirm } = await import('@tauri-apps/plugin-dialog');
-      const confirmed = await confirm(
+      const confirmed = await confirmDialog(
         `「${file.name}」は既に文字起こし済みです。\n上書きして新しく文字起こししますか？\n\n※ 既存のチャンクデータと文字起こし結果（履歴）は全て削除されます。`,
         { title: '上書き確認', kind: 'warning' },
       );
@@ -316,6 +337,7 @@ export function TranscribePage({
   /** 別のファイルを選択し直す */
   const handleReset = () => {
     navigatedToJobProgressRef.current = false;
+    setConsentConfirmed(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setStep('select');
     setFile(null);
@@ -373,6 +395,13 @@ export function TranscribePage({
             >
               ファイルを選択
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*,video/mp4,video/webm,.mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4,.webm"
+              hidden
+              onChange={handleBrowserFileChange}
+            />
             <p className="transcribe-formats">
               対応形式: MP3, WAV, M4A, OGG, FLAC, AAC, MP4, WebM
             </p>
@@ -445,10 +474,25 @@ export function TranscribePage({
             <div className="transcribe-preview-player">
               <audio controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
             </div>
+            <label className="transcribe-consent">
+              <input
+                type="checkbox"
+                checked={consentConfirmed}
+                onChange={(e) => setConsentConfirmed(e.target.checked)}
+              />
+              <span>
+                録音されている全員から、録音と文字起こし（音声を ElevenLabs に送信して処理すること）の同意を得ています。または、一般に公開されている音声です
+              </span>
+            </label>
             <button
               className="transcribe-start-button"
               onClick={handleTranscribe}
-              disabled={creditCheckLoading || !creditInfo || !isCreditSufficient}
+              disabled={
+                creditCheckLoading ||
+                !creditInfo ||
+                !isCreditSufficient ||
+                !consentConfirmed
+              }
             >
               文字起こしを実行
             </button>

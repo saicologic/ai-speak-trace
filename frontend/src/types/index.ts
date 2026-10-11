@@ -72,6 +72,9 @@ export interface InterviewAnalysis {
   keywords: string[];
   results: AnalysisResult[];
   createdAt: string;
+  /** 使用したモデル（以前のログにはない） */
+  model?: string;
+  contentWarnings?: ContentWarning[];
 }
 
 /** 発言の文脈分析結果（1つの発話） */
@@ -92,6 +95,8 @@ export interface UtteranceContextResult {
 export interface ContextAnalysisResponse {
   transcriptionId: string;
   results: UtteranceContextResult[];
+  model: string;
+  contentWarnings: ContentWarning[];
 }
 
 /** PDFドキュメント情報 */
@@ -106,41 +111,24 @@ export interface DocumentInfo {
   processedAt?: string;
 }
 
-/** 検索ソース種類 */
-export type SearchSourceType = 'conversation' | 'pdf' | 'web';
-
-/** ディープサーチ結果アイテム */
-export interface DeepSearchResultItem {
-  sourceType: SearchSourceType;
-  sourceName: string;
-  sourceId: string;
-  text: string;
-  score?: number;
-  speakerName?: string;
-  url?: string;
-}
-
-/** ディープサーチレスポンス */
-export interface DeepSearchResponse {
-  keywords: string[];
-  results: DeepSearchResultItem[];
-  searchedAt: string;
-}
-
-/** ディープサーチ分析レスポンス */
-export interface DeepSearchAnalysis {
-  searchResults: DeepSearchResultItem[];
-  analysis: string;
-  analyzedAt: string;
-}
-
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
+
+/** 要約の要点の根拠（会話にあることを確かめた発言の引用） */
+export interface SummaryEvidence {
+  quote: string;
+  utteranceIndex: number;
+  speakerName: string;
+  /** 発言の開始時間（秒） */
+  start: number;
+}
 
 /** 要約のキーポイント */
 export interface SummaryKeyPoint {
   topic: string;
   summary: string;
+  /** 根拠（以前の要約にはない） */
+  evidence?: SummaryEvidence[];
 }
 
 /** 要約ログ */
@@ -153,6 +141,9 @@ export interface TranscriptionSummaryLog {
   createdAt: string;
   model: string;
   prompt: string;
+  /** 会話に見つからなかったため除いた根拠の数 */
+  droppedEvidenceCount?: number;
+  contentWarnings?: ContentWarning[];
 }
 
 /** 要約設定（デフォルトプロンプト・モデル一覧） */
@@ -173,10 +164,88 @@ export interface AppSettings {
     documentMetadataDir: string;
     summaryLogsDir: string;
   };
+  /** API キーの状態（値そのものは返らない） */
   apiKeys: {
-    elevenlabsApiKey: string;
-    anthropicApiKey: string;
+    elevenlabsApiKey: ApiKeyStatus;
+    anthropicApiKey: ApiKeyStatus;
   };
+  /** API キーの保存先（macOS ではキーチェーン） */
+  apiKeyStorage: 'keychain' | 'file';
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
+  /** 個人情報チェックに使う Amazon Bedrock Guardrails */
+  guardrail?: {
+    id: string;
+    /** 固定したバージョン（空の場合は DRAFT） */
+    version: string;
+  };
+  /** AWS の認証情報に使う ~/.aws のプロファイル名（空の場合は default） */
+  awsProfile?: string;
+}
+
+/** API キーの状態 */
+export interface ApiKeyStatus {
+  configured: boolean;
+  /** 末尾4文字（短いキーは空） */
+  last4: string;
+}
+
+/** Claude の応答に検出された不適切な表現（Guardrails のコンテンツフィルター。信頼度 MEDIUM 以上） */
+export interface ContentWarning {
+  type: string;
+  confidence: string;
+}
+
+/** 誤りを報告する対象の機能 */
+export type FeedbackFeature = 'summary' | 'analysis' | 'context' | 'research';
+
+/** 誤りの報告の種類 */
+export type FeedbackCategory =
+  | 'factual_error'
+  | 'unsupported'
+  | 'personal_judgement'
+  | 'inappropriate'
+  | 'other';
+
+/** AI が生成した結果への、誤りの報告（端末にだけ保存する） */
+export interface Feedback {
+  id: string;
+  createdAt: string;
+  feature: FeedbackFeature;
+  targetId: string;
+  transcriptionId: string;
+  /** 結果を作った文字起こしのすべて（ディープサーチのように複数の会話を使う結果だけ） */
+  transcriptionIds?: string[];
+  category: FeedbackCategory;
+  quote: string;
+  comment: string;
+}
+
+/** 会話から検出した個人情報（同じ種類・同じ文字列ごとにまとめたもの） */
+export interface PiiFinding {
+  type: string;
+  /** 表示名（氏名・電話番号など） */
+  label: string;
+  text: string;
+  /** 会話に出てくる回数 */
+  count: number;
+  /** Claude などに送るときに伏せるか */
+  mask: boolean;
+  /** 利用者がまだ確認していないか（誤検出の多い氏名などは、確認するまで伏せない） */
+  needsReview: boolean;
+}
+
+/** 文字起こしの個人情報チェックの状態 */
+export interface PrivacyStatus {
+  /** Guardrail ID が設定されているか */
+  configured: boolean;
+  scanning: boolean;
+  error?: string;
+  scan: {
+    transcriptionId: string;
+    scannedAt: string;
+    guardrailId: string;
+    guardrailVersion: string;
+    findings: PiiFinding[];
+  } | null;
 }

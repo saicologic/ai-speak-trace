@@ -4,6 +4,7 @@ import { TranscriptionService } from './transcription.service';
 import { ElevenLabsService } from './elevenlabs.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 
 /** テスト用の文字起こしデータを生成するヘルパー */
@@ -48,6 +49,7 @@ describe('TranscriptionService', () => {
   let elevenLabsService: jest.Mocked<ElevenLabsService>;
   let chunkedTranscriptionService: jest.Mocked<ChunkedTranscriptionService>;
   let store: jest.Mocked<TranscriptionStoreService>;
+  let privacyService: { rescanIfChecked: jest.Mock };
   let audioStorage: {
     listFiles: jest.Mock;
     exists: jest.Mock;
@@ -108,6 +110,10 @@ describe('TranscriptionService', () => {
           provide: AUDIO_STORAGE,
           useValue: audioStorage,
         },
+        {
+          provide: PrivacyService,
+          useValue: { rescanIfChecked: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -115,6 +121,7 @@ describe('TranscriptionService', () => {
     elevenLabsService = module.get(ElevenLabsService);
     chunkedTranscriptionService = module.get(ChunkedTranscriptionService);
     store = module.get(TranscriptionStoreService);
+    privacyService = module.get(PrivacyService);
   });
 
   describe('getAudioFiles', () => {
@@ -329,6 +336,8 @@ describe('TranscriptionService', () => {
       expect(result.utterances[0].speakerName).toBe('田中さん');
       // 更新対象でない話者は変わらない
       expect(result.speakers[1].name).toBe('Bさん');
+      // 話者名が変わったため、確認済みなら個人情報チェックをやり直す
+      expect(privacyService.rescanIfChecked).toHaveBeenCalledWith(result);
     });
 
     it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
@@ -360,6 +369,53 @@ describe('TranscriptionService', () => {
       chunkedTranscriptionService.findActiveJobByFileName.mockResolvedValue(job);
 
       expect(await service.findActiveJob('test.mp3')).toEqual(job);
+    });
+  });
+
+  describe('deleteTranscription', () => {
+    it('文字起こしを削除し、ほかに使われていない音声と分割の途中データも削除する', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.findAll.mockResolvedValue([makeTranscription('t2', 'b.mp3')]);
+      chunkedTranscriptionService.findAllJobsByFileName.mockResolvedValue([
+        { id: 'job-1' } as any,
+      ]);
+      audioStorage.exists.mockResolvedValue(true);
+
+      await service.deleteTranscription('t1');
+
+      expect(store.delete).toHaveBeenCalledWith('t1');
+      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith('job-1');
+      expect(audioStorage.deleteFile).toHaveBeenCalledWith('a.mp3');
+    });
+
+    it('同じ音声を使うほかの文字起こしがあれば、音声は残す', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.findAll.mockResolvedValue([makeTranscription('t2', 'a.mp3')]);
+
+      await service.deleteTranscription('t1');
+
+      expect(store.delete).toHaveBeenCalledWith('t1');
+      expect(audioStorage.deleteFile).not.toHaveBeenCalled();
+      expect(chunkedTranscriptionService.deleteJob).not.toHaveBeenCalled();
+    });
+
+    it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
+      store.findById.mockResolvedValue(null);
+
+      await expect(service.deleteTranscription('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(store.delete).not.toHaveBeenCalled();
+    });
+
+    it('派生データの削除に失敗した場合は、音声を消さずに例外を返す', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.delete.mockRejectedValue(new Error('ログを削除できませんでした'));
+
+      await expect(service.deleteTranscription('t1')).rejects.toThrow(
+        'ログを削除できませんでした',
+      );
+      expect(audioStorage.deleteFile).not.toHaveBeenCalled();
     });
   });
 });

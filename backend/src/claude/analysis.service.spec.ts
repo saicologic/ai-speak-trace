@@ -1,15 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AnalysisService, CLAUDE_MODEL } from './analysis.service';
+import { AnalysisService, mergeWarnings } from './analysis.service';
 import { ClaudeClientService } from './claude-client.service';
 
-/** Anthropic messages.create のモック */
+/** Claude に送った内容と、応答のモック（ClaudeClientService.createMessageWithReport の中身） */
 const mockMessagesCreate = jest.fn();
-const mockClaudeClientService = {
-  getClient: () => ({
-    messages: {
-      create: mockMessagesCreate,
-    },
+/** 応答に検出された警告のモック */
+let mockWarnings: { type: string; confidence: string }[] = [];
+const mockCreateMessageWithReport = jest.fn(
+  async (params: unknown, options: unknown) => ({
+    message: (await mockMessagesCreate(params, options)) as unknown,
+    warnings: mockWarnings,
   }),
+);
+const mockClaudeClientService = {
+  createMessageWithReport: mockCreateMessageWithReport,
 };
 
 /** Web検索結果ブロックを作るヘルパー */
@@ -26,6 +30,8 @@ describe('AnalysisService', () => {
 
   beforeEach(async () => {
     mockMessagesCreate.mockReset();
+    mockCreateMessageWithReport.mockClear();
+    mockWarnings = [];
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -37,51 +43,105 @@ describe('AnalysisService', () => {
     service = module.get<AnalysisService>(AnalysisService);
   });
 
-  describe('analyzeSearchResults', () => {
-    it('先頭がthinkingブロックでも本文のテキストを返す', async () => {
+  describe('analyze（会話分析）', () => {
+    it('会話分析のWeb検索は新しい版のツールを使う', async () => {
       mockMessagesCreate.mockResolvedValue({
-        content: [
-          { type: 'thinking', thinking: '', signature: 'sig' },
-          { type: 'text', text: '分析レポート' },
-        ],
+        content: [{ type: 'text', text: '回答' }],
         stop_reason: 'end_turn',
       });
 
-      const result = await service.analyzeSearchResults(['AI'], []);
+      await service.analyze(['質問'], ['AI'], 'Aさん');
 
-      expect(result).toBe('分析レポート');
       expect(mockMessagesCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: CLAUDE_MODEL,
-          output_config: { effort: 'medium' },
+          tools: [
+            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
+          ],
         }),
-      );
-    });
-
-    it('出力が上限で途中で切れた場合は例外を投げる', async () => {
-      mockMessagesCreate.mockResolvedValue({
-        content: [{ type: 'thinking', thinking: '', signature: 'sig' }],
-        stop_reason: 'max_tokens',
-      });
-
-      await expect(service.analyzeSearchResults(['AI'], [])).rejects.toThrow(
-        '上限に達したため',
-      );
-    });
-
-    it('応答が拒否された場合は例外を投げる', async () => {
-      mockMessagesCreate.mockResolvedValue({
-        content: [],
-        stop_reason: 'refusal',
-      });
-
-      await expect(service.analyzeSearchResults(['AI'], [])).rejects.toThrow(
-        '拒否',
+        expect.anything(),
       );
     });
   });
 
-  describe('searchAndAnalyze', () => {
+  describe('Guardrails の確認に渡すオプション', () => {
+    const textResponse = (text: string) => ({
+      content: [{ type: 'text', text }],
+      stop_reason: 'end_turn',
+    });
+
+    it('会話分析は、質問・話者名・キーワードを外からの内容として渡す', async () => {
+      mockMessagesCreate.mockResolvedValue(textResponse('回答'));
+
+      await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
+        expect.anything(),
+        { purpose: 'analysis', untrusted: ['質問', 'Aさん', 'AI'] },
+      );
+    });
+
+    it('質問の生成は、話者名とキーワードを外からの内容として渡す', async () => {
+      mockMessagesCreate.mockResolvedValue(textResponse('【AI】質問'));
+
+      await service.generateQuestions(['AI'], 'Aさん');
+
+      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
+        expect.anything(),
+        { purpose: 'analysis-questions', untrusted: ['Aさん', 'AI'] },
+      );
+    });
+
+    it('発言の文脈は、会話の各行を外からの内容として渡し、警告を返す', async () => {
+      mockMessagesCreate.mockResolvedValue(
+        textResponse('[{"index":0,"intent":"質問","topic":"進捗"}]'),
+      );
+      mockWarnings = [{ type: 'INSULTS', confidence: 'MEDIUM' }];
+
+      const result = await service.analyzeContext(
+        [{ speakerName: 'Aさん', text: 'どうですか' }],
+        [0],
+      );
+
+      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
+        expect.anything(),
+        { purpose: 'context', untrusted: ['[0] Aさん: どうですか'] },
+      );
+      expect(result).toEqual({
+        results: [{ index: 0, intent: '質問', topic: '進捗' }],
+        warnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }],
+      });
+    });
+
+    it('会話分析の警告は、質問をまたいで種類ごとに1件にまとめる', async () => {
+      mockMessagesCreate.mockResolvedValue(textResponse('回答'));
+      mockWarnings = [{ type: 'INSULTS', confidence: 'MEDIUM' }];
+
+      const { warnings } = await service.analyze(
+        ['質問1', '質問2'],
+        ['AI'],
+        'Aさん',
+      );
+
+      expect(warnings).toEqual([{ type: 'INSULTS', confidence: 'MEDIUM' }]);
+    });
+  });
+
+  describe('mergeWarnings', () => {
+    it('同じ種類は信頼度の高い方を残す', () => {
+      expect(
+        mergeWarnings([
+          { type: 'INSULTS', confidence: 'HIGH' },
+          { type: 'INSULTS', confidence: 'MEDIUM' },
+          { type: 'VIOLENCE', confidence: 'MEDIUM' },
+        ]),
+      ).toEqual([
+        { type: 'INSULTS', confidence: 'HIGH' },
+        { type: 'VIOLENCE', confidence: 'MEDIUM' },
+      ]);
+    });
+  });
+
+  describe('analyze（Web検索の結果のまとめ方）', () => {
     it('Web検索の回答テキストと参照元を返す', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [
@@ -91,23 +151,24 @@ describe('AnalysisService', () => {
         stop_reason: 'end_turn',
       });
 
-      const result = await service.searchAndAnalyze(['AI'], '質問');
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
 
       expect(result).toEqual({
+        question: '質問',
         answer: '調査結果',
-        sources: [{ title: '記事A', url: 'https://example.com/a' }],
+        sources: [
+          { title: '記事A', url: 'https://example.com/a', excerpts: [] },
+        ],
       });
-      expect(mockMessagesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tools: [
-            { type: 'web_search_20260209', name: 'web_search', max_uses: 3 },
-          ],
-        }),
-      );
     });
 
     it('pause_turnで中断されたら応答を履歴に足して再開し、両方の結果をまとめる', async () => {
-      const firstContent = [searchResult('記事A', 'https://example.com/a')];
+      const firstContent = [
+        { type: 'text', text: '検索します。' },
+        searchResult('記事A', 'https://example.com/a'),
+      ];
       mockMessagesCreate
         .mockResolvedValueOnce({
           content: firstContent,
@@ -121,7 +182,9 @@ describe('AnalysisService', () => {
           stop_reason: 'end_turn',
         });
 
-      const result = await service.searchAndAnalyze(['AI'], '質問');
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
 
       expect(mockMessagesCreate).toHaveBeenCalledTimes(2);
       const secondCall = mockMessagesCreate.mock.calls[1][0] as {
@@ -135,17 +198,48 @@ describe('AnalysisService', () => {
       expect(result.answer).toBe('調査結果');
     });
 
-    it('再開上限に達してもpause_turnのままなら例外を投げる', async () => {
+    it('再開上限に達してもpause_turnのままなら、途中までの回答を使わない', async () => {
       mockMessagesCreate.mockResolvedValue({
         content: [{ type: 'text', text: '途中までの回答' }],
         stop_reason: 'pause_turn',
       });
 
-      await expect(service.searchAndAnalyze(['AI'], '質問')).rejects.toThrow(
-        'pause_turnの再開上限',
-      );
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(result.answer).toBe('分析中にエラーが発生しました。');
       // 初回 + 再開3回
       expect(mockMessagesCreate).toHaveBeenCalledTimes(4);
+    });
+
+    it('空の引用本文は抜粋に含めない', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          {
+            type: 'text',
+            text: '回答。',
+            citations: [
+              {
+                type: 'web_search_result_location',
+                url: 'https://example.com/a',
+                title: '記事A',
+                cited_text: '  ',
+                encrypted_index: 'idx',
+              },
+            ],
+          },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(result.sources).toEqual([
+        { title: '記事A', url: 'https://example.com/a', excerpts: [] },
+      ]);
     });
 
     it('Web検索がエラーを返しても参照元なしで回答を返す', async () => {
@@ -164,9 +258,66 @@ describe('AnalysisService', () => {
         stop_reason: 'end_turn',
       });
 
-      const result = await service.searchAndAnalyze(['AI'], '質問');
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
 
-      expect(result).toEqual({ answer: '調査結果', sources: [] });
+      expect(result).toEqual({
+        question: '質問',
+        answer: '調査結果',
+        sources: [],
+      });
+    });
+
+    it('回答の引用（citations）から記事ごとに引用本文を集める', async () => {
+      const citation = (url: string, title: string, citedText: string) => ({
+        type: 'web_search_result_location',
+        url,
+        title,
+        cited_text: citedText,
+        encrypted_index: 'idx',
+      });
+      mockMessagesCreate.mockResolvedValue({
+        content: [
+          searchResult('記事A', 'https://example.com/a'),
+          {
+            type: 'text',
+            text: '前半。',
+            citations: [
+              citation('https://example.com/a', '記事A', '引用1'),
+              citation('https://example.com/c', '記事C', '引用3'),
+            ],
+          },
+          {
+            type: 'text',
+            text: '後半。',
+            citations: [
+              citation('https://example.com/a', '記事A', '引用2'),
+              citation('https://example.com/a', '記事A', '引用1'),
+            ],
+          },
+          { type: 'text', text: '引用なし。', citations: null },
+        ],
+        stop_reason: 'end_turn',
+      });
+
+      const {
+        results: [result],
+      } = await service.analyze(['質問'], ['AI'], 'Aさん');
+
+      expect(result.answer).toBe('前半。後半。引用なし。');
+      expect(result.sources).toEqual([
+        {
+          title: '記事A',
+          url: 'https://example.com/a',
+          excerpts: ['引用1', '引用2'],
+        },
+        {
+          title: '記事C',
+          url: 'https://example.com/c',
+          excerpts: ['引用3'],
+        },
+      ]);
     });
   });
 });

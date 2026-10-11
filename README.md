@@ -129,6 +129,11 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 
 ---
 
+## プライバシーとAIの利用
+
+このアプリは、会話の音声や文字起こしを外部のAIサービス（ElevenLabs・Anthropic・AWS）に送って処理します。
+送信するデータ、保存先、削除方法、録音される人の同意、AIが生成する内容の扱いは [PRIVACY.md](PRIVACY.md) を確認してください。
+
 ## データの保存先
 
 文字起こし結果やアップロードした音声ファイルは以下に保存されます:

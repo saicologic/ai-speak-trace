@@ -118,10 +118,12 @@ ai-speak-trace/
 1. `fix/*` または `feature/*` ブランチで修正・実装する
 2. `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新
 3. `fix/*` → `release/vX.Y.Z` へPR作成・マージ
-4. `release/vX.Y.Z` → `main` へPR作成・マージ
+4. `release/vX.Y.Z` → `main` へPR作成・マージ（PRタイトルは `release: vX.Y.Z`、本文に `## Summary` または `## 変更内容` を書く。リリースノートに使われる）
 5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
+   - `tag-release.yml` がマージコミットに `vX.Y.Z` タグを作成し、`release.yml` を起動する
+   - ブランチ名（`release/vX.Y.Z`）と `tauri.conf.json` のバージョンが一致しない場合、タグは作成されない
 
-`fix/*` を直接 `main` にマージしない。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
+`fix/*`・`feature/*` を直接 `main` にマージしない（`release/*` から作成したブランチも同様。PRの宛先が `release/vX.Y.Z` になっていることをマージ前に確認する）。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
 
 `release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
 
@@ -135,6 +137,19 @@ ai-speak-trace/
 - **`build-skip.yml`（`paths`）**: ビルド不要なファイル（`.github/`・`docs/`・Markdownファイル等）
 
 トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
+
+## ブラウザ操作（Claude Code）
+
+Playwright MCP と Claude in Chrome を使い分ける。
+
+| 用途 | 使うもの |
+|------|---------|
+| ログインが必要なページ、ボット対策があるサイト | Claude in Chrome（`claude --chrome` で起動） |
+| 自動テスト、公開ページの確認 | Playwright MCP |
+
+- Playwright MCP は `.mcp.json` から `.claude/scripts/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
+- Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
+- Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
 
 ## PRの手動確認項目
 

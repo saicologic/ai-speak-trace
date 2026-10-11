@@ -1,6 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ClaudeClientService } from './claude-client.service';
+import { ContentWarning } from './claude-guard.utils';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
+
+/** Claude が返す要約の形 */
+export interface SummaryOutput {
+  overview?: string;
+  key_points?: { topic: string; summary: string; evidence?: string[] }[];
+  decisions?: string[];
+}
 
 /** 会話要約を担うサービス */
 @Injectable()
@@ -20,13 +28,14 @@ export class SummaryService {
 {
   "overview": "会話全体の概要を2〜3文で記述",
   "key_points": [
-    { "topic": "トピック名", "summary": "要点を2〜3文で記述" }
+    { "topic": "トピック名", "summary": "要点を2〜3文で記述", "evidence": ["根拠の発言の引用"] }
   ],
   "decisions": ["決定事項1", "決定事項2"]
 }
 
 - overview: 会話の目的・流れ・結果を第三者が読んで理解できるよう2〜3文でまとめる
 - key_points: 会話で扱われた主なテーマを3〜5点。各トピックの要点を2〜3文で記述する
+- evidence: 各トピックの要点の根拠になる発言を、会話から一字一句そのまま1〜2個抜き出す（各10〜60文字）
 - decisions: 会話中に明示的に合意・決定された事項を列挙する。なければ空配列 []
 </instructions>`;
 
@@ -44,22 +53,23 @@ export class SummaryService {
     fullText: string,
     model: string = 'claude-sonnet-5-5',
     promptTemplate: string = SummaryService.DEFAULT_SUMMARY_PROMPT,
-  ): Promise<{
-    overview?: string;
-    key_points?: { topic: string; summary: string }[];
-    decisions?: string[];
-  }> {
+  ): Promise<{ summary: SummaryOutput; warnings: ContentWarning[] }> {
     this.logger.log(`要約開始: model=${model}`);
 
-    const prompt = promptTemplate.replace('{{fullText}}', fullText);
+    const prompt = promptTemplate.replace('{{fullText}}', () => fullText);
 
-    const response = await this.claudeClient.getClient().messages.create({
-      model,
-      // 思考のトークンも上限に含まれるため余裕を持たせる
-      max_tokens: 16000,
-      output_config: { effort: 'medium' },
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const { message: response, warnings } =
+      await this.claudeClient.createMessageWithReport(
+        {
+          model,
+          // 思考のトークンも上限に含まれるため余裕を持たせる
+          max_tokens: 16000,
+          output_config: { effort: 'medium' },
+          messages: [{ role: 'user', content: prompt }],
+        },
+        // プロンプト攻撃は、埋め込んだ会話の全文だけで確認する
+        { purpose: 'summary', untrusted: [fullText] },
+      );
     assertCompleteResponse(response);
 
     const text = extractText(response.content);
@@ -69,11 +79,7 @@ export class SummaryService {
       throw new Error('要約結果のパースに失敗しました');
     }
 
-    let parsed: {
-      overview?: string;
-      key_points?: { topic: string; summary: string }[];
-      decisions?: string[];
-    };
+    let parsed: SummaryOutput;
     try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (e) {
@@ -82,6 +88,6 @@ export class SummaryService {
     }
 
     this.logger.log('要約完了');
-    return parsed;
+    return { summary: parsed, warnings };
   }
 }

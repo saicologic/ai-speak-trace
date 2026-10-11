@@ -2,16 +2,19 @@ import type {
   AppSettings,
   AudioFileInfo,
   ContextAnalysisResponse,
-  DeepSearchAnalysis,
-  DeepSearchResponse,
   DocumentInfo,
+  Feedback,
+  FeedbackCategory,
+  FeedbackFeature,
   InterviewAnalysis,
   InterviewAnalysisSummary,
   Transcription,
   TranscriptionSummary,
   TranscriptionSummaryLog,
   SummaryConfig,
+  PrivacyStatus,
 } from '../types';
+import type { ResearchJob, ResearchJobSummary, ResearchTarget } from '../types/research';
 
 /**
  * バックエンドのベースURL
@@ -484,6 +487,20 @@ export async function fetchTranscription(
   return data.transcription;
 }
 
+/**
+ * 文字起こしを削除する
+ * その会話を使った要約・会話分析・ディープサーチ・報告・個人情報チェックの結果と、
+ * ほかの文字起こしが使っていない音声も削除される
+ */
+export async function deleteTranscription(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '文字起こしの削除に失敗しました'));
+  }
+}
+
 /** 調査質問文を自動生成 */
 export async function generateQuestions(
   transcriptionId: string,
@@ -644,42 +661,6 @@ export async function deleteDocument(id: string): Promise<void> {
   }
 }
 
-// === ディープサーチ ===
-
-/** ディープサーチ実行 */
-export async function deepSearch(
-  keywords: string[],
-  transcriptionIds: string[],
-  includePdfs: boolean,
-  includeWeb: boolean,
-): Promise<DeepSearchResponse> {
-  const res = await fetch(`${BASE_URL}/deep-search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, transcriptionIds, includePdfs, includeWeb }),
-  });
-  if (!res.ok) {
-    throw new Error(`ディープサーチに失敗しました: ${res.status}`);
-  }
-  return res.json();
-}
-
-/** ディープサーチ結果をClaude分析 */
-export async function analyzeDeepSearchResults(
-  keywords: string[],
-  results: { sourceType: string; sourceName: string; text: string; url?: string }[],
-): Promise<DeepSearchAnalysis> {
-  const res = await fetch(`${BASE_URL}/deep-search/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords, results }),
-  });
-  if (!res.ok) {
-    throw new Error(`分析に失敗しました: ${res.status}`);
-  }
-  return res.json();
-}
-
 // === Podcastファイル ===
 
 /** Podcastキャッシュファイル情報 */
@@ -809,6 +790,9 @@ export async function updateSettings(
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
+    bedrockGuardrailId?: string;
+    bedrockGuardrailVersion?: string;
+    awsProfile?: string;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {
@@ -817,7 +801,161 @@ export async function updateSettings(
     body: JSON.stringify(dto),
   });
   if (!res.ok) {
-    throw new Error(`設定の更新に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '設定の更新に失敗しました'));
   }
   return res.json();
+}
+
+// === 誤りの報告 ===
+
+/** AI が生成した結果への誤りを報告する（端末にだけ保存する） */
+export async function submitFeedback(input: {
+  feature: FeedbackFeature;
+  targetId: string;
+  transcriptionId: string;
+  transcriptionIds?: string[];
+  category: FeedbackCategory;
+  quote: string;
+  comment: string;
+}): Promise<Feedback> {
+  const res = await fetch(`${BASE_URL}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '報告の保存に失敗しました'));
+  }
+  const data = await res.json();
+  return data.feedback;
+}
+
+/** 結果への誤りの報告を取得する */
+export async function fetchFeedback(
+  feature: FeedbackFeature,
+  targetId: string,
+): Promise<Feedback[]> {
+  const params = new URLSearchParams({ feature, targetId });
+  const res = await fetch(`${BASE_URL}/feedback?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`報告の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.feedback;
+}
+
+// === ディープサーチ（調査） ===
+
+/** 調査の一覧を取得 */
+export async function fetchResearchJobs(): Promise<ResearchJobSummary[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/research`);
+  if (!res.ok) {
+    throw new Error(`調査の一覧の取得に失敗しました: ${res.status}`);
+  }
+  return (await res.json()).jobs;
+}
+
+/** 調査の状態と結果を取得 */
+export async function fetchResearchJob(id: string): Promise<ResearchJob> {
+  const res = await fetchWithRetry(`${BASE_URL}/research/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    throw new Error(`調査の取得に失敗しました: ${res.status}`);
+  }
+  return (await res.json()).job;
+}
+
+/** エラー応答のメッセージを取り出す */
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => null);
+  const message = body?.message;
+  return typeof message === 'string' ? message : `${fallback}: ${res.status}`;
+}
+
+/** 調査を開始する（会話の読み込みとキーワードの提案） */
+export async function startResearch(
+  transcriptionIds: string[],
+  frequentWords: { word: string; count: number }[],
+): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcriptionIds, frequentWords }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '調査を開始できませんでした'));
+  }
+  return (await res.json()).job;
+}
+
+/** 調査のタイトルを変更する */
+export async function updateResearchTitle(id: string, title: string): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'タイトルを変更できませんでした'));
+  }
+  return (await res.json()).job;
+}
+
+/** キーワードとキーワードごとの公式サイトを確定し、Web調査・統合分析・評価を始める */
+export async function confirmResearch(
+  id: string,
+  targets: ResearchTarget[],
+): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targets }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '調査を進められませんでした'));
+  }
+  return (await res.json()).job;
+}
+
+// === 個人情報チェック ===
+
+/** 文字起こしの個人情報チェックの状態と結果を取得する */
+export async function fetchPrivacy(transcriptionId: string): Promise<PrivacyStatus> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/transcriptions/${encodeURIComponent(transcriptionId)}/privacy`,
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '個人情報チェックの結果を取得できませんでした'));
+  }
+  return (await res.json()).privacy;
+}
+
+/** 文字起こしの個人情報チェックを実行する */
+export async function scanPrivacy(transcriptionId: string): Promise<PrivacyStatus> {
+  const res = await fetch(
+    `${BASE_URL}/transcriptions/${encodeURIComponent(transcriptionId)}/privacy/scan`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '個人情報チェックに失敗しました'));
+  }
+  return (await res.json()).privacy;
+}
+
+/** 検出した個人情報ごとに「伏せる／伏せない」を保存する */
+export async function updatePrivacyMasks(
+  transcriptionId: string,
+  findings: { type: string; text: string; mask: boolean }[],
+): Promise<PrivacyStatus> {
+  const res = await fetch(
+    `${BASE_URL}/transcriptions/${encodeURIComponent(transcriptionId)}/privacy`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ findings }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '設定を保存できませんでした'));
+  }
+  return (await res.json()).privacy;
 }

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ElevenLabsService } from './elevenlabs.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 import type { AudioStorage } from '../storage/interfaces/audio-storage.interface';
 import { ElevenLabsWord } from './types/elevenlabs.types';
@@ -28,6 +29,7 @@ export class TranscriptionService {
     private readonly chunkedTranscriptionService: ChunkedTranscriptionService,
     private readonly store: TranscriptionStoreService,
     @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
+    private readonly privacyService: PrivacyService,
   ) {}
 
   /** 音声ファイル一覧を取得 */
@@ -85,6 +87,35 @@ export class TranscriptionService {
     }
 
     this.logger.log(`同名ファイルの全リソース削除完了: ${fileName}`);
+  }
+
+  /**
+   * 文字起こしを1件削除する
+   * 文字起こしと、そこから作ったデータ（ログ・報告・個人情報チェックの結果など）を削除する。
+   * 音声ファイルと分割の途中データは、同じ音声を使うほかの文字起こしがない場合だけ削除する
+   */
+  async deleteTranscription(id: string): Promise<void> {
+    const transcription = await this.store.findById(id);
+    if (!transcription) {
+      throw new NotFoundException(`文字起こし結果が見つかりません: ${id}`);
+    }
+    await this.store.delete(id);
+    this.logger.log(`文字起こし削除完了: ${id}`);
+
+    const fileName = transcription.audioFileName;
+    const others = (await this.store.findAll()).filter(
+      (t) => t.audioFileName === fileName,
+    );
+    if (others.length > 0) return;
+    for (const job of await this.chunkedTranscriptionService.findAllJobsByFileName(
+      fileName,
+    )) {
+      await this.chunkedTranscriptionService.deleteJob(job.id);
+    }
+    if (await this.audioStorage.exists(fileName)) {
+      await this.audioStorage.deleteFile(fileName);
+      this.logger.log(`音声ファイル削除完了: ${fileName}`);
+    }
   }
 
   /** アップロード用署名付きURLを取得 */
@@ -393,6 +424,8 @@ export class TranscriptionService {
     }
 
     await this.store.save(transcription);
+    // 話者名を実名に変えた場合に備えて、確認済みの会話は個人情報チェックをやり直す（伏せる選択は引き継ぐ）
+    this.privacyService.rescanIfChecked(transcription);
     this.logger.log(`話者名更新完了: ${id}`);
 
     return transcription;

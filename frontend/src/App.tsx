@@ -6,7 +6,7 @@ import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
 import { InterviewPage } from './components/InterviewPage';
 import { SummaryPage } from './components/SummaryPage';
-import { DeepSearchPage } from './components/DeepSearchPage';
+import { ResearchPage } from './components/ResearchPage';
 import { TranscribePage } from './components/TranscribePage';
 import { JobProgressPage } from './components/JobProgressPage';
 import { ResumableJobsPage } from './components/ResumableJobsPage';
@@ -162,6 +162,23 @@ function App() {
     });
   };
 
+  /** ディープサーチの根拠から、元の文字起こしを開き、引用された発言へ移動する */
+  const handleOpenFromResearch = async (id: string, utteranceIndex?: number) => {
+    setPage('main');
+    await handleTranscriptionSelect(id);
+    if (utteranceIndex === undefined) return;
+    // 文字起こしの上にある個人情報チェックなどの表示が読み込まれて高さが決まってから移動する
+    setTimeout(() => setScrollToUtteranceIndex(utteranceIndex), 500);
+  };
+
+  /** 文字起こしを削除したとき、表示中の文字起こしなら表示を消す */
+  const handleTranscriptionDeleted = (id: string) => {
+    if (selectedTranscriptionId !== id) return;
+    setSelectedTranscriptionId(null);
+    setTranscription(null);
+    setContextAnalysis(null);
+  };
+
   /** 文字起こし履歴を選択して結果を表示 */
   const handleTranscriptionSelect = async (id: string) => {
     setSelectedTranscriptionId(id);
@@ -189,6 +206,7 @@ function App() {
       <SummaryPage
         transcriptionId={transcription.id}
         onBack={() => setPage('main')}
+        onOpenUtterance={(index) => handleOpenFromResearch(transcription.id, index)}
       />
     );
   }
@@ -270,10 +288,9 @@ function App() {
   /** ディープサーチページの場合 */
   if (page === 'deep-search') {
     return (
-      <DeepSearchPage
-        initialTranscriptionId={transcription?.id}
-        initialKeywords={Array.from(highlightedKeywords)}
+      <ResearchPage
         onBack={() => setPage('main')}
+        onOpenTranscription={handleOpenFromResearch}
       />
     );
   }
@@ -349,10 +366,21 @@ function App() {
               ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
+          {enableDeepSearch && (
+            <div className="sidebar-tabs">
+              <button
+                className="sidebar-tab-action"
+                onClick={() => setPage('deep-search')}
+              >
+                ディープサーチ（ベータ）
+              </button>
+            </div>
+          )}
           <div className="sidebar-section-title">履歴</div>
           <TranscriptionList
             selectedId={selectedTranscriptionId}
             onSelect={handleTranscriptionSelect}
+            onDeleted={handleTranscriptionDeleted}
             loading={loading}
           />
         </aside>
@@ -410,7 +438,6 @@ function App() {
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateSummary={() => setPage('summary')}
               onNavigateInterview={() => setPage('interview')}
-              onNavigateDeepSearch={enableDeepSearch ? () => setPage('deep-search') : undefined}
               onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
               contextSelectMode={contextSelectMode}
               speakers={transcription.speakers}
