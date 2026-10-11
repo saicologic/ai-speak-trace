@@ -151,7 +151,8 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
    * ③ キーワードごとに、選んだ公式サイトに限定して Web を調べる（キーワードごとの検索は同時に行う）
    * 公式サイトで見つからないキーワードと、公式サイトを選ばなかったキーワードは、一般のサイトも調べる
    * 一部のキーワードの調査に失敗しても、ほかのキーワードの結果で続ける（失敗したキーワードは failures で返す）
-   * すべてのキーワードで失敗した場合は、分析に使える情報がないため例外を投げる
+   * すべてのキーワードで失敗した場合と、失敗があり残りのキーワードでも抜粋が1つもない場合は、
+   * 分析に使える情報がないため例外を投げる
    */
   async researchWeb(
     targets: ResearchTarget[],
@@ -176,6 +177,13 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     if (failures.length === targets.length) {
       throw new Error(
         `すべてのキーワードで Web調査に失敗しました: ${failures[0].error}`,
+      );
+    }
+    if (failures.length > 0 && !sources.some((s) => s.excerpts.length > 0)) {
+      throw new Error(
+        `Web調査で分析に使える情報源が見つかりませんでした（失敗したキーワード: ${failures
+          .map((f) => f.keyword)
+          .join('、')}）: ${failures[0].error}`,
       );
     }
     return { sources: mergeWebSources(sources), failures };

@@ -32,6 +32,20 @@ describe('ResearchClaudeService.researchWeb', () => {
     expect(result.failures).toEqual([{ keyword: '失敗', error: 'rate limit' }]);
   });
 
+  it('一部のキーワードで失敗し、残りのキーワードでも抜粋がない場合は、例外を投げる', async () => {
+    const service = serviceWith((keyword) =>
+      keyword === '失敗'
+        ? Promise.reject(new Error('rate limit'))
+        : Promise.resolve([{ ...page('https://a.com/空'), excerpts: [] }]),
+    );
+    await expect(
+      service.researchWeb([
+        { keyword: '空', domains: [] },
+        { keyword: '失敗', domains: [] },
+      ]),
+    ).rejects.toThrow('分析に使える情報源が見つかりませんでした');
+  });
+
   it('すべてのキーワードで失敗した場合は、例外を投げる', async () => {
     const service = serviceWith(() => Promise.reject(new Error('rate limit')));
     await expect(
