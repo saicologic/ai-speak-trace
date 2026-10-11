@@ -14,6 +14,7 @@ import {
   ResearchJobStore,
 } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import {
   extractEnglish,
   GROUNDING_THRESHOLD,
@@ -30,6 +31,7 @@ import {
   ClaimCheck,
   DomainProposal,
   EthicsCheck,
+  PreSendChecks,
   ReportSegment,
   ResearchEvaluation,
   ResearchJob,
@@ -74,6 +76,7 @@ export class ResearchService implements OnModuleInit {
     private readonly jobStore: ResearchJobStore,
     private readonly claude: ResearchClaudeService,
     private readonly guardrail: GuardrailService,
+    private readonly privacy: PrivacyService,
   ) {}
 
   /** アプリの再起動で中断された調査を、失敗として記録する */
@@ -131,6 +134,7 @@ export class ResearchService implements OnModuleInit {
         transcriptions.map((t) => [t.id, t.audioFileName]),
       ),
       models: { analysis: CLAUDE_MODEL },
+      preSendChecks: await this.privacyChecks(transcriptionIds),
     };
     await this.jobStore.save(job);
     void this.runProposal(job, transcriptions, frequentWords);
@@ -192,18 +196,19 @@ export class ResearchService implements OnModuleInit {
     frequentWords: { word: string; count: number }[],
   ): Promise<void> {
     try {
+      const words = sendableWords(transcriptions, frequentWords);
       const raw = await this.claude.proposeKeywords(
         this.toDocuments(transcriptions),
-        sendableWords(transcriptions, frequentWords).slice(0, 30),
+        words.slice(0, 30),
       );
-      const keywords = raw.keywords
-        .map((k) => ({
-          keyword: k.keyword.trim(),
-          reason: k.reason,
-          frequency: countOccurrences(transcriptions, k.keyword),
-          quotes: verifyQuotes(k.quotes, transcriptions),
-          domains: uniqueDomains(k.domains),
-        }))
+      const checked = raw.keywords.map((k) => ({
+        keyword: k.keyword.trim(),
+        reason: k.reason,
+        frequency: countOccurrences(transcriptions, k.keyword),
+        quotes: verifyQuotes(k.quotes, transcriptions),
+        domains: uniqueDomains(k.domains),
+      }));
+      const keywords = checked
         // 会話に出てこないキーワードは提案しない
         .filter((k) => k.keyword && k.frequency > 0)
         .sort((a, b) => b.frequency - a.frequency);
@@ -211,10 +216,44 @@ export class ResearchService implements OnModuleInit {
       await this.update(job, {
         status: 'awaiting_confirmation',
         proposal: { keywords, domains },
+        preSendChecks: {
+          ...(job.preSendChecks ?? { privacyConfigured: false, privacy: [] }),
+          droppedFrequentWords: frequentWords.length - words.length,
+          droppedKeywords: checked
+            .filter((k) => k.keyword && k.frequency === 0)
+            .map((k) => k.keyword),
+          droppedQuotes: raw.keywords.reduce(
+            (sum, k, i) => sum + k.quotes.length - checked[i].quotes.length,
+            0,
+          ),
+        },
       });
     } catch (error) {
       await this.fail(job, error);
     }
+  }
+
+  /** 会話ごとに、個人情報チェックの結果（伏せて送る文字列・要確認のまま送る文字列）をまとめる */
+  private async privacyChecks(
+    transcriptionIds: string[],
+  ): Promise<PreSendChecks> {
+    let privacyConfigured = false;
+    const privacy = await Promise.all(
+      transcriptionIds.map(async (transcriptionId) => {
+        const status = await this.privacy.getStatus(transcriptionId);
+        privacyConfigured = status.configured;
+        const findings = status.scan?.findings ?? [];
+        const masked = findings.filter((f) => f.mask);
+        return {
+          transcriptionId,
+          scanned: !!status.scan,
+          maskedKinds: masked.length,
+          maskedCount: masked.reduce((sum, f) => sum + f.count, 0),
+          needsReview: findings.filter((f) => !f.mask && f.needsReview).length,
+        };
+      }),
+    );
+    return { privacyConfigured, privacy };
   }
 
   private async runResearch(job: ResearchJob): Promise<void> {

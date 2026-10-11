@@ -354,10 +354,19 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             <section className="research-section">
               <h2>調べている会話</h2>
               <ul className="research-selected-transcriptions">
-                {job.transcriptionIds.map((id) => (
-                  <li key={id}>{job.transcriptionNames[id] ?? id}</li>
+                {job.transcriptionIds.map((id, i) => (
+                  <li key={id}>
+                    会話{i + 1}: {job.transcriptionNames[id] ?? id}
+                  </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {job?.preSendChecks && (
+            <section className="research-section">
+              <h2>送る前の確認</h2>
+              <PreSendChecksView job={job} />
             </section>
           )}
 
@@ -545,6 +554,84 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** 送る前の確認に、注意が必要な項目（個人情報チェックをしていない会話など）があるか */
+function hasPreSendWarning(job: ResearchJob): boolean {
+  const checks = job.preSendChecks;
+  if (!checks) return false;
+  return !checks.privacyConfigured || checks.privacy.some((p) => !p.scanned || p.needsReview > 0);
+}
+
+/**
+ * 送る前の確認（① 会話の読み込みの後、Claude に送る前と、キーワード提案の直後に行った確認）
+ * 出力のハルシネーション・AI倫理は、出力を見て判定するため、⑤ 評価で確認する
+ */
+function PreSendChecksView({ job }: { job: ResearchJob }) {
+  const checks = job.preSendChecks!;
+  const name = (id: string) => `会話${job.transcriptionIds.indexOf(id) + 1}`;
+  const items: { ok: boolean; text: string }[] = [];
+  if (!checks.privacyConfigured) {
+    items.push({ ok: false, text: '個人情報チェック（Guardrail ID）が設定されていないため、会話は伏せずにそのまま送りました' });
+  } else {
+    for (const p of checks.privacy) {
+      if (!p.scanned) {
+        items.push({ ok: false, text: `${name(p.transcriptionId)}: 個人情報チェックをしていないため、伏せずにそのまま送りました` });
+        continue;
+      }
+      items.push({
+        ok: p.needsReview === 0,
+        text:
+          `${name(p.transcriptionId)}: ` +
+          (p.maskedKinds > 0
+            ? `個人情報 ${p.maskedKinds}種類（${p.maskedCount}か所）を伏せて送りました`
+            : '伏せる個人情報はありませんでした') +
+          (p.needsReview > 0 ? `。要確認の ${p.needsReview}件は伏せずに送りました` : ''),
+      });
+    }
+  }
+  if (checks.droppedFrequentWords !== undefined) {
+    items.push({
+      ok: true,
+      text:
+        checks.droppedFrequentWords > 0
+          ? `伏せた文字列を含む頻出語 ${checks.droppedFrequentWords}件は、キーワード提案の参考として送りませんでした`
+          : '頻出語に、伏せた文字列は含まれていませんでした',
+    });
+  }
+  if (checks.droppedKeywords !== undefined) {
+    items.push({
+      ok: true,
+      text:
+        checks.droppedKeywords.length > 0
+          ? `会話に出てこないキーワード ${checks.droppedKeywords.length}件（${checks.droppedKeywords.join('、')}）を、提案から外しました`
+          : '提案されたキーワードは、すべて会話に出てきます',
+    });
+  }
+  if (checks.droppedQuotes !== undefined) {
+    items.push({
+      ok: true,
+      text:
+        checks.droppedQuotes > 0
+          ? `会話の原文と一致しない引用 ${checks.droppedQuotes}件を、提案から外しました`
+          : '提案の引用は、すべて会話の原文と一致しました',
+    });
+  }
+  return (
+    <>
+      <ul className="research-checks">
+        {items.map((item, i) => (
+          <li key={i} className={item.ok ? 'passed' : 'warning'}>
+            <span className="research-check-mark">{item.ok ? '✓' : '!'}</span>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+      <p className="research-hint">
+        分析の出力のハルシネーションと AI 倫理は、出力を見て判定するため、調査の最後の評価で確認します。
+      </p>
+    </>
   );
 }
 
@@ -812,6 +899,13 @@ function ResearchResult({
           )}
         </dl>
       </section>
+
+      {job.preSendChecks && (
+        <details className="research-section research-eval-details" open={hasPreSendWarning(job)}>
+          <summary>送る前の確認</summary>
+          <PreSendChecksView job={job} />
+        </details>
+      )}
 
       {job.status === 'failed' && (
         <>
