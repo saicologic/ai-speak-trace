@@ -8,7 +8,7 @@ import { maskTranscription, toFindings, toScanText } from './privacy.utils';
 /**
  * 会話を外部（Claude など）に送る前の個人情報チェック
  *
- * 文字起こしの完了時に Guardrails で個人情報を検出して保存する。
+ * ディープサーチで会話を選んだときに Guardrails で個人情報を検出して保存する。
  * 送るときは、利用者が「伏せる」と選んだ文字列を置き換えた複製を使う。
  */
 @Injectable()
@@ -43,9 +43,8 @@ export class PrivacyService {
     };
   }
 
-  /** 個人情報を検出して保存する（前回の「伏せる／伏せない」の選択は引き継ぐ） */
   /**
-   * 個人情報を検出して保存する
+   * 個人情報を検出して保存する（前回の「伏せる／伏せない」の選択は引き継ぐ）
    * receivedAt は文字起こしの内容を受け取った時刻で、その後に文字起こしが削除された場合は結果を保存しない
    */
   async scan(
@@ -67,7 +66,7 @@ export class PrivacyService {
   }
 
   /**
-   * 文字起こしの完了時や話者名の更新時に呼ぶ（Guardrail ID が未設定なら何もしない。失敗しても文字起こしは止めない）
+   * 話者名の更新時に呼ぶ（Guardrail ID が未設定なら何もしない。失敗しても文字起こしは止めない）
    * 実行中のチェックは変更前の内容（話者名など）で検出しているため、終わるのを待ってから、最後に渡された内容で検出し直す
    */
   scanInBackground(
@@ -98,6 +97,24 @@ export class PrivacyService {
         if (latest) {
           this.scanInBackground(latest.transcription, latest.receivedAt);
         }
+      });
+  }
+
+  /**
+   * 確認済みの会話だけ、検出し直す（話者名を実名に変えた場合に備える。伏せる選択は引き継ぐ）
+   * まだ確認していない会話は、ディープサーチで選ばれるまで Guardrails に送らない
+   */
+  rescanIfChecked(transcription: Transcription): void {
+    this.store
+      .find(transcription.id)
+      .then((scan) => {
+        if (scan) this.scanInBackground(transcription);
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `個人情報チェックの結果を読めません: ${transcription.id}`,
+          error instanceof Error ? error.message : error,
+        );
       });
   }
 

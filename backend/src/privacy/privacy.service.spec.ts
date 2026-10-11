@@ -127,6 +127,30 @@ describe('PrivacyService', () => {
     );
   });
 
+  it('確認済みの会話だけ、話者名の更新時に検出し直す', async () => {
+    const saved: PrivacyScan = {
+      transcriptionId: 't1',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      guardrailId: 'gr-1',
+      guardrailVersion: 'DRAFT',
+      findings: [],
+    };
+    const checked = setup(true, saved);
+    checked.service.rescanIfChecked(transcription);
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(checked.guardrail.inspect).toHaveBeenCalledTimes(1);
+
+    // まだ確認していない会話は、Guardrails に送らない
+    const unchecked = setup(true, null);
+    unchecked.service.rescanIfChecked(transcription);
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(unchecked.guardrail.inspect).not.toHaveBeenCalled();
+  });
+
   it('Guardrail ID が未設定ならチェックできない', async () => {
     const { service } = setup(false);
     await expect(service.scan(transcription)).rejects.toBeInstanceOf(

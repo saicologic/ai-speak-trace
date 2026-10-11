@@ -5,7 +5,7 @@ import './InterviewPage.css';
 import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
-import { PrivacySendNotice } from './PrivacyPanel';
+import { GuardrailMissingNotice } from './PrivacyPanel';
 
 interface Props {
   transcriptionId: string;
@@ -352,7 +352,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
 
           {/* 実行ボタン */}
           <section className="interview-section">
-            <PrivacySendNotice transcriptionIds={[transcriptionId]} />
+            {guardrailConfigured === false && <GuardrailMissingNotice />}
             <div className="interview-actions">
               <button
                 className="interview-button primary"

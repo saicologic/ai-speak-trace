@@ -229,6 +229,54 @@ describe('ResearchService', () => {
     };
   };
 
+  it('個人情報チェックをしていない会話は、調査を作る前に検出する', async () => {
+    const raw = { id: 't1' };
+    const transcriptionStore = {
+      findById: jest.fn(() => Promise.resolve(raw)),
+      // 検出の後の会話の読み込みで止めて、Claude を呼ばないようにする
+      findForSending: jest.fn(() => new Promise(() => {})),
+    };
+    const privacy = {
+      getStatus: jest.fn(() =>
+        Promise.resolve({ configured: true, scanning: false, scan: null }),
+      ),
+      scan: jest.fn(() => Promise.resolve({})),
+    };
+    const service = new ResearchService(
+      transcriptionStore as unknown as TranscriptionStoreService,
+      {} as ResearchJobStore,
+      {} as ResearchClaudeService,
+      { isConfigured: () => true } as unknown as GuardrailService,
+      privacy as unknown as PrivacyService,
+    );
+    void service.start(['t1']);
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(privacy.scan).toHaveBeenCalledWith(raw);
+    expect(transcriptionStore.findForSending).toHaveBeenCalledWith('t1');
+  });
+
+  it('個人情報チェックに失敗した場合は、調査を作らずに拒否する', async () => {
+    const jobStore = { save: jest.fn() };
+    const service = new ResearchService(
+      {
+        findById: jest.fn(() => Promise.resolve({ id: 't1' })),
+      } as unknown as TranscriptionStoreService,
+      jobStore as unknown as ResearchJobStore,
+      {} as ResearchClaudeService,
+      { isConfigured: () => true } as unknown as GuardrailService,
+      {
+        getStatus: jest.fn(() => Promise.resolve({ scan: null })),
+        scan: jest.fn(() => Promise.reject(new Error('throttled'))),
+      } as unknown as PrivacyService,
+    );
+    await expect(service.start(['t1'])).rejects.toThrow(
+      '個人情報チェックに失敗したため、調査を始められません: throttled',
+    );
+    expect(jobStore.save).not.toHaveBeenCalled();
+  });
+
   it('Guardrail ID が未設定なら、調査を作らずに拒否する', async () => {
     const { service, jobStore } = setup(null);
     await expect(service.start(['t1'])).rejects.toThrow(

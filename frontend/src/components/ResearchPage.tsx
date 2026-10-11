@@ -21,7 +21,7 @@ import { buildReport, splitTopics } from '../utils/researchReport';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
-import { PrivacySendNotice } from './PrivacyPanel';
+import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
 import './InterviewPage.css';
 import './SummaryPage.css';
 import './ResearchPage.css';
@@ -339,9 +339,16 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                 <p className="research-notice">
                   選んだ会話の全文を Anthropic（Claude）に送信します。この後のWeb調査では、確定したキーワードだけを検索に使います。
                 </p>
-                {selectedIds.size > 0 && (
-                  <PrivacySendNotice transcriptionIds={selectedIdList} />
-                )}
+                {guardrailConfigured === false && <GuardrailMissingNotice />}
+                {/* 選んだ会話ごとの個人情報チェック（まだ確認していない会話は自動で検出する） */}
+                {guardrailConfigured !== false &&
+                  selectedIdList.map((id) => (
+                    <PrivacyPanel
+                      key={id}
+                      transcriptionId={id}
+                      title={transcriptions.find((t) => t.id === id)?.audioFileName}
+                    />
+                  ))}
                 <button
                   className="research-primary-button"
                   disabled={selectedIds.size === 0 || busy || guardrailConfigured === false}
