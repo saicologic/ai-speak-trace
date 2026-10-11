@@ -10,12 +10,13 @@ import {
 } from '../api/client';
 import type { TranscriptionSummary } from '../types';
 import type {
+  ReportCitation,
   ResearchJob,
   ResearchJobSummary,
   ResearchStatus,
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
-import { buildReport } from '../utils/researchReport';
+import { buildReport, splitTopics } from '../utils/researchReport';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { PrivacySendNotice } from './PrivacyPanel';
@@ -639,8 +640,9 @@ function siteName(url: string): string {
   }
 }
 
-/** 開いている出典の吹き出し（まとめた根拠と、表示する位置） */
+/** 開いている出典の吹き出し（論点・まとめた根拠と、表示する位置） */
 interface OpenCite {
+  topic: number;
   numbers: number[];
   top: number;
   left: number;
@@ -648,8 +650,8 @@ interface OpenCite {
 
 /**
  * 調査の結果を、読む人が知りたい順に表示する
- * 何を調べたか → 信頼度のまとめ → 目次 → 分析の本文 → 参照した情報源 → 評価の詳細
- * 根拠は本文の各文の末尾に「会話1 34:19」のように短く示し、クリックしたときだけ中身を吹き出しで表示する
+ * 何を調べたか → 信頼度のまとめ → 目次 → キーワードごとの解説 → 評価の詳細
+ * キーワードごとに、解説（根拠は文の末尾に短く示し、クリックで吹き出し）・さらに読む・会話で話題になった箇所を表示する
  */
 function ResearchResult({
   job,
@@ -666,12 +668,24 @@ function ResearchResult({
     () => new Map(job.transcriptionIds.map((id, i) => [id, i + 1])),
     [job.transcriptionIds],
   );
-  const report = useMemo(() => {
-    if (!job.report || job.status !== 'completed') return null;
-    return buildReport(job.report, (c) => {
+  // 論点（キーワード）ごとに、出典の表示付きの HTML を作る
+  const topics = useMemo(() => {
+    if (!job.report || job.status !== 'completed') return [];
+    const label = (c: ReportCitation) => {
       if (c.sourceKind === 'web') return `${siteName(c.sourceId)}${c.official ? ' 公式' : ''}`;
       const name = `会話${conversationNo.get(c.sourceId) ?? ''}`;
       return c.utterance ? `${name} ${formatTime(c.utterance.start)}` : name;
+    };
+    return splitTopics(job.report).map((topic) => {
+      const built = buildReport(topic.segments, label);
+      // さらに読む: この論点で引用した Web ページ（公式を先に）
+      const pages = Array.from(
+        new Map(
+          built.citations.filter((c) => c.sourceKind === 'web').map((c) => [c.sourceId, c] as const),
+        ).values(),
+      ).sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
+      const mentions = job.mentions?.find((m) => m.keyword === topic.title);
+      return { title: topic.title, ...built, pages, mentions };
     });
   }, [job, conversationNo]);
 
@@ -694,23 +708,28 @@ function ResearchResult({
   /** 出典の表示をクリックしたら、その根拠を吹き出しで表示する */
   const handleReportClick = (e: MouseEvent<HTMLDivElement>) => {
     const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-citations]');
-    if (!chip || !bodyRef.current) return;
+    const topicEl = chip?.closest<HTMLElement>('[data-topic]');
+    if (!chip || !topicEl || !bodyRef.current) return;
+    const topic = Number(topicEl.dataset.topic);
     const numbers = (chip.dataset.citations ?? '').split(',').map(Number);
-    if (openCite && openCite.numbers.join() === numbers.join()) {
+    if (openCite && openCite.topic === topic && openCite.numbers.join() === numbers.join()) {
       setOpenCite(null);
       return;
     }
     const box = bodyRef.current.getBoundingClientRect();
     const rect = chip.getBoundingClientRect();
     setOpenCite({
+      topic,
       numbers,
       top: rect.bottom - box.top + 6,
       left: Math.max(0, Math.min(rect.left - box.left, box.width - 360)),
     });
   };
 
-  const scrollToTopic = (id: string) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const scrollToTopic = (index: number) =>
+    document
+      .getElementById(`research-topic-${index}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const evaluation = job.status === 'completed' ? job.evaluation : undefined;
   const failedChecks = evaluation
@@ -718,25 +737,6 @@ function ResearchResult({
       evaluation.ethics.filter((e) => !e.passed).length
     : 0;
   const reviewCount = evaluation?.reviewClaims?.length ?? 0;
-
-  // 参照した情報源（本文で実際に引用したものだけ）
-  const citedConversations = job.transcriptionIds
-    .map((id) => ({
-      id,
-      count: new Set(
-        (report?.citations ?? [])
-          .filter((c) => c.sourceKind === 'conversation' && c.sourceId === id)
-          .map((c) => c.utterance?.index ?? c.citedText),
-      ).size,
-    }))
-    .filter((c) => c.count > 0);
-  const citedWebPages = Array.from(
-    new Map(
-      (report?.citations ?? [])
-        .filter((c) => c.sourceKind === 'web')
-        .map((c) => [c.sourceId, c] as const),
-    ).values(),
-  );
 
   return (
     <>
@@ -816,114 +816,122 @@ function ResearchResult({
         </div>
       )}
 
-      {report && (
+      {topics.length > 0 && (
         <>
           {/* 目次 */}
-          {report.topics.length > 1 && (
+          {topics.filter((t) => t.title).length > 1 && (
             <nav className="research-toc">
-              {report.topics.map((t) => (
-                <button key={t.id} onClick={() => scrollToTopic(t.id)}>
-                  {t.title}
-                </button>
-              ))}
+              {topics.map((t, i) =>
+                t.title ? (
+                  <button key={i} onClick={() => scrollToTopic(i)}>
+                    {t.title}
+                  </button>
+                ) : null,
+              )}
             </nav>
           )}
 
-          {/* 分析の本文 */}
-          <section className="research-section">
-            <AiGeneratedNotice basis="根拠" />
-            <p className="research-hint">
-              文の後ろの「会話1 34:19」などは、その文の根拠です。クリックすると、根拠になった発言やページを確かめられます。
-            </p>
-            <div className="research-report-body" ref={bodyRef}>
-              <div
-                className="research-report"
-                onClick={handleReportClick}
-                dangerouslySetInnerHTML={{ __html: report.html }}
-              />
-              {openCite && (
-                <div
-                  className="research-cite-popover"
-                  style={{ top: openCite.top, left: openCite.left }}
-                  role="dialog"
-                >
-                  {openCite.numbers.map((n) => {
-                    const c = report.citations[n - 1];
-                    return (
-                      <div key={n} className="research-cite-item">
-                        {c.sourceKind === 'conversation' ? (
-                          <div className="research-citation-meta">
-                            <span className="research-citation-kind conversation">
-                              会話{conversationNo.get(c.sourceId)}
-                            </span>
-                            {c.utterance && (
-                              <>
-                                <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
-                                <span className="research-citation-speaker">{c.utterance.speakerName}</span>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="research-citation-meta">
-                            <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
-                              {c.official ? 'Web（公式）' : 'Web'}
-                            </span>
-                            <span className="research-citation-title">{c.title}</span>
-                          </div>
-                        )}
-                        <CitedText text={quoteText(c)} />
-                        {c.sourceKind === 'conversation' ? (
-                          <button
-                            className="research-citation-open"
-                            onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
-                          >
-                            {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
-                          </button>
-                        ) : (
-                          <a
-                            className="research-citation-open"
-                            href={c.sourceId}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            ページを開く →
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
+          <AiGeneratedNotice basis="根拠" />
+          <p className="research-hint">
+            文の後ろの「langchain.com 公式」などは、その文の根拠です。クリックすると、根拠になったページの抜粋を確かめられます。
+          </p>
 
-          {/* 参照した情報源 */}
-          <section className="research-section">
-            <h2>参照した情報源</h2>
-            <ul className="research-sources">
-              {citedConversations.map((c) => (
-                <li key={c.id}>
-                  <span className="research-citation-kind conversation">会話{conversationNo.get(c.id)}</span>
-                  <span className="research-citation-title">{job.transcriptionNames[c.id] ?? c.id}</span>
-                  <span className="research-web-domain">{c.count}か所を引用</span>
-                  <button className="research-citation-open" onClick={() => onOpenTranscription(c.id)}>
-                    文字起こしを開く →
-                  </button>
-                </li>
-              ))}
-              {citedWebPages.map((c) => (
-                <li key={c.sourceId}>
-                  <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
-                    {c.official ? 'Web（公式）' : 'Web'}
-                  </span>
-                  <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
-                    {c.title}
-                  </a>
-                  <span className="research-web-domain">{siteName(c.sourceId)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* キーワードごとの解説 */}
+          <div className="research-report-body" ref={bodyRef} onClick={handleReportClick}>
+            {topics.map((t, i) => (
+              <section key={i} id={`research-topic-${i}`} className="research-topic" data-topic={i}>
+                <div className="research-report" dangerouslySetInnerHTML={{ __html: t.html }} />
+                {t.pages.length > 0 && (
+                  <div className="research-topic-extra">
+                    <h3>さらに読む</h3>
+                    <ul className="research-sources">
+                      {t.pages.map((c) => (
+                        <li key={c.sourceId}>
+                          <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                            {c.official ? '公式' : 'Web'}
+                          </span>
+                          <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
+                            {c.title}
+                          </a>
+                          <span className="research-web-domain">{siteName(c.sourceId)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {t.mentions && t.mentions.total > 0 && (
+                  <div className="research-topic-extra">
+                    <h3>
+                      会話で話題になった箇所
+                      {t.mentions.total > t.mentions.items.length && (
+                        <span className="research-web-domain">（全{t.mentions.total}か所のうち最初の{t.mentions.items.length}か所）</span>
+                      )}
+                    </h3>
+                    <div className="research-mentions">
+                      {t.mentions.items.map((m) => (
+                        <button
+                          key={`${m.transcriptionId}-${m.utteranceIndex}`}
+                          className="research-cite conversation"
+                          onClick={() => onOpenTranscription(m.transcriptionId, m.utteranceIndex)}
+                          title={`${m.speakerName}の発言を文字起こしで開く`}
+                        >
+                          会話{conversationNo.get(m.transcriptionId)} {formatTime(m.start)} {m.speakerName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            ))}
+            {openCite && (
+              <div
+                className="research-cite-popover"
+                style={{ top: openCite.top, left: openCite.left }}
+                role="dialog"
+              >
+                {openCite.numbers.map((n) => {
+                  const c = topics[openCite.topic].citations[n - 1];
+                  return (
+                    <div key={n} className="research-cite-item">
+                      {c.sourceKind === 'conversation' ? (
+                        <div className="research-citation-meta">
+                          <span className="research-citation-kind conversation">
+                            会話{conversationNo.get(c.sourceId)}
+                          </span>
+                          {c.utterance && (
+                            <>
+                              <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
+                              <span className="research-citation-speaker">{c.utterance.speakerName}</span>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="research-citation-meta">
+                          <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                            {c.official ? 'Web（公式）' : 'Web'}
+                          </span>
+                          <span className="research-citation-title">{c.title}</span>
+                        </div>
+                      )}
+                      <CitedText text={quoteText(c)} />
+                      {c.sourceKind === 'conversation' ? (
+                        <button
+                          className="research-citation-open"
+                          onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
+                        >
+                          {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
+                        </button>
+                      ) : (
+                        <a className="research-citation-open" href={c.sourceId} target="_blank" rel="noopener noreferrer">
+                          ページを開く →
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -935,7 +943,7 @@ function ResearchResult({
             {evaluation.relevance.map((r) => (
               <li key={r.keyword} className={r.answered ? 'passed' : 'failed'}>
                 <span className="research-check-mark">{r.answered ? '✓' : '✕'}</span>
-                論点「{r.keyword}」に答えている
+                「{r.keyword}」を説明している
                 <span className="research-check-detail">{r.reason}</span>
               </li>
             ))}

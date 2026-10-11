@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { Transcription } from '../transcription/types/transcription.types';
 import {
   EthicsCheck,
+  KeywordMentions,
   ReportCitation,
   ReportSegment,
   TranscriptQuote,
@@ -31,6 +32,43 @@ export function toTranscriptUtterances(
       ? [{ index, speakerName: u.speakerName, start: u.start, text: u.text }]
       : [],
   );
+}
+
+/** 1つのキーワードについて表示する、話題になった発言の数 */
+export const MAX_MENTIONS = 5;
+
+/**
+ * 確定したキーワードが会話で話題になった発言を探す（空白・全角半角の違いは無視）
+ * 会話の内容を AI にまとめさせず、元の文字起こしの発言へ移動できるようにするため、文字列の一致で探す
+ */
+export function findMentions(
+  transcriptions: Transcription[],
+  keywords: string[],
+): KeywordMentions[] {
+  return keywords.map((keyword) => {
+    const target = normalize(keyword);
+    const found = transcriptions.flatMap((t) =>
+      target
+        ? t.utterances.flatMap((u, utteranceIndex) =>
+            normalize(u.text).includes(target)
+              ? [
+                  {
+                    transcriptionId: t.id,
+                    utteranceIndex,
+                    start: u.start,
+                    speakerName: u.speakerName,
+                  },
+                ]
+              : [],
+          )
+        : [],
+    );
+    return {
+      keyword,
+      total: found.length,
+      items: found.slice(0, MAX_MENTIONS),
+    };
+  });
 }
 
 /** 選んだ会話全体でのキーワードの出現回数（空白・全角半角の違いは無視） */

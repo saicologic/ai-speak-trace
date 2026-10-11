@@ -37,6 +37,7 @@ import {
 import {
   checkPersonalData,
   countOccurrences,
+  findMentions,
   normalizeDomain,
   toTranscriptDocument,
   toTranscriptUtterances,
@@ -250,6 +251,7 @@ export class ResearchService implements OnModuleInit {
         status: 'completed',
         report: finalReport,
         evaluation,
+        mentions: findMentions(transcriptions, keywords),
         models: { analysis: CLAUDE_MODEL, judge: JUDGE_MODEL },
       });
     } catch (error) {
@@ -375,7 +377,7 @@ export class ResearchService implements OnModuleInit {
 
 /** 統合分析の指示で決めた、各論点の項目名の行 */
 const SECTION_LABEL =
-  /^\*\*(会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?$/;
+  /^\*\*(一言でいうと|詳しく|会話での説明との違い|関連するキーワード|会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?$/;
 
 /**
  * 画面で数えた頻出語のうち、Claude に送る会話（個人情報チェックで伏せた後）に出てくる語だけを返す
@@ -413,8 +415,9 @@ function isStructureOnly(text: string, keywords: string[]): boolean {
     .every((line) => line === '' || isSectionLine(line, keywords));
 }
 
-/** 「不足:」「推測:」と明記した注記の文（事実の主張として審査しない） */
-const NOTE_SENTENCE = /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測)(?:\*\*)?\s*[:：]/;
+/** 「不足:」「推測:」と明記した注記の文と、関連するキーワードの列挙（事実の主張として審査しない） */
+const NOTE_SENTENCE =
+  /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測|関連するキーワード)(?:\*\*)?\s*[:：]/;
 
 /**
  * ⑤ 判定結果から評価を計算し、根拠のない主張を除いたレポートを返す

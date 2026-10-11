@@ -736,3 +736,48 @@
   color: #1f2937;
   margin-bottom: 0.75rem;
 }
+
+/* キーワードごとの解説 */
+.research-topic {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  scroll-margin-top: 1rem;
+}
+
+.research-topic .research-report {
+  padding: 0;
+  border: none;
+}
+
+.research-topic-extra {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.research-topic-extra h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.research-topic-extra .research-web-domain {
+  margin-left: 0.4rem;
+  font-weight: 400;
+}
+
+.research-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.research-mentions .research-cite {
+  margin-left: 0;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+}

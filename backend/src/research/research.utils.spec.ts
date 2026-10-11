@@ -4,6 +4,7 @@ import {
   checkPersonalData,
   collectWebSources,
   countOccurrences,
+  findMentions,
   isOfficial,
   mergeIntoSentences,
   normalizeDomain,
@@ -214,6 +215,29 @@ describe('research.utils', () => {
         { text: '- 不足: 記載がない。', citations: [] },
       ]).map((s) => s.text),
     ).toEqual(['- 相違: 強調点が違う。', '\n- 不足: 記載がない。']);
+  });
+
+  it('キーワードが話題になった発言を、空白・全角半角の違いを無視して探し、先頭から5件まで残す', () => {
+    const t = {
+      id: 't1',
+      utterances: [
+        { speakerName: 'Aさん', start: 0, text: 'こんにちは' },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          speakerName: 'Bさん',
+          start: 10 + i,
+          text: 'ＬＬＭ as a Judge の話',
+        })),
+      ],
+    } as unknown as Transcription;
+    const [mentions] = findMentions([t], ['LLM as a Judge']);
+    expect(mentions.total).toBe(6);
+    expect(mentions.items).toHaveLength(5);
+    expect(mentions.items[0]).toEqual({
+      transcriptionId: 't1',
+      utteranceIndex: 1,
+      start: 10,
+      speakerName: 'Bさん',
+    });
   });
 
   it('空の発言を除き、文字起こしでの発言の位置を残す', () => {

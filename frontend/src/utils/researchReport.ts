@@ -7,14 +7,26 @@ export interface NumberedCitation extends ReportCitation {
   number: number;
 }
 
-/** 統合分析の論点（「## 見出し」） */
-export interface ReportTopic {
-  id: string;
-  title: string;
-}
-
 /** 本文に一時的に入れる出典の目印（中身は出典ごとの根拠番号を「;」で区切ったもの） */
 const MARKER = /⟦([\d,;]+)⟧/g;
+
+/**
+ * 統合分析を論点（「## 見出し」）ごとに分ける（最初の見出しより前の文は、見出しなしの論点にする）
+ */
+export function splitTopics(segments: ReportSegment[]): { title: string | null; segments: ReportSegment[] }[] {
+  const topics: { title: string | null; segments: ReportSegment[] }[] = [];
+  for (const segment of segments) {
+    const heading = segment.text.trim().match(/^#{1,6}\s+(.+)$/);
+    if (heading) {
+      topics.push({ title: heading[1].trim(), segments: [segment] });
+    } else if (topics.length === 0) {
+      topics.push({ title: null, segments: [segment] });
+    } else {
+      topics[topics.length - 1].segments.push(segment);
+    }
+  }
+  return topics;
+}
 
 /**
  * 統合分析の文と根拠から、出典の表示付きの HTML と、番号付きの根拠を作る
@@ -29,7 +41,6 @@ export function buildReport(
 ): {
   html: string;
   citations: NumberedCitation[];
-  topics: ReportTopic[];
 } {
   const citations: NumberedCitation[] = [];
   const numbers = new Map<string, number>();
@@ -93,11 +104,5 @@ export function buildReport(
     node.replaceWith(fragment);
   }
 
-  // 論点の見出しに ID を付け、目次から移動できるようにする
-  const topics: ReportTopic[] = [];
-  doc.body.querySelectorAll('h2').forEach((h2, i) => {
-    h2.id = `research-topic-${i + 1}`;
-    topics.push({ id: h2.id, title: h2.textContent?.trim() ?? '' });
-  });
-  return { html: doc.body.innerHTML, citations, topics };
+  return { html: doc.body.innerHTML, citations };
 }
