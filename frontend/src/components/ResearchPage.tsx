@@ -954,7 +954,10 @@ function ResearchResult({
   const topicIndex = (keyword: string) => topics.findIndex((t) => t.title === keyword);
 
   // 次にできること: 確認が必要なところ（評価・Web調査の失敗・会話との食い違い）と、読むとよい公式ページ
-  const notAnswered = evaluation?.relevance.filter((r) => !r.answered).map((r) => r.keyword) ?? [];
+  // 以前の調査は、解説の「関連するキーワード」の判定も保存しているため、確定したキーワードだけを見る
+  const relevance =
+    evaluation?.relevance.filter((r) => !job.confirmed || job.confirmed.keywords.includes(r.keyword)) ?? [];
+  const notAnswered = relevance.filter((r) => !r.answered).map((r) => r.keyword);
   const failedEthics = evaluation?.ethics.filter((e) => !e.passed) ?? [];
   const failedResearch = job.webResearchFailures?.map((f) => f.keyword) ?? [];
   const differences = topics.filter((t) => t.title && t.hasDifference);
@@ -1008,7 +1011,7 @@ function ResearchResult({
               <p className={`research-verdict ${issueCount > 0 ? 'warning' : 'ok'}`}>
                 {issueCount > 0
                   ? `確認するとよいところが${issueCount}件あります`
-                  : `✓ ${evaluation.relevance.length}つのキーワードとも、根拠付きで説明できています`}
+                  : `✓ ${relevance.length}つのキーワードとも、根拠付きで説明できています`}
                 <span className="research-verdict-detail">
                   （根拠付き {percent(evaluation.citationCoverage)}・公式の根拠 {percent(evaluation.officialSourceRate)}・AI倫理{' '}
                   {failedEthics.length === 0 ? '問題なし' : `${failedEthics.length}件の問題`}）
