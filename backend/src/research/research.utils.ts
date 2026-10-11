@@ -182,7 +182,46 @@ export function toReportSegments(
     }
     segments.push({ text: block.text, citations });
   }
-  return segments;
+  return mergeIntoSentences(segments);
+}
+
+/** 文の区切り（句点・感嘆符・疑問符と閉じかっこ、または改行）で終わるか */
+const SENTENCE_END = /(?:[。！？!?][」』）)]*[^\S\n]*|\n)$/;
+
+/** 根拠のない断片を、文の区切りの直後で分ける */
+const SENTENCE_PIECE =
+  /[^。！？!?\n]*(?:[。！？!?]+[」』）)]*[^\S\n]*\n*|\n+)|[^。！？!?\n]+$/g;
+
+/**
+ * Citations の応答は根拠の境目で区切られ、「と述べた。」のような文の切れ端が根拠なしの断片になる
+ * 断片のまま審査すると、切れ端が根拠のない主張として除かれ、前後の文がつながらなくなる
+ * そのため、断片を文の区切りまでつないで、1文を1つの単位にする
+ * 根拠の付いた断片は、根拠の範囲を保つために分けない
+ */
+export function mergeIntoSentences(segments: ReportSegment[]): ReportSegment[] {
+  const pieces = segments.flatMap((segment) =>
+    segment.citations.length > 0
+      ? [segment]
+      : (segment.text.match(SENTENCE_PIECE) ?? [])
+          .filter((text) => text.length > 0)
+          .map((text) => ({ text, citations: [] })),
+  );
+  const merged: ReportSegment[] = [];
+  let current: ReportSegment | null = null;
+  for (const piece of pieces) {
+    current = current
+      ? {
+          text: current.text + piece.text,
+          citations: [...current.citations, ...piece.citations],
+        }
+      : { text: piece.text, citations: [...piece.citations] };
+    if (SENTENCE_END.test(current.text)) {
+      merged.push(current);
+      current = null;
+    }
+  }
+  if (current) merged.push(current);
+  return merged;
 }
 
 /** 個人を特定できる連絡先などを、ルールで検出する */
