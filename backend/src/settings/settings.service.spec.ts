@@ -28,7 +28,13 @@ describe('SettingsService', () => {
   let service: SettingsService;
   let tmpDir: string;
   let settingsFilePath: string;
-  let guardrail: { guardrailId: string; verify: jest.Mock };
+  let guardrail: {
+    guardrailId: string;
+    guardrailVersion: string;
+    verify: jest.Mock;
+    resetClient: jest.Mock;
+  };
+  const originalAwsProfile = process.env.AWS_PROFILE;
 
   /** 一時ディレクトリに設定ファイルを書き込むヘルパー */
   function writeSettings(content: object) {
@@ -47,8 +53,11 @@ describe('SettingsService', () => {
     settingsFilePath = path.join(tmpDir, 'settings.json');
     guardrail = {
       guardrailId: '',
+      guardrailVersion: 'DRAFT',
       verify: jest.fn().mockResolvedValue(undefined),
+      resetClient: jest.fn(),
     };
+    delete process.env.AWS_PROFILE;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -86,6 +95,8 @@ describe('SettingsService', () => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.BEDROCK_GUARDRAIL_ID;
     delete process.env.BEDROCK_GUARDRAIL_VERSION;
+    if (originalAwsProfile === undefined) delete process.env.AWS_PROFILE;
+    else process.env.AWS_PROFILE = originalAwsProfile;
   });
 
   describe('getSettings', () => {
@@ -238,6 +249,47 @@ describe('SettingsService', () => {
       });
     });
 
+    describe('AWS のプロファイル', () => {
+      it('プロファイルを変えたら、クライアントを作り直し、そのプロファイルで Guardrail を呼べることを確かめて保存する', async () => {
+        guardrail.guardrailId = 'gr-1';
+
+        await service.updateSettings({ awsProfile: 'kiro' });
+
+        expect(guardrail.resetClient).toHaveBeenCalled();
+        expect(guardrail.verify).toHaveBeenCalledWith('gr-1', 'DRAFT');
+        expect(process.env.AWS_PROFILE).toBe('kiro');
+        expect(readSettings().awsProfile).toBe('kiro');
+        expect(service.getSettings().awsProfile).toBe('kiro');
+      });
+
+      it('呼べなかった場合は保存せず、元のプロファイルに戻す', async () => {
+        guardrail.guardrailId = 'gr-1';
+        process.env.AWS_PROFILE = 'old';
+        guardrail.verify.mockRejectedValue(new Error('invalid token'));
+
+        await expect(
+          service.updateSettings({ awsProfile: 'kiro' }),
+        ).rejects.toThrow('AWS のプロファイル（kiro）で Guardrail');
+        expect(process.env.AWS_PROFILE).toBe('old');
+        expect(fs.existsSync(settingsFilePath)).toBe(false);
+      });
+
+      it('空にすると default を使う（環境変数を消す）', async () => {
+        process.env.AWS_PROFILE = 'kiro';
+
+        await service.updateSettings({ awsProfile: '' });
+
+        expect(process.env.AWS_PROFILE).toBeUndefined();
+        expect(readSettings().awsProfile).toBe('');
+      });
+
+      it('プロファイル名に使えない文字は受け付けない', async () => {
+        await expect(
+          service.updateSettings({ awsProfile: 'a b' }),
+        ).rejects.toThrow('使えない文字');
+      });
+    });
+
     describe('Guardrail のバージョン', () => {
       it('番号を保存する前に、ID とバージョンで呼べることを確かめる', async () => {
         await service.updateSettings({
@@ -308,6 +360,22 @@ describe('SettingsService', () => {
       expect(process.env.ELEVENLABS_API_KEY).toBe('static-el-key');
       expect(process.env.ANTHROPIC_API_KEY).toBe('static-ant-key');
 
+      delete process.env.SETTINGS_FILE;
+    });
+
+    it('設定画面で指定した AWS のプロファイルを、シェルの AWS_PROFILE より優先して読み込む', () => {
+      const tempSettings = path.join(tmpDir, 'profile-settings.json');
+      fs.writeFileSync(
+        tempSettings,
+        JSON.stringify({ awsProfile: 'kiro' }),
+        'utf-8',
+      );
+      process.env.SETTINGS_FILE = tempSettings;
+      process.env.AWS_PROFILE = 'shell';
+
+      SettingsService.loadSettingsIntoEnv();
+
+      expect(process.env.AWS_PROFILE).toBe('kiro');
       delete process.env.SETTINGS_FILE;
     });
 

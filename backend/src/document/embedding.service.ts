@@ -4,6 +4,7 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
+import { awsCredentials } from '../aws/aws-credentials';
 
 /** Bedrock Titan v2によるEmbedding生成サービス */
 @Injectable()
@@ -26,7 +27,10 @@ export class EmbeddingService {
       this.configService.get('BEDROCK_EMBEDDING_DIMENSIONS', '256'),
     );
 
-    this.client = new BedrockRuntimeClient({ region });
+    this.client = new BedrockRuntimeClient({
+      region,
+      credentials: awsCredentials(),
+    });
     this.logger.log(
       `Embeddingサービス初期化: model=${this.modelId}, dimensions=${this.dimensions}`,
     );

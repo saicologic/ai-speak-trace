@@ -24,6 +24,7 @@ export class SettingsController {
       enableContextAnalysis?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;
+      awsProfile?: string;
     },
   ) {
     return this.settingsService.updateSettings(dto);

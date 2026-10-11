@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { DocumentStorage } from '../interfaces/document-storage.interface';
 import { DocumentMetadata } from '../../document/types/document.types';
+import { awsCredentials } from '../../aws/aws-credentials';
 
 /** S3によるドキュメントストレージ実装 */
 @Injectable()
@@ -40,7 +41,7 @@ export class S3DocumentStorage implements DocumentStorage {
       );
     }
 
-    this.s3 = new S3Client({ region });
+    this.s3 = new S3Client({ region, credentials: awsCredentials() });
     this.logger.log(
       `S3ドキュメントストレージ初期化: bucket=${this.bucket}`,
     );

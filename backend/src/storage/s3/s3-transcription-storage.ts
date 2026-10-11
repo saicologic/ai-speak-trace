@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { TranscriptionStorage } from '../interfaces/transcription-storage.interface';
 import { Transcription } from '../../transcription/types/transcription.types';
+import { awsCredentials } from '../../aws/aws-credentials';
 
 /** S3による文字起こしストレージ実装 */
 @Injectable()
@@ -32,7 +33,7 @@ export class S3TranscriptionStorage implements TranscriptionStorage {
       );
     }
 
-    this.s3 = new S3Client({ region });
+    this.s3 = new S3Client({ region, credentials: awsCredentials() });
     this.logger.log(`S3文字起こしストレージ初期化: bucket=${this.bucket}, prefix=${this.prefix}`);
   }
 

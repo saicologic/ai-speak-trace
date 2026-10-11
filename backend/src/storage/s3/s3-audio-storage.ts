@@ -11,6 +11,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AudioStorage } from '../interfaces/audio-storage.interface';
 import { AudioFileInfo } from '../../transcription/types/transcription.types';
+import { awsCredentials } from '../../aws/aws-credentials';
 
 /** 対応する音声・動画ファイル拡張子 */
 const AUDIO_EXTENSIONS = [
@@ -38,7 +39,7 @@ export class S3AudioStorage implements AudioStorage {
       );
     }
 
-    this.s3 = new S3Client({ region });
+    this.s3 = new S3Client({ region, credentials: awsCredentials() });
     this.logger.log(`S3音声ストレージ初期化: bucket=${this.bucket}, prefix=${this.prefix}`);
   }
 

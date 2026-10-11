@@ -7,6 +7,7 @@ import {
   GuardrailAssessment,
 } from '@aws-sdk/client-bedrock-runtime';
 import { isIgnoredPii } from './privacy.utils';
+import { awsCredentials } from '../aws/aws-credentials';
 
 /** 1回の ApplyGuardrail に渡す文字数（Standard ティアのコンテンツフィルターの上限 500 テキストユニット未満） */
 export const GUARDRAIL_CHUNK_CHARS = 30_000;
@@ -60,8 +61,18 @@ export class GuardrailService {
     return this.guardrailId !== '';
   }
 
+  /**
+   * クライアントを作り直す（AWS のプロファイルを変えたとき）
+   * クライアントは読み込んだ認証情報を持ち続けるため、作り直さないと前のプロファイルのまま呼ぶ
+   */
+  resetClient(): void {
+    this.client = undefined;
+  }
+
   private getClient(): BedrockRuntimeClient {
     this.client ??= new BedrockRuntimeClient({
+      // サイドカーでも読めるよう、認証情報の読み方を指定する
+      credentials: awsCredentials(),
       region: this.configService.get<string>('AWS_REGION', 'ap-northeast-1'),
     });
     return this.client;

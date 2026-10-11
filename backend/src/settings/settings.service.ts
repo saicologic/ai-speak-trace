@@ -24,7 +24,15 @@ interface SettingsFile {
   bedrockGuardrailPinnedVersion?: string;
   /** 以前のバージョンで保存した値（確かめずに保存されたため、読み込まない） */
   bedrockGuardrailVersion?: string;
+  /**
+   * AWS の認証情報に使う ~/.aws のプロファイル名（空の場合は default）
+   * Finder から起動したアプリにはシェルの AWS_PROFILE が渡らないため、設定画面で指定できるようにする
+   */
+  awsProfile?: string;
 }
+
+/** AWS のプロファイル名として受け付ける値（空は default） */
+const AWS_PROFILE_PATTERN = /^[A-Za-z0-9_.+=,@-]*$/;
 
 /** API キーの設定項目と、読み込む環境変数 */
 const API_KEYS = [
@@ -66,6 +74,8 @@ export interface AppSettings {
     /** 設定したバージョン（空の場合は DRAFT を使う） */
     version: string;
   };
+  /** AWS の認証情報に使う ~/.aws のプロファイル名（空の場合は default） */
+  awsProfile: string;
 }
 
 @Injectable()
@@ -130,6 +140,7 @@ export class SettingsService {
           this.configService.get<string>('BEDROCK_GUARDRAIL_VERSION') ?? ''
         ).trim(),
       },
+      awsProfile: process.env.AWS_PROFILE ?? '',
     };
   }
 
@@ -145,19 +156,47 @@ export class SettingsService {
     enableContextAnalysis?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
+    awsProfile?: string;
   }): Promise<{
     settings: AppSettings;
     restartRequired: boolean;
   }> {
     const rawVersion = dto.bedrockGuardrailVersion?.trim();
-    if (rawVersion !== undefined && !GUARDRAIL_VERSION_PATTERN.test(rawVersion)) {
+    if (
+      rawVersion !== undefined &&
+      !GUARDRAIL_VERSION_PATTERN.test(rawVersion)
+    ) {
       throw new BadRequestException(
         'Guardrail のバージョンは、番号（1 など）か DRAFT を指定してください',
       );
     }
     // DRAFT と空は同じ（DRAFT を使う）
     const guardrailVersion = rawVersion === 'DRAFT' ? '' : rawVersion;
-    await this.verifyGuardrail(dto.bedrockGuardrailId, guardrailVersion);
+    const awsProfile = dto.awsProfile?.trim();
+    if (awsProfile !== undefined && !AWS_PROFILE_PATTERN.test(awsProfile)) {
+      throw new BadRequestException(
+        'AWS のプロファイル名に使えない文字が含まれています',
+      );
+    }
+    const previousProfile = process.env.AWS_PROFILE;
+    if (awsProfile !== undefined && awsProfile !== (previousProfile ?? '')) {
+      // 新しいプロファイルで確かめるため、先に切り替える（確かめられなければ元に戻す）
+      setAwsProfile(awsProfile);
+      this.guardrail.resetClient();
+      try {
+        await this.verifyGuardrail(
+          dto.bedrockGuardrailId ?? this.guardrail.guardrailId,
+          guardrailVersion ?? this.guardrail.guardrailVersion,
+          true,
+        );
+      } catch (error) {
+        setAwsProfile(previousProfile ?? '');
+        this.guardrail.resetClient();
+        throw error;
+      }
+    } else {
+      await this.verifyGuardrail(dto.bedrockGuardrailId, guardrailVersion);
+    }
 
     const current = this.readSettingsFile();
     const updated: SettingsFile = { ...current };
@@ -205,6 +244,9 @@ export class SettingsService {
       updated.bedrockGuardrailPinnedVersion = guardrailVersion;
       process.env.BEDROCK_GUARDRAIL_VERSION = guardrailVersion;
     }
+    if (awsProfile !== undefined) {
+      updated.awsProfile = awsProfile;
+    }
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
@@ -226,13 +268,29 @@ export class SettingsService {
   private async verifyGuardrail(
     idInput: string | undefined,
     versionInput: string | undefined,
+    /** AWS のプロファイルを変えたとき（DRAFT でも呼べることを確かめる） */
+    profileChanged = false,
   ): Promise<void> {
     if (idInput === undefined && versionInput === undefined) return;
     const id = idInput?.trim() ?? this.guardrail.guardrailId;
     const version =
       versionInput ??
-      (this.configService.get<string>('BEDROCK_GUARDRAIL_VERSION') ?? '').trim();
-    if (!id || !version) return;
+      (
+        this.configService.get<string>('BEDROCK_GUARDRAIL_VERSION') ?? ''
+      ).trim();
+    if (!id) return;
+    if (profileChanged) {
+      try {
+        await this.guardrail.verify(id, version || 'DRAFT');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new BadRequestException(
+          `AWS のプロファイル（${process.env.AWS_PROFILE || 'default'}）で Guardrail（ID: ${id}）を呼べなかったため、保存しませんでした。~/.aws の設定を確認してください（${message}）`,
+        );
+      }
+      return;
+    }
+    if (!version) return;
     try {
       await this.guardrail.verify(id, version);
     } catch (error) {
@@ -306,6 +364,10 @@ export class SettingsService {
         process.env.BEDROCK_GUARDRAIL_VERSION =
           settings.bedrockGuardrailPinnedVersion;
       }
+      // 設定画面で指定したプロファイルを、シェルの AWS_PROFILE より優先する
+      if (settings.awsProfile) {
+        setAwsProfile(settings.awsProfile);
+      }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);
     }
@@ -374,4 +436,10 @@ function toApiKeyStatus(value: string | undefined): ApiKeyStatus {
     configured: key !== '',
     last4: key.length >= 12 ? key.slice(-4) : '',
   };
+}
+
+/** AWS の認証情報に使うプロファイルを切り替える（空の場合は default を使うよう、環境変数を消す） */
+function setAwsProfile(profile: string): void {
+  if (profile) process.env.AWS_PROFILE = profile;
+  else delete process.env.AWS_PROFILE;
 }
