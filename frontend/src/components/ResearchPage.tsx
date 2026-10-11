@@ -21,6 +21,7 @@ import type {
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
 import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
+import { selectRelatedLinks } from '../utils/relatedLinks';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { FeedbackButton } from './FeedbackButton';
@@ -238,17 +239,9 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   };
 
   /** 「調査結果」タブで調査を選ぶ（確定待ち・実行中の調査は「新しい調査」タブで続きを表示する） */
+  /** 調査結果のタブの中で、選んだ調査を表示する（終わっていない調査も、続けるかどうかは利用者が選ぶ） */
   const handleSelectResult = async (summary: ResearchJobSummary) => {
     setError(null);
-    if (summary.status === 'awaiting_confirmation' || RUNNING.includes(summary.status)) {
-      try {
-        setJob(await fetchResearchJob(summary.id));
-        setActiveTab('new');
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-      return;
-    }
     setSelectedResultId(summary.id);
     setResultJob(null);
     setResultLoading(true);
@@ -568,6 +561,10 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                 <ResearchResult
                   job={resultJob}
                   onOpenTranscription={onOpenTranscription}
+                  onContinue={(unfinished) => {
+                    setJob(unfinished);
+                    setActiveTab('new');
+                  }}
                   onTitleChange={(updated) => {
                     setResultJob(updated);
                     setJobs((prev) =>
@@ -929,10 +926,13 @@ function ResearchResult({
   job,
   onOpenTranscription,
   onTitleChange,
+  onContinue,
 }: {
   job: ResearchJob;
   onOpenTranscription: Props['onOpenTranscription'];
   onTitleChange: (job: ResearchJob) => void;
+  /** 終わっていない調査を「新しい調査」のタブで続ける */
+  onContinue: (job: ResearchJob) => void;
 }) {
   const [openCite, setOpenCite] = useState<OpenCite | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -952,12 +952,8 @@ function ResearchResult({
     };
     return splitTopics(job.report).map((topic) => {
       const built = buildReport(topic.segments, label);
-      // さらに読む: この論点で引用した Web ページ（公式を先に）
-      const pages = Array.from(
-        new Map(
-          built.citations.filter((c) => c.sourceKind === 'web').map((c) => [c.sourceId, c] as const),
-        ).values(),
-      ).sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
+      // さらに読む: 関連リンクの共通設定（utils/relatedLinks.ts）で選んだページ
+      const pages = selectRelatedLinks(topic.segments).map((link) => link.citation);
       const mentions = job.mentions?.find((m) => m.keyword === topic.title);
       return { title: topic.title, ...built, pages, mentions, ...topicHighlights(topic.segments) };
     });
@@ -1023,10 +1019,10 @@ function ResearchResult({
   const failedResearch = job.webResearchFailures?.map((f) => f.keyword) ?? [];
   const differences = topics.filter((t) => t.title && t.hasDifference);
   const issueCount = notAnswered.length + failedEthics.length + failedResearch.length + differences.length;
-  const officialPages = topics.flatMap((t) => {
-    const page = t.pages.find((c) => c.official);
-    return t.title && page ? [{ keyword: t.title, page }] : [];
-  });
+  // キーワードごとに、関連リンクの1件目を読むとよいページとして出す
+  const readingPages = topics.flatMap((t) =>
+    t.title && t.pages.length > 0 ? [{ keyword: t.title, page: t.pages[0] }] : [],
+  );
 
   return (
     <>
@@ -1036,6 +1032,20 @@ function ResearchResult({
         {formatDate(job.createdAt)} ・ 会話{job.transcriptionIds.length}件
         {job.confirmed && ` ・ キーワード${job.confirmed.keywords.length}つ`}
       </p>
+
+      {(job.status === 'awaiting_confirmation' || RUNNING.includes(job.status)) && (
+        <div className="research-unfinished">
+          <StepFlow status={job.status} />
+          <p>
+            {job.status === 'awaiting_confirmation'
+              ? 'この調査は、キーワードの確定を待っています。'
+              : `この調査は進行中です（${STATUS_LABELS[job.status]}）。`}
+          </p>
+          <button className="research-action-button" onClick={() => onContinue(job)}>
+            {job.status === 'awaiting_confirmation' ? 'キーワードを確定して続ける' : '進み具合を見る'}
+          </button>
+        </div>
+      )}
 
       {job.status === 'failed' && (
         <>
@@ -1123,9 +1133,11 @@ function ResearchResult({
                   )}
                 </li>
               ))}
-              {officialPages.map(({ keyword, page }) => (
+              {readingPages.map(({ keyword, page }) => (
                 <li key={`page-${keyword}`}>
-                  <span>「{keyword}」を詳しく知るなら、公式ページから読む: {page.title}</span>
+                  <span>
+                    「{keyword}」を詳しく知るなら、{page.official ? '公式ページ' : 'この記事'}から読む: {page.title}
+                  </span>
                   <a className="research-action-button" href={page.sourceId} target="_blank" rel="noopener noreferrer">
                     ページを開く
                   </a>

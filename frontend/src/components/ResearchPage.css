@@ -1067,3 +1067,13 @@
   text-decoration: line-through;
   text-decoration-color: #d1d5db;
 }
+
+/* 調査結果のタブで表示する、終わっていない調査 */
+.research-unfinished {
+  margin-bottom: 16px;
+}
+
+.research-unfinished p {
+  margin: 12px 0;
+  color: #374151;
+}
