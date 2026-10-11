@@ -698,11 +698,13 @@ function ConfirmedTargets({ job }: { job: ResearchJob }) {
   const confirmed = job.confirmed;
   if (!confirmed) return null;
   const targets = confirmed.targets ?? confirmed.keywords.map((keyword) => ({ keyword, domains: confirmed.domains }));
+  const failed = new Set((job.webResearchFailures ?? []).map((f) => f.keyword));
   return (
     <ul className="research-targets">
       {targets.map((t) => (
         <li key={t.keyword}>
           <span className="research-chip">{t.keyword}</span>
+          {failed.has(t.keyword) && <span className="research-target-failed">Web調査に失敗</span>}
           {t.domains.length > 0 ? (
             t.domains.map((d) => (
               <span key={d} className="research-chip domain">
@@ -916,7 +918,9 @@ function ResearchResult({
 
       {/* 信頼度のまとめ */}
       {evaluation && (
-        <div className={`research-trust ${failedChecks > 0 ? 'warning' : ''}`}>
+        <div
+          className={`research-trust ${failedChecks > 0 || (job.webResearchFailures?.length ?? 0) > 0 ? 'warning' : ''}`}
+        >
           <span>
             根拠付き <strong>{percent(evaluation.citationCoverage)}</strong>
           </span>
@@ -935,6 +939,12 @@ function ResearchResult({
           <span>
             根拠がなく除いた主張 <strong>{evaluation.removedClaims.length}件</strong>
           </span>
+          {(job.webResearchFailures?.length ?? 0) > 0 && (
+            <span className="research-trust-alert">
+              Web調査に失敗したキーワードがあります（{job.webResearchFailures!.map((f) => f.keyword).join('、')}
+              ）。このキーワードの解説は、Web の情報がないため少ないか、ないことがあります
+            </span>
+          )}
           {failedChecks > 0 && (
             <span className="research-trust-alert">確認が必要な項目が{failedChecks}件あります（評価の詳細）</span>
           )}
