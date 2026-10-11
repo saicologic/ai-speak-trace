@@ -65,4 +65,18 @@ describe('buildReport', () => {
       ['ループ', 2],
     ]);
   });
+
+  it('空行や項目名と一緒の断片に含まれる見出しも、行ごとに探して別の論点に分ける', () => {
+    const topics = splitTopics([
+      { text: '## ハーネス\n\n', citations: [] },
+      { text: '定義。', citations: [web] },
+      { text: '\n\n## ループ\n\n**詳しく**\n## 評価\n', citations: [] },
+      { text: '説明。', citations: [] },
+    ]);
+    expect(topics.map((t) => [t.title, t.segments.map((s) => s.text)])).toEqual([
+      ['ハーネス', ['## ハーネス\n\n', '定義。']],
+      ['ループ', ['## ループ\n\n**詳しく**\n']],
+      ['評価', ['## 評価\n', '説明。']],
+    ]);
+  });
 });

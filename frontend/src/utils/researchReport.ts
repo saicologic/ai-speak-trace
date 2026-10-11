@@ -12,18 +12,30 @@ const MARKER = /⟦([\d,;]+)⟧/g;
 
 /**
  * 統合分析を論点（「## 見出し」）ごとに分ける（最初の見出しより前の文は、見出しなしの論点にする）
+ * 見出しは行ごとに探す（評価で除いた文から残した見出しは、空行や項目名と一緒の断片になっているため）
  */
 export function splitTopics(segments: ReportSegment[]): { title: string | null; segments: ReportSegment[] }[] {
   const topics: { title: string | null; segments: ReportSegment[] }[] = [];
+  const append = (segment: ReportSegment) => {
+    if (topics.length === 0) topics.push({ title: null, segments: [] });
+    topics[topics.length - 1].segments.push(segment);
+  };
   for (const segment of segments) {
-    const heading = segment.text.trim().match(/^#{1,6}\s+(.+)$/);
-    if (heading) {
-      topics.push({ title: heading[1].trim(), segments: [segment] });
-    } else if (topics.length === 0) {
-      topics.push({ title: null, segments: [segment] });
-    } else {
-      topics[topics.length - 1].segments.push(segment);
+    // 根拠の付いた文は、根拠を保つために分けない
+    const headings = segment.citations.length === 0 ? [...segment.text.matchAll(/^#{1,6}\s+(.+)$/gm)] : [];
+    if (headings.length === 0) {
+      append(segment);
+      continue;
     }
+    const before = segment.text.slice(0, headings[0].index);
+    if (before.trim()) append({ text: before, citations: [] });
+    headings.forEach((heading, i) => {
+      const end = headings[i + 1]?.index ?? segment.text.length;
+      topics.push({
+        title: heading[1].trim(),
+        segments: [{ text: segment.text.slice(heading.index, end), citations: [] }],
+      });
+    });
   }
   return topics;
 }
