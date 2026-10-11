@@ -281,7 +281,7 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
 
 ## 判定
 - claims: すべての番号について判定する
-  - factual: 事実を述べる文なら true。見出し、つなぎの文、「推測:」と明記した文は false
+  - factual: 事実を述べる文なら true。見出し、つなぎの文、「推測:」と明記した文は false。「提供された文書に記載がない」「公式情報では確認できない」のように、根拠がないこと自体を述べる文も false
   - verdict: factual が true の場合、根拠が文の内容を裏付けていれば supported、一部だけなら partial、裏付けていない・根拠がなければ unsupported。factual が false なら not_applicable
   - reason: 判定の理由を1文で
 - relevance: 各論点について、レポートがその論点に答えているか
