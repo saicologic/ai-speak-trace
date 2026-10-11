@@ -206,7 +206,11 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
       domains,
       domains,
     );
-    const definitionFound = parseDefinitionFound(official.text);
+    // 選んだサイト以外の検索結果が返った場合、「定義: あり」はその結果をもとに書かれた可能性があるため使わない
+    // （「定義: なし」は一般のサイトも調べる方向にしか働かないため、そのまま使う）
+    const parsed = parseDefinitionFound(official.text);
+    const definitionFound =
+      parsed === true && official.outsideAllowed ? null : parsed;
     if (!needsGeneralSearch(official.sources, definitionFound)) {
       return official.sources;
     }
@@ -216,8 +220,19 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
       }）`,
     );
     // 公式サイトの情報は残し、一般のサイトの情報を足す（公式サイトのページは一般の検索でも公式とする）
-    const general = await this.searchWeb(prompt, 1, undefined, domains);
-    return [...official.sources, ...general.sources];
+    try {
+      const general = await this.searchWeb(prompt, 1, undefined, domains);
+      return [...official.sources, ...general.sources];
+    } catch (error) {
+      // 一般のサイトの検索に失敗しても、公式サイトの抜粋があれば、それだけで続ける
+      if (!official.sources.some((s) => s.excerpts.length > 0)) throw error;
+      this.logger.warn(
+        `「${keyword}」の一般のサイトの検索に失敗したため、公式サイトの情報だけで続けます: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return official.sources;
+    }
   }
 
   private async searchWeb(
@@ -225,7 +240,7 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     keywordCount: number,
     allowedDomains: string[] | undefined,
     officialDomains: string[],
-  ): Promise<{ sources: WebSource[]; text: string }> {
+  ): Promise<{ sources: WebSource[]; text: string; outsideAllowed: boolean }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
     ];
@@ -260,11 +275,13 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
     }
     const sources = collectWebSources(content, officialDomains);
     // allowed_domains を指定しても、ほかのサイトの検索結果が返ることがあるため、選んだサイトのものだけを残す
+    const allowed = allowedDomains
+      ? sources.filter((s) => isOfficial(s.url, allowedDomains))
+      : sources;
     return {
-      sources: allowedDomains
-        ? sources.filter((s) => isOfficial(s.url, allowedDomains))
-        : sources,
+      sources: allowed,
       text: extractText(content),
+      outsideAllowed: allowed.length < sources.length,
     };
   }
 

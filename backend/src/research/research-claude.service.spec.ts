@@ -65,13 +65,22 @@ describe('ResearchClaudeService.researchKeyword', () => {
 
   /** Web 検索を差し替えた ResearchClaudeService（公式サイトの検索と一般のサイトの検索の結果を返す） */
   const serviceWith = (
-    official: { sources: WebSource[]; text: string },
-    general: WebSource[],
+    official: { sources: WebSource[]; text: string; outsideAllowed?: boolean },
+    general: WebSource[] | Error,
   ) => {
     const service = new ResearchClaudeService({} as ClaudeClientService);
     const searchWeb = jest.fn(
-      (_prompt: string, _count: number, allowed?: string[]) =>
-        Promise.resolve(allowed ? official : { sources: general, text: '' }),
+      (_prompt: string, _count: number, allowed?: string[]) => {
+        if (allowed)
+          return Promise.resolve({ outsideAllowed: false, ...official });
+        return general instanceof Error
+          ? Promise.reject(general)
+          : Promise.resolve({
+              sources: general,
+              text: '',
+              outsideAllowed: false,
+            });
+      },
     );
     Object.assign(service, { searchWeb });
     const research = (keyword: string, domains: string[]) =>
@@ -113,6 +122,50 @@ describe('ResearchClaudeService.researchKeyword', () => {
     );
     await research('a', ['official.com']);
     expect(searchWeb).toHaveBeenCalledTimes(2);
+  });
+
+  it('選んだサイト以外の検索結果が返った場合は、「定義: あり」を使わずに判定する', async () => {
+    const { research, searchWeb } = serviceWith(
+      {
+        sources: [source('https://official.com/a', 600)],
+        text: '定義: あり',
+        outsideAllowed: true,
+      },
+      [source('https://other.com/a', 600)],
+    );
+    await research('a', ['official.com']);
+    // 抜粋は十分なため、文字数では一般のサイトを調べない
+    expect(searchWeb).toHaveBeenCalledTimes(1);
+  });
+
+  it('選んだサイト以外の検索結果が返っても、「定義: なし」なら一般のサイトも調べる', async () => {
+    const { research, searchWeb } = serviceWith(
+      {
+        sources: [source('https://official.com/a', 600)],
+        text: '定義: なし',
+        outsideAllowed: true,
+      },
+      [source('https://other.com/a', 600)],
+    );
+    await research('a', ['official.com']);
+    expect(searchWeb).toHaveBeenCalledTimes(2);
+  });
+
+  it('一般のサイトの検索に失敗しても、公式サイトの抜粋があれば公式サイトの情報を返す', async () => {
+    const { research } = serviceWith(
+      { sources: [source('https://official.com/a', 203)], text: '定義: あり' },
+      new Error('rate limit'),
+    );
+    const sources = await research('a', ['official.com']);
+    expect(sources.map((s) => s.url)).toEqual(['https://official.com/a']);
+  });
+
+  it('一般のサイトの検索に失敗し、公式サイトの抜粋もなければ、例外を投げる', async () => {
+    const { research } = serviceWith(
+      { sources: [source('https://official.com/a', 0)], text: '' },
+      new Error('rate limit'),
+    );
+    await expect(research('a', ['official.com'])).rejects.toThrow('rate limit');
   });
 
   it('公式サイトを選ばなかった場合は、一般のサイトだけを調べる', async () => {
