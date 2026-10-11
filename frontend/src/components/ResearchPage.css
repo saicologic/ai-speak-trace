@@ -903,8 +903,9 @@
 }
 
 .research-highlights li {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid #f3f4f6;
   line-height: 1.6;
