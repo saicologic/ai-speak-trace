@@ -172,7 +172,6 @@
 
 .research-transcriptions,
 .research-domains,
-.research-jobs,
 .research-proposals,
 .research-web-sources,
 .research-citations,
@@ -210,7 +209,6 @@
 }
 
 .research-transcription-date,
-.research-job-date,
 .research-web-domain {
   color: #9ca3af;
   font-size: 0.75rem;
@@ -223,28 +221,9 @@
   overflow-wrap: anywhere;
 }
 
-.research-job {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  text-align: left;
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background-color: #ffffff;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.research-job:hover {
-  border-color: #93c5fd;
-}
-
 .research-job-status {
-  font-size: 0.72rem;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background-color: #dbeafe;
@@ -259,17 +238,6 @@
 .research-job-status.failed {
   background-color: #fee2e2;
   color: #991b1b;
-}
-
-.research-job-names {
-  flex: 1;
-  overflow-wrap: anywhere;
-}
-
-.research-job-keywords {
-  width: 100%;
-  color: #4b5563;
-  font-size: 0.8rem;
 }
 
 .research-progress {
@@ -620,4 +588,10 @@
 
 .research-review summary {
   color: #92400e;
+}
+
+/* 調査結果タブ: 選んだ調査の結果 */
+.research-result {
+  max-width: 880px;
+  margin: 0 auto;
 }
