@@ -387,15 +387,19 @@ export function sendableWords(
     .filter((w) => w.count > 0);
 }
 
-/** 見出しの行（「## 見出し」「**見出し**」） */
-const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
+/**
+ * レポートの構成の行（「## 見出し」と、統合分析の指示で決めた項目名）
+ * 判定がない文や除いた文からも、構成を保つために残す。太字の行は事実の文のこともあるため、項目名に限る
+ */
+const SECTION_LINE =
+  /^(#{1,6}\s+\S.*|\*\*(会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?)$/;
 
-/** 空行と見出しだけでできているか */
+/** 空行と構成の行だけでできているか */
 function isStructureOnly(text: string): boolean {
   return text
     .split('\n')
     .map((line) => line.trim())
-    .every((line) => line === '' || STRUCTURE_LINE.test(line));
+    .every((line) => line === '' || SECTION_LINE.test(line));
 }
 
 /** 「不足:」「推測:」と明記した注記の文（事実の主張として審査しない） */
@@ -477,7 +481,7 @@ export function evaluate(
     if (!removedIndexes.has(i)) return [segment];
     const headings = segment.text
       .split('\n')
-      .filter((line) => STRUCTURE_LINE.test(line.trim()));
+      .filter((line) => SECTION_LINE.test(line.trim()));
     return headings.length > 0
       ? [{ text: `\n\n${headings.join('\n\n')}\n`, citations: [] }]
       : [];
