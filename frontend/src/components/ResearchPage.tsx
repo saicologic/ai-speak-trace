@@ -56,8 +56,9 @@ const STEPS = [
 /** 状態ごとの、完了した段階の数と実行中の段階 */
 function stepState(status: ResearchStatus | undefined): { done: number; active: number | null } {
   switch (status) {
+    // 提案を始めた時点で、① 会話の読み込み（と送る前の確認）は終わっている
     case 'proposing':
-      return { done: 0, active: 1 };
+      return { done: 1, active: 1 };
     case 'awaiting_confirmation':
       return { done: 1, active: 1 };
     case 'researching':
