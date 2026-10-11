@@ -7,6 +7,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ResearchService } from './research.service';
+import { ResearchTarget } from './types/research.types';
 
 /** ディープサーチ（調査）のAPI */
 @Controller('research')
@@ -59,19 +60,40 @@ export class ResearchController {
     };
   }
 
-  /** キーワードと公式サイトの確定（③Web調査・④統合分析・⑤評価）: POST /api/research/:id/confirm */
+  /**
+   * キーワードとキーワードごとの公式サイトの確定（③Web調査・④統合分析・⑤評価）: POST /api/research/:id/confirm
+   * body: { targets: [{ keyword, domains }] }（以前の形式 { keywords, domains } も受け付け、全キーワードで同じサイトを調べる）
+   */
   @Post(':id/confirm')
   async confirm(
     @Param('id') id: string,
-    @Body() body: { keywords?: unknown; domains?: unknown },
+    @Body() body: { targets?: unknown; keywords?: unknown; domains?: unknown },
   ) {
-    return {
-      job: await this.researchService.confirm(
-        id,
-        requireStringArray(body?.keywords ?? [], 'keywords'),
-        requireStringArray(body?.domains ?? [], 'domains'),
-      ),
-    };
+    let targets: ResearchTarget[];
+    if (body?.targets !== undefined) {
+      if (
+        !Array.isArray(body.targets) ||
+        !body.targets.every(
+          (t: unknown) =>
+            typeof t === 'object' &&
+            t !== null &&
+            typeof (t as { keyword?: unknown }).keyword === 'string' &&
+            Array.isArray((t as { domains?: unknown }).domains) &&
+            (t as { domains: unknown[] }).domains.every(
+              (d) => typeof d === 'string',
+            ),
+        )
+      ) {
+        throw new BadRequestException('targets の形式が正しくありません');
+      }
+      targets = body.targets as ResearchTarget[];
+    } else {
+      const domains = requireStringArray(body?.domains ?? [], 'domains');
+      targets = requireStringArray(body?.keywords ?? [], 'keywords').map(
+        (keyword) => ({ keyword, domains }),
+      );
+    }
+    return { job: await this.researchService.confirm(id, targets) };
   }
 }
 

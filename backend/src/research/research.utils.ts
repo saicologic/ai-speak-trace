@@ -192,6 +192,26 @@ export function collectWebSources(
   return Array.from(byUrl.values());
 }
 
+/**
+ * キーワードごとに調べた情報源を、URL ごとに1つにまとめる
+ * 抜粋は重複を除いてつなぎ、どれかのキーワードで公式サイトとされたものは公式とする
+ */
+export function mergeWebSources(sources: WebSource[]): WebSource[] {
+  const byUrl = new Map<string, WebSource>();
+  for (const source of sources) {
+    const merged = byUrl.get(source.url);
+    if (!merged) {
+      byUrl.set(source.url, { ...source, excerpts: [...source.excerpts] });
+      continue;
+    }
+    merged.official ||= source.official;
+    for (const excerpt of source.excerpts) {
+      if (!merged.excerpts.includes(excerpt)) merged.excerpts.push(excerpt);
+    }
+  }
+  return Array.from(byUrl.values());
+}
+
 /** 統合分析に渡した文書の、元の情報源 */
 export interface AnalysisDocument {
   sourceKind: 'conversation' | 'web';

@@ -36,13 +36,32 @@ describe('ResearchController', () => {
     );
   });
 
-  it.each([[{ keywords: 'abc' }], [{ keywords: ['a'], domains: [null] }]])(
-    '確定: 不正な入力は 400 にする %j',
-    async (body) => {
-      await expect(controller.confirm('job', body)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      expect(service.confirm).not.toHaveBeenCalled();
-    },
-  );
+  it('確定: キーワードごとの公式サイトをサービスに渡す', async () => {
+    const targets = [{ keyword: 'ハーネス', domains: ['anthropic.com'] }];
+    await controller.confirm('job', { targets });
+    expect(service.confirm).toHaveBeenCalledWith('job', targets);
+  });
+
+  it('確定: 以前の形式は、すべてのキーワードで同じ公式サイトを調べる', async () => {
+    await controller.confirm('job', {
+      keywords: ['a', 'b'],
+      domains: ['x.com'],
+    });
+    expect(service.confirm).toHaveBeenCalledWith('job', [
+      { keyword: 'a', domains: ['x.com'] },
+      { keyword: 'b', domains: ['x.com'] },
+    ]);
+  });
+
+  it.each([
+    [{ keywords: 'abc' }],
+    [{ keywords: ['a'], domains: [null] }],
+    [{ targets: [{ keyword: 'a', domains: [1] }] }],
+    [{ targets: 'a' }],
+  ])('確定: 不正な入力は 400 にする %j', async (body) => {
+    await expect(controller.confirm('job', body)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(service.confirm).not.toHaveBeenCalled();
+  });
 });

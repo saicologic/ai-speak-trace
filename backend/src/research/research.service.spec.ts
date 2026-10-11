@@ -230,8 +230,8 @@ describe('ResearchService', () => {
   it('同じ調査の確定を同時に2回受けた場合、2回目を拒否する', async () => {
     const { service, jobStore } = setup(baseJob);
     const results = await Promise.allSettled([
-      service.confirm('job-1', ['ハーネス'], []),
-      service.confirm('job-1', ['ハーネス'], []),
+      service.confirm('job-1', [{ keyword: 'ハーネス', domains: [] }]),
+      service.confirm('job-1', [{ keyword: 'ハーネス', domains: [] }]),
     ]);
     expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
     expect(
