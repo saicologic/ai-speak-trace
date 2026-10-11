@@ -58,6 +58,10 @@ data/analysis-logs/*
 !data/analysis-logs/.gitkeep
 data/summary-logs/*
 !data/summary-logs/.gitkeep
+data/deep-search-logs/
+data/research-jobs/
+data/privacy-scans/
+data/utterance-embeddings/
 
 # Runtime data
 pids
