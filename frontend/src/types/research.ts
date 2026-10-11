@@ -57,6 +57,26 @@ export interface WebSource {
   excerpts: string[];
 }
 
+/** Claude に送る前・提案の直後に行った確認の結果 */
+export interface PreSendChecks {
+  /** 個人情報チェック（Guardrail ID）が設定されているか */
+  privacyConfigured: boolean;
+  /** 会話ごとの個人情報チェックの結果 */
+  privacy: {
+    transcriptionId: string;
+    scanned: boolean;
+    maskedKinds: number;
+    maskedCount: number;
+    needsReview: number;
+  }[];
+  /** 伏せた文字列を含むため、キーワード提案の参考に送らなかった頻出語の数 */
+  droppedFrequentWords?: number;
+  /** 会話に出てこないため、提案から外したキーワード */
+  droppedKeywords?: string[];
+  /** 会話の原文と一致しないため、外した引用の数 */
+  droppedQuotes?: number;
+}
+
 /** 会話でキーワードが話題になった発言 */
 export interface KeywordMention {
   transcriptionId: string;
@@ -178,6 +198,8 @@ export interface ResearchJob {
   evaluation?: ResearchEvaluation;
   /** 確定したキーワードが会話で話題になった発言（キーワードごと） */
   mentions?: KeywordMentions[];
+  /** ① 会話の読み込みの後、Claude に送る前・提案の直後に行った確認（以前の調査にはない） */
+  preSendChecks?: PreSendChecks;
   /** 使ったモデル */
   models: { analysis: string; judge?: string };
 }

@@ -2,6 +2,7 @@ import { TranscriptionStoreService } from '../transcription/transcription-store.
 import { RawJudgement, ResearchClaudeService } from './research-claude.service';
 import { ResearchJobStore } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { evaluate, ResearchService, sendableWords } from './research.service';
 import { Transcription } from '../transcription/types/transcription.types';
 import { ReportSegment, ResearchJob } from './types/research.types';
@@ -217,6 +218,7 @@ describe('ResearchService', () => {
       jobStore as unknown as ResearchJobStore,
       {} as ResearchClaudeService,
       { isConfigured: () => false } as unknown as GuardrailService,
+      {} as PrivacyService,
     );
     return {
       service,
@@ -268,5 +270,101 @@ describe('sendableWords', () => {
         ],
       ),
     ).toEqual([{ word: 'Claude Code', count: 2 }]);
+  });
+});
+
+describe('ResearchService（送る前の確認）', () => {
+  it('個人情報チェックの結果と、提案から外したキーワード・引用・頻出語を記録する', async () => {
+    const transcription = {
+      id: 't1',
+      audioFileName: 'a.mp3',
+      utterances: [
+        {
+          speakerName: 'Aさん',
+          start: 0,
+          text: '[氏名]さんとハーネスの話をした',
+        },
+      ],
+    } as unknown as Transcription;
+    let saved: ResearchJob | null = null;
+    const jobStore = {
+      findById: jest.fn(() => Promise.resolve(saved)),
+      save: jest.fn((job: ResearchJob) => {
+        saved = job;
+        return Promise.resolve();
+      }),
+    };
+    const claude = {
+      proposeKeywords: jest.fn(() =>
+        Promise.resolve({
+          keywords: [
+            {
+              keyword: 'ハーネス',
+              reason: '理由',
+              quotes: ['ハーネスの話をした', '作り話の引用'],
+              domains: [],
+            },
+            {
+              keyword: '会話にない語',
+              reason: '理由',
+              quotes: [],
+              domains: [],
+            },
+          ],
+        }),
+      ),
+    };
+    const privacy = {
+      getStatus: jest.fn(() =>
+        Promise.resolve({
+          configured: true,
+          scanning: false,
+          scan: {
+            findings: [
+              { mask: true, needsReview: false, count: 3 },
+              { mask: false, needsReview: true, count: 1 },
+              { mask: false, needsReview: false, count: 5 },
+            ],
+          },
+        }),
+      ),
+    };
+    const service = new ResearchService(
+      {
+        findForSending: jest.fn(() => Promise.resolve(transcription)),
+      } as unknown as TranscriptionStoreService,
+      jobStore as unknown as ResearchJobStore,
+      claude as unknown as ResearchClaudeService,
+      { isConfigured: () => false } as unknown as GuardrailService,
+      privacy as unknown as PrivacyService,
+    );
+
+    await service.start(
+      ['t1'],
+      [
+        { word: 'ハーネス', count: 1 },
+        { word: '金井', count: 4 },
+      ],
+    );
+    // 提案はバックグラウンドで進むため、保存されるまで待つ
+    for (let i = 0; i < 10 && saved?.status !== 'awaiting_confirmation'; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    expect(saved!.preSendChecks).toEqual({
+      privacyConfigured: true,
+      privacy: [
+        {
+          transcriptionId: 't1',
+          scanned: true,
+          maskedKinds: 1,
+          maskedCount: 3,
+          needsReview: 1,
+        },
+      ],
+      droppedFrequentWords: 1,
+      droppedKeywords: ['会話にない語'],
+      droppedQuotes: 1,
+    });
   });
 });

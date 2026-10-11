@@ -812,3 +812,9 @@
   gap: 0.35rem;
   padding: 0.2rem 0;
 }
+
+/* 送る前の確認で、注意が必要な項目 */
+.research-checks li.warning .research-check-mark {
+  color: #d97706;
+  font-weight: 700;
+}
