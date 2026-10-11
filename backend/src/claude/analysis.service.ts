@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type Anthropic from '@anthropic-ai/sdk';
-import { ClaudeClientService } from './claude-client.service';
+import {
+  ClaudeClientService,
+  CreateMessageOptions,
+} from './claude-client.service';
+import { ContentWarning } from './claude-guard.utils';
 import { AnalysisResult } from '../interview/types/interview.types';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
 
-/** 会話分析・Web検索・ディープサーチ分析に使うClaudeモデル */
+/** 会話分析・発言の文脈・ディープサーチに使うClaudeモデル */
 export const CLAUDE_MODEL = 'claude-sonnet-5-5';
 
 /** 思考の深さ（Sonnet 5.5 の既定は high。分析・要約用途のため medium に下げる） */
@@ -12,13 +16,6 @@ const CLAUDE_EFFORT = 'medium';
 
 /** 出力の上限トークン数（思考のトークンも含まれるため余裕を持たせる） */
 const MAX_TOKENS = 16000;
-
-/** 検索結果の情報源の表示名（分析の指示に使う） */
-const SOURCE_LABELS: Record<string, string> = {
-  conversation: '会話',
-  pdf: '社内資料（PDF）',
-  web: 'Web',
-};
 
 /** Web検索の1回のリクエストで pause_turn から再開する上限回数 */
 const MAX_PAUSE_CONTINUATIONS = 3;
@@ -38,7 +35,7 @@ export interface WebSource {
   excerpts: string[];
 }
 
-/** 会話分析・Web検索・ディープサーチ分析を担うサービス */
+/** 会話分析・発言の文脈を担うサービス */
 @Injectable()
 export class AnalysisService {
   private readonly logger = new Logger(AnalysisService.name);
@@ -122,7 +119,10 @@ ${targetList}
 
     const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
 
-    const text = await this.createText(prompt);
+    const { text } = await this.createText(prompt, {
+      purpose: 'analysis-questions',
+      untrusted: [speakerName, ...keywords],
+    });
     const questions = text
       .split('\n')
       .map((line) => line.trim())
@@ -137,19 +137,21 @@ ${targetList}
     questions: string[],
     keywords: string[],
     speakerName: string,
-  ): Promise<AnalysisResult[]> {
+  ): Promise<{ results: AnalysisResult[]; warnings: ContentWarning[] }> {
     this.logger.log(`分析開始: 質問数=${questions.length}`);
 
     const results: AnalysisResult[] = [];
+    const warnings: ContentWarning[] = [];
 
     for (const question of questions) {
       try {
-        const result = await this.analyzeQuestion(
+        const { warnings: found, ...result } = await this.analyzeQuestion(
           question,
           keywords,
           speakerName,
         );
         results.push(result);
+        warnings.push(...found);
       } catch (error) {
         this.logger.error(`質問の分析に失敗: ${question}`, error);
         results.push({
@@ -161,7 +163,7 @@ ${targetList}
     }
 
     this.logger.log(`分析完了: ${results.length}件`);
-    return results;
+    return { results, warnings: mergeWarnings(warnings) };
   }
 
   /** 1つの質問に対してWeb検索付き分析を実行 */
@@ -169,22 +171,27 @@ ${targetList}
     question: string,
     keywords: string[],
     speakerName: string,
-  ): Promise<AnalysisResult> {
+  ): Promise<AnalysisResult & { warnings: ContentWarning[] }> {
     const prompt = this.buildAnalysisPrompt(question, keywords, speakerName);
 
-    const { answer, sources } = await this.createWithWebSearch(
+    const { answer, sources, warnings } = await this.createWithWebSearch(
       prompt,
       'web_search_20260209',
+      // 質問は Claude が生成した文のため、会話から来たキーワード・話者名と同じく外からの内容として扱う
+      { purpose: 'analysis', untrusted: [question, speakerName, ...keywords] },
     );
 
-    return { question, answer, sources };
+    return { question, answer, sources, warnings };
   }
 
   /** 発言の文脈を分析 */
   async analyzeContext(
     allUtterances: { speakerName: string; text: string }[],
     targetIndices: number[],
-  ): Promise<{ index: number; intent: string; topic: string }[]> {
+  ): Promise<{
+    results: { index: number; intent: string; topic: string }[];
+    warnings: ContentWarning[];
+  }> {
     this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
 
     const prompt = this.buildContextAnalysisPrompt(
@@ -192,7 +199,12 @@ ${targetList}
       targetIndices,
     );
 
-    const text = await this.createText(prompt);
+    const { text, warnings } = await this.createText(prompt, {
+      purpose: 'context',
+      untrusted: allUtterances.map(
+        (u, i) => `[${i}] ${u.speakerName}: ${u.text}`,
+      ),
+    });
 
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -207,114 +219,67 @@ ${targetList}
     }[];
 
     this.logger.log(`文脈分析完了: ${parsed.length}件`);
-    return parsed;
+    return { results: parsed, warnings };
   }
 
-  /** テキストをWeb検索で調査し、Markdown形式で回答を返す */
-  async searchAndAnalyze(
-    keywords: string[],
-    context: string,
-  ): Promise<{ answer: string; sources: WebSource[] }> {
-    const prompt = `以下のキーワードと文脈に基づいて、Web検索で調査し回答してください。
-
-## キーワード
-${keywords.map((kw) => `- ${kw}`).join('\n')}
-
-## 文脈
-${context}
-
-## 回答形式
-- Markdown形式で回答してください
-- 調査結果を簡潔にまとめてください（300〜500文字程度）`;
-
-    // ディープサーチでは引用本文を検索結果として使うため、引用が付く従来版を使う
-    const { answer, sources } = await this.createWithWebSearch(
-      prompt,
-      'web_search_20250305',
-    );
-
-    return { answer, sources };
-  }
-
-  /** 検索結果をまとめて分析 */
-  async analyzeSearchResults(
-    keywords: string[],
-    results: { sourceType: string; sourceName: string; text: string }[],
-  ): Promise<string> {
-    const resultsText = results
-      .map(
-        (r, i) =>
-          `[${i + 1}] (${SOURCE_LABELS[r.sourceType] ?? r.sourceType}) ${r.sourceName}\n${r.text}`,
-      )
-      .join('\n\n');
-
-    // 実際に検索した情報源だけを指示に書く（検索していない情報源について書かせないため）
-    const sources = [...new Set(results.map((r) => r.sourceType))].map(
-      (type) => SOURCE_LABELS[type] ?? type,
-    );
-    const relationInstruction =
-      sources.length > 1 && sources.includes(SOURCE_LABELS.conversation)
-        ? '\n- 会話で話された内容と、ほかの情報源の情報がどう関連するかを分析してください'
-        : '';
-
-    const prompt = `以下のキーワードの組み合わせに関連する検索結果を分析し、総合的なレポートを作成してください。
-
-## キーワード（まとめて1つの観点として扱う）
-${keywords.map((kw) => `- ${kw}`).join('\n')}
-
-## 検索結果
-${resultsText}
-
-## 指示
-- 検索結果に含まれる情報源（${sources.join('・')}）の情報を総合してまとめてください${relationInstruction}
-- 各主張の末尾に、根拠となる検索結果の番号を [1] や [2][5] の形式で付けてください
-- 検索結果に根拠がない内容は書かないでください。推測を書く場合は推測であると明記してください
-- Markdown形式で構造化して出力してください
-- 重要なポイントを箇条書きでまとめてください`;
-
-    return this.createText(prompt);
-  }
-
-  /** Web検索なしでClaudeを呼び出し、テキストを返す */
-  private async createText(prompt: string): Promise<string> {
-    const response = await this.claudeClient.createMessage({
-      model: CLAUDE_MODEL,
-      max_tokens: MAX_TOKENS,
-      output_config: { effort: CLAUDE_EFFORT },
-      messages: [{ role: 'user', content: prompt }],
-    });
-    assertCompleteResponse(response);
-    return extractText(response.content);
+  /** Web検索なしでClaudeを呼び出し、テキストと警告を返す */
+  private async createText(
+    prompt: string,
+    options: CreateMessageOptions,
+  ): Promise<{ text: string; warnings: ContentWarning[] }> {
+    const { message, warnings } =
+      await this.claudeClient.createMessageWithReport(
+        {
+          model: CLAUDE_MODEL,
+          max_tokens: MAX_TOKENS,
+          output_config: { effort: CLAUDE_EFFORT },
+          messages: [{ role: 'user', content: prompt }],
+        },
+        options,
+      );
+    assertCompleteResponse(message);
+    return { text: extractText(message.content), warnings };
   }
 
   /** Web検索付きでClaudeを呼び出し、回答テキストと参照元を返す */
   private async createWithWebSearch(
     prompt: string,
     toolType: WebSearchToolType,
-  ): Promise<{ answer: string; sources: WebSource[] }> {
+    options: CreateMessageOptions,
+  ): Promise<{
+    answer: string;
+    sources: WebSource[];
+    warnings: ContentWarning[];
+  }> {
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: prompt },
     ];
     const content: Anthropic.ContentBlock[] = [];
+    const warnings: ContentWarning[] = [];
     // 回答テキストは最後（完了した）応答だけから取り出す。中断前の途中の文章を混ぜないため
     let finalContent: Anthropic.ContentBlock[] | null = null;
 
     // サーバー側ツールの実行が長引くと pause_turn で中断されるため、応答を履歴に足して再開する
     for (let i = 0; i <= MAX_PAUSE_CONTINUATIONS; i++) {
-      const response = await this.claudeClient.createMessage({
-        model: CLAUDE_MODEL,
-        max_tokens: MAX_TOKENS,
-        output_config: { effort: CLAUDE_EFFORT },
-        tools: [
+      const { message: response, warnings: found } =
+        await this.claudeClient.createMessageWithReport(
           {
-            type: toolType,
-            name: 'web_search',
-            max_uses: 3,
+            model: CLAUDE_MODEL,
+            max_tokens: MAX_TOKENS,
+            output_config: { effort: CLAUDE_EFFORT },
+            tools: [
+              {
+                type: toolType,
+                name: 'web_search',
+                max_uses: 3,
+              },
+            ],
+            messages,
           },
-        ],
-        messages,
-      });
+          options,
+        );
       assertCompleteResponse(response);
+      warnings.push(...found);
       content.push(...response.content);
       if (response.stop_reason !== 'pause_turn') {
         finalContent = response.content;
@@ -362,6 +327,17 @@ ${resultsText}
     return {
       answer: extractText(finalContent),
       sources: Array.from(sourcesByUrl.values()),
+      warnings: mergeWarnings(warnings),
     };
   }
+}
+
+/** 警告を種類ごとに1件にまとめる（信頼度が高い方を残す） */
+export function mergeWarnings(warnings: ContentWarning[]): ContentWarning[] {
+  const byType = new Map<string, ContentWarning>();
+  for (const w of warnings) {
+    if (byType.get(w.type)?.confidence === 'HIGH') continue;
+    byType.set(w.type, w);
+  }
+  return [...byType.values()];
 }

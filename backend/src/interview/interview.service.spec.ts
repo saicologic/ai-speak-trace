@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
-import { AnalysisService } from '../claude/analysis.service';
+import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
 import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
@@ -141,13 +141,18 @@ describe('InterviewService', () => {
   describe('analyze', () => {
     it('分析を実行してログに保存する', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.analyze.mockResolvedValue([
-        { question: 'q1', answer: 'a1', sources: [] },
-      ]);
+      claudeService.analyze.mockResolvedValue({
+        results: [{ question: 'q1', answer: 'a1', sources: [] }],
+        warnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }],
+      });
       analysisLogStorage.save.mockResolvedValue(undefined);
 
       const result = await service.analyze('sample', 'speaker_0', ['kw'], ['q1']);
 
+      expect(result.model).toBe(CLAUDE_MODEL);
+      expect(result.contentWarnings).toEqual([
+        { type: 'INSULTS', confidence: 'MEDIUM' },
+      ]);
       expect(result.transcriptionId).toBe('sample');
       expect(result.speakerName).toBe('Aさん');
       expect(result.keywords).toEqual(['kw']);
@@ -206,9 +211,18 @@ describe('InterviewService', () => {
       const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
       store.findForSending.mockResolvedValue(sampleTranscription);
       summaryService.summarize.mockResolvedValue({
-        overview: '会話の概要',
-        key_points: [{ topic: 'テーマ1', summary: '要点1' }],
-        decisions: ['決定事項1'],
+        summary: {
+          overview: '会話の概要',
+          key_points: [
+            {
+              topic: 'テーマ1',
+              summary: '要点1',
+              evidence: ['こん にちは', '会話にない引用'],
+            },
+          ],
+          decisions: ['決定事項1'],
+        },
+        warnings: [],
       });
       summaryLogStorage.save.mockResolvedValue(undefined);
 
@@ -223,6 +237,18 @@ describe('InterviewService', () => {
       expect(result.transcriptionId).toBe('sample');
       expect(result.overview).toBe('会話の概要');
       expect(result.model).toBe('claude-sonnet-5-5');
+      // 根拠は会話にある引用だけを、発言の位置と一緒に残す
+      expect(result.key_points).toEqual([
+        {
+          topic: 'テーマ1',
+          summary: '要点1',
+          evidence: [
+            { quote: 'こん にちは', utteranceIndex: 0, speakerName: 'Aさん', start: 0 },
+          ],
+        },
+      ]);
+      expect(result.droppedEvidenceCount).toBe(1);
+      expect(result.contentWarnings).toEqual([]);
     });
   });
 
@@ -238,13 +264,16 @@ describe('InterviewService', () => {
   describe('analyzeContext', () => {
     it('発話の文脈を分析して結果を返す', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.analyzeContext.mockResolvedValue([
-        { index: 1, intent: '説明', topic: '挨拶' },
-      ]);
+      claudeService.analyzeContext.mockResolvedValue({
+        results: [{ index: 1, intent: '説明', topic: '挨拶' }],
+        warnings: [],
+      });
 
       const result = await service.analyzeContext('sample', [1]);
 
       expect(result.transcriptionId).toBe('sample');
+      expect(result.model).toBe(CLAUDE_MODEL);
+      expect(result.contentWarnings).toEqual([]);
       expect(result.results).toHaveLength(1);
       expect(result.results[0].utteranceIndex).toBe(1);
       expect(result.results[0].intent).toBe('説明');
@@ -255,9 +284,10 @@ describe('InterviewService', () => {
 
     it('インデックス0の発話はpreviousUtteranceがnull', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.analyzeContext.mockResolvedValue([
-        { index: 0, intent: '質問', topic: '挨拶' },
-      ]);
+      claudeService.analyzeContext.mockResolvedValue({
+        results: [{ index: 0, intent: '質問', topic: '挨拶' }],
+        warnings: [],
+      });
 
       const result = await service.analyzeContext('sample', [0]);
 
@@ -266,7 +296,10 @@ describe('InterviewService', () => {
 
     it('LLMの結果がない発話はデフォルト値を使う', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.analyzeContext.mockResolvedValue([]);
+      claudeService.analyzeContext.mockResolvedValue({
+        results: [],
+        warnings: [],
+      });
 
       const result = await service.analyzeContext('sample', [0]);
 

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { AnalysisService } from '../claude/analysis.service';
+import { AnalysisService, CLAUDE_MODEL } from '../claude/analysis.service';
 import { SummaryService } from '../claude/summary.service';
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
@@ -10,6 +10,7 @@ import {
   UtteranceContextResult,
   ContextAnalysisResponse,
 } from './types/interview.types';
+import { verifySummaryEvidence } from './interview.utils';
 
 /** 会話分析のビジネスロジックを担当するサービス */
 @Injectable()
@@ -91,7 +92,7 @@ export class InterviewService {
       `分析開始: ${speakerName}, キーワード=${keywords.length}件, 質問=${questions.length}件`,
     );
 
-    const results = await this.analysisService.analyze(
+    const { results, warnings } = await this.analysisService.analyze(
       questions,
       keywords,
       speakerName,
@@ -105,6 +106,8 @@ export class InterviewService {
       keywords,
       results,
       createdAt: new Date().toISOString(),
+      model: CLAUDE_MODEL,
+      contentWarnings: warnings,
     };
 
     // 分析結果を過去ログとして保存
@@ -150,21 +153,27 @@ export class InterviewService {
     }
 
     this.logger.log(`要約開始: transcriptionId=${transcriptionId}, model=${model}`);
-    const result = await this.summaryService.summarize(
+    const { summary: result, warnings } = await this.summaryService.summarize(
       transcription.fullText,
       model,
       promptTemplate,
+    );
+    const { keyPoints, dropped } = verifySummaryEvidence(
+      result.key_points,
+      transcription.utterances,
     );
 
     const summary: TranscriptionSummaryLog = {
       id: uuidv4(),
       transcriptionId,
       overview: result.overview,
-      key_points: result.key_points,
+      key_points: keyPoints,
       decisions: result.decisions,
       createdAt: new Date().toISOString(),
       model,
       prompt: promptTemplate,
+      droppedEvidenceCount: dropped,
+      contentWarnings: warnings,
     };
 
 
@@ -209,7 +218,8 @@ export class InterviewService {
     }));
 
     // Claude APIで意図・話題を分析
-    const llmResults = await this.analysisService.analyzeContext(
+    const { results: llmResults, warnings } =
+      await this.analysisService.analyzeContext(
       allUtterances,
       utteranceIndices,
     );
@@ -241,6 +251,11 @@ export class InterviewService {
       };
     });
 
-    return { transcriptionId, results };
+    return {
+      transcriptionId,
+      results,
+      model: CLAUDE_MODEL,
+      contentWarnings: warnings,
+    };
   }
 }

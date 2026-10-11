@@ -152,3 +152,33 @@ describe('GuardrailService.inspect', () => {
     ).resolves.toEqual({ pii: [], words: [], content: [] });
   });
 });
+
+describe('GuardrailService.verify', () => {
+  it('指定した ID とバージョンで ApplyGuardrail を呼ぶ', async () => {
+    const service = new GuardrailService({
+      get: (_key: string, fallback?: string) => fallback,
+    } as unknown as ConfigService);
+    const send = jest.fn().mockResolvedValue({ assessments: [] });
+    Object.assign(service, { client: { send } });
+
+    await service.verify('gr-1', '3');
+
+    const [[command]] = send.mock.calls as [[{ input: object }]];
+    expect(command.input).toMatchObject({
+      guardrailIdentifier: 'gr-1',
+      guardrailVersion: '3',
+      source: 'INPUT',
+    });
+  });
+
+  it('呼べなかった場合は例外を返す', async () => {
+    const service = new GuardrailService({
+      get: (_key: string, fallback?: string) => fallback,
+    } as unknown as ConfigService);
+    Object.assign(service, {
+      client: { send: jest.fn().mockRejectedValue(new Error('NotFound')) },
+    });
+
+    await expect(service.verify('gr-1', '99')).rejects.toThrow('NotFound');
+  });
+});

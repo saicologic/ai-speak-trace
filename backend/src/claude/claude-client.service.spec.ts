@@ -1,6 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { BadRequestException } from '@nestjs/common';
-import { ClaudeClientService } from './claude-client.service';
+import {
+  ClaudeClientService,
+  ETHICS_SYSTEM_PROMPT,
+  withEthicsSystem,
+} from './claude-client.service';
+import { ClaudeAuditRecord, ClaudeAuditStore } from './claude-audit.store';
 import {
   GuardrailFindings,
   GuardrailService,
@@ -34,16 +39,29 @@ describe('ClaudeClientService.createMessage', () => {
   let guardrail: {
     isConfigured: jest.Mock;
     inspect: jest.Mock;
+    guardrailId: string;
+    guardrailVersion: string;
   };
+  let auditStore: { append: jest.Mock };
   let service: ClaudeClientService;
+
+  /** 最後に記録した呼び出し */
+  const lastAudit = () =>
+    auditStore.append.mock.calls.at(-1)?.[0] as ClaudeAuditRecord;
 
   beforeEach(() => {
     mockCreate.mockReset();
     guardrail = {
       isConfigured: jest.fn().mockReturnValue(true),
       inspect: jest.fn().mockResolvedValue(noFindings()),
+      guardrailId: 'gr-1',
+      guardrailVersion: '2',
     };
-    service = new ClaudeClientService(guardrail as unknown as GuardrailService);
+    auditStore = { append: jest.fn().mockResolvedValue(undefined) };
+    service = new ClaudeClientService(
+      guardrail as unknown as GuardrailService,
+      auditStore as unknown as ClaudeAuditStore,
+    );
   });
 
   it('Guardrail ID が未設定なら Claude に送らない', async () => {
@@ -199,5 +217,193 @@ describe('ClaudeClientService.createMessage', () => {
       }),
     ).rejects.toThrow('チェックできない内容');
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('system の先頭に AI倫理の指示を付けて送る（Guardrails の確認には含めない）', async () => {
+    mockCreate.mockResolvedValue(textResponse('了解しました'));
+    await service.createMessage({ ...params, system: 'あなたは要約係です' });
+    const [[sent]] = mockCreate.mock.calls as [
+      [Anthropic.MessageCreateParamsNonStreaming],
+    ];
+    expect(sent.system).toEqual([
+      { type: 'text', text: ETHICS_SYSTEM_PROMPT },
+      { type: 'text', text: 'あなたは要約係です' },
+    ]);
+    expect(guardrail.inspect.mock.calls[0][0]).not.toContain(
+      ETHICS_SYSTEM_PROMPT,
+    );
+  });
+
+  it('応答に信頼度 HIGH の不適切な表現が検出されたら、応答を使わない', async () => {
+    mockCreate.mockResolvedValue(textResponse('ひどい言葉'));
+    guardrail.inspect
+      .mockResolvedValueOnce(noFindings())
+      .mockResolvedValueOnce({
+        ...noFindings(),
+        content: [{ type: 'INSULTS', confidence: 'HIGH' }],
+      });
+    await expect(service.createMessage(params)).rejects.toThrow(
+      '不適切な表現（侮辱）',
+    );
+    expect(lastAudit()).toMatchObject({
+      outcome: 'blocked_output',
+      output: { content: [{ type: 'INSULTS', confidence: 'HIGH' }] },
+    });
+  });
+
+  it('応答に信頼度 MEDIUM の不適切な表現が検出されたら、警告として返す', async () => {
+    mockCreate.mockResolvedValue(textResponse('強い言葉'));
+    guardrail.inspect
+      .mockResolvedValueOnce(noFindings())
+      .mockResolvedValueOnce({
+        ...noFindings(),
+        content: [
+          { type: 'VIOLENCE', confidence: 'MEDIUM' },
+          { type: 'MISCONDUCT', confidence: 'LOW' },
+        ],
+      });
+    const { message, warnings } = await service.createMessageWithReport(params);
+    expect(message.content[0]).toMatchObject({ text: '強い言葉' });
+    expect(warnings).toEqual([{ type: 'VIOLENCE', confidence: 'MEDIUM' }]);
+  });
+
+  it('送って応答を返した呼び出しを、検出した文字列を残さずに記録する', async () => {
+    guardrail.inspect.mockResolvedValueOnce({
+      ...noFindings(),
+      pii: [{ type: 'PHONE', match: '090-1234-5678' }],
+    });
+    mockCreate.mockResolvedValue(textResponse('了解しました'));
+    await service.createMessage(params, { purpose: 'summary' });
+    const record = lastAudit();
+    expect(record).toMatchObject({
+      purpose: 'summary',
+      model: 'claude-sonnet-5-5',
+      guardrailId: 'gr-1',
+      guardrailVersion: '2',
+      outcome: 'sent',
+      input: { piiTypes: { PHONE: 1 }, masked: 1, content: [] },
+      output: { piiTypes: {}, masked: 0, content: [] },
+    });
+    expect(JSON.stringify(record)).not.toContain('090-1234-5678');
+  });
+
+  it('プロンプト攻撃で止めた呼び出しを記録する', async () => {
+    guardrail.inspect.mockResolvedValueOnce({
+      ...noFindings(),
+      content: [{ type: 'PROMPT_ATTACK', confidence: 'HIGH' }],
+    });
+    await expect(service.createMessage(params)).rejects.toThrow();
+    expect(lastAudit()).toMatchObject({
+      purpose: 'other',
+      outcome: 'blocked_input',
+    });
+  });
+
+  it('Guardrails の確認に失敗した呼び出しを、エラーとして記録する', async () => {
+    guardrail.inspect.mockRejectedValueOnce(new Error('AccessDenied'));
+    await expect(service.createMessage(params)).rejects.toThrow();
+    expect(lastAudit()).toMatchObject({
+      outcome: 'error',
+      reason: 'AccessDenied',
+    });
+  });
+
+  describe('外からの内容（untrusted）を指定した場合', () => {
+    const summaryParams: Anthropic.MessageCreateParamsNonStreaming = {
+      ...params,
+      messages: [
+        { role: 'user', content: '次の会話を要約して。\n会話: こんにちは' },
+      ],
+    };
+
+    it('アプリの指示と外からの内容を分けて確認する', async () => {
+      mockCreate.mockResolvedValue(textResponse('要約'));
+      await service.createMessage(summaryParams, {
+        untrusted: ['こんにちは'],
+      });
+      expect(guardrail.inspect.mock.calls.slice(0, 2)).toEqual([
+        [
+          '次の会話を要約して。\n会話: \n',
+          'INPUT',
+          { requireFullCoverage: true },
+        ],
+        ['こんにちは', 'INPUT', { requireFullCoverage: true }],
+      ]);
+    });
+
+    it('アプリの指示のプロンプト攻撃の検出では止めない', async () => {
+      guardrail.inspect
+        .mockResolvedValueOnce({
+          ...noFindings(),
+          content: [{ type: 'PROMPT_ATTACK', confidence: 'HIGH' }],
+        })
+        .mockResolvedValueOnce(noFindings());
+      mockCreate.mockResolvedValue(textResponse('要約'));
+      await expect(
+        service.createMessage(summaryParams, { untrusted: ['こんにちは'] }),
+      ).resolves.toBeDefined();
+    });
+
+    it('外からの内容にプロンプト攻撃が検出されたら送らない', async () => {
+      guardrail.inspect
+        .mockResolvedValueOnce(noFindings())
+        .mockResolvedValueOnce({
+          ...noFindings(),
+          content: [{ type: 'PROMPT_ATTACK', confidence: 'HIGH' }],
+        });
+      await expect(
+        service.createMessage(summaryParams, { untrusted: ['こんにちは'] }),
+      ).rejects.toThrow('プロンプト攻撃');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('どちらで検出した個人情報も伏せて送る', async () => {
+      guardrail.inspect
+        .mockResolvedValueOnce({
+          ...noFindings(),
+          pii: [{ type: 'EMAIL', match: 'a@example.com' }],
+        })
+        .mockResolvedValueOnce({
+          ...noFindings(),
+          pii: [{ type: 'PHONE', match: '090-1234-5678' }],
+        });
+      mockCreate.mockResolvedValue(textResponse('要約'));
+      await service.createMessage(
+        {
+          ...params,
+          messages: [
+            {
+              role: 'user',
+              content: '宛先 a@example.com\n会話: 電話は 090-1234-5678',
+            },
+          ],
+        },
+        { untrusted: ['電話は 090-1234-5678'] },
+      );
+      const [[sent]] = mockCreate.mock.calls as [
+        [Anthropic.MessageCreateParamsNonStreaming],
+      ];
+      expect(sent.messages[0].content).toBe(
+        '宛先 [メールアドレス]\n会話: 電話は [電話番号]',
+      );
+    });
+  });
+});
+
+describe('withEthicsSystem', () => {
+  it('system がない場合は AI倫理の指示だけにする', () => {
+    expect(withEthicsSystem(params).system).toEqual([
+      { type: 'text', text: ETHICS_SYSTEM_PROMPT },
+    ]);
+  });
+
+  it('system がブロックの配列の場合は、先頭に足す（キャッシュの指定は残す）', () => {
+    const system: Anthropic.TextBlockParam[] = [
+      { type: 'text', text: '指示', cache_control: { type: 'ephemeral' } },
+    ];
+    expect(withEthicsSystem({ ...params, system }).system).toEqual([
+      { type: 'text', text: ETHICS_SYSTEM_PROMPT },
+      ...system,
+    ]);
   });
 });

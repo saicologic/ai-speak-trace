@@ -58,6 +58,16 @@ describe('DerivedLogCleaner', () => {
     expect(exists('deep-search-logs', 'd2.json')).toBe(true);
   });
 
+  it('削除した文字起こしへの誤りの報告も削除する', async () => {
+    await writeLog('feedback', 'f1.json', { transcriptionId: 't1' });
+    await writeLog('feedback', 'f2.json', { transcriptionId: 't2' });
+
+    await cleaner.deleteLogsForTranscription('t1');
+
+    expect(exists('feedback', 'f1.json')).toBe(false);
+    expect(exists('feedback', 'f2.json')).toBe(true);
+  });
+
   it('想定外の形のログ（null や配列でない transcriptionIds）は消さずに残す', async () => {
     await writeLog('summary-logs', 'null.json', null as unknown as object);
     await writeLog('deep-search-logs', 'bad.json', { transcriptionIds: 123 });

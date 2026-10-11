@@ -10,6 +10,7 @@ import * as path from 'path';
  * - deep-search-logs: ディープサーチ（transcriptionIds を持つ）
  * - research-jobs: ディープサーチの調査（transcriptionIds を持つ）
  * - privacy-scans: 個人情報チェックの結果（transcriptionId を持つ）
+ * - feedback: AI が生成した結果への誤りの報告（transcriptionId を持つ）
  */
 export const DERIVED_LOG_DIRS = [
   'analysis-logs',
@@ -17,6 +18,7 @@ export const DERIVED_LOG_DIRS = [
   'deep-search-logs',
   'research-jobs',
   'privacy-scans',
+  'feedback',
 ] as const;
 
 /**
