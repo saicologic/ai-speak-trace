@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import { PrivacySendNotice } from '../PrivacyPanel';
+import { useGuardrailConfigured } from '../../hooks/usePrivacyStatuses';
 import { fetchPrivacy } from '../../api/client';
 import type { PiiFinding, PrivacyStatus } from '../../types';
 
@@ -60,5 +61,27 @@ describe('PrivacySendNotice', () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(status([finding(true, false)], false));
     render(<PrivacySendNotice transcriptionIds={['t1']} />);
     expect(await screen.findByText(/Guardrail ID）が設定されていないため、Claude に送れません/)).toBeInTheDocument();
+  });
+});
+
+describe('useGuardrailConfigured', () => {
+  it('Guardrail ID が未設定なら false を返す', async () => {
+    vi.mocked(fetchPrivacy).mockResolvedValue(status(null, false));
+    const { result } = renderHook(() => useGuardrailConfigured(['t1']));
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+
+  it('Guardrail ID が設定されていれば true を返す', async () => {
+    vi.mocked(fetchPrivacy).mockResolvedValue(status(null));
+    const { result } = renderHook(() => useGuardrailConfigured(['t1']));
+    await waitFor(() => expect(result.current).toBe(true));
+  });
+
+  it('状態を取得できなかった場合は null を返す（ボタンは止めない）', async () => {
+    vi.mocked(fetchPrivacy).mockRejectedValue(new Error('network'));
+    const { result } = renderHook(() => useGuardrailConfigured(['t1']));
+    await waitFor(() => expect(fetchPrivacy).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current).toBeNull();
   });
 });

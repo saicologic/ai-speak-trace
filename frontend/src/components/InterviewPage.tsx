@@ -5,7 +5,8 @@ import { extractKeywords } from '../utils/keywords';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
-import { PrivacySendNotice } from './PrivacyPanel';
+import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
+import { GuardrailMissingNotice, PrivacySendNotice } from './PrivacyPanel';
 
 // markedの設定: リンクを新しいタブで開く
 marked.use({
@@ -42,6 +43,8 @@ export function InterviewPage({
     new Set(),
   );
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  // Guardrail ID が未設定なら Claude に送れないため、質問の生成・分析を実行しない
+  const guardrailConfigured = useGuardrailConfigured([transcriptionId]);
   const [analysis, setAnalysis] = useState<InterviewAnalysis | null>(null);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -299,11 +302,17 @@ export function InterviewPage({
           {/* 質問生成・選択 */}
           <section className="interview-section">
             <h2>調査質問</h2>
+            {guardrailConfigured === false && <GuardrailMissingNotice />}
             <div className="interview-actions">
               <button
                 className="interview-button secondary"
                 onClick={handleGenerateQuestions}
-                disabled={generatingQuestions || analyzing || activeKeywords.length === 0}
+                disabled={
+                  generatingQuestions ||
+                  analyzing ||
+                  activeKeywords.length === 0 ||
+                  guardrailConfigured === false
+                }
               >
                 {generatingQuestions ? '生成中...' : '質問を生成'}
               </button>
@@ -336,7 +345,8 @@ export function InterviewPage({
               </div>
             )}
 
-            {questions.length > 0 && (
+            {/* 未設定の場合は、質問の生成の前に知らせているため表示しない */}
+            {questions.length > 0 && guardrailConfigured !== false && (
               <PrivacySendNotice transcriptionIds={[transcriptionId]} />
             )}
             {questions.length > 0 && (
@@ -344,7 +354,9 @@ export function InterviewPage({
                 <button
                   className="interview-button primary"
                   onClick={handleAnalyze}
-                  disabled={analyzing || generatingQuestions || checkedCount === 0}
+                  disabled={
+                    analyzing || generatingQuestions || checkedCount === 0 || guardrailConfigured === false
+                  }
                 >
                   {analyzing ? '分析中...' : `分析する（${checkedCount}件）`}
                 </button>

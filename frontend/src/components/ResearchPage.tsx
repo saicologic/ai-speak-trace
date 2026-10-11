@@ -20,6 +20,7 @@ import { extractKeywords } from '../utils/keywords';
 import { buildReport, splitTopics } from '../utils/researchReport';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { PrivacySendNotice } from './PrivacyPanel';
 import './InterviewPage.css';
 import './SummaryPage.css';
@@ -121,6 +122,9 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   // キーワードごとに選んだ公式サイト
   const [selectedSites, setSelectedSites] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+  // Guardrail ID が未設定なら Claude に送れないため、調査を始めない
+  const guardrailConfigured = useGuardrailConfigured(selectedIdList);
   const [error, setError] = useState<string | null>(null);
 
   const refreshJobs = useCallback(async () => {
@@ -336,11 +340,11 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                   選んだ会話の全文を Anthropic（Claude）に送信します。この後のWeb調査では、確定したキーワードだけを検索に使います。
                 </p>
                 {selectedIds.size > 0 && (
-                  <PrivacySendNotice transcriptionIds={Array.from(selectedIds)} />
+                  <PrivacySendNotice transcriptionIds={selectedIdList} />
                 )}
                 <button
                   className="research-primary-button"
-                  disabled={selectedIds.size === 0 || busy}
+                  disabled={selectedIds.size === 0 || busy || guardrailConfigured === false}
                   onClick={handleStart}
                 >
                   {busy ? '準備中...' : `${selectedIds.size}件の会話で調査を始める`}

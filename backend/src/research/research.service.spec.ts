@@ -229,6 +229,14 @@ describe('ResearchService', () => {
     };
   };
 
+  it('Guardrail ID が未設定なら、調査を作らずに拒否する', async () => {
+    const { service, jobStore } = setup(null);
+    await expect(service.start(['t1'])).rejects.toThrow(
+      'Guardrail ID を設定してください',
+    );
+    expect(jobStore.save).not.toHaveBeenCalled();
+  });
+
   it('同じ調査の確定を同時に2回受けた場合、2回目を拒否する', async () => {
     const { service, jobStore } = setup(baseJob);
     const results = await Promise.allSettled([
@@ -335,7 +343,7 @@ describe('ResearchService（送る前の確認）', () => {
       } as unknown as TranscriptionStoreService,
       jobStore as unknown as ResearchJobStore,
       claude as unknown as ResearchClaudeService,
-      { isConfigured: () => false } as unknown as GuardrailService,
+      { isConfigured: () => true } as unknown as GuardrailService,
       privacy as unknown as PrivacyService,
     );
 
