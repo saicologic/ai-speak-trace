@@ -4,6 +4,7 @@ import axios from 'axios';
 import { GuardrailService } from '../privacy/guardrail.service';
 import {
   collectRequestText,
+  collectResponseText,
   findBlockingContent,
   mapRequestTexts,
   mapResponseTexts,
@@ -102,10 +103,7 @@ export class ClaudeClientService {
       mapRequestTexts(params, masker(inputMasks)),
     );
 
-    const outputText = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n');
+    const outputText = collectResponseText(response);
     const outputFindings = await this.guardrail.inspect(outputText, 'OUTPUT', {
       requireFullCoverage: true,
     });

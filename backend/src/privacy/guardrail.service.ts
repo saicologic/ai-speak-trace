@@ -80,14 +80,15 @@ export class GuardrailService {
     for (const chunk of splitText(text, GUARDRAIL_CHUNK_CHARS)) {
       const response = await this.send(source, [{ text: { text: chunk } }]);
       const coverage = response.guardrailCoverage?.textCharacters;
+      // カバレッジが返らない場合も、すべての文字がチェックされたか確かめられないため止める
       if (
         requireFullCoverage &&
-        coverage?.guarded !== undefined &&
-        coverage.total !== undefined &&
-        coverage.guarded < coverage.total
+        (coverage?.guarded === undefined ||
+          coverage.total === undefined ||
+          coverage.guarded < coverage.total)
       ) {
         throw new Error(
-          `Guardrails がチェックしなかった文字があります（${coverage.guarded}/${coverage.total}文字）`,
+          `Guardrails がチェックしなかった文字があります（${coverage?.guarded ?? '不明'}/${coverage?.total ?? '不明'}文字）`,
         );
       }
       for (const a of response.assessments ?? []) mergeAssessment(findings, a);
