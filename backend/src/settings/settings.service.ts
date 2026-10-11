@@ -82,6 +82,8 @@ export interface AppSettings {
 export class SettingsService {
   private readonly logger = new Logger(SettingsService.name);
   private readonly settingsFilePath: string;
+  /** 設定の更新を1つずつ順番に行うための待ち行列（AWS_PROFILE の切り替えと確認が重ならないように） */
+  private updating: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly configService: ConfigService,
@@ -148,7 +150,16 @@ export class SettingsService {
    * 設定を更新して settings.json に保存
    * API キーは、macOS ではキーチェーンに保存し、settings.json には書かない。空文字を渡すと削除する
    */
-  async updateSettings(dto: {
+  async updateSettings(
+    dto: Parameters<SettingsService['applyUpdate']>[0],
+  ): ReturnType<SettingsService['applyUpdate']> {
+    // 同時に保存されても、プロファイルの切り替え・確認・保存（失敗時の巻き戻し）が混ざらないよう、順番に行う
+    const run = this.updating.then(() => this.applyUpdate(dto));
+    this.updating = run.catch(() => undefined);
+    return run;
+  }
+
+  private async applyUpdate(dto: {
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
@@ -290,13 +301,17 @@ export class SettingsService {
       }
       return;
     }
-    if (!version) return;
+    // ID を変えた場合は、バージョンが空（DRAFT）でも、存在する ID かを確かめる
+    const idChanged =
+      idInput !== undefined && idInput.trim() !== this.guardrail.guardrailId;
+    if (!version && !idChanged) return;
+    const checkedVersion = version || 'DRAFT';
     try {
-      await this.guardrail.verify(id, version);
+      await this.guardrail.verify(id, checkedVersion);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new BadRequestException(
-        `Guardrail（ID: ${id}、バージョン: ${version}）を確認できなかったため、保存しませんでした。バージョンが存在するか、AWS の認証情報を確認してください（${message}）`,
+        `Guardrail（ID: ${id}、バージョン: ${checkedVersion}）を確認できなかったため、保存しませんでした。ID とバージョンが存在するか、AWS の認証情報を確認してください（${message}）`,
       );
     }
   }

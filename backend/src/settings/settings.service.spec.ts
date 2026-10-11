@@ -283,6 +283,25 @@ describe('SettingsService', () => {
         expect(readSettings().awsProfile).toBe('');
       });
 
+      it('同時に保存しても、失敗した側の巻き戻しが、もう一方のプロファイルを上書きしない', async () => {
+        guardrail.guardrailId = 'gr-1';
+        process.env.AWS_PROFILE = 'old';
+        guardrail.verify.mockImplementation(async () => {
+          await new Promise((resolve) => setImmediate(resolve));
+          if (process.env.AWS_PROFILE === 'bad')
+            throw new Error('invalid token');
+        });
+
+        const results = await Promise.allSettled([
+          service.updateSettings({ awsProfile: 'bad' }),
+          service.updateSettings({ awsProfile: 'good' }),
+        ]);
+
+        expect(results.map((r) => r.status)).toEqual(['rejected', 'fulfilled']);
+        expect(process.env.AWS_PROFILE).toBe('good');
+        expect(readSettings().awsProfile).toBe('good');
+      });
+
       it('プロファイル名に使えない文字は受け付けない', async () => {
         await expect(
           service.updateSettings({ awsProfile: 'a b' }),
@@ -321,6 +340,24 @@ describe('SettingsService', () => {
         await service.updateSettings({ bedrockGuardrailId: 'gr-new' });
 
         expect(guardrail.verify).toHaveBeenCalledWith('gr-new', '2');
+      });
+
+      it('ID を変えた場合は、バージョンが空でも DRAFT で確かめる', async () => {
+        guardrail.guardrailId = 'gr-old';
+
+        await service.updateSettings({ bedrockGuardrailId: 'gr-new' });
+
+        expect(guardrail.verify).toHaveBeenCalledWith('gr-new', 'DRAFT');
+        expect(readSettings().bedrockGuardrailId).toBe('gr-new');
+      });
+
+      it('存在しない ID は、バージョンが空でも保存しない', async () => {
+        guardrail.verify.mockRejectedValue(new Error('ResourceNotFound'));
+
+        await expect(
+          service.updateSettings({ bedrockGuardrailId: 'gr-missing' }),
+        ).rejects.toThrow('保存しませんでした');
+        expect(fs.existsSync(settingsFilePath)).toBe(false);
       });
 
       it('DRAFT は空として保存し、確かめない', async () => {
