@@ -104,7 +104,6 @@ const ORGANIZATION_AND_PRODUCT_NAMES = new Set(
     'LangGraph',
     'LangSmith',
     'Langfuse',
-    'Devin',
     'Cursor',
     'Grok',
     'Mistral',

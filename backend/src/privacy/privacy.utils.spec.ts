@@ -199,6 +199,8 @@ describe('isIgnoredPii', () => {
   it('会社名・製品名を含む人名や、公開されている人の名前は、これまでどおり扱う', () => {
     expect(isIgnoredPii('NAME', 'Claude太郎')).toBe(false);
     expect(isIgnoredPii('NAME', 'Chip Huyen')).toBe(false);
+    // 人名にもなる製品名（Devin）は一覧に入れない
+    expect(isIgnoredPii('NAME', 'Devin')).toBe(false);
     expect(isIgnoredPii('NAME', '金井')).toBe(false);
   });
 
