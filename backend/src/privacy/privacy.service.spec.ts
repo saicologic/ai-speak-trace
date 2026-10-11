@@ -95,19 +95,21 @@ describe('PrivacyService', () => {
     expect(guardrail.inspect).toHaveBeenCalledTimes(1);
   });
 
-  it('チェックの実行中に呼ばれた場合は、終わるのを待ってから新しい内容で検出し直す', async () => {
+  it('チェックの実行中に何度か呼ばれた場合は、終わってから最後に渡された内容で1回だけ検出し直す', async () => {
     const { service, guardrail } = setup();
     const first = service.scan(transcription);
-    const renamed = {
+    const renamed = (name: string) => ({
       ...transcription,
-      utterances: [{ ...transcription.utterances[0], speakerName: '山田さん' }],
-    };
-    service.scanInBackground(renamed);
+      utterances: [{ ...transcription.utterances[0], speakerName: name }],
+    });
+    service.scanInBackground(renamed('山田さん'));
+    service.scanInBackground(renamed('佐藤さん'));
     await first;
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
     expect(guardrail.inspect).toHaveBeenCalledTimes(2);
-    expect(guardrail.inspect.mock.calls[1][0]).toContain('山田さん');
+    expect(guardrail.inspect.mock.calls[1][0]).toContain('佐藤さん');
   });
 
   it('Guardrail ID が未設定ならチェックできない', async () => {
