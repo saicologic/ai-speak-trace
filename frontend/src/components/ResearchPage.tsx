@@ -42,11 +42,11 @@ const DEFAULT_KEYWORD_COUNT = 4;
 
 /** 調査の段階 */
 const STEPS = [
-  { label: '会話の読み込み', detail: '選んだ会話の全文を読む' },
-  { label: 'キーワード', detail: 'AIが提案し、あなたが確定する' },
-  { label: 'Web調査', detail: '公式サイトを中心に調べる' },
-  { label: '統合分析', detail: '会話とWebを論点ごとに統合する' },
-  { label: '評価', detail: '根拠・ハルシネーション・AI倫理を確かめる' },
+  { label: '会話の読み込み', detail: '個人情報を伏せてから送る' },
+  { label: 'キーワード', detail: '会話に出てこない語・引用を除く' },
+  { label: 'Web調査', detail: '選んだ公式サイトを優先して調べる' },
+  { label: '統合分析', detail: '各文に出典を付けて書く' },
+  { label: '最終確認', detail: '根拠のない文を除き、AI倫理を確認する' },
 ];
 
 /** 状態ごとの、完了した段階の数と実行中の段階 */
@@ -74,7 +74,7 @@ const STATUS_LABELS: Record<ResearchStatus, string> = {
   awaiting_confirmation: 'キーワードの確定待ち',
   researching: 'Web調査中',
   analyzing: '統合分析中',
-  evaluating: '評価中',
+  evaluating: '最終確認中',
   completed: '完了',
   failed: '失敗',
 };
@@ -103,7 +103,7 @@ function StepFlow({ status }: { status: ResearchStatus | undefined }) {
   );
 }
 
-/** ディープサーチ（会話の読み込み → キーワード → Web調査 → 統合分析 → 評価） */
+/** ディープサーチ（会話の読み込み → キーワード → Web調査 → 統合分析 → 最終確認） */
 export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   const [activeTab, setActiveTab] = useState<'new' | 'results'>('new');
   const [transcriptions, setTranscriptions] = useState<TranscriptionSummary[]>([]);
@@ -566,7 +566,7 @@ function hasPreSendWarning(job: ResearchJob): boolean {
 
 /**
  * 送る前の確認（① 会話の読み込みの後、Claude に送る前と、キーワード提案の直後に行った確認）
- * 出力のハルシネーション・AI倫理は、出力を見て判定するため、⑤ 評価で確認する
+ * 出力のハルシネーション・AI倫理は、出力を見て判定するため、⑤ 最終確認で確認する
  */
 function PreSendChecksView({ job }: { job: ResearchJob }) {
   const checks = job.preSendChecks!;
@@ -629,7 +629,7 @@ function PreSendChecksView({ job }: { job: ResearchJob }) {
         ))}
       </ul>
       <p className="research-hint">
-        分析の出力のハルシネーションと AI 倫理は、出力を見て判定するため、調査の最後の評価で確認します。
+        分析の出力のハルシネーションと AI 倫理は、出力を見て判定するため、調査の最後（⑤ 最終確認）で確認します。
       </p>
     </>
   );
