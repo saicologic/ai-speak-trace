@@ -221,7 +221,7 @@ export class ResearchService implements OnModuleInit {
 
       // ⑤ 評価（根拠のない主張は表示から除く）
       const judgement = await this.claude.judge(report, keywords);
-      const { finalReport, evaluation } = evaluate(report, judgement);
+      const { finalReport, evaluation } = evaluate(report, judgement, keywords);
       await this.update(job, {
         status: 'completed',
         report: finalReport,
@@ -291,19 +291,27 @@ export class ResearchService implements OnModuleInit {
   }
 }
 
+/** 統合分析の指示で決めた、各論点の項目名の行 */
+const SECTION_LABEL =
+  /^\*\*(会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?$/;
+
 /**
- * レポートの構成の行（「## 見出し」と、統合分析の指示で決めた項目名）
- * 判定がない文や除いた文からも、構成を保つために残す。太字の行は事実の文のこともあるため、項目名に限る
+ * レポートの構成の行か（論点のキーワードの「## 見出し」と、統合分析の指示で決めた項目名）
+ * 判定がない文や除いた文からも、構成を保つために残す
+ * 見出しや太字の行は事実の文のこともあるため、指示で決めたものに限る
  */
-const SECTION_LINE =
-  /^(#{1,6}\s+\S.*|\*\*(会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?)$/;
+function isSectionLine(line: string, keywords: string[]): boolean {
+  const heading = line.match(/^#{1,6}\s+(.+)$/);
+  if (heading) return keywords.includes(heading[1].trim());
+  return SECTION_LABEL.test(line);
+}
 
 /** 空行と構成の行だけでできているか */
-function isStructureOnly(text: string): boolean {
+function isStructureOnly(text: string, keywords: string[]): boolean {
   return text
     .split('\n')
     .map((line) => line.trim())
-    .every((line) => line === '' || SECTION_LINE.test(line));
+    .every((line) => line === '' || isSectionLine(line, keywords));
 }
 
 /** 「不足:」「推測:」と明記した注記の文（事実の主張として審査しない） */
@@ -316,6 +324,7 @@ const NOTE_SENTENCE = /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測)(?:\*\*)?\s*[:：]
 export function evaluate(
   report: ReportSegment[],
   judgement: RawJudgement,
+  keywords: string[],
 ): { finalReport: ReportSegment[]; evaluation: ResearchEvaluation } {
   const verdicts = new Map(judgement.claims.map((c) => [c.index, c]));
   const removedIndexes = new Set<number>();
@@ -329,7 +338,7 @@ export function evaluate(
     // 注記の文は、審査員の判定によらず事実の主張として扱わない
     if (NOTE_SENTENCE.test(segment.text.trim())) return;
     // 判定が返らなかった文は、見出しなどの構成の行だけを事実の主張でないものとして残す
-    const isFactual = v ? v.factual : !isStructureOnly(segment.text);
+    const isFactual = v ? v.factual : !isStructureOnly(segment.text, keywords);
     if (!isFactual) return;
     factual++;
     const hasCitation = segment.citations.length > 0;
@@ -353,7 +362,7 @@ export function evaluate(
     if (!removedIndexes.has(i)) return [segment];
     const headings = segment.text
       .split('\n')
-      .filter((line) => SECTION_LINE.test(line.trim()));
+      .filter((line) => isSectionLine(line.trim(), keywords));
     return headings.length > 0
       ? [{ text: `\n\n${headings.join('\n\n')}\n`, citations: [] }]
       : [];
