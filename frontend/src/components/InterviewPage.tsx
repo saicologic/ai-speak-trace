@@ -7,7 +7,7 @@ import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } 
 import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
-import { GuardrailMissingNotice, PrivacySendNotice } from './PrivacyPanel';
+import { GuardrailMissingNotice } from './PrivacyPanel';
 
 // markedの設定: リンクを新しいタブで開く
 marked.use({
@@ -346,10 +346,6 @@ export function InterviewPage({
               </div>
             )}
 
-            {/* 未設定の場合は、質問の生成の前に知らせているため表示しない */}
-            {questions.length > 0 && guardrailConfigured !== false && (
-              <PrivacySendNotice transcriptionIds={[transcriptionId]} />
-            )}
             {questions.length > 0 && (
               <div className="interview-actions">
                 <button

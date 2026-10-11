@@ -117,6 +117,8 @@ export class ResearchService implements OnModuleInit {
         'Claude に送る前のチェックのため、設定画面で Guardrail ID を設定してください',
       );
     }
+    // 個人情報チェックをしていない会話は、伏せる文字列を決められるよう、送る前に検出する
+    await this.scanUnchecked(transcriptionIds);
     // 会話を読み込む前の時刻を作成時刻にする（読み込み後に会話が削除された場合に、保存しないため）
     const now = new Date().toISOString();
     const transcriptions = await this.loadTranscriptions(transcriptionIds);
@@ -219,8 +221,10 @@ export class ResearchService implements OnModuleInit {
         .filter((k) => k.keyword && k.frequency > 0)
         .sort((a, b) => b.frequency - a.frequency);
       const domains = uniqueDomains(keywords.flatMap((k) => k.domains));
+      const title = normalizeTitle(raw.title);
       await this.update(job, {
         status: 'awaiting_confirmation',
+        ...(title && { title }),
         proposal: { keywords, domains },
         preSendChecks: {
           ...(job.preSendChecks ?? { privacyConfigured: false, privacy: [] }),
@@ -250,12 +254,21 @@ export class ResearchService implements OnModuleInit {
         privacyConfigured = status.configured;
         const findings = status.scan?.findings ?? [];
         const masked = findings.filter((f) => f.mask);
+        const unmasked = findings.filter((f) => !f.mask && f.needsReview);
+        // 調査を始めた時点で、何を伏せ、何を伏せずに送ったかを記録する（個人情報チェックの選択は後から変わるため）
+        const toRecord = (f: (typeof findings)[number]) => ({
+          label: f.label,
+          text: f.text,
+          count: f.count,
+        });
         return {
           transcriptionId,
           scanned: !!status.scan,
           maskedKinds: masked.length,
           maskedCount: masked.reduce((sum, f) => sum + f.count, 0),
-          needsReview: findings.filter((f) => !f.mask && f.needsReview).length,
+          needsReview: unmasked.length,
+          masked: masked.map(toRecord),
+          unmasked: unmasked.map(toRecord),
         };
       }),
     );
@@ -373,6 +386,29 @@ export class ResearchService implements OnModuleInit {
     }
   }
 
+  /** 個人情報チェックをしていない会話を検出する（チェックに失敗した場合は調査を始めない） */
+  private async scanUnchecked(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      // 話者名の変更などで検出し直している最中なら、終わってから最新の結果を使う
+      await this.privacy.waitForScans(id);
+      const status = await this.privacy.getStatus(id);
+      if (status.scan) continue;
+      const transcription = await this.transcriptionStore.findById(id);
+      if (!transcription) {
+        throw new NotFoundException(`文字起こしが見つかりません: ${id}`);
+      }
+      try {
+        await this.privacy.scan(transcription);
+      } catch (error) {
+        throw new BadRequestException(
+          `個人情報チェックに失敗したため、調査を始められません: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
   private async loadTranscriptions(ids: string[]): Promise<Transcription[]> {
     const transcriptions: Transcription[] = [];
     for (const id of ids) {
@@ -397,16 +433,34 @@ export class ResearchService implements OnModuleInit {
    * 調査ジョブを更新して保存する
    * 実行中に会話の削除でジョブが消された場合は、会話の内容を含む結果を再び保存しないよう、保存せずに中断する
    */
+  /** 調査のタイトルを変更する（調査の途中でも変更できる） */
+  async updateTitle(id: string, title: unknown): Promise<ResearchJob> {
+    const normalized = typeof title === 'string' ? normalizeTitle(title) : '';
+    if (!normalized) {
+      throw new BadRequestException('タイトルを入力してください');
+    }
+    const job = await this.findById(id);
+    return this.update(job, { title: normalized });
+  }
+
   private async update(
     job: ResearchJob,
     changes: Partial<ResearchJob>,
   ): Promise<ResearchJob> {
-    if (!(await this.jobStore.findById(job.id))) {
+    const stored = await this.jobStore.findById(job.id);
+    if (!stored) {
       throw new ResearchJobDeletedError(
         `調査ジョブが削除されました: ${job.id}`,
       );
     }
-    const updated = { ...job, ...changes, updatedAt: new Date().toISOString() };
+    // 調査の途中で利用者がタイトルを変更した場合に、手元の古い内容で上書きしないよう、保存済みのタイトルを使う
+    const updated = {
+      ...job,
+      title: stored.title,
+      ...changes,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!updated.title) delete updated.title;
     await this.jobStore.save(updated);
     return updated;
   }
@@ -504,8 +558,16 @@ export function evaluate(
   let factual = 0;
   let cited = 0;
   let supported = 0;
+  // 除いた文がどの論点のものかを記録するため、直前の論点の見出しを覚えておく
+  let topic: string | undefined;
 
   report.forEach((segment, index) => {
+    for (const line of segment.text.split('\n')) {
+      const heading = line.trim().match(/^#{1,6}\s+(.+)$/);
+      if (heading && keywords.includes(heading[1].trim())) {
+        topic = heading[1].trim();
+      }
+    }
     const v = verdicts.get(index);
     // 注記の文は、審査員の判定によらず事実の主張として扱わない
     if (NOTE_SENTENCE.test(segment.text.trim())) return;
@@ -532,6 +594,8 @@ export function evaluate(
           verdict: 'unsupported',
           reason: `${judgeReason}（${scoreNote}）`,
           groundingScore: score,
+          ...(topic && { topic }),
+          missingCitation: false,
         });
       } else if (judgeRejects || guardrailRejects) {
         reviewClaims.push({
@@ -553,6 +617,8 @@ export function evaluate(
         factual: true,
         verdict: 'unsupported',
         reason: v ? v.reason : '判定が返りませんでした',
+        ...(topic && { topic }),
+        missingCitation: !hasCitation,
       });
     }
   });
@@ -583,7 +649,11 @@ export function evaluate(
         webCitations.length === 0
           ? null
           : webCitations.filter((c) => c.official).length / webCitations.length,
-      relevance: judgement.relevance,
+      // 評価モデルが解説の「関連するキーワード」まで判定することがあるため、確定したキーワードの判定だけを使う
+      relevance: keywords.flatMap((keyword) => {
+        const r = judgement.relevance.find((x) => x.keyword === keyword);
+        return r ? [r] : [];
+      }),
       ethics: [
         checkPersonalData(finalReport),
         {
@@ -600,4 +670,12 @@ export function evaluate(
       judgeModel: JUDGE_MODEL,
     },
   };
+}
+
+/** タイトルの最大文字数 */
+export const MAX_TITLE_LENGTH = 60;
+
+/** タイトルの前後の空白と改行を除き、長すぎる場合は切り詰める */
+export function normalizeTitle(title: string | undefined): string {
+  return (title ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_LENGTH);
 }

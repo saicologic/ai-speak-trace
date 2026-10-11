@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TranscriptionList } from './components/TranscriptionList';
 import { TranscriptionView } from './components/TranscriptionView';
-import { PrivacyPanel } from './components/PrivacyPanel';
 import { SpeakerNameEditor } from './components/SpeakerNameEditor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { KeywordList } from './components/KeywordList';
@@ -413,7 +412,6 @@ function App() {
                   speakers={transcription.speakers}
                   onUpdate={setTranscription}
                 />
-                <PrivacyPanel key={transcription.id} transcriptionId={transcription.id} />
                 <TranscriptionView
                   transcription={transcription}
                   highlightedKeywords={highlightedKeywords}

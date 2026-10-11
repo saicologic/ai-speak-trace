@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPrivacy, scanPrivacy, updatePrivacyMasks } from '../api/client';
-import { usePrivacyStatuses } from '../hooks/usePrivacyStatuses';
 import type { PiiFinding, PrivacyStatus } from '../types';
 import './PrivacyPanel.css';
 
@@ -50,13 +49,15 @@ function usePrivacyStatus(transcriptionId: string) {
 
 interface PrivacyPanelProps {
   transcriptionId: string;
+  /** 見出しに表示する会話の名前 */
+  title?: string;
 }
 
 /**
- * 文字起こしの個人情報チェック
- * 検出した個人情報ごとに、Claude に送るときに伏せるかを選べる
+ * 会話の個人情報チェック（ディープサーチで会話を選んだときに表示する）
+ * まだ確認していない会話は自動で検出し、検出した個人情報ごとに、Claude に送るときに伏せるかを選べる
  */
-export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
+export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
   const { status, setStatus, error, setError } = usePrivacyStatus(transcriptionId);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -85,6 +86,17 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
   };
 
   const handleScan = () => run(() => scanPrivacy(transcriptionId));
+
+  // まだ確認していない会話は、選んだときに1回だけ自動で検出する
+  const autoScanned = useRef(false);
+  useEffect(() => {
+    if (!status || autoScanned.current) return;
+    if (!status.configured || status.scan || status.scanning) return;
+    autoScanned.current = true;
+    void run(() => scanPrivacy(transcriptionId));
+    // run は毎回作り直されるため、依存に含めない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, transcriptionId]);
   const handleSave = () =>
     run(() =>
       updatePrivacyMasks(
@@ -114,7 +126,7 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="privacy-panel-title">個人情報チェック</span>
+        <span className="privacy-panel-title">{title ? `個人情報チェック: ${title}` : '個人情報チェック'}</span>
         <span
           className={`privacy-panel-badge ${
             findings.some((f) => f.mask) ? 'privacy-panel-badge--masked' : ''
@@ -132,11 +144,11 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
           {!status.configured ? (
             <p className="privacy-panel-hint">
               設定画面で Amazon Bedrock Guardrails の ID を設定すると、会話に含まれる個人情報を検出し、
-              Claude に送る前に伏せられます。未設定の場合、会話分析・要約・ディープサーチは使えません。
+              Claude に送る前に伏せられます。未設定の場合、ディープサーチ・要約・会話分析は使えません。
             </p>
           ) : (
             <p className="privacy-panel-hint">
-              Amazon Bedrock Guardrails で検出しました。「伏せる」を選んだ文字列は、会話分析・要約・ディープサーチで
+              Amazon Bedrock Guardrails で検出しました。「伏せる」を選んだ文字列は、ディープサーチ・要約・会話分析で
               Claude に送るときに [氏名] のように置き換えます。元の文字起こしは変わりません。
               電話番号・メールアドレスなどは最初から伏せます。氏名・住所などは製品名や国名も検出されるため「要確認」とし、
               選ぶまでは伏せずに送ります。
@@ -218,55 +230,11 @@ export function PrivacyPanel({ transcriptionId }: PrivacyPanelProps) {
   );
 }
 
-interface PrivacySendNoticeProps {
-  transcriptionIds: string[];
-}
-
 /** Guardrail ID が設定されていないため、Claude に送れないことを知らせる */
 export function GuardrailMissingNotice() {
   return (
     <p className="privacy-send-notice privacy-send-notice--warning">
       個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
-    </p>
-  );
-}
-
-interface PrivacySendNoticeProps {
-  transcriptionIds: string[];
-}
-
-/**
- * 送る前の注意書き: 伏せずに送ってしまう可能性があるときだけ、1行で知らせる
- * （チェックしていない会話・要確認のまま伏せない文字列・個人情報チェックが未設定）
- * 伏せる文字列を選んである場合は、表示しなくても置き換えてから送る
- */
-export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) {
-  const statuses = usePrivacyStatuses(transcriptionIds);
-
-  if (!statuses || statuses.length === 0) return null;
-  const configured = statuses.some((s) => s.configured);
-  const unchecked = statuses.filter((s) => !s.scan).length;
-  const review = statuses.reduce(
-    (sum, s) => sum + (s.scan?.findings.filter((f) => f.needsReview && !f.mask).length ?? 0),
-    0,
-  );
-
-  // Guardrail ID を解除しても保存済みのチェック結果は残るため、結果の有無に関係なく知らせる
-  if (!configured) return <GuardrailMissingNotice />;
-  // 連絡先などは Claude に送る前の確認で自動で伏せるため、伏せずに送られるのは氏名・住所など要確認の種類
-  const notes: string[] = [];
-  if (unchecked > 0) {
-    notes.push(
-      statuses.length === 1
-        ? 'この会話は個人情報チェックをしていないため、氏名・住所などは伏せずに送られます'
-        : `個人情報チェックをしていない会話が${unchecked}件あり、氏名・住所などは伏せずに送られます`,
-    );
-  }
-  if (review > 0) notes.push(`要確認の${review}件（氏名など）は伏せずに送られます`);
-  if (notes.length === 0) return null;
-  return (
-    <p className="privacy-send-notice privacy-send-notice--warning">
-      {notes.join('。')}。文字起こしの画面の「個人情報チェック」で確認できます。
     </p>
   );
 }

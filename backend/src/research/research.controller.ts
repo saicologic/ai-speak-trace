@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { ResearchService } from './research.service';
@@ -94,6 +95,18 @@ export class ResearchController {
       );
     }
     return { job: await this.researchService.confirm(id, targets) };
+  }
+
+  /**
+   * 調査のタイトルの変更: PATCH /api/research/:id
+   * body: { title }
+   */
+  @Patch(':id')
+  async updateTitle(
+    @Param('id') id: string,
+    @Body() body: { title?: unknown },
+  ) {
+    return { job: await this.researchService.updateTitle(id, body?.title) };
   }
 }
 

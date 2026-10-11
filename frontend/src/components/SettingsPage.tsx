@@ -275,8 +275,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
             <div className="settings-section">
               <h2>個人情報チェック（Amazon Bedrock Guardrails）</h2>
               <p className="settings-checkbox-hint">
-                文字起こしが終わったときに、会話に含まれる個人情報（氏名・電話番号など）を検出します。
-                会話分析・要約・ディープサーチで Claude に送る前に、検出した文字列を伏せられます。
+                ディープサーチで会話を選んだときに、会話に含まれる個人情報（氏名・電話番号など）を検出します。
+                ディープサーチ・要約・会話分析で Claude に送る前に、検出した文字列を伏せられます。
                 Claude に送る内容と Claude の応答は、毎回 Guardrails で確認します。未設定の場合、Claude を使う機能は使えません。
                 会話の本文は AWS（APAC リージョン内）で処理されます。AWS の認証情報は、この Mac の AWS CLI の設定を使います。
               </p>

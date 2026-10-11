@@ -885,6 +885,19 @@ export async function startResearch(
   return (await res.json()).job;
 }
 
+/** 調査のタイトルを変更する */
+export async function updateResearchTitle(id: string, title: string): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'タイトルを変更できませんでした'));
+  }
+  return (await res.json()).job;
+}
+
 /** キーワードとキーワードごとの公式サイトを確定し、Web調査・統合分析・評価を始める */
 export async function confirmResearch(
   id: string,

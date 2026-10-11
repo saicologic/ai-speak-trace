@@ -11,6 +11,21 @@ export interface NumberedCitation extends ReportCitation {
 const MARKER = /⟦([\d,;]+)⟧/g;
 
 /**
+ * 論点の要点を取り出す
+ * - oneLiner: 「一言でいうと」の文（太字の記号を除く）
+ * - hasDifference: 「会話での説明との違い」の項目があるか（会話の説明と Web の情報が食い違った論点）
+ */
+export function topicHighlights(segments: ReportSegment[]): {
+  oneLiner: string | null;
+  hasDifference: boolean;
+} {
+  const text = segments.map((s) => s.text).join('');
+  const match = text.match(/一言でいうと\**\s*[:：]\s*\**\s*([^\n]+)/);
+  const oneLiner = match ? match[1].replace(/\*\*/g, '').trim() : '';
+  return { oneLiner: oneLiner || null, hasDifference: text.includes('会話での説明との違い') };
+}
+
+/**
  * 統合分析を論点（「## 見出し」）ごとに分ける（最初の見出しより前の文は、見出しなしの論点にする）
  * 見出しは行ごとに探す（評価で除いた文から残した見出しは、空行や項目名と一緒の断片になっているため）
  */
