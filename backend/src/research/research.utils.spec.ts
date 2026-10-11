@@ -192,7 +192,7 @@ describe('research.utils', () => {
     ]);
   });
 
-  it('根拠の付いた断片は、文の途中に句点があっても分けない', () => {
+  it('根拠の付いた断片に複数の文があれば文ごとに分け、元の根拠を引き継ぐ', () => {
     const a = {
       sourceKind: 'conversation' as const,
       sourceId: 't1',
@@ -204,7 +204,10 @@ describe('research.utils', () => {
         { text: '一文目。二文目', citations: [a] },
         { text: '。', citations: [] },
       ]),
-    ).toEqual([{ text: '一文目。二文目。', citations: [a] }]);
+    ).toEqual([
+      { text: '一文目。', citations: [a] },
+      { text: '二文目。', citations: [a] },
+    ]);
   });
 
   it('連絡先などの個人情報を検出する', () => {

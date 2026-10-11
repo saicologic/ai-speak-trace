@@ -20,14 +20,24 @@ export const DERIVED_LOG_DIRS = [
 ] as const;
 
 /**
- * このプロセスで削除したログのファイル（絶対パス）
- * 実行中の処理が、削除されたログを保存し直して会話の内容を復元しないよう、保存側で確認する
+ * このプロセスで文字起こしのログを削除し始めた時刻（文字起こし ID → ミリ秒）
+ * 削除の前に会話を読み込んだ処理が、削除の後にログを保存して会話の内容を残さないよう、保存側で確認する
  */
-const deletedLogFiles = new Set<string>();
+const deletionStartedAt = new Map<string, number>();
 
-/** 文字起こしの削除で、このログのファイルが削除されたか */
-export function isDeletedLogFile(filePath: string): boolean {
-  return deletedLogFiles.has(path.resolve(filePath));
+/**
+ * 指定した時刻以降に、いずれかの文字起こしのログが削除されたか
+ * （その時刻より前に読み込んだ会話の内容は、もう保存してはいけない）
+ */
+export function wasDeletedSince(
+  transcriptionIds: string[],
+  since: string,
+): boolean {
+  const sinceMs = Date.parse(since);
+  return transcriptionIds.some((id) => {
+    const deletedAt = deletionStartedAt.get(id);
+    return deletedAt !== undefined && deletedAt >= sinceMs;
+  });
 }
 
 /**
@@ -53,6 +63,8 @@ export class DerivedLogCleaner {
    * （呼び出し元はやり直せるよう、元の文字起こしを残す）
    */
   async deleteLogsForTranscription(transcriptionId: string): Promise<number> {
+    // ログを探す前に記録し、探した後に保存されるログも削除済みの会話のものと分かるようにする
+    deletionStartedAt.set(transcriptionId, Date.now());
     let deleted = 0;
     const failures: string[] = [];
     for (const dir of DERIVED_LOG_DIRS) {
@@ -82,8 +94,6 @@ export class DerivedLogCleaner {
           continue;
         }
         if (!referencesTranscription(log, transcriptionId)) continue;
-        // 削除の前に記録し、削除と並行して保存しようとした処理にも削除済みと分かるようにする
-        deletedLogFiles.add(path.resolve(filePath));
         try {
           await fs.rm(filePath, { force: true });
           deleted++;

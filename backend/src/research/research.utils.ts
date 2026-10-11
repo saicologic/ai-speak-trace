@@ -188,23 +188,22 @@ export function toReportSegments(
 /** 文の区切り（句点・感嘆符・疑問符と閉じかっこ、または改行）で終わるか */
 const SENTENCE_END = /(?:[。！？!?][」』）)]*[^\S\n]*|\n)$/;
 
-/** 根拠のない断片を、文の区切りの直後で分ける */
+/** 断片を、文の区切りの直後で分ける */
 const SENTENCE_PIECE =
   /[^。！？!?\n]*(?:[。！？!?]+[」』）)]*[^\S\n]*\n*|\n+)|[^。！？!?\n]+$/g;
 
 /**
  * Citations の応答は根拠の境目で区切られ、「と述べた。」のような文の切れ端が根拠なしの断片になる
  * 断片のまま審査すると、切れ端が根拠のない主張として除かれ、前後の文がつながらなくなる
- * そのため、断片を文の区切りまでつないで、1文を1つの単位にする
- * 根拠の付いた断片は、根拠の範囲を保つために分けない
+ * また、1つの断片に複数の文が入ることもあり、そのままでは文ごとに判定できない
+ * そのため、断片を文の区切りで分けたうえで、文の区切りまでつないで、1文を1つの単位にする
+ * 分けた文は、元の断片の根拠を引き継ぐ
  */
 export function mergeIntoSentences(segments: ReportSegment[]): ReportSegment[] {
   const pieces = segments.flatMap((segment) =>
-    segment.citations.length > 0
-      ? [segment]
-      : (segment.text.match(SENTENCE_PIECE) ?? [])
-          .filter((text) => text.length > 0)
-          .map((text) => ({ text, citations: [] })),
+    (segment.text.match(SENTENCE_PIECE) ?? [])
+      .filter((text) => text.length > 0)
+      .map((text) => ({ text, citations: segment.citations })),
   );
   const merged: ReportSegment[] = [];
   let current: ReportSegment | null = null;
