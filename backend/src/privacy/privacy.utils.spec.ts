@@ -95,6 +95,40 @@ describe('toFindings', () => {
   });
 });
 
+describe('toFindings の、個人情報として扱わない検出の引き継ぎ', () => {
+  const previous = (type: string, text: string, mask: boolean): PiiFinding => ({
+    type,
+    label: type,
+    text,
+    count: 1,
+    mask,
+    needsReview: false,
+  });
+
+  it('以前に「伏せる」を選んだものは、検出し直した結果に含まれなくても引き継ぐ', () => {
+    const findings = toFindings([], 'Claude と Claude の話', [
+      previous('NAME', 'Claude', true),
+    ]);
+    expect(findings).toEqual([
+      expect.objectContaining({
+        type: 'NAME',
+        text: 'Claude',
+        mask: true,
+        count: 2,
+      }),
+    ]);
+  });
+
+  it('「伏せる」を選んでいないもの、会話に残っていないものは引き継がない', () => {
+    expect(
+      toFindings([], 'Claude の話', [previous('NAME', 'Claude', false)]),
+    ).toEqual([]);
+    expect(
+      toFindings([], '別の話', [previous('NAME', 'Claude', true)]),
+    ).toEqual([]);
+  });
+});
+
 describe('maskText', () => {
   it('伏せると選んだ文字列だけを、長いものから置き換える', () => {
     const findings: PiiFinding[] = [
