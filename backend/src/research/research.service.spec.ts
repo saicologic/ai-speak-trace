@@ -74,17 +74,19 @@ describe('evaluate', () => {
     expect(evaluation.removedClaims).toEqual([]);
   });
 
-  it('判定が返らなかった文は、根拠があれば裏付けを確認できない主張として除き、なければ見出しなどとして扱う', () => {
+  it('判定が返らなかった文は、見出しだけを残し、ほかは裏付けを確認できない主張として除く', () => {
     const { finalReport, evaluation } = evaluate(
       [
+        { text: '## 見出し\n\n', citations: [] },
         { text: '判定なし・根拠あり。', citations: [cite()] },
         { text: '判定なし・根拠なし。', citations: [] },
       ],
       { claims: [], relevance: [], ethics: ethicsOk },
     );
-    expect(finalReport.map((s) => s.text)).toEqual(['判定なし・根拠なし。']);
-    expect(evaluation.factualClaims).toBe(1);
+    expect(finalReport.map((s) => s.text)).toEqual(['## 見出し\n\n']);
+    expect(evaluation.factualClaims).toBe(2);
     expect(evaluation.removedClaims.map((c) => c.reason)).toEqual([
+      '判定が返りませんでした',
       '判定が返りませんでした',
     ]);
     expect(evaluation.officialSourceRate).toBeNull();

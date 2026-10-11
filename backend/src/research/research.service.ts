@@ -95,6 +95,8 @@ export class ResearchService implements OnModuleInit {
     if (!Array.isArray(transcriptionIds) || transcriptionIds.length === 0) {
       throw new BadRequestException('調査する会話を選択してください');
     }
+    // 会話を読み込む前の時刻を作成時刻にする（読み込み後に会話が削除された場合に、保存しないため）
+    const now = new Date().toISOString();
     const transcriptions = await this.loadTranscriptions(transcriptionIds);
     const totalChars = transcriptions.reduce(
       (sum, t) => sum + toTranscriptDocument(t).length,
@@ -106,7 +108,6 @@ export class ResearchService implements OnModuleInit {
       );
     }
 
-    const now = new Date().toISOString();
     const job: ResearchJob = {
       id: randomUUID(),
       createdAt: now,
@@ -293,6 +294,14 @@ export class ResearchService implements OnModuleInit {
 /** 見出しの行（「## 見出し」「**見出し**」） */
 const STRUCTURE_LINE = /^(#{1,6}\s+\S.*|\*\*[^*]+\*\*)$/;
 
+/** 空行と見出しだけでできているか */
+function isStructureOnly(text: string): boolean {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .every((line) => line === '' || STRUCTURE_LINE.test(line));
+}
+
 /** 「不足:」「推測:」と明記した注記の文（事実の主張として審査しない） */
 const NOTE_SENTENCE = /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測)(?:\*\*)?\s*[:：]/;
 
@@ -315,8 +324,8 @@ export function evaluate(
     const v = verdicts.get(index);
     // 注記の文は、審査員の判定によらず事実の主張として扱わない
     if (NOTE_SENTENCE.test(segment.text.trim())) return;
-    // 判定が返らなかった文は、根拠の有無で扱いを決める
-    const isFactual = v ? v.factual : segment.citations.length > 0;
+    // 判定が返らなかった文は、見出しなどの構成の行だけを事実の主張でないものとして残す
+    const isFactual = v ? v.factual : !isStructureOnly(segment.text);
     if (!isFactual) return;
     factual++;
     const hasCitation = segment.citations.length > 0;
@@ -330,9 +339,7 @@ export function evaluate(
         claim: segment.text.trim(),
         factual: true,
         verdict: 'unsupported',
-        reason:
-          v?.reason ??
-          (hasCitation ? '判定が返りませんでした' : '根拠が付いていません'),
+        reason: v ? v.reason : '判定が返りませんでした',
       });
     }
   });
