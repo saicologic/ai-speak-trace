@@ -100,11 +100,12 @@ export function toOutputChecks(
               .join('、')}`,
     },
     {
-      item: '不適切な語が含まれていない（Guardrails の単語フィルター）',
+      // 単語フィルターは日本語に対応していないため、英語の部分だけを確認している
+      item: '不適切な語が含まれていない（Guardrails の単語フィルター。英語の部分のみ）',
       passed: words.length === 0,
       detail:
         words.length === 0
-          ? '検出されませんでした'
+          ? '英語の部分では検出されませんでした（日本語の部分は単語フィルターの対象外です）'
           : `検出: ${words.join('、')}`,
     },
   ];

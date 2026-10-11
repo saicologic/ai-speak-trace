@@ -6,6 +6,7 @@ import {
   BedrockRuntimeClient,
   GuardrailAssessment,
 } from '@aws-sdk/client-bedrock-runtime';
+import { isIgnoredPii } from './privacy.utils';
 
 /** 1回の ApplyGuardrail に渡す文字数（Standard ティアのコンテンツフィルターの上限 500 テキストユニット未満） */
 export const GUARDRAIL_CHUNK_CHARS = 30_000;
@@ -174,6 +175,8 @@ export function mergeAssessment(
   const sensitive = assessment.sensitiveInformationPolicy;
   for (const e of sensitive?.piiEntities ?? []) {
     if (e.detected !== false && e.type && e.match) {
+      // 製品名などの誤検出になりやすいもの（ユーザー名・国名だけの住所）は除く
+      if (isIgnoredPii(e.type, e.match)) continue;
       findings.pii.push({ type: e.type, match: e.match });
     }
   }
