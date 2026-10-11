@@ -192,6 +192,34 @@ export function collectWebSources(
   return Array.from(byUrl.values());
 }
 
+/** 公式サイトの抜粋の合計がこの文字数より少ない場合は、情報が足りないとみなす */
+export const MIN_OFFICIAL_EXCERPT_CHARS = 500;
+
+/**
+ * Web調査の回答の「定義: あり／なし」を読み取る（キーワードの定義がわかったか）
+ * 書かれていない場合は null を返す（判断に使わない）
+ */
+export function parseDefinitionFound(text: string): boolean | null {
+  const matches = [...text.matchAll(/定義[:：]\s*(あり|なし)/g)];
+  if (matches.length === 0) return null;
+  return matches[matches.length - 1][1] === 'あり';
+}
+
+/**
+ * 公式サイトの情報だけでは足りないか
+ * 抜粋がない・抜粋が少ない・キーワードの定義がわからなかった場合に、一般のサイトも調べる
+ */
+export function needsGeneralSearch(
+  officialSources: WebSource[],
+  definitionFound: boolean | null,
+): boolean {
+  const chars = officialSources.reduce(
+    (sum, s) => sum + s.excerpts.reduce((n, e) => n + e.length, 0),
+    0,
+  );
+  return chars < MIN_OFFICIAL_EXCERPT_CHARS || definitionFound === false;
+}
+
 /**
  * キーワードごとに調べた情報源を、URL ごとに1つにまとめる
  * 抜粋は重複を除いてつなぎ、どれかのキーワードで公式サイトとされたものは公式とする

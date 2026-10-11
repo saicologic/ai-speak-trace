@@ -13,6 +13,8 @@ import {
   toTranscriptUtterances,
   toTranscriptDocument,
   verifyQuotes,
+  needsGeneralSearch,
+  parseDefinitionFound,
 } from './research.utils';
 
 function transcription(id: string, texts: [string, string][]): Transcription {
@@ -327,5 +329,46 @@ describe('research.utils', () => {
     expect(found.passed).toBe(false);
     expect(found.detail).toContain('メールアドレス');
     expect(found.detail).toContain('電話番号');
+  });
+});
+
+describe('parseDefinitionFound', () => {
+  it('最後の「定義: あり／なし」を読み取る', () => {
+    expect(parseDefinitionFound('要点…\n定義: あり')).toBe(true);
+    expect(parseDefinitionFound('要点…\n定義：なし')).toBe(false);
+    expect(parseDefinitionFound('定義: なし\n…\n定義: あり')).toBe(true);
+  });
+
+  it('書かれていなければ null を返す', () => {
+    expect(parseDefinitionFound('要点だけ')).toBeNull();
+  });
+});
+
+describe('needsGeneralSearch', () => {
+  const source = (excerpts: string[]) => ({
+    url: 'https://a.com/',
+    title: 'a',
+    domain: 'a.com',
+    official: true,
+    excerpts,
+  });
+
+  it('抜粋がない場合は、一般のサイトも調べる', () => {
+    expect(needsGeneralSearch([source([])], null)).toBe(true);
+  });
+
+  it('抜粋が少ない場合は、一般のサイトも調べる', () => {
+    expect(needsGeneralSearch([source(['あ'.repeat(203)])], true)).toBe(true);
+  });
+
+  it('抜粋が十分でも、定義がわからなかった場合は、一般のサイトも調べる', () => {
+    expect(needsGeneralSearch([source(['あ'.repeat(600)])], false)).toBe(true);
+  });
+
+  it('抜粋が十分で、定義がわかった（または不明な）場合は、公式サイトだけで調べる', () => {
+    expect(
+      needsGeneralSearch([source(['あ'.repeat(300), 'い'.repeat(300)])], true),
+    ).toBe(false);
+    expect(needsGeneralSearch([source(['あ'.repeat(600)])], null)).toBe(false);
   });
 });
