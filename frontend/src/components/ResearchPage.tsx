@@ -7,6 +7,7 @@ import {
   fetchTranscription,
   fetchTranscriptions,
   startResearch,
+  updateResearchTitle,
 } from '../api/client';
 import type { TranscriptionSummary } from '../types';
 import type {
@@ -17,7 +18,7 @@ import type {
   ResearchStatus,
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
-import { buildReport, splitTopics } from '../utils/researchReport';
+import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
@@ -356,6 +357,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
 
           {job && (
             <section className="research-section">
+              {job.title && <p className="research-current-title">{job.title}</p>}
               <h2>調べている会話</h2>
               <ul className="research-selected-transcriptions">
                 {job.transcriptionIds.map((id, i) => (
@@ -519,6 +521,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                   className={`interview-log-item ${selectedResultId === j.id ? 'selected' : ''}`}
                   onClick={() => void handleSelectResult(j)}
                 >
+                  {j.title && <div className="research-job-title">{j.title}</div>}
                   <div className="interview-log-item-date">
                     {formatDate(j.createdAt)}
                     <span className={`research-job-status ${j.status}`}>
@@ -551,7 +554,16 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             )}
             {selectedResultId && !resultLoading && resultJob && (
               <div className="research-result">
-                <ResearchResult job={resultJob} onOpenTranscription={onOpenTranscription} />
+                <ResearchResult
+                  job={resultJob}
+                  onOpenTranscription={onOpenTranscription}
+                  onTitleChange={(updated) => {
+                    setResultJob(updated);
+                    setJobs((prev) =>
+                      prev.map((j) => (j.id === updated.id ? { ...j, title: updated.title } : j)),
+                    );
+                  }}
+                />
               </div>
             )}
           </div>
@@ -559,13 +571,6 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
       )}
     </div>
   );
-}
-
-/** 送る前の確認に、注意が必要な項目（個人情報チェックをしていない会話など）があるか */
-function hasPreSendWarning(job: ResearchJob): boolean {
-  const checks = job.preSendChecks;
-  if (!checks) return false;
-  return !checks.privacyConfigured || checks.privacy.some((p) => !p.scanned || p.needsReview > 0);
 }
 
 /**
@@ -792,12 +797,86 @@ interface OpenCite {
  * 何を調べたか → 信頼度のまとめ → 目次 → キーワードごとの解説 → 評価の詳細
  * キーワードごとに、解説（根拠は文の末尾に短く示し、クリックで吹き出し）・さらに読む・会話で話題になった箇所を表示する
  */
+/** 調査のタイトル（調査結果の見出し）。タイトルを変更できる */
+function ResearchTitle({
+  job,
+  onChange,
+}: {
+  job: ResearchJob;
+  onChange: (job: ResearchJob) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(job.title ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 別の調査を選んだときは、編集をやめる
+  useEffect(() => {
+    setDraft(job.title ?? '');
+    setEditing(false);
+    setError(null);
+  }, [job.id, job.title]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      onChange(await updateResearchTitle(job.id, draft));
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="research-title research-title--editing">
+        <input
+          className="research-title-input"
+          value={draft}
+          maxLength={60}
+          autoFocus
+          aria-label="調査のタイトル"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) void save();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+        />
+        <button
+          className="research-title-button primary"
+          disabled={saving || !draft.trim()}
+          onClick={() => void save()}
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
+        <button className="research-title-button" disabled={saving} onClick={() => setEditing(false)}>
+          キャンセル
+        </button>
+        {error && <div className="research-error">{error}</div>}
+      </div>
+    );
+  }
+  return (
+    <div className="research-title">
+      <h2 className={job.title ? '' : 'research-title-empty'}>{job.title ?? 'タイトルなし'}</h2>
+      <button className="research-title-button" onClick={() => setEditing(true)}>
+        {job.title ? 'タイトルを変更' : 'タイトルを付ける'}
+      </button>
+    </div>
+  );
+}
+
 function ResearchResult({
   job,
   onOpenTranscription,
+  onTitleChange,
 }: {
   job: ResearchJob;
   onOpenTranscription: Props['onOpenTranscription'];
+  onTitleChange: (job: ResearchJob) => void;
 }) {
   const [openCite, setOpenCite] = useState<OpenCite | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -824,7 +903,7 @@ function ResearchResult({
         ).values(),
       ).sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false));
       const mentions = job.mentions?.find((m) => m.keyword === topic.title);
-      return { title: topic.title, ...built, pages, mentions };
+      return { title: topic.title, ...built, pages, mentions, ...topicHighlights(topic.segments) };
     });
   }, [job, conversationNo]);
 
@@ -871,47 +950,28 @@ function ResearchResult({
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const evaluation = job.status === 'completed' ? job.evaluation : undefined;
-  const failedChecks = evaluation
-    ? evaluation.relevance.filter((r) => !r.answered).length +
-      evaluation.ethics.filter((e) => !e.passed).length
-    : 0;
   const reviewCount = evaluation?.reviewClaims?.length ?? 0;
+  const topicIndex = (keyword: string) => topics.findIndex((t) => t.title === keyword);
+
+  // 次にできること: 確認が必要なところ（評価・Web調査の失敗・会話との食い違い）と、読むとよい公式ページ
+  const notAnswered = evaluation?.relevance.filter((r) => !r.answered).map((r) => r.keyword) ?? [];
+  const failedEthics = evaluation?.ethics.filter((e) => !e.passed) ?? [];
+  const failedResearch = job.webResearchFailures?.map((f) => f.keyword) ?? [];
+  const differences = topics.filter((t) => t.title && t.hasDifference);
+  const issueCount = notAnswered.length + failedEthics.length + failedResearch.length + differences.length;
+  const officialPages = topics.flatMap((t) => {
+    const page = t.pages.find((c) => c.official);
+    return t.title && page ? [{ keyword: t.title, page }] : [];
+  });
 
   return (
     <>
-      {/* 何を調べたか */}
-      <section className="research-summary-card">
-        <dl>
-          <dt>日時</dt>
-          <dd>
-            {formatDate(job.createdAt)}
-            <span className="research-summary-model">{job.models.analysis}</span>
-          </dd>
-          <dt>会話</dt>
-          <dd>
-            {job.transcriptionIds.map((id) => (
-              <div key={id}>
-                会話{conversationNo.get(id)}: {job.transcriptionNames[id] ?? id}
-              </div>
-            ))}
-          </dd>
-          {job.confirmed && (
-            <>
-              <dt>キーワード</dt>
-              <dd>
-                <ConfirmedTargets job={job} />
-              </dd>
-            </>
-          )}
-        </dl>
-      </section>
+      <ResearchTitle job={job} onChange={onTitleChange} />
 
-      {job.preSendChecks && (
-        <details className="research-section research-eval-details" open={hasPreSendWarning(job)}>
-          <summary>送る前の確認</summary>
-          <PreSendChecksView job={job} />
-        </details>
-      )}
+      <p className="research-meta">
+        {formatDate(job.createdAt)} ・ 会話{job.transcriptionIds.length}件
+        {job.confirmed && ` ・ キーワード${job.confirmed.keywords.length}つ`}
+      </p>
 
       {job.status === 'failed' && (
         <>
@@ -920,60 +980,91 @@ function ResearchResult({
         </>
       )}
 
-      {/* 信頼度のまとめ */}
-      {evaluation && (
-        <div
-          className={`research-trust ${failedChecks > 0 || (job.webResearchFailures?.length ?? 0) > 0 ? 'warning' : ''}`}
-        >
-          <span>
-            根拠付き <strong>{percent(evaluation.citationCoverage)}</strong>
-          </span>
-          <span>
-            裏付けあり <strong>{percent(evaluation.supportedRate)}</strong>
-          </span>
-          <span>
-            Webの根拠のうち公式 <strong>{percent(evaluation.officialSourceRate)}</strong>
-          </span>
-          <span>
-            AI倫理{' '}
-            <strong>
-              {evaluation.ethics.filter((e) => e.passed).length}/{evaluation.ethics.length} 合格
-            </strong>
-          </span>
-          <span>
-            根拠がなく除いた主張 <strong>{evaluation.removedClaims.length}件</strong>
-          </span>
-          {(job.webResearchFailures?.length ?? 0) > 0 && (
-            <span className="research-trust-alert">
-              Web調査に失敗したキーワードがあります（{job.webResearchFailures!.map((f) => f.keyword).join('、')}
-              ）。このキーワードの解説は、Web の情報がないため少ないか、ないことがあります
-            </span>
-          )}
-          {failedChecks > 0 && (
-            <span className="research-trust-alert">確認が必要な項目が{failedChecks}件あります（評価の詳細）</span>
-          )}
-          {reviewCount > 0 && (
-            <span className="research-trust-alert">要確認の主張が{reviewCount}件あります（評価の詳細）</span>
-          )}
-        </div>
-      )}
-
       {topics.length > 0 && (
         <>
-          {/* 目次 */}
-          {topics.filter((t) => t.title).length > 1 && (
-            <nav className="research-toc">
+          <AiGeneratedNotice basis="根拠" />
+
+          {/* 要点（キーワードごとの「一言でいうと」。キーワードを押すと解説に移る） */}
+          <section className="research-section research-highlights">
+            <h2>要点</h2>
+            <ul>
               {topics.map((t, i) =>
                 t.title ? (
-                  <button key={i} onClick={() => scrollToTopic(i)}>
-                    {t.title}
-                  </button>
+                  <li key={i}>
+                    <button className="research-highlight-keyword" onClick={() => scrollToTopic(i)}>
+                      {t.title}
+                    </button>
+                    <span>{t.oneLiner ?? '（一言の説明はありません。解説を読んでください）'}</span>
+                  </li>
                 ) : null,
               )}
-            </nav>
-          )}
+            </ul>
+          </section>
 
-          <AiGeneratedNotice basis="根拠" />
+          {/* 次にできること */}
+          <section className="research-section research-next">
+            <h2>次にできること</h2>
+            {evaluation && (
+              <p className={`research-verdict ${issueCount > 0 ? 'warning' : 'ok'}`}>
+                {issueCount > 0
+                  ? `確認するとよいところが${issueCount}件あります`
+                  : `✓ ${evaluation.relevance.length}つのキーワードとも、根拠付きで説明できています`}
+                <span className="research-verdict-detail">
+                  （根拠付き {percent(evaluation.citationCoverage)}・公式の根拠 {percent(evaluation.officialSourceRate)}・AI倫理{' '}
+                  {failedEthics.length === 0 ? '問題なし' : `${failedEthics.length}件の問題`}）
+                </span>
+              </p>
+            )}
+            <ul className="research-actions">
+              {failedEthics.map((e) => (
+                <li key={e.item} className="warning">
+                  <span>AI倫理の確認で問題が見つかりました: {e.item}（{e.detail}）。解説をそのまま使う前に内容を確かめてください。</span>
+                </li>
+              ))}
+              {failedResearch.map((keyword) => (
+                <li key={`failed-${keyword}`} className="warning">
+                  <span>「{keyword}」は Web調査に失敗したため、解説が少ないか、ないことがあります。</span>
+                </li>
+              ))}
+              {notAnswered.map((keyword) => (
+                <li key={`thin-${keyword}`} className="warning">
+                  <span>「{keyword}」は Web の情報が少なく、説明が不十分です。</span>
+                  {topicIndex(keyword) >= 0 && (
+                    <button className="research-action-button" onClick={() => scrollToTopic(topicIndex(keyword))}>
+                      解説を見る
+                    </button>
+                  )}
+                </li>
+              ))}
+              {differences.map((t) => (
+                <li key={`diff-${t.title}`}>
+                  <span>「{t.title}」は、会話での説明と Web の説明に違いがあります。</span>
+                  <button className="research-action-button" onClick={() => scrollToTopic(topicIndex(t.title!))}>
+                    違いを読む
+                  </button>
+                  {t.mentions && t.mentions.items.length > 0 && (
+                    <button
+                      className="research-action-button"
+                      onClick={() =>
+                        onOpenTranscription(t.mentions!.items[0].transcriptionId, t.mentions!.items[0].utteranceIndex)
+                      }
+                    >
+                      会話を聞き直す
+                    </button>
+                  )}
+                </li>
+              ))}
+              {officialPages.map(({ keyword, page }) => (
+                <li key={`page-${keyword}`}>
+                  <span>「{keyword}」を詳しく知るなら、公式ページから読む: {page.title}</span>
+                  <a className="research-action-button" href={page.sourceId} target="_blank" rel="noopener noreferrer">
+                    ページを開く
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <p className="research-hint">
             文の後ろの「langchain.com 公式」などは、その文の根拠です。クリックすると、根拠になったページの抜粋を確かめられます。
           </p>
@@ -982,6 +1073,11 @@ function ResearchResult({
           <div className="research-report-body" ref={bodyRef} onClick={handleReportClick}>
             {topics.map((t, i) => (
               <section key={i} id={`research-topic-${i}`} className="research-topic" data-topic={i}>
+                {t.title && notAnswered.includes(t.title) && (
+                  <p className="research-topic-warning">
+                    Web の情報が少なく、この解説は「{t.title}」を十分に説明できていません。
+                  </p>
+                )}
                 <div className="research-report" dangerouslySetInnerHTML={{ __html: t.html }} />
                 {t.pages.length > 0 && (
                   <div className="research-topic-extra">
@@ -1077,65 +1173,89 @@ function ResearchResult({
         </>
       )}
 
-      {/* 評価の詳細（確認が必要な項目があるときは開いておく） */}
-      {evaluation && (
-        <details className="research-section research-eval-details" open={failedChecks > 0 || reviewCount > 0}>
-          <summary>評価の詳細</summary>
-          <ul className="research-checks">
-            {evaluation.relevance.map((r) => (
-              <li key={r.keyword} className={r.answered ? 'passed' : 'failed'}>
-                <span className="research-check-mark">{r.answered ? '✓' : '✕'}</span>
-                「{r.keyword}」を説明している
-                <span className="research-check-detail">{r.reason}</span>
-              </li>
-            ))}
-            {evaluation.ethics.map((e) => (
-              <li key={e.item} className={e.passed ? 'passed' : 'failed'}>
-                <span className="research-check-mark">{e.passed ? '✓' : '✕'}</span>
-                {e.item}
-                <span className="research-check-detail">{e.detail}</span>
-              </li>
-            ))}
-          </ul>
-          {reviewCount > 0 && (
-            <details className="research-removed research-review" open>
-              <summary>評価モデルと Guardrails の判定が分かれた主張（要確認・{reviewCount}件）</summary>
-              <ul>
-                {evaluation.reviewClaims!.map((c, i) => (
-                  <li key={i}>
-                    <p>{c.claim}</p>
-                    <p className="research-check-detail">{c.reason}</p>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-          {evaluation.removedClaims.length > 0 && (
-            <details className="research-removed">
-              <summary>根拠がないため表示から除いた主張（{evaluation.removedClaims.length}件）</summary>
-              <ul>
-                {evaluation.removedClaims.map((c, i) => (
-                  <li key={i}>
-                    <p>{c.claim}</p>
-                    <p className="research-check-detail">{c.reason}</p>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-          <p className="research-hint">
-            評価は、分析とは別のモデル（{evaluation.judgeModel}
-            ）が、各主張とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
-            {evaluation.guardrails
-              ? ` 出力の個人情報・不適切な表現は Amazon Bedrock Guardrails でも確認しています。${
-                  evaluation.guardrails.groundingChecked > 0
-                    ? `英語の主張${evaluation.guardrails.groundingChecked}件は、Guardrails の根拠スコア（しきい値 ${evaluation.guardrails.groundingThreshold}）でも確認し、両方が「根拠と合わない」と判定したものだけを除いています。`
-                    : 'Guardrails の根拠スコアは英語の主張だけが対象のため、今回は使っていません。'
-                }`
-              : ' Amazon Bedrock Guardrails の Guardrail ID が設定されていないため、Guardrails による確認は行っていません。'}
-          </p>
-        </details>
-      )}
+      {/* この調査の記録（普段は開かなくてよい内容） */}
+      <details className="research-section research-record">
+        <summary>この調査の記録</summary>
+        <section className="research-summary-card">
+          <dl>
+            <dt>日時</dt>
+            <dd>
+              {formatDate(job.createdAt)}
+              <span className="research-summary-model">{job.models.analysis}</span>
+            </dd>
+            <dt>会話</dt>
+            <dd>
+              {job.transcriptionIds.map((id) => (
+                <div key={id}>
+                  会話{conversationNo.get(id)}: {job.transcriptionNames[id] ?? id}
+                </div>
+              ))}
+            </dd>
+            {job.confirmed && (
+              <>
+                <dt>キーワード</dt>
+                <dd>
+                  <ConfirmedTargets job={job} />
+                </dd>
+              </>
+            )}
+          </dl>
+        </section>
+
+        {job.preSendChecks && (
+          <>
+            <h3>送る前の確認</h3>
+            <PreSendChecksView job={job} />
+          </>
+        )}
+
+        {evaluation && (
+          <>
+            <h3>評価</h3>
+            <p className="research-record-line">
+              根拠付き {percent(evaluation.citationCoverage)}・裏付けあり {percent(evaluation.supportedRate)}・Webの根拠のうち公式{' '}
+              {percent(evaluation.officialSourceRate)}・根拠がなく除いた文 {evaluation.removedClaims.length}件
+            </p>
+            <ul className="research-checks">
+              {evaluation.ethics.map((e) => (
+                <li key={e.item} className={e.passed ? 'passed' : 'failed'}>
+                  <span className="research-check-mark">{e.passed ? '✓' : '✕'}</span>
+                  {e.item}
+                </li>
+              ))}
+            </ul>
+            {reviewCount > 0 && (
+              <details className="research-removed research-review">
+                <summary>評価モデルと Guardrails の判定が分かれた文（{reviewCount}件）</summary>
+                <ul>
+                  {evaluation.reviewClaims!.map((c, i) => (
+                    <li key={i}>
+                      <p>{c.claim}</p>
+                      <p className="research-check-detail">{c.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {evaluation.removedClaims.length > 0 && (
+              <details className="research-removed">
+                <summary>根拠がないため表示から除いた文（{evaluation.removedClaims.length}件）</summary>
+                <ul>
+                  {evaluation.removedClaims.map((c, i) => (
+                    <li key={i}>
+                      <p>{c.claim}</p>
+                      <p className="research-check-detail">{c.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            <p className="research-hint">
+              評価は、分析とは別のモデル（{evaluation.judgeModel}）が、各文とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
+            </p>
+          </>
+        )}
+      </details>
     </>
   );
 }

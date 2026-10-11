@@ -40,6 +40,8 @@ export interface TranscriptDocument {
 
 /** ② 提案の出力（Claude が返す形） */
 export interface RawProposal {
+  /** 調査の内容を表すタイトル */
+  title: string;
   keywords: {
     keyword: string;
     reason: string;
@@ -139,7 +141,8 @@ ${frequentWords.map((w) => `- ${w.word}（${w.count}回）`).join('\n')}
 - reason: 会話のどの話題に関係し、何を調べると良いかを1〜2文で書く
 - quotes: そのキーワードが使われている発言を、会話から一字一句そのまま1〜2個抜き出す（各10〜60文字）
 - domains: そのキーワードの公式情報を調べるべき公式サイトのドメインを1〜3件提案する（例: 製品・ツールの提供元、提唱した組織、標準化団体、論文の公開先）。owner は運営者、reason はそのサイトで何がわかるかを1文で。推測で存在しないドメインを書かない
-- 会話に登場する個人の評価・性格・健康・思想などには触れない`,
+- 会話に登場する個人の評価・性格・健康・思想などには触れない
+- title: この調査の内容を表す日本語のタイトルを、20〜30文字で書く。会話全体の主題と、調べるキーワードの共通点がわかるようにする。番組名が会話からわかれば含めてよい。会話に登場する個人の名前は含めない`,
             },
           ],
         },
@@ -406,6 +409,7 @@ ${keywords.map((k) => `- ${k}`).join('\n')}
 const PROPOSAL_SCHEMA = {
   type: 'object',
   properties: {
+    title: { type: 'string' },
     keywords: {
       type: 'array',
       items: {
@@ -433,7 +437,7 @@ const PROPOSAL_SCHEMA = {
       },
     },
   },
-  required: ['keywords'],
+  required: ['title', 'keywords'],
   additionalProperties: false,
 };
 

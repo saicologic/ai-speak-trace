@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildReport, splitTopics } from './researchReport';
+import { buildReport, splitTopics, topicHighlights } from './researchReport';
 import type { ReportCitation } from '../types/research';
 
 const conv: ReportCitation = { sourceKind: 'conversation', sourceId: 't1', title: '前編.mp3', citedText: '原文' };
@@ -78,5 +78,24 @@ describe('buildReport', () => {
       ['ループ', ['## ループ\n\n**詳しく**\n']],
       ['評価', ['## 評価\n', '説明。']],
     ]);
+  });
+});
+
+describe('topicHighlights', () => {
+  it('「一言でいうと」の文を取り出す', () => {
+    const { oneLiner, hasDifference } = topicHighlights([
+      { text: '## ハーネス\n\n**一言でいうと**: モデルを動かす', citations: [] },
+      { text: '仕組みです。\n\n**詳しく**:\n- 説明', citations: [] },
+    ]);
+    expect(oneLiner).toBe('モデルを動かす仕組みです。');
+    expect(hasDifference).toBe(false);
+  });
+
+  it('「会話での説明との違い」があるかを見る', () => {
+    const { oneLiner, hasDifference } = topicHighlights([
+      { text: '## ハーネス\n\n**詳しく**:\n- 説明\n\n**会話での説明との違い**: 会話では…', citations: [] },
+    ]);
+    expect(oneLiner).toBeNull();
+    expect(hasDifference).toBe(true);
   });
 });

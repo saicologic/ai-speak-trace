@@ -173,6 +173,8 @@ export interface ResearchJob {
   createdAt: string;
   updatedAt: string;
   status: ResearchStatus;
+  /** 調査のタイトル（② の提案で作り、利用者が変更できる。以前の調査にはない） */
+  title?: string;
   error?: string;
   /** ① 選んだ会話 */
   transcriptionIds: string[];
@@ -215,4 +217,5 @@ export type ResearchJobSummary = Pick<
   | 'status'
   | 'transcriptionIds'
   | 'transcriptionNames'
+  | 'title'
 > & { keywords: string[] };

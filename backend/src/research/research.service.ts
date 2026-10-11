@@ -219,8 +219,10 @@ export class ResearchService implements OnModuleInit {
         .filter((k) => k.keyword && k.frequency > 0)
         .sort((a, b) => b.frequency - a.frequency);
       const domains = uniqueDomains(keywords.flatMap((k) => k.domains));
+      const title = normalizeTitle(raw.title);
       await this.update(job, {
         status: 'awaiting_confirmation',
+        ...(title && { title }),
         proposal: { keywords, domains },
         preSendChecks: {
           ...(job.preSendChecks ?? { privacyConfigured: false, privacy: [] }),
@@ -397,16 +399,34 @@ export class ResearchService implements OnModuleInit {
    * 調査ジョブを更新して保存する
    * 実行中に会話の削除でジョブが消された場合は、会話の内容を含む結果を再び保存しないよう、保存せずに中断する
    */
+  /** 調査のタイトルを変更する（調査の途中でも変更できる） */
+  async updateTitle(id: string, title: unknown): Promise<ResearchJob> {
+    const normalized = typeof title === 'string' ? normalizeTitle(title) : '';
+    if (!normalized) {
+      throw new BadRequestException('タイトルを入力してください');
+    }
+    const job = await this.findById(id);
+    return this.update(job, { title: normalized });
+  }
+
   private async update(
     job: ResearchJob,
     changes: Partial<ResearchJob>,
   ): Promise<ResearchJob> {
-    if (!(await this.jobStore.findById(job.id))) {
+    const stored = await this.jobStore.findById(job.id);
+    if (!stored) {
       throw new ResearchJobDeletedError(
         `調査ジョブが削除されました: ${job.id}`,
       );
     }
-    const updated = { ...job, ...changes, updatedAt: new Date().toISOString() };
+    // 調査の途中で利用者がタイトルを変更した場合に、手元の古い内容で上書きしないよう、保存済みのタイトルを使う
+    const updated = {
+      ...job,
+      title: stored.title,
+      ...changes,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!updated.title) delete updated.title;
     await this.jobStore.save(updated);
     return updated;
   }
@@ -583,7 +603,11 @@ export function evaluate(
         webCitations.length === 0
           ? null
           : webCitations.filter((c) => c.official).length / webCitations.length,
-      relevance: judgement.relevance,
+      // 評価モデルが解説の「関連するキーワード」まで判定することがあるため、確定したキーワードの判定だけを使う
+      relevance: keywords.flatMap((keyword) => {
+        const r = judgement.relevance.find((x) => x.keyword === keyword);
+        return r ? [r] : [];
+      }),
       ethics: [
         checkPersonalData(finalReport),
         {
@@ -600,4 +624,12 @@ export function evaluate(
       judgeModel: JUDGE_MODEL,
     },
   };
+}
+
+/** タイトルの最大文字数 */
+export const MAX_TITLE_LENGTH = 60;
+
+/** タイトルの前後の空白と改行を除き、長すぎる場合は切り詰める */
+export function normalizeTitle(title: string | undefined): string {
+  return (title ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_LENGTH);
 }

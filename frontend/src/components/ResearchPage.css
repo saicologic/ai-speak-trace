@@ -824,3 +824,194 @@
   font-size: 0.72rem;
   color: #b91c1c;
 }
+
+/* 調査のタイトル */
+.research-job-title {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.research-current-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 12px;
+}
+
+.research-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.research-title h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #1f2937;
+}
+
+.research-title h2.research-title-empty {
+  color: #9ca3af;
+}
+
+.research-title-input {
+  flex: 1;
+  min-width: 240px;
+  padding: 8px 10px;
+  font-size: 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+
+.research-title-button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.research-title-button.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.research-title-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 調査結果: 日時・会話・キーワードの数 */
+.research-meta {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* 要点 */
+.research-highlights ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.research-highlights li {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  line-height: 1.6;
+}
+
+.research-highlights li:last-child {
+  border-bottom: none;
+}
+
+.research-highlight-keyword {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.research-highlight-keyword:hover {
+  text-decoration: underline;
+}
+
+/* 次にできること */
+.research-verdict {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.research-verdict.ok {
+  color: #047857;
+}
+
+.research-verdict.warning {
+  color: #b45309;
+}
+
+.research-verdict-detail {
+  margin-left: 6px;
+  font-weight: normal;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.research-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.research-actions li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: #f9fafb;
+  line-height: 1.5;
+}
+
+.research-actions li.warning {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+}
+
+.research-actions li > span {
+  flex: 1;
+  min-width: 200px;
+}
+
+.research-action-button {
+  padding: 4px 10px;
+  font-size: 13px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.research-action-button:hover {
+  background: #eff6ff;
+}
+
+/* 説明が不十分な解説の注意 */
+.research-topic-warning {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 14px;
+}
+
+/* この調査の記録 */
+.research-record h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+}
+
+.research-record-line {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #374151;
+}
