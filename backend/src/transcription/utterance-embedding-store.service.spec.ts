@@ -9,6 +9,7 @@ import {
   UtteranceEmbeddingStore,
 } from './utterance-embedding-store.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { DerivedLogCleaner } from './derived-log-cleaner.service';
 import { TRANSCRIPTION_STORAGE } from '../storage/interfaces/transcription-storage.interface';
 
@@ -35,6 +36,7 @@ describe('UtteranceEmbeddingStore', () => {
         TranscriptionStoreService,
         DerivedLogCleaner,
         { provide: TRANSCRIPTION_STORAGE, useValue: storage },
+        { provide: PrivacyService, useValue: {} },
         {
           provide: ConfigService,
           useValue: {

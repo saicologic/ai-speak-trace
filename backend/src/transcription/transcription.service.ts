@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ElevenLabsService } from './elevenlabs.service';
 import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { TranscriptionStoreService } from './transcription-store.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 import type { AudioStorage } from '../storage/interfaces/audio-storage.interface';
 import { ElevenLabsWord } from './types/elevenlabs.types';
@@ -28,6 +29,7 @@ export class TranscriptionService {
     private readonly chunkedTranscriptionService: ChunkedTranscriptionService,
     private readonly store: TranscriptionStoreService,
     @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
+    private readonly privacyService: PrivacyService,
   ) {}
 
   /** 音声ファイル一覧を取得 */
@@ -204,6 +206,8 @@ export class TranscriptionService {
 
     // 結果を保存
     await this.store.save(transcription);
+    // 会話を外部に送る前に確認できるよう、個人情報を検出しておく
+    this.privacyService.scanInBackground(transcription);
 
     // チャンクジョブにtranscriptionIdを記録（JobProgressPageからの完了検知用）
     if (needsChunking) {
@@ -286,6 +290,8 @@ export class TranscriptionService {
     };
 
     await this.store.save(transcription);
+    // 会話を外部に送る前に確認できるよう、個人情報を検出しておく
+    this.privacyService.scanInBackground(transcription);
 
     // チャンクジョブにtranscriptionIdを記録
     job.transcriptionId = transcription.id;
@@ -393,6 +399,8 @@ export class TranscriptionService {
     }
 
     await this.store.save(transcription);
+    // 話者名を実名に変えた場合に備えて、個人情報チェックをやり直す（伏せる選択は引き継ぐ）
+    this.privacyService.scanInBackground(transcription);
     this.logger.log(`話者名更新完了: ${id}`);
 
     return transcription;

@@ -9,12 +9,14 @@ import * as path from 'path';
  * - summary-logs: 要約（transcriptionId を持つ）
  * - deep-search-logs: ディープサーチ（transcriptionIds を持つ）
  * - research-jobs: ディープサーチの調査（transcriptionIds を持つ）
+ * - privacy-scans: 個人情報チェックの結果（transcriptionId を持つ）
  */
 export const DERIVED_LOG_DIRS = [
   'analysis-logs',
   'summary-logs',
   'deep-search-logs',
   'research-jobs',
+  'privacy-scans',
 ] as const;
 
 /**

@@ -4,6 +4,7 @@ import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint } from '..
 import './InterviewPage.css';
 import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { PrivacySendNotice } from './PrivacyPanel';
 
 interface Props {
   transcriptionId: string;
@@ -348,6 +349,7 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
 
           {/* 実行ボタン */}
           <section className="interview-section">
+            <PrivacySendNotice transcriptionIds={[transcriptionId]} />
             <div className="interview-actions">
               <button
                 className="interview-button primary"

@@ -29,7 +29,7 @@ export class InterviewService {
     transcriptionId: string,
     speakerId: string,
   ): Promise<string> {
-    const transcription = await this.store.findById(transcriptionId);
+    const transcription = await this.store.findForSending(transcriptionId);
     if (!transcription) {
       throw new NotFoundException(
         `文字起こし結果が見つかりません: ${transcriptionId}`,
@@ -144,7 +144,7 @@ export class InterviewService {
     model: string,
     promptTemplate: string,
   ): Promise<TranscriptionSummaryLog> {
-    const transcription = await this.store.findById(transcriptionId);
+    const transcription = await this.store.findForSending(transcriptionId);
     if (!transcription) {
       throw new NotFoundException(`文字起こし結果が見つかりません: ${transcriptionId}`);
     }
@@ -191,7 +191,7 @@ export class InterviewService {
     transcriptionId: string,
     utteranceIndices: number[],
   ): Promise<ContextAnalysisResponse> {
-    const transcription = await this.store.findById(transcriptionId);
+    const transcription = await this.store.findForSending(transcriptionId);
     if (!transcription) {
       throw new NotFoundException(
         `文字起こし結果が見つかりません: ${transcriptionId}`,

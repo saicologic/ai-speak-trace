@@ -151,4 +151,38 @@ export interface AppSettings {
   };
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
+  /** 個人情報チェックに使う Amazon Bedrock Guardrails */
+  guardrail?: {
+    id: string;
+    version: string;
+  };
+}
+
+/** 会話から検出した個人情報（同じ種類・同じ文字列ごとにまとめたもの） */
+export interface PiiFinding {
+  type: string;
+  /** 表示名（氏名・電話番号など） */
+  label: string;
+  text: string;
+  /** 会話に出てくる回数 */
+  count: number;
+  /** Claude などに送るときに伏せるか */
+  mask: boolean;
+  /** 利用者がまだ確認していないか（誤検出の多い氏名などは、確認するまで伏せない） */
+  needsReview: boolean;
+}
+
+/** 文字起こしの個人情報チェックの状態 */
+export interface PrivacyStatus {
+  /** Guardrail ID が設定されているか */
+  configured: boolean;
+  scanning: boolean;
+  error?: string;
+  scan: {
+    transcriptionId: string;
+    scannedAt: string;
+    guardrailId: string;
+    guardrailVersion: string;
+    findings: PiiFinding[];
+  } | null;
 }

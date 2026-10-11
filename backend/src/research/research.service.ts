@@ -13,6 +13,13 @@ import {
   ResearchJobDeletedError,
   ResearchJobStore,
 } from './research-job.store';
+import { GuardrailService } from '../privacy/guardrail.service';
+import {
+  extractEnglish,
+  GROUNDING_THRESHOLD,
+  groundingTarget,
+  toOutputChecks,
+} from './research-guardrails';
 import {
   JUDGE_MODEL,
   RawJudgement,
@@ -21,6 +28,7 @@ import {
 } from './research-claude.service';
 import {
   ClaimCheck,
+  EthicsCheck,
   ReportSegment,
   ResearchEvaluation,
   ResearchJob,
@@ -61,6 +69,7 @@ export class ResearchService implements OnModuleInit {
     private readonly transcriptionStore: TranscriptionStoreService,
     private readonly jobStore: ResearchJobStore,
     private readonly claude: ResearchClaudeService,
+    private readonly guardrail: GuardrailService,
   ) {}
 
   /** アプリの再起動で中断された調査を、失敗として記録する */
@@ -175,7 +184,7 @@ export class ResearchService implements OnModuleInit {
     try {
       const raw = await this.claude.proposeKeywords(
         this.toDocuments(transcriptions),
-        frequentWords.slice(0, 30),
+        sendableWords(transcriptions, frequentWords).slice(0, 30),
       );
       const keywords = raw.keywords
         .map((k) => ({
@@ -221,7 +230,21 @@ export class ResearchService implements OnModuleInit {
 
       // ⑤ 評価（根拠のない主張は表示から除く）
       const judgement = await this.claude.judge(report, keywords);
-      const { finalReport, evaluation } = evaluate(report, judgement, keywords);
+      const grounding = await this.groundingScores(report);
+      const { finalReport, evaluation } = evaluate(
+        report,
+        judgement,
+        keywords,
+        grounding,
+      );
+      evaluation.ethics.push(...(await this.outputChecks(finalReport)));
+      evaluation.guardrails = this.guardrail.isConfigured()
+        ? {
+            guardrailId: this.guardrail.guardrailId,
+            groundingThreshold: GROUNDING_THRESHOLD,
+            groundingChecked: grounding.size,
+          }
+        : null;
       await this.update(job, {
         status: 'completed',
         report: finalReport,
@@ -233,10 +256,67 @@ export class ResearchService implements OnModuleInit {
     }
   }
 
+  /**
+   * 英語の主張の根拠スコアを Guardrails で計算する（Guardrail ID が未設定なら計算しない）
+   * 失敗した主張は、評価モデルの判定だけで扱う
+   */
+  private async groundingScores(
+    report: ReportSegment[],
+  ): Promise<Map<number, number>> {
+    const scores = new Map<number, number>();
+    if (!this.guardrail.isConfigured()) return scores;
+    for (const [index, segment] of report.entries()) {
+      const target = groundingTarget(segment);
+      if (!target) continue;
+      try {
+        const score = await this.guardrail.checkGrounding(
+          target.source,
+          target.query,
+          target.claim,
+        );
+        // Guardrail に根拠チェックの設定がない場合は、スコアがないため評価モデルの判定だけで扱う
+        if (score) scores.set(index, score.grounding);
+      } catch (error) {
+        this.logger.warn(
+          `根拠スコアを計算できません（${index}番目の文）`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+    return scores;
+  }
+
+  /** 統合分析の出力を Guardrails で確認する（Guardrail ID が未設定なら確認しない） */
+  private async outputChecks(report: ReportSegment[]): Promise<EthicsCheck[]> {
+    if (!this.guardrail.isConfigured()) return [];
+    const text = report.map((s) => s.text).join('');
+    try {
+      const findings = await this.guardrail.inspect(text, 'OUTPUT');
+      const english = extractEnglish(text);
+      const englishWords = english
+        ? (await this.guardrail.inspect(english, 'OUTPUT')).words
+        : [];
+      return toOutputChecks(findings, englishWords);
+    } catch (error) {
+      this.logger.warn(
+        '統合分析の出力を Guardrails で確認できません',
+        error instanceof Error ? error.message : error,
+      );
+      return [
+        {
+          item: 'Guardrails による出力の確認',
+          passed: false,
+          detail: `確認できませんでした: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
+  }
+
   private async loadTranscriptions(ids: string[]): Promise<Transcription[]> {
     const transcriptions: Transcription[] = [];
     for (const id of ids) {
-      const t = await this.transcriptionStore.findById(id);
+      // 個人情報チェックで「伏せる」と選んだ文字列は置き換えてから使う
+      const t = await this.transcriptionStore.findForSending(id);
       if (!t) throw new NotFoundException(`文字起こしが見つかりません: ${id}`);
       transcriptions.push(t);
     }
@@ -296,6 +376,23 @@ const SECTION_LABEL =
   /^\*\*(会話では|公式情報では|一致・相違・不足|示唆)\*\*[:：]?$/;
 
 /**
+ * 画面で数えた頻出語のうち、Claude に送る会話（個人情報チェックで伏せた後）に出てくる語だけを返す
+ * 頻出語は伏せる前の会話から数えているため、伏せた氏名などが頻出語として送られないようにする
+ * 回数も伏せた後の会話で数え直す
+ */
+export function sendableWords(
+  transcriptions: Transcription[],
+  frequentWords: { word: string; count: number }[],
+): { word: string; count: number }[] {
+  return frequentWords
+    .map((w) => ({
+      word: w.word,
+      count: countOccurrences(transcriptions, w.word),
+    }))
+    .filter((w) => w.count > 0);
+}
+
+/**
  * レポートの構成の行か（論点のキーワードの「## 見出し」と、統合分析の指示で決めた項目名）
  * 判定がない文や除いた文からも、構成を保つために残す
  * 見出しや太字の行は事実の文のこともあるため、指示で決めたものに限る
@@ -319,16 +416,20 @@ const NOTE_SENTENCE = /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測)(?:\*\*)?\s*[:：]
 
 /**
  * ⑤ 判定結果から評価を計算し、根拠のない主張を除いたレポートを返す
- * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く
+ * 事実の主張で「裏付けなし」と判定されたもの、根拠が付いていないものを除く。
+ * Guardrails の根拠スコアがある英語の主張は、評価モデルと Guardrails の両方が「根拠と合わない」と
+ * 判定したときだけ除き、判定が分かれたものは表示を残して「要確認」にする
  */
 export function evaluate(
   report: ReportSegment[],
   judgement: RawJudgement,
   keywords: string[],
+  grounding: Map<number, number> = new Map(),
 ): { finalReport: ReportSegment[]; evaluation: ResearchEvaluation } {
   const verdicts = new Map(judgement.claims.map((c) => [c.index, c]));
   const removedIndexes = new Set<number>();
   const removedClaims: ClaimCheck[] = [];
+  const reviewClaims: ClaimCheck[] = [];
   let factual = 0;
   let cited = 0;
   let supported = 0;
@@ -346,7 +447,35 @@ export function evaluate(
     // 判定が返らなかった事実の主張は、裏付けを確認できないため除く
     const verdict = v?.verdict ?? 'unsupported';
     if (hasCitation && verdict === 'supported') supported++;
-    if (!hasCitation || verdict === 'unsupported') {
+    const score = grounding.get(index);
+    const judgeRejects = verdict === 'unsupported';
+    const judgeReason = v?.reason ?? '判定が返りませんでした';
+    if (hasCitation && score !== undefined) {
+      const guardrailRejects = score < GROUNDING_THRESHOLD;
+      const scoreNote = `Guardrails の根拠スコア ${score.toFixed(2)}`;
+      if (judgeRejects && guardrailRejects) {
+        removedIndexes.add(index);
+        removedClaims.push({
+          claim: segment.text.trim(),
+          factual: true,
+          verdict: 'unsupported',
+          reason: `${judgeReason}（${scoreNote}）`,
+          groundingScore: score,
+        });
+      } else if (judgeRejects || guardrailRejects) {
+        reviewClaims.push({
+          claim: segment.text.trim(),
+          factual: true,
+          verdict,
+          reason: judgeRejects
+            ? `評価モデルは裏付けなしと判定: ${judgeReason}（${scoreNote}）`
+            : `${scoreNote}（しきい値 ${GROUNDING_THRESHOLD} 未満）。評価モデルの判定: ${verdict}`,
+          groundingScore: score,
+        });
+      }
+      return;
+    }
+    if (!hasCitation || judgeRejects) {
       removedIndexes.add(index);
       removedClaims.push({
         claim: segment.text.trim(),
@@ -378,6 +507,7 @@ export function evaluate(
       citationCoverage: factual === 0 ? 1 : cited / factual,
       supportedRate: cited === 0 ? 0 : supported / cited,
       removedClaims,
+      reviewClaims,
       officialSourceRate:
         webCitations.length === 0
           ? null

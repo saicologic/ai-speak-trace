@@ -3,6 +3,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { TranscriptionController } from './transcription.controller';
 import { TranscriptionService } from './transcription.service';
 import { ElevenLabsService } from './elevenlabs.service';
+import { PrivacyService } from '../privacy/privacy.service';
 
 /** TranscriptionServiceのモック */
 const mockTranscriptionService = {
@@ -39,6 +40,7 @@ describe('TranscriptionController', () => {
       providers: [
         { provide: TranscriptionService, useValue: mockTranscriptionService },
         { provide: ElevenLabsService, useValue: mockElevenLabsService },
+        { provide: PrivacyService, useValue: {} },
       ],
     }).compile();
 

@@ -1,7 +1,9 @@
 import { TranscriptionStoreService } from '../transcription/transcription-store.service';
 import { RawJudgement, ResearchClaudeService } from './research-claude.service';
 import { ResearchJobStore } from './research-job.store';
-import { evaluate, ResearchService } from './research.service';
+import { GuardrailService } from '../privacy/guardrail.service';
+import { evaluate, ResearchService, sendableWords } from './research.service';
+import { Transcription } from '../transcription/types/transcription.types';
 import { ReportSegment, ResearchJob } from './types/research.types';
 
 const cite = (official?: boolean) => ({
@@ -138,6 +140,52 @@ describe('evaluate', () => {
   });
 });
 
+describe('evaluate（Guardrails の根拠スコアあり）', () => {
+  const en = (text: string) => ({ text, citations: [cite(true)] });
+  const judge = (verdicts: ('supported' | 'unsupported')[]): RawJudgement => ({
+    claims: verdicts.map((verdict, index) => ({
+      index,
+      factual: true,
+      verdict,
+      reason: verdict,
+    })),
+    relevance: [],
+    ethics: ethicsOk,
+  });
+
+  it('両方が根拠と合わないと判定した主張だけ除き、判定が分かれた主張は要確認にする', () => {
+    const report = [
+      en('both ok'),
+      en('both ng'),
+      en('judge ng'),
+      en('guard ng'),
+    ];
+    const { finalReport, evaluation } = evaluate(
+      report,
+      judge(['supported', 'unsupported', 'unsupported', 'supported']),
+      [],
+      new Map([
+        [0, 0.95],
+        [1, 0.1],
+        [2, 0.9],
+        [3, 0.5],
+      ]),
+    );
+    expect(finalReport.map((s) => s.text)).toEqual([
+      'both ok',
+      'judge ng',
+      'guard ng',
+    ]);
+    expect(evaluation.removedClaims.map((c) => c.groundingScore)).toEqual([
+      0.1,
+    ]);
+    expect(evaluation.reviewClaims?.map((c) => c.claim)).toEqual([
+      'judge ng',
+      'guard ng',
+    ]);
+  });
+});
+
 describe('ResearchService', () => {
   const baseJob: ResearchJob = {
     id: 'job-1',
@@ -167,6 +215,7 @@ describe('ResearchService', () => {
       transcriptionStore as unknown as TranscriptionStoreService,
       jobStore as unknown as ResearchJobStore,
       {} as ResearchClaudeService,
+      { isConfigured: () => false } as unknown as GuardrailService,
     );
     return {
       service,
@@ -198,5 +247,25 @@ describe('ResearchService', () => {
       }
     ).fail(baseJob, new Error('失敗'));
     expect(jobStore.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendableWords', () => {
+  it('伏せた後の会話に出てこない頻出語を除き、回数を数え直す', () => {
+    const masked = {
+      utterances: [
+        { text: '[氏名]さんと Claude Code の話をした' },
+        { text: 'Claude Code は便利' },
+      ],
+    } as unknown as Transcription;
+    expect(
+      sendableWords(
+        [masked],
+        [
+          { word: '金井', count: 4 },
+          { word: 'Claude Code', count: 5 },
+        ],
+      ),
+    ).toEqual([{ word: 'Claude Code', count: 2 }]);
   });
 });

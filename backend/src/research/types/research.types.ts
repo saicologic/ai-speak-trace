@@ -82,6 +82,8 @@ export interface ClaimCheck {
   /** 根拠で裏付けられているか */
   verdict: 'supported' | 'partial' | 'unsupported' | 'not_applicable';
   reason: string;
+  /** Guardrails の根拠スコア（0〜1。英語の主張だけ） */
+  groundingScore?: number;
 }
 
 /** AI倫理のチェック結果 */
@@ -101,6 +103,16 @@ export interface ResearchEvaluation {
   supportedRate: number;
   /** 根拠がない・裏付けられないため、表示から除いた主張 */
   removedClaims: ClaimCheck[];
+  /** 評価モデルと Guardrails の判定が分かれたため、表示は残して確認を促す主張（英語の主張だけ） */
+  reviewClaims?: ClaimCheck[];
+  /** Guardrails による確認（Guardrail ID が未設定なら null） */
+  guardrails?: {
+    guardrailId: string;
+    /** 根拠スコアのしきい値（これ未満を「根拠と合わない」とみなす） */
+    groundingThreshold: number;
+    /** 根拠スコアを計算した英語の主張の数 */
+    groundingChecked: number;
+  } | null;
   /** Web の根拠のうち、公式サイトのものの割合（0〜1。Web の根拠がなければ null） */
   officialSourceRate: number | null;
   /** 論点（キーワード）ごとに、分析が答えているか */

@@ -24,6 +24,7 @@ import { TranscriptionService } from './transcription.service';
 import { ElevenLabsService } from './elevenlabs.service';
 import { TranscribeRequestDto } from './dto/transcribe-request.dto';
 import { UpdateSpeakersDto } from './dto/update-speakers.dto';
+import { PrivacyService } from '../privacy/privacy.service';
 
 /** 文字起こしAPIコントローラー */
 @Controller()
@@ -31,6 +32,7 @@ export class TranscriptionController {
   constructor(
     private readonly transcriptionService: TranscriptionService,
     private readonly elevenLabsService: ElevenLabsService,
+    private readonly privacyService: PrivacyService,
   ) {}
 
   /** クレジット残量確認: GET /api/credits/check */
@@ -356,6 +358,53 @@ export class TranscriptionController {
       dto.speakers,
     );
     return { transcription };
+  }
+
+  /** 個人情報チェックの状態と結果: GET /api/transcriptions/:id/privacy */
+  @Get('transcriptions/:id/privacy')
+  async getPrivacy(@Param('id') id: string) {
+    await this.transcriptionService.getTranscription(id);
+    return { privacy: await this.privacyService.getStatus(id) };
+  }
+
+  /** 個人情報チェックの実行: POST /api/transcriptions/:id/privacy/scan */
+  @Post('transcriptions/:id/privacy/scan')
+  async scanPrivacy(@Param('id') id: string) {
+    // 読み込む前の時刻（読み込んだ後に文字起こしが削除された場合に、結果を保存しないため）
+    const receivedAt = new Date().toISOString();
+    const transcription = await this.transcriptionService.getTranscription(id);
+    await this.privacyService.scan(transcription, receivedAt);
+    return { privacy: await this.privacyService.getStatus(id) };
+  }
+
+  /** 検出した個人情報の「伏せる／伏せない」の更新: PATCH /api/transcriptions/:id/privacy */
+  @Patch('transcriptions/:id/privacy')
+  async updatePrivacy(
+    @Param('id') id: string,
+    @Body() body: { findings?: unknown },
+  ) {
+    const findings = body?.findings;
+    if (
+      !Array.isArray(findings) ||
+      !findings.every(
+        (f: unknown) =>
+          typeof f === 'object' &&
+          f !== null &&
+          typeof (f as { type?: unknown }).type === 'string' &&
+          typeof (f as { text?: unknown }).text === 'string' &&
+          typeof (f as { mask?: unknown }).mask === 'boolean',
+      )
+    ) {
+      throw new BadRequestException(
+        'findings は { type, text, mask } の配列で指定してください',
+      );
+    }
+    await this.transcriptionService.getTranscription(id);
+    await this.privacyService.updateMasks(
+      id,
+      findings as { type: string; text: string; mask: boolean }[],
+    );
+    return { privacy: await this.privacyService.getStatus(id) };
   }
 
   /** 同名ファイルの未完了ジョブ検索: GET /api/chunked-jobs/check/:fileName */

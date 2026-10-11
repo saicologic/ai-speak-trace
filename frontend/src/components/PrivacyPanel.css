@@ -1,0 +1,153 @@
+.privacy-panel {
+  margin-bottom: 1.5rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.privacy-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.privacy-panel-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.privacy-panel-badge {
+  font-size: 0.75rem;
+  color: #065f46;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+.privacy-panel-badge--masked {
+  color: #1e40af;
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.privacy-panel-badge--review {
+  color: #92400e;
+  background-color: #fffbeb;
+  border-color: #fde68a;
+}
+
+.privacy-panel-review {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  color: #92400e;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+}
+
+.privacy-panel-badge--muted {
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.privacy-panel-toggle {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.privacy-panel-body {
+  padding: 0 1rem 1rem;
+}
+
+.privacy-panel-hint,
+.privacy-panel-meta {
+  font-size: 0.8rem;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 0 0 0.75rem;
+}
+
+.privacy-panel-meta {
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+
+.privacy-panel-error {
+  font-size: 0.8rem;
+  color: #991b1b;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.privacy-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.privacy-panel-table th,
+.privacy-panel-table td {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+
+.privacy-panel-table th {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.privacy-panel-text {
+  word-break: break-all;
+}
+
+.privacy-panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.privacy-panel-save {
+  background-color: #3b82f6;
+  color: #ffffff;
+  border: none;
+  font-size: 0.8rem;
+}
+
+.privacy-panel-save:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.privacy-panel-scan {
+  font-size: 0.8rem;
+}
+
+.privacy-send-notice {
+  font-size: 0.8rem;
+  color: #1e40af;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.privacy-send-notice--warning {
+  color: #92400e;
+  background-color: #fffbeb;
+  border-color: #fde68a;
+}
