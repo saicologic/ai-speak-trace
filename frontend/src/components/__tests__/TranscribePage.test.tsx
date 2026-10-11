@@ -7,6 +7,7 @@ import {
   deleteAllResourcesByFileName,
 } from '../../api/client';
 import type { CreditInfo } from '../../api/client';
+import { isTauri } from '../../utils/platform';
 
 vi.mock('../../api/client');
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -18,6 +19,11 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }));
 vi.mock('@tauri-apps/api/path', () => ({
   homeDir: vi.fn().mockResolvedValue('/Users/test/'),
+}));
+// 既定はデスクトップアプリ（Tauri）として動かす
+vi.mock('../../utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/platform')>()),
+  isTauri: vi.fn(() => true),
 }));
 
 // クレジット十分
@@ -86,6 +92,23 @@ describe('TranscribePage', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /同意を得ています/ }));
     await waitFor(() => {
       expect(screen.getByText('文字起こしを実行')).toBeEnabled();
+    });
+  });
+
+  it('ブラウザ（開発サーバー）では、ブラウザのファイル選択で読み込む', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    vi.mocked(checkCredits).mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    const { container } = render(<TranscribePage {...defaultProps} />);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const clickInput = vi.spyOn(input, 'click');
+
+    await user.click(screen.getByText('ファイルを選択'));
+    expect(clickInput).toHaveBeenCalled();
+
+    await user.upload(input, new File([new Uint8Array([0, 1, 2])], 'test.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => {
+      expect(screen.getByText('音声ファイルの確認')).toBeInTheDocument();
     });
   });
 });

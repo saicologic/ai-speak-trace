@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { deleteChunkedJob } from '../api/client';
 import type { ChunkedJobDetail } from '../api/client';
 import { formatTime } from '../utils/transcription';
+import { confirmDialog } from '../utils/platform';
 import './ResumableJobsPage.css';
 
 interface ResumableJobsPageProps {
@@ -46,9 +47,7 @@ export function ResumableJobsPage({
   /** 選択したジョブを削除 */
   const handleDelete = async () => {
     if (selectedIds.size === 0) return;
-    // Tauri WebView では window.confirm がブロッキングしないため plugin-dialog を使用
-    const { confirm } = await import('@tauri-apps/plugin-dialog');
-    const confirmed = await confirm(
+    const confirmed = await confirmDialog(
       `${selectedIds.size}件のジョブを削除しますか？\n削除したジョブは復元できません。`,
       { title: 'ジョブの削除', kind: 'warning' },
     );
