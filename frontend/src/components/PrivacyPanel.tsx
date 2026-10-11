@@ -221,7 +221,11 @@ interface PrivacySendNoticeProps {
   transcriptionIds: string[];
 }
 
-/** 送る前の注意書き: 選んだ会話の個人情報チェックの状況 */
+/**
+ * 送る前の注意書き: 伏せずに送ってしまう可能性があるときだけ、1行で知らせる
+ * （チェックしていない会話・要確認のまま伏せない文字列・個人情報チェックが未設定）
+ * 伏せる文字列を選んである場合は、表示しなくても置き換えてから送る
+ */
 export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) {
   const [statuses, setStatuses] = useState<PrivacyStatus[] | null>(null);
   const idsKey = transcriptionIds.join('\n');
@@ -244,32 +248,29 @@ export function PrivacySendNotice({ transcriptionIds }: PrivacySendNoticeProps) 
   if (!statuses || statuses.length === 0) return null;
   const configured = statuses.some((s) => s.configured);
   const unchecked = statuses.filter((s) => !s.scan).length;
-  const masked = statuses.reduce(
-    (sum, s) => sum + (s.scan?.findings.filter((f) => f.mask).length ?? 0),
-    0,
-  );
   const review = statuses.reduce(
-    (sum, s) => sum + (s.scan?.findings.filter((f) => f.needsReview).length ?? 0),
+    (sum, s) => sum + (s.scan?.findings.filter((f) => f.needsReview && !f.mask).length ?? 0),
     0,
   );
 
-  if (!configured && unchecked === statuses.length) {
-    return (
-      <p className="privacy-send-notice privacy-send-notice--warning">
-        個人情報チェックが設定されていないため、会話はそのまま送られます。
-      </p>
-    );
+  const notes: string[] = [];
+  // Guardrail ID を解除しても保存済みのチェック結果は残るため、結果の有無に関係なく知らせる
+  if (!configured) {
+    notes.push('個人情報チェックが設定されていないため、会話は伏せずに送られます');
+  } else {
+    if (unchecked > 0) {
+      notes.push(
+        statuses.length === 1
+          ? 'この会話は個人情報チェックをしていないため、伏せずに送られます'
+          : `個人情報チェックをしていない会話が${unchecked}件あり、伏せずに送られます`,
+      );
+    }
+    if (review > 0) notes.push(`要確認の${review}件（氏名など）は伏せずに送られます`);
   }
+  if (notes.length === 0) return null;
   return (
-    <p
-      className={`privacy-send-notice ${
-        unchecked > 0 || review > 0 ? 'privacy-send-notice--warning' : ''
-      }`}
-    >
-      個人情報チェック: {masked}件を伏せて送ります
-      {review > 0 && `。要確認の${review}件（氏名など）は伏せずに送ります`}
-      {unchecked > 0 && `。チェックしていない会話が${unchecked}件あり、そのまま送られます`}
-      。選択は文字起こしの画面の「個人情報チェック」で変えられます。
+    <p className="privacy-send-notice privacy-send-notice--warning">
+      {notes.join('。')}。文字起こしの画面の「個人情報チェック」で確認できます。
     </p>
   );
 }
