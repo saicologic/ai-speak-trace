@@ -35,7 +35,6 @@ ai-speak-trace/
 │   ├── binaries/          # NestJSバイナリ（ビルド時に生成）
 │   └── icons/             # アプリアイコン
 ├── frontend/              # フロントエンド（Vite + React）
-├── eval/                  # RAG評価基盤（Python / Ragas）
 └── backend/               # バックエンド API（NestJS）
     └── data/
         ├── audio/                # 音声ファイルの配置先
