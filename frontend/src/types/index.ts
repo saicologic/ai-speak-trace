@@ -72,6 +72,9 @@ export interface InterviewAnalysis {
   keywords: string[];
   results: AnalysisResult[];
   createdAt: string;
+  /** 使用したモデル（以前のログにはない） */
+  model?: string;
+  contentWarnings?: ContentWarning[];
 }
 
 /** 発言の文脈分析結果（1つの発話） */
@@ -92,6 +95,8 @@ export interface UtteranceContextResult {
 export interface ContextAnalysisResponse {
   transcriptionId: string;
   results: UtteranceContextResult[];
+  model: string;
+  contentWarnings: ContentWarning[];
 }
 
 /** PDFドキュメント情報 */
@@ -109,10 +114,21 @@ export interface DocumentInfo {
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
+/** 要約の要点の根拠（会話にあることを確かめた発言の引用） */
+export interface SummaryEvidence {
+  quote: string;
+  utteranceIndex: number;
+  speakerName: string;
+  /** 発言の開始時間（秒） */
+  start: number;
+}
+
 /** 要約のキーポイント */
 export interface SummaryKeyPoint {
   topic: string;
   summary: string;
+  /** 根拠（以前の要約にはない） */
+  evidence?: SummaryEvidence[];
 }
 
 /** 要約ログ */
@@ -125,6 +141,9 @@ export interface TranscriptionSummaryLog {
   createdAt: string;
   model: string;
   prompt: string;
+  /** 会話に見つからなかったため除いた根拠の数 */
+  droppedEvidenceCount?: number;
+  contentWarnings?: ContentWarning[];
 }
 
 /** 要約設定（デフォルトプロンプト・モデル一覧） */
@@ -145,16 +164,57 @@ export interface AppSettings {
     documentMetadataDir: string;
     summaryLogsDir: string;
   };
+  /** API キーの状態（値そのものは返らない） */
   apiKeys: {
-    elevenlabsApiKey: string;
-    anthropicApiKey: string;
+    elevenlabsApiKey: ApiKeyStatus;
+    anthropicApiKey: ApiKeyStatus;
   };
+  /** API キーの保存先（macOS ではキーチェーン） */
+  apiKeyStorage: 'keychain' | 'file';
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
   /** 個人情報チェックに使う Amazon Bedrock Guardrails */
   guardrail?: {
     id: string;
+    /** 固定したバージョン（空の場合は DRAFT） */
+    version: string;
   };
+}
+
+/** API キーの状態 */
+export interface ApiKeyStatus {
+  configured: boolean;
+  /** 末尾4文字（短いキーは空） */
+  last4: string;
+}
+
+/** Claude の応答に検出された不適切な表現（Guardrails のコンテンツフィルター。信頼度 MEDIUM 以上） */
+export interface ContentWarning {
+  type: string;
+  confidence: string;
+}
+
+/** 誤りを報告する対象の機能 */
+export type FeedbackFeature = 'summary' | 'analysis' | 'context' | 'research';
+
+/** 誤りの報告の種類 */
+export type FeedbackCategory =
+  | 'factual_error'
+  | 'unsupported'
+  | 'personal_judgement'
+  | 'inappropriate'
+  | 'other';
+
+/** AI が生成した結果への、誤りの報告（端末にだけ保存する） */
+export interface Feedback {
+  id: string;
+  createdAt: string;
+  feature: FeedbackFeature;
+  targetId: string;
+  transcriptionId: string;
+  category: FeedbackCategory;
+  quote: string;
+  comment: string;
 }
 
 /** 会話から検出した個人情報（同じ種類・同じ文字列ごとにまとめたもの） */

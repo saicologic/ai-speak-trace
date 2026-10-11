@@ -172,6 +172,14 @@ function App() {
     setTimeout(() => setScrollToUtteranceIndex(utteranceIndex), 500);
   };
 
+  /** 文字起こしを削除したとき、表示中の文字起こしなら表示を消す */
+  const handleTranscriptionDeleted = (id: string) => {
+    if (selectedTranscriptionId !== id) return;
+    setSelectedTranscriptionId(null);
+    setTranscription(null);
+    setContextAnalysis(null);
+  };
+
   /** 文字起こし履歴を選択して結果を表示 */
   const handleTranscriptionSelect = async (id: string) => {
     setSelectedTranscriptionId(id);
@@ -199,6 +207,7 @@ function App() {
       <SummaryPage
         transcriptionId={transcription.id}
         onBack={() => setPage('main')}
+        onOpenUtterance={(index) => handleOpenFromResearch(transcription.id, index)}
       />
     );
   }
@@ -372,6 +381,7 @@ function App() {
           <TranscriptionList
             selectedId={selectedTranscriptionId}
             onSelect={handleTranscriptionSelect}
+            onDeleted={handleTranscriptionDeleted}
             loading={loading}
           />
         </aside>

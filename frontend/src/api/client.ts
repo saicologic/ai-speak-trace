@@ -3,6 +3,9 @@ import type {
   AudioFileInfo,
   ContextAnalysisResponse,
   DocumentInfo,
+  Feedback,
+  FeedbackCategory,
+  FeedbackFeature,
   InterviewAnalysis,
   InterviewAnalysisSummary,
   Transcription,
@@ -484,6 +487,20 @@ export async function fetchTranscription(
   return data.transcription;
 }
 
+/**
+ * 文字起こしを削除する
+ * その会話を使った要約・会話分析・ディープサーチ・報告・個人情報チェックの結果と、
+ * ほかの文字起こしが使っていない音声も削除される
+ */
+export async function deleteTranscription(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '文字起こしの削除に失敗しました'));
+  }
+}
+
 /** 調査質問文を自動生成 */
 export async function generateQuestions(
   transcriptionId: string,
@@ -774,6 +791,7 @@ export async function updateSettings(
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
     bedrockGuardrailId?: string;
+    bedrockGuardrailVersion?: string;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
   const res = await fetch(`${BASE_URL}/settings`, {
@@ -782,9 +800,46 @@ export async function updateSettings(
     body: JSON.stringify(dto),
   });
   if (!res.ok) {
-    throw new Error(`設定の更新に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '設定の更新に失敗しました'));
   }
   return res.json();
+}
+
+// === 誤りの報告 ===
+
+/** AI が生成した結果への誤りを報告する（端末にだけ保存する） */
+export async function submitFeedback(input: {
+  feature: FeedbackFeature;
+  targetId: string;
+  transcriptionId: string;
+  category: FeedbackCategory;
+  quote: string;
+  comment: string;
+}): Promise<Feedback> {
+  const res = await fetch(`${BASE_URL}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '報告の保存に失敗しました'));
+  }
+  const data = await res.json();
+  return data.feedback;
+}
+
+/** 結果への誤りの報告を取得する */
+export async function fetchFeedback(
+  feature: FeedbackFeature,
+  targetId: string,
+): Promise<Feedback[]> {
+  const params = new URLSearchParams({ feature, targetId });
+  const res = await fetch(`${BASE_URL}/feedback?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`報告の取得に失敗しました: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.feedback;
 }
 
 // === ディープサーチ（調査） ===

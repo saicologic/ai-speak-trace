@@ -31,7 +31,33 @@
 }
 
 .transcription-list-items li {
+  position: relative;
   margin-bottom: 0.25rem;
+}
+
+.transcription-item-delete {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #b91c1c;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.transcription-list-items li:hover .transcription-item-delete,
+.transcription-item-delete:focus-visible,
+.transcription-item-delete.deleting {
+  opacity: 1;
+}
+
+.transcription-item-delete:disabled {
+  color: #9ca3af;
+  border-color: #e5e7eb;
 }
 
 .transcription-item {
@@ -58,6 +84,7 @@
 }
 
 .transcription-item-name {
+  padding-right: 2.5rem;
   font-size: 0.85rem;
   font-weight: 500;
   word-break: break-all;

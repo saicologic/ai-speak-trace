@@ -1,6 +1,7 @@
 import type { ContextAnalysisResponse, Speaker } from '../types';
 import './ContextAnalysisModal.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { FeedbackButton } from './FeedbackButton';
 
 interface Props {
   analysis: ContextAnalysisResponse;
@@ -51,7 +52,11 @@ export function ContextAnalysisModal({ analysis, speakers, onClose }: Props) {
           </span>
         </div>
 
-        <AiGeneratedNotice basis="元の発言" />
+        <AiGeneratedNotice
+          basis="元の発言"
+          model={analysis.model}
+          warnings={analysis.contentWarnings}
+        />
         <div className="context-results">
           {analysis.results.map((result) => (
             <div key={result.utteranceIndex} className="context-card">
@@ -90,6 +95,12 @@ export function ContextAnalysisModal({ analysis, speakers, onClose }: Props) {
             </div>
           ))}
         </div>
+
+        <FeedbackButton
+          feature="context"
+          targetId=""
+          transcriptionId={analysis.transcriptionId}
+        />
 
         <div className="context-modal-footer">
           <button className="modal-close-button" onClick={onClose}>

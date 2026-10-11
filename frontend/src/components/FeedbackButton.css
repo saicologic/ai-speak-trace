@@ -1,0 +1,115 @@
+.feedback {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.feedback-open {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.feedback-open:hover {
+  background: #f9fafb;
+}
+
+.feedback-reports {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.feedback-reports-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.feedback-reports ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.feedback-reports li {
+  margin: 0.15rem 0;
+}
+
+.feedback-category {
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+.feedback-quote {
+  margin-right: 0.4rem;
+}
+
+.feedback-comment {
+  color: #6b7280;
+}
+
+.feedback-form {
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.feedback-hint {
+  margin: 0 0 0.5rem;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.feedback-field input,
+.feedback-field select,
+.feedback-field textarea {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.feedback-error {
+  margin-bottom: 0.5rem;
+  color: #b91c1c;
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.feedback-actions button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.feedback-actions button.primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.feedback-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

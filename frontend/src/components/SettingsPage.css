@@ -330,3 +330,22 @@
   color: #ffffff;
   background-color: #92400e;
 }
+
+.settings-api-key-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.settings-api-key-remove {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  cursor: pointer;
+}

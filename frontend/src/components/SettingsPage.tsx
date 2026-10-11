@@ -1,10 +1,85 @@
 import { useEffect, useState } from 'react';
 import { fetchSettings, updateSettings, openDataFolder } from '../api/client';
-import type { AppSettings } from '../types';
+import type { ApiKeyStatus, AppSettings } from '../types';
 import './SettingsPage.css';
 
 interface SettingsPageProps {
   onBack: () => void;
+}
+
+/** API キーの入力欄（保存済みのキーの値は画面に返らないため、状態と末尾4文字だけを表示する） */
+function ApiKeyInput({
+  label,
+  link,
+  status,
+  value,
+  removing,
+  onChange,
+  onToggleRemove,
+}: {
+  label: string;
+  link: string;
+  status: ApiKeyStatus | undefined;
+  value: string;
+  removing: boolean;
+  onChange: (value: string) => void;
+  onToggleRemove: () => void;
+}) {
+  const [show, setShow] = useState(false);
+  const configured = status?.configured ?? false;
+  return (
+    <div className="settings-input-group">
+      <label>
+        {label}
+        <a
+          className="settings-api-key-link"
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          APIキーを取得
+        </a>
+      </label>
+      <div className="settings-api-key-status">
+        {removing
+          ? '保存すると削除します'
+          : configured
+            ? `設定済み${status?.last4 ? `（末尾 ${status.last4}）` : ''}`
+            : '未設定'}
+        {configured && (
+          <button
+            type="button"
+            className="settings-api-key-remove"
+            onClick={onToggleRemove}
+          >
+            {removing ? '削除を取り消す' : '削除'}
+          </button>
+        )}
+      </div>
+      <div className="settings-input-with-toggle">
+        <input
+          type={show ? 'text' : 'password'}
+          className="settings-input"
+          value={value}
+          disabled={removing}
+          autoComplete="off"
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={
+            configured ? '変更する場合だけ、新しいキーを入力' : 'APIキーを入力'
+          }
+        />
+        {value && (
+          <button
+            type="button"
+            className="settings-toggle-visibility"
+            onClick={() => setShow((v) => !v)}
+          >
+            {show ? '隠す' : '表示'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /** 設定ページ */
@@ -13,14 +88,29 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // API キーは、入力したときだけ保存する（空のままなら変更しない）
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
+  const [removeElevenlabsKey, setRemoveElevenlabsKey] = useState(false);
+  const [removeAnthropicKey, setRemoveAnthropicKey] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [showElevenlabsKey, setShowElevenlabsKey] = useState(false);
-  const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [guardrailId, setGuardrailId] = useState('');
+  const [guardrailVersion, setGuardrailVersion] = useState('');
+
+  /** 設定値を画面の入力に反映する */
+  const applySettings = (s: AppSettings) => {
+    setSettings(s);
+    setElevenlabsApiKey('');
+    setAnthropicApiKey('');
+    setRemoveElevenlabsKey(false);
+    setRemoveAnthropicKey(false);
+    setEnableDeepSearch(s.enableDeepSearch ?? false);
+    setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+    setGuardrailId(s.guardrail?.id ?? '');
+    setGuardrailVersion(s.guardrail?.version ?? '');
+  };
 
   // 設定を読み込み
   useEffect(() => {
@@ -30,17 +120,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
     fetchSettings()
       .then((s) => {
-        if (cancelled) return;
-        setSettings(s);
-        if (s.apiKeys?.elevenlabsApiKey) {
-          setElevenlabsApiKey(s.apiKeys.elevenlabsApiKey);
-        }
-        if (s.apiKeys?.anthropicApiKey) {
-          setAnthropicApiKey(s.apiKeys.anthropicApiKey);
-        }
-        setEnableDeepSearch(s.enableDeepSearch ?? false);
-        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
-        setGuardrailId(s.guardrail?.id ?? '');
+        if (!cancelled) applySettings(s);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -59,20 +139,25 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     setError('');
     setShowSuccess(false);
 
-    // 変更があった項目だけDTOに含める
+    // 変更があった項目だけDTOに含める（API キーの空文字は削除）
     const dto: {
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
       bedrockGuardrailId?: string;
+      bedrockGuardrailVersion?: string;
     } = {};
 
-    if (elevenlabsApiKey !== (settings?.apiKeys?.elevenlabsApiKey || '')) {
-      dto.elevenlabsApiKey = elevenlabsApiKey;
+    if (removeElevenlabsKey) {
+      dto.elevenlabsApiKey = '';
+    } else if (elevenlabsApiKey.trim()) {
+      dto.elevenlabsApiKey = elevenlabsApiKey.trim();
     }
-    if (anthropicApiKey !== (settings?.apiKeys?.anthropicApiKey || '')) {
-      dto.anthropicApiKey = anthropicApiKey;
+    if (removeAnthropicKey) {
+      dto.anthropicApiKey = '';
+    } else if (anthropicApiKey.trim()) {
+      dto.anthropicApiKey = anthropicApiKey.trim();
     }
     if (enableDeepSearch !== (settings?.enableDeepSearch ?? false)) {
       dto.enableDeepSearch = enableDeepSearch;
@@ -83,16 +168,14 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     if (guardrailId !== (settings?.guardrail?.id ?? '')) {
       dto.bedrockGuardrailId = guardrailId;
     }
+    if (guardrailVersion.trim() !== (settings?.guardrail?.version ?? '')) {
+      dto.bedrockGuardrailVersion = guardrailVersion.trim();
+    }
 
     try {
       const result = await updateSettings(dto);
-      setSettings(result.settings);
       // 保存後に入力値を新しい設定値に同期
-      setElevenlabsApiKey(result.settings.apiKeys?.elevenlabsApiKey || '');
-      setAnthropicApiKey(result.settings.apiKeys?.anthropicApiKey || '');
-      setEnableDeepSearch(result.settings.enableDeepSearch ?? false);
-      setEnableContextAnalysis(result.settings.enableContextAnalysis ?? false);
-      setGuardrailId(result.settings.guardrail?.id ?? '');
+      applySettings(result.settings);
       setShowSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '保存に失敗しました');
@@ -103,11 +186,14 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   // 変更があるか判定
   const hasChanges = settings
-    ? elevenlabsApiKey !== (settings.apiKeys?.elevenlabsApiKey || '') ||
-      anthropicApiKey !== (settings.apiKeys?.anthropicApiKey || '') ||
+    ? elevenlabsApiKey.trim() !== '' ||
+      anthropicApiKey.trim() !== '' ||
+      removeElevenlabsKey ||
+      removeAnthropicKey ||
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
       enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
-      guardrailId !== (settings.guardrail?.id ?? '')
+      guardrailId !== (settings.guardrail?.id ?? '') ||
+      guardrailVersion.trim() !== (settings.guardrail?.version ?? '')
     : false;
 
   // サブディレクトリ（相対パス表示）
@@ -117,6 +203,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     { label: 'PDFドキュメント', path: 'documents/' },
     { label: 'メタデータ', path: 'document-metadata/' },
     { label: '要約ログ', path: 'summary-logs/' },
+    { label: 'Claude の呼び出しの記録', path: 'claude-audit-logs/' },
+    { label: '誤りの報告', path: 'feedback/' },
   ];
 
   return (
@@ -142,76 +230,45 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
             {/* APIキー設定 */}
             <div className="settings-section">
               <h2>APIキー設定</h2>
+              <p className="settings-checkbox-hint">
+                {settings.apiKeyStorage === 'keychain'
+                  ? 'APIキーは、この Mac のキーチェーンに保存します（設定ファイルには保存しません）。'
+                  : 'APIキーは、設定ファイル（settings.json）に暗号化せずに保存します。このフォルダを他人と共有しないでください。'}
+              </p>
 
-              <div className="settings-input-group">
-                <label>
-                  ElevenLabs APIキー
-                  <a
-                    className="settings-api-key-link"
-                    href="https://elevenlabs.io/app/settings/api-keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    APIキーを取得
-                  </a>
-                </label>
-                <div className="settings-input-with-toggle">
-                  <input
-                    type={showElevenlabsKey ? 'text' : 'password'}
-                    className="settings-input"
-                    value={elevenlabsApiKey}
-                    onChange={(e) => {
-                      setElevenlabsApiKey(e.target.value);
-                      setShowSuccess(false);
-                    }}
-                    placeholder="APIキーを入力"
-                  />
-                  {elevenlabsApiKey && (
-                    <button
-                      type="button"
-                      className="settings-toggle-visibility"
-                      onClick={() => setShowElevenlabsKey((v) => !v)}
-                    >
-                      {showElevenlabsKey ? '隠す' : '表示'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              <ApiKeyInput
+                label="ElevenLabs APIキー"
+                link="https://elevenlabs.io/app/settings/api-keys"
+                status={settings.apiKeys?.elevenlabsApiKey}
+                value={elevenlabsApiKey}
+                removing={removeElevenlabsKey}
+                onChange={(v) => {
+                  setElevenlabsApiKey(v);
+                  setShowSuccess(false);
+                }}
+                onToggleRemove={() => {
+                  setRemoveElevenlabsKey((v) => !v);
+                  setElevenlabsApiKey('');
+                  setShowSuccess(false);
+                }}
+              />
 
-              <div className="settings-input-group">
-                <label>
-                  Anthropic APIキー
-                  <a
-                    className="settings-api-key-link"
-                    href="https://console.anthropic.com/settings/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    APIキーを取得
-                  </a>
-                </label>
-                <div className="settings-input-with-toggle">
-                  <input
-                    type={showAnthropicKey ? 'text' : 'password'}
-                    className="settings-input"
-                    value={anthropicApiKey}
-                    onChange={(e) => {
-                      setAnthropicApiKey(e.target.value);
-                      setShowSuccess(false);
-                    }}
-                    placeholder="APIキーを入力"
-                  />
-                  {anthropicApiKey && (
-                    <button
-                      type="button"
-                      className="settings-toggle-visibility"
-                      onClick={() => setShowAnthropicKey((v) => !v)}
-                    >
-                      {showAnthropicKey ? '隠す' : '表示'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              <ApiKeyInput
+                label="Anthropic APIキー"
+                link="https://console.anthropic.com/settings/keys"
+                status={settings.apiKeys?.anthropicApiKey}
+                value={anthropicApiKey}
+                removing={removeAnthropicKey}
+                onChange={(v) => {
+                  setAnthropicApiKey(v);
+                  setShowSuccess(false);
+                }}
+                onToggleRemove={() => {
+                  setRemoveAnthropicKey((v) => !v);
+                  setAnthropicApiKey('');
+                  setShowSuccess(false);
+                }}
+              />
             </div>
 
             {/* 個人情報チェック */}
@@ -235,6 +292,25 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                   }}
                   placeholder="未設定の場合、Claude を使う機能は使えません"
                 />
+              </div>
+              <div className="settings-input-group">
+                <label>バージョン</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={guardrailVersion}
+                  onChange={(e) => {
+                    setGuardrailVersion(e.target.value);
+                    setShowSuccess(false);
+                  }}
+                  placeholder="DRAFT"
+                />
+                <p className="settings-checkbox-hint">
+                  空の場合は DRAFT を使います。DRAFT は AWS のコンソールで編集するとすぐに変わるため、
+                  Guardrail のバージョンを作成し、その番号（1 など）を指定することを勧めます。
+                  保存する前に、指定したバージョンで確認できることを確かめます。
+                  どのバージョンで確認したかは、Claude の呼び出しの記録（claude-audit-logs/）に残ります。
+                </p>
               </div>
             </div>
 
