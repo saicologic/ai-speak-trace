@@ -57,6 +57,23 @@ describe('evaluate', () => {
     expect(evaluation.ethics.every((e) => e.passed)).toBe(true);
   });
 
+  it('「不足:」「推測:」の注記は、事実の主張と判定されても除かない', () => {
+    const notes: ReportSegment[] = [
+      { text: '- 不足: 公式情報には記載がない。\n', citations: [] },
+      { text: '- **推測**：今後広がりそうだ。\n', citations: [] },
+    ];
+    const { finalReport, evaluation } = evaluate(notes, {
+      ...judgement,
+      claims: [
+        { index: 0, factual: true, verdict: 'unsupported', reason: 'なし' },
+        { index: 1, factual: true, verdict: 'unsupported', reason: 'なし' },
+      ],
+    });
+    expect(finalReport).toEqual(notes);
+    expect(evaluation.factualClaims).toBe(0);
+    expect(evaluation.removedClaims).toEqual([]);
+  });
+
   it('判定が返らなかった文は、根拠があれば事実の主張、なければ見出しなどとして扱う', () => {
     const { finalReport, evaluation } = evaluate(
       [
