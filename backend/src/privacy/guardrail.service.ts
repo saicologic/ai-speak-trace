@@ -118,6 +118,21 @@ export class GuardrailService {
     return { grounding, relevance };
   }
 
+  /**
+   * Guardrail の ID とバージョンの組み合わせで ApplyGuardrail を呼べるか確かめる（設定画面で保存する前）
+   * 存在しないバージョンを保存すると、Claude に送る前の確認がすべて失敗するため
+   */
+  async verify(guardrailId: string, guardrailVersion: string): Promise<void> {
+    await this.getClient().send(
+      new ApplyGuardrailCommand({
+        guardrailIdentifier: guardrailId,
+        guardrailVersion,
+        source: 'INPUT',
+        content: [{ text: { text: '設定の確認' } }],
+      }),
+    );
+  }
+
   private async apply(
     source: 'INPUT' | 'OUTPUT',
     content: ConstructorParameters<typeof ApplyGuardrailCommand>[0]['content'],

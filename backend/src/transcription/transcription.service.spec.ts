@@ -371,4 +371,51 @@ describe('TranscriptionService', () => {
       expect(await service.findActiveJob('test.mp3')).toEqual(job);
     });
   });
+
+  describe('deleteTranscription', () => {
+    it('文字起こしを削除し、ほかに使われていない音声と分割の途中データも削除する', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.findAll.mockResolvedValue([makeTranscription('t2', 'b.mp3')]);
+      chunkedTranscriptionService.findAllJobsByFileName.mockResolvedValue([
+        { id: 'job-1' } as any,
+      ]);
+      audioStorage.exists.mockResolvedValue(true);
+
+      await service.deleteTranscription('t1');
+
+      expect(store.delete).toHaveBeenCalledWith('t1');
+      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith('job-1');
+      expect(audioStorage.deleteFile).toHaveBeenCalledWith('a.mp3');
+    });
+
+    it('同じ音声を使うほかの文字起こしがあれば、音声は残す', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.findAll.mockResolvedValue([makeTranscription('t2', 'a.mp3')]);
+
+      await service.deleteTranscription('t1');
+
+      expect(store.delete).toHaveBeenCalledWith('t1');
+      expect(audioStorage.deleteFile).not.toHaveBeenCalled();
+      expect(chunkedTranscriptionService.deleteJob).not.toHaveBeenCalled();
+    });
+
+    it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
+      store.findById.mockResolvedValue(null);
+
+      await expect(service.deleteTranscription('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(store.delete).not.toHaveBeenCalled();
+    });
+
+    it('派生データの削除に失敗した場合は、音声を消さずに例外を返す', async () => {
+      store.findById.mockResolvedValue(makeTranscription('t1', 'a.mp3'));
+      store.delete.mockRejectedValue(new Error('ログを削除できませんでした'));
+
+      await expect(service.deleteTranscription('t1')).rejects.toThrow(
+        'ログを削除できませんでした',
+      );
+      expect(audioStorage.deleteFile).not.toHaveBeenCalled();
+    });
+  });
 });

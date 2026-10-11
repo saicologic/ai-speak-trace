@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { fetchTranscriptions } from '../api/client';
+import { deleteTranscription, fetchTranscriptions } from '../api/client';
+import { confirmDialog } from '../utils/platform';
 import type { TranscriptionSummary } from '../types';
 import './TranscriptionList.css';
 
 interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** 文字起こしを削除したとき */
+  onDeleted?: (id: string) => void;
   loading: boolean;
 }
 
@@ -20,9 +23,30 @@ function formatDate(iso: string): string {
 }
 
 /** 文字起こし一覧コンポーネント */
-export function TranscriptionList({ selectedId, onSelect, loading }: Props) {
+export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: Props) {
   const [items, setItems] = useState<TranscriptionSummary[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  /** 文字起こしと、その会話から作ったデータを削除する */
+  const handleDelete = async (item: TranscriptionSummary) => {
+    const confirmed = await confirmDialog(
+      `「${item.audioFileName}」の文字起こしを削除しますか？\n\nこの会話を使った要約・会話分析・ディープサーチの結果、誤りの報告、個人情報チェックの結果も削除されます。ほかの文字起こしで使っていない音声ファイルも削除されます。\n\n※ 外部サービス（ElevenLabs・Anthropic・AWS）に送信済みのデータは、このアプリからは削除できません。`,
+      { title: '文字起こしの削除', kind: 'warning' },
+    );
+    if (!confirmed) return;
+    setDeletingId(item.id);
+    setFetchError(null);
+    try {
+      await deleteTranscription(item.id);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      onDeleted?.(item.id);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : '削除に失敗しました');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const loadItems = async () => {
     try {
@@ -98,6 +122,16 @@ export function TranscriptionList({ selectedId, onSelect, loading }: Props) {
               <span className="transcription-item-date">
                 {formatDate(item.createdAt)}
               </span>
+            </button>
+            <button
+              type="button"
+              className={`transcription-item-delete ${deletingId === item.id ? 'deleting' : ''}`}
+              onClick={() => handleDelete(item)}
+              disabled={loading || deletingId !== null}
+              aria-label={`${item.audioFileName} の文字起こしを削除`}
+              title="削除"
+            >
+              {deletingId === item.id ? '削除中' : '削除'}
             </button>
           </li>
         ))}

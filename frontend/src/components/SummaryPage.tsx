@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
+import { FeedbackButton } from './FeedbackButton';
 import { summarizeTranscription, fetchSummaryLogs, fetchSummaryLog, fetchSummaryConfig } from '../api/client';
-import type { SummaryConfig, TranscriptionSummaryLog, SummaryKeyPoint } from '../types';
+import type {
+  SummaryConfig,
+  SummaryEvidence,
+  TranscriptionSummaryLog,
+  SummaryKeyPoint,
+} from '../types';
 import './InterviewPage.css';
 import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
@@ -10,6 +16,8 @@ import { GuardrailMissingNotice } from './PrivacyPanel';
 interface Props {
   transcriptionId: string;
   onBack: () => void;
+  /** 根拠の発言を、元の文字起こしで開く */
+  onOpenUtterance?: (utteranceIndex: number) => void;
 }
 
 /** プロンプト指示フォームの各フィールド設定 */
@@ -56,6 +64,10 @@ const DEFAULT_FIELDS: PromptFieldConfig[] = [
   },
 ];
 
+/** 要点の根拠の指示（会話にあることをバックエンドで確かめ、確かめられた引用だけを根拠として表示する） */
+const EVIDENCE_INSTRUCTION =
+  '要点の根拠になる発言を、会話から一字一句そのまま1〜2個抜き出す（各10〜60文字）';
+
 /** フィールド設定からプロンプトを生成（instructionが空のフィールドは除外） */
 function buildPrompt(fields: PromptFieldConfig[]): string {
   const get = (key: PromptFieldConfig['key']) =>
@@ -71,7 +83,7 @@ function buildPrompt(fields: PromptFieldConfig[]): string {
   const kpSummary = get('key_points_summary');
   if (kpTopic || kpSummary) {
     lines.push(
-      `  "key_points": [{\n    "topic": "${kpTopic || '（省略）'}",\n    "summary": "${kpSummary || '（省略）'}"\n  }]`,
+      `  "key_points": [{\n    "topic": "${kpTopic || '（省略）'}",\n    "summary": "${kpSummary || '（省略）'}",\n    "evidence": ["${EVIDENCE_INSTRUCTION}"]\n  }]`,
     );
   }
 
@@ -97,7 +109,7 @@ ${jsonShape}
 }
 
 /** 要約ページ */
-export function SummaryPage({ transcriptionId, onBack }: Props) {
+export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props) {
   const [activeTab, setActiveTab] = useState<'new' | 'logs'>('new');
   const [summarizing, setSummarizing] = useState(false);
   const [completedId, setCompletedId] = useState<string | null>(null);
@@ -449,7 +461,11 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
                     <span className="summary-log-model">{logDetail.model}</span>
                   </div>
                 </div>
-                <SummaryResult summary={logDetail} formatDate={formatDate} />
+                <SummaryResult
+                  summary={logDetail}
+                  formatDate={formatDate}
+                  onOpenUtterance={onOpenUtterance}
+                />
                 <div className="summary-log-debug">
                   <div className="summary-log-debug-row">
                     <span className="summary-log-debug-label">モデル</span>
@@ -473,13 +489,19 @@ export function SummaryPage({ transcriptionId, onBack }: Props) {
 function SummaryResult({
   summary,
   formatDate,
+  onOpenUtterance,
 }: {
   summary: TranscriptionSummaryLog;
   formatDate: (iso: string) => string;
+  onOpenUtterance?: (utteranceIndex: number) => void;
 }) {
   return (
     <div className="interview-results">
-      <AiGeneratedNotice basis="元の会話" />
+      <AiGeneratedNotice
+        basis="元の会話"
+        model={summary.model}
+        warnings={summary.contentWarnings}
+      />
       {summary.overview && (
         <div className="interview-result-card">
           <h3 className="result-question">概要</h3>
@@ -495,9 +517,17 @@ function SummaryResult({
               <li key={i}>
                 <span className="summary-key-point-topic">{kp.topic}</span>
                 <span className="summary-key-point-summary">{kp.summary}</span>
+                {kp.evidence && (
+                  <EvidenceList evidence={kp.evidence} onOpenUtterance={onOpenUtterance} />
+                )}
               </li>
             ))}
           </ul>
+          {(summary.droppedEvidenceCount ?? 0) > 0 && (
+            <p className="summary-evidence-dropped">
+              会話の中に見つからなかった根拠 {summary.droppedEvidenceCount}件は、表示から除きました。
+            </p>
+          )}
         </div>
       )}
 
@@ -515,6 +545,54 @@ function SummaryResult({
       <div className="summary-result-meta">
         生成日時: {formatDate(summary.createdAt)} / モデル: {summary.model}
       </div>
+      <FeedbackButton
+        key={summary.id}
+        feature="summary"
+        targetId={summary.id}
+        transcriptionId={summary.transcriptionId}
+      />
     </div>
+  );
+}
+
+/** 秒を m:ss の形式にする */
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/** 要点の根拠（会話から抜き出した発言）。押すと元の文字起こしのその発言を開く */
+function EvidenceList({
+  evidence,
+  onOpenUtterance,
+}: {
+  evidence: SummaryEvidence[];
+  onOpenUtterance?: (utteranceIndex: number) => void;
+}) {
+  if (evidence.length === 0) {
+    return <span className="summary-evidence-none">根拠の発言を確認できませんでした</span>;
+  }
+  return (
+    <ul className="summary-evidence">
+      {evidence.map((e, i) => (
+        <li key={i}>
+          <span className="summary-evidence-quote">「{e.quote}」</span>
+          {onOpenUtterance ? (
+            <button
+              type="button"
+              className="summary-evidence-link"
+              onClick={() => onOpenUtterance(e.utteranceIndex)}
+            >
+              {e.speakerName} {formatTime(e.start)}
+            </button>
+          ) : (
+            <span className="summary-evidence-source">
+              {e.speakerName} {formatTime(e.start)}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

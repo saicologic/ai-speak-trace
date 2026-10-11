@@ -1,3 +1,5 @@
+import type { ContentWarning } from '../../claude/claude-guard.utils';
+
 /** 分析結果（1つの質問に対する回答） */
 export interface AnalysisResult {
   /** 質問文 */
@@ -24,6 +26,10 @@ export interface InterviewAnalysis {
   results: AnalysisResult[];
   /** 作成日時（ISO 8601） */
   createdAt: string;
+  /** 使用したモデルID（以前のログにはない） */
+  model?: string;
+  /** Claude の応答に検出された不適切な表現（信頼度 MEDIUM 以上。以前のログにはない） */
+  contentWarnings?: ContentWarning[];
 }
 
 /** 発言の文脈分析結果（1つの発話に対する分析） */
@@ -53,6 +59,22 @@ export interface ContextAnalysisResponse {
   transcriptionId: string;
   /** 分析結果 */
   results: UtteranceContextResult[];
+  /** 使用したモデルID */
+  model: string;
+  /** Claude の応答に検出された不適切な表現（信頼度 MEDIUM 以上） */
+  contentWarnings: ContentWarning[];
+}
+
+/** 要約の要点の根拠（会話から抜き出した発言。会話に実際にあることを確かめたものだけ） */
+export interface SummaryEvidence {
+  /** 引用した文字列 */
+  quote: string;
+  /** 引用を含む発言の番号 */
+  utteranceIndex: number;
+  /** 話者名 */
+  speakerName: string;
+  /** 発言の開始時間（秒） */
+  start: number;
 }
 
 /** 要約のキーポイント */
@@ -61,6 +83,8 @@ export interface SummaryKeyPoint {
   topic: string;
   /** 要点（2〜3文） */
   summary: string;
+  /** 要点の根拠（以前のログと、根拠を求めないプロンプトの場合はない） */
+  evidence?: SummaryEvidence[];
 }
 
 /** 要約結果 */
@@ -81,4 +105,8 @@ export interface TranscriptionSummaryLog {
   model: string;
   /** 実際に使用したプロンプト */
   prompt: string;
+  /** 会話に見つからなかったため除いた根拠の数（以前のログにはない） */
+  droppedEvidenceCount?: number;
+  /** Claude の応答に検出された不適切な表現（信頼度 MEDIUM 以上。以前のログにはない） */
+  contentWarnings?: ContentWarning[];
 }

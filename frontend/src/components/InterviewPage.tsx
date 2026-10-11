@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FeedbackButton } from './FeedbackButton';
 import { marked } from 'marked';
 import { generateQuestions, analyzeInterview, fetchAnalysisLogs, fetchAnalysisLog } from '../api/client';
 import { extractKeywords } from '../utils/keywords';
@@ -380,7 +381,7 @@ export function InterviewPage({
                   {analysis.speakerName}
                 </span>
               </h2>
-              <AnalysisResultList results={renderedResults} />
+              <AnalysisResultList results={renderedResults} analysis={analysis} />
             </section>
           )}
         </div>
@@ -459,7 +460,7 @@ export function InterviewPage({
                     ))}
                   </div>
                 </div>
-                <AnalysisResultList results={renderedLogResults} />
+                <AnalysisResultList results={renderedLogResults} analysis={logDetail} />
               </>
             )}
           </div>
@@ -472,12 +473,18 @@ export function InterviewPage({
 /** 分析結果カードリスト（新規・過去ログ共通） */
 function AnalysisResultList({
   results,
+  analysis,
 }: {
   results: { question: string; answerHtml: string; sources: { title: string; url: string }[] }[];
+  analysis: InterviewAnalysis;
 }) {
   return (
     <div className="interview-results">
-      <AiGeneratedNotice basis="出典" />
+      <AiGeneratedNotice
+        basis="出典"
+        model={analysis.model}
+        warnings={analysis.contentWarnings}
+      />
       {results.map((result, i) => (
         <div key={i} className="interview-result-card">
           <h3 className="result-question">
@@ -505,6 +512,12 @@ function AnalysisResultList({
           )}
         </div>
       ))}
+      <FeedbackButton
+        key={analysis.id}
+        feature="analysis"
+        targetId={analysis.id}
+        transcriptionId={analysis.transcriptionId}
+      />
     </div>
   );
 }

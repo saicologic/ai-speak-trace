@@ -23,6 +23,7 @@ export class SettingsController {
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
       bedrockGuardrailId?: string;
+      bedrockGuardrailVersion?: string;
     },
   ) {
     return this.settingsService.updateSettings(dto);

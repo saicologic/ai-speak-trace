@@ -15,6 +15,8 @@ if (typeof globalThis.Path2D === 'undefined') {
 
 // NestJS 起動前に settings.json の値を process.env にマージ
 SettingsService.loadSettingsIntoEnv();
+// API キーはキーチェーンから読み込む（macOS のみ。settings.json に残っているキーはキーチェーンに移す）
+SettingsService.loadApiKeysFromKeychain();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

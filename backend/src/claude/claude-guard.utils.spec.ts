@@ -1,8 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import {
   collectRequestText,
+  collectRequestTextByTrust,
   collectResponseText,
   findBlockingContent,
+  findBlockingOutputContent,
+  findOutputWarnings,
   mapRequestTexts,
   mapResponseTexts,
 } from './claude-guard.utils';
@@ -237,5 +240,77 @@ describe('mapResponseTexts / collectResponseText', () => {
       text: '[引用なし]',
       citations: null,
     });
+  });
+});
+
+describe('collectRequestTextByTrust', () => {
+  const base = { model: 'claude-sonnet-5-5', max_tokens: 100 };
+
+  it('system と user のテキストはアプリの指示、文書と assistant の発言は外からの内容にする', () => {
+    const result = collectRequestTextByTrust(
+      {
+        ...base,
+        system: 'システム',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: { type: 'text', media_type: 'text/plain', data: '会話' },
+              },
+              { type: 'text', text: '指示' },
+            ],
+          },
+          assistantTurn,
+        ],
+      },
+      [],
+    );
+    expect(result.trusted).toBe('システム\n指示');
+    expect(result.untrusted).toBe(
+      '会話\n考え\n{"query":"検索語"}\n記事の題名\n本文\n引用本文',
+    );
+  });
+
+  it('指示に埋め込んだ外からの内容は、外からの内容に移す（長いものから）', () => {
+    const result = collectRequestTextByTrust(
+      {
+        ...base,
+        messages: [
+          { role: 'user', content: '要約して:\nAさん: こんにちは\n以上' },
+        ],
+      },
+      ['こんにちは', 'Aさん: こんにちは', ''],
+    );
+    expect(result.trusted).toBe('要約して:\n\n\n以上');
+    expect(result.untrusted).toBe('Aさん: こんにちは');
+  });
+});
+
+describe('findBlockingOutputContent / findOutputWarnings', () => {
+  const findings = {
+    pii: [],
+    words: [],
+    content: [
+      { type: 'INSULTS', confidence: 'HIGH' },
+      { type: 'INSULTS', confidence: 'MEDIUM' },
+      { type: 'VIOLENCE', confidence: 'MEDIUM' },
+      { type: 'MISCONDUCT', confidence: 'LOW' },
+      { type: 'PROMPT_ATTACK', confidence: 'HIGH' },
+    ],
+  };
+
+  it('信頼度 HIGH の不適切な表現だけを、応答を使わない検出にする（プロンプト攻撃は除く）', () => {
+    expect(findBlockingOutputContent(findings)).toEqual([
+      { type: 'INSULTS', confidence: 'HIGH' },
+    ]);
+  });
+
+  it('信頼度 MEDIUM 以上を、種類ごとに信頼度の高い方で1件の警告にする', () => {
+    expect(findOutputWarnings(findings)).toEqual([
+      { type: 'INSULTS', confidence: 'HIGH' },
+      { type: 'VIOLENCE', confidence: 'MEDIUM' },
+    ]);
   });
 });

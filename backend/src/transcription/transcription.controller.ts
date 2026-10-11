@@ -347,6 +347,16 @@ export class TranscriptionController {
     }
   }
 
+  /**
+   * 文字起こしの削除: DELETE /api/transcriptions/:id
+   * その会話を使ったログ・報告・個人情報チェックの結果と、ほかの文字起こしが使っていない音声も削除する
+   */
+  @Delete('transcriptions/:id')
+  async deleteTranscription(@Param('id') id: string) {
+    await this.transcriptionService.deleteTranscription(id);
+    return { success: true };
+  }
+
   /** 話者名更新: PATCH /api/transcriptions/:id/speakers */
   @Patch('transcriptions/:id/speakers')
   async updateSpeakers(
