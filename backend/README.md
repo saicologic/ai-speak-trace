@@ -78,7 +78,6 @@ npm run start:prod
 |--------------|-----------|------|
 | `transcription/transcription.utils.spec.ts` | `mergeWordsIntoPhrases`, `buildSpeakers`, `groupWordsIntoUtterances` | 文字起こし結果の組み立てロジック |
 | `transcription/chunked-transcription.utils.spec.ts` | `adjustTimestamps`, `resolveSpeakerMapping`, `mergeChunkResults` | 長時間音声のチャンク分割・結合処理 |
-| `document/document.utils.spec.ts` | `chunkText`, `splitIntoSentences`, `truncateToBytes` | PDF検索用のテキスト分割処理 |
 | `ginza/ginza-keywords.utils.spec.ts` | `stripSoundTags`, `countRegexKeywords`, `rankKeywords` など | GiNZA で取り出した語の並べ替え（回数・TF-IDF・一般的な語の除外） |
 
 テスト対象の関数は `*.utils.ts` に純粋関数として切り出しており、外部依存なしで高速に実行できます。

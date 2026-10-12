@@ -70,7 +70,6 @@ describe('SettingsService', () => {
               const map: Record<string, string | undefined> = {
                 SETTINGS_FILE: settingsFilePath,
                 DATA_DIR: path.join(tmpDir, 'data'),
-                STORAGE_TYPE: 'local',
                 ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
                 ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
                 BEDROCK_GUARDRAIL_ID: process.env.BEDROCK_GUARDRAIL_ID,
@@ -103,7 +102,6 @@ describe('SettingsService', () => {
     it('初期状態で正しいデフォルト値を返す', () => {
       const settings = service.getSettings();
 
-      expect(settings.storageType).toBe('local');
       expect(settings.enableDeepSearch).toBe(false);
       expect(settings.enableContextAnalysis).toBe(false);
       expect(settings.paths.dataDir).toBeTruthy();

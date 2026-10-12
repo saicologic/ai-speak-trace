@@ -55,7 +55,6 @@ describe('TranscriptionService', () => {
     exists: jest.Mock;
     readFile: jest.Mock;
     getPlaybackUrl: jest.Mock;
-    getUploadUrl: jest.Mock;
     saveFile: jest.Mock;
     deleteFile: jest.Mock;
   };
@@ -66,7 +65,6 @@ describe('TranscriptionService', () => {
       exists: jest.fn(),
       readFile: jest.fn(),
       getPlaybackUrl: jest.fn(),
-      getUploadUrl: jest.fn(),
       saveFile: jest.fn(),
       deleteFile: jest.fn(),
     };

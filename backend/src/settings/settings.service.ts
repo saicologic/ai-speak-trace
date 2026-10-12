@@ -57,13 +57,10 @@ const GUARDRAIL_VERSION_PATTERN = /^(|DRAFT|[1-9][0-9]*)$/;
 /** API レスポンス用の設定情報 */
 export interface AppSettings {
   appVersion: string;
-  storageType: string;
   paths: {
     dataDir: string;
     audioDir: string;
     transcriptionsDir: string;
-    documentsDir: string;
-    documentMetadataDir: string;
     summaryLogsDir: string;
   };
   apiKeys: Record<ApiKeyField, ApiKeyStatus>;
@@ -106,7 +103,6 @@ export class SettingsService {
 
     return {
       appVersion: '0.1.0',
-      storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
       paths: {
         dataDir,
         audioDir: path.resolve(
@@ -116,14 +112,6 @@ export class SettingsService {
         transcriptionsDir: path.resolve(
           this.configService.get<string>('TRANSCRIPTIONS_DIR') ||
             path.join(dataDir, 'transcriptions'),
-        ),
-        documentsDir: path.resolve(
-          this.configService.get<string>('DOCUMENTS_DIR') ||
-            path.join(dataDir, 'documents'),
-        ),
-        documentMetadataDir: path.resolve(
-          this.configService.get<string>('DOCUMENT_METADATA_DIR') ||
-            path.join(dataDir, 'document-metadata'),
         ),
         summaryLogsDir: path.resolve(path.join(dataDir, 'summary-logs')),
       },

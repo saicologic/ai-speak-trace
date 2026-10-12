@@ -19,9 +19,6 @@ export interface AudioStorage {
 
   /** 音声ファイルを削除 */
   deleteFile(fileName: string): Promise<void>;
-
-  /** アップロード用の署名付きURLを取得（S3のみ、ローカルはnull） */
-  getUploadUrl(fileName: string): Promise<string | null>;
 }
 
 /** DI用のインジェクショントークン */

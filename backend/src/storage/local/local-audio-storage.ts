@@ -63,10 +63,6 @@ export class LocalAudioStorage implements AudioStorage {
     return `/audio/${encodeURIComponent(fileName)}`;
   }
 
-  async getUploadUrl(): Promise<string | null> {
-    return null;
-  }
-
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
     await fs.mkdir(this.baseDir, { recursive: true });
     await fs.writeFile(path.join(this.baseDir, fileName), buffer);
