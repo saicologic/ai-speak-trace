@@ -128,11 +128,7 @@ export class GinzaKeywordsService {
     const started = Date.now();
     return new Promise((resolve, reject) => {
       const child = spawn(this.env.pythonPath, [this.env.scriptPath], {
-        env: {
-          HOME: process.env.HOME ?? '',
-          PATH: '/usr/bin:/bin',
-          PYTHONIOENCODING: 'utf-8',
-        },
+        env: this.env.pythonEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       const stdout: Buffer[] = [];

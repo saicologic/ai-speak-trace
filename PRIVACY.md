@@ -34,7 +34,7 @@ GiNZA のキーワード抽出は、この Mac の中で日本語を解析しま
 - 初めて使うときに「GiNZA を入れる」を押すと、次のものをダウンロードします。会話の内容は含みません。
   - uv（Python のパッケージ管理ツール）: GitHub（`github.com/astral-sh/uv`）から。ダウンロードしたファイルの SHA-256 を確かめてから使います
   - Python 3.12: uv が GitHub（python-build-standalone）からダウンロードします
-  - GiNZA と、GiNZA が使う Python のパッケージ: PyPI（`pypi.org`）から。アプリに入っている一覧（`requirements.txt`）のハッシュと一致するものだけを入れます
+  - GiNZA と、GiNZA が使う Python のパッケージ: PyPI（`pypi.org`）から。ダウンロードしたパッケージのファイルのハッシュが、アプリに入っている一覧（`requirements.txt`）に書かれたハッシュと一致するものだけを入れます
 - ベータ機能を無効にしている場合や、「GiNZA を入れる」を押さない場合は、何もダウンロードしません。
 
 ### 個人情報チェック（Amazon Bedrock Guardrails）

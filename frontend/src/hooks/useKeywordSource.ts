@@ -62,6 +62,8 @@ export function useKeywordSource(
   const setSource = useCallback(
     (next: KeywordSource) => {
       saveKeywordSource(transcriptionId, next);
+      // 前のエラーを消す（GiNZA に戻したときに取り出し直すため）
+      setError(null);
       setChoices((prev) => ({ ...prev, [transcriptionId]: next }));
     },
     [transcriptionId],

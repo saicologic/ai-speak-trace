@@ -1,5 +1,5 @@
 # GiNZA のキーワード抽出（ベータ）が使う Python パッケージ
-# 作り直す: uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes --exclude-newer <日付> --no-header -o requirements.txt
+# 作り直す（backend/python で実行する）: uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes --exclude-newer <日付> --no-header -o requirements.txt
 # ginza 5.3.0 は 2026-09-30 公開。ほかは 2026-10-01 までに公開されたものに限る
 annotated-doc==0.0.5 \
     --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101 \
@@ -334,7 +334,7 @@ cymem==2.0.13 \
 ginza==5.3.0 \
     --hash=sha256:4eede7b0f7390bfdd325d3811e66de58d21f70471c215eea457e044dc5b766ad
     # via
-    #   -r /private/tmp/claude-501/-Users-saicologic-orca-workspaces-ai-speak-trace-AddPythonTool/40e77232-aeb7-454a-bda6-02b746b8a938/scratchpad/req.in
+    #   -r requirements.in
     #   ja-ginza
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
@@ -357,7 +357,7 @@ idna==3.20 \
     #   requests
 ja-ginza==5.3.0 \
     --hash=sha256:ac6479a805c5c5c23c270554934c1c1f344039560ef3a7e4b15a4275bea3c685
-    # via -r /private/tmp/claude-501/-Users-saicologic-orca-workspaces-ai-speak-trace-AddPythonTool/40e77232-aeb7-454a-bda6-02b746b8a938/scratchpad/req.in
+    # via -r requirements.in
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67

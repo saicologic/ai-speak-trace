@@ -51,4 +51,17 @@ describe('useKeywordSource', () => {
     expect(fetchGinzaKeywords).not.toHaveBeenCalled();
     expect(result.current.loading).toBe(false);
   });
+
+  it('出し方を切り替えると、前のエラーを消して取り出し直す', async () => {
+    vi.mocked(fetchGinzaKeywords).mockRejectedValueOnce(new Error('解析に失敗しました'));
+    saveKeywordSource('t1', 'ginza');
+    const { result } = renderHook(() => useKeywordSource('t1', true));
+    await waitFor(() => expect(result.current.error).toBe('解析に失敗しました'));
+
+    act(() => result.current.setSource('standard'));
+    act(() => result.current.setSource('ginza'));
+
+    expect(result.current.error).toBeNull();
+    await waitFor(() => expect(result.current.ginza?.keywords).toEqual([{ text: '品質', count: 2 }]));
+  });
 });

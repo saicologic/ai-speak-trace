@@ -88,6 +88,18 @@ export class GinzaEnvService {
     return path.join(this.baseDir, 'venv', 'bin', 'python');
   }
 
+  /**
+   * GiNZA の Python に渡す環境変数（確認と解析で同じにする）
+   * 親プロセスの PYTHONPATH・PYTHONHOME などを渡さず、入れた仮想環境のパッケージだけを使う
+   */
+  get pythonEnv(): NodeJS.ProcessEnv {
+    return {
+      HOME: process.env.HOME ?? '',
+      PATH: '/usr/bin:/bin',
+      PYTHONIOENCODING: 'utf-8',
+    };
+  }
+
   /** 実行するスクリプトのパス（同梱ファイルから写す） */
   get scriptPath(): string {
     return path.join(this.baseDir, SCRIPT_FILE);
@@ -97,11 +109,20 @@ export class GinzaEnvService {
     return path.join(this.baseDir, 'installed.json');
   }
 
-  /** 同梱したパッケージの一覧のハッシュ（アプリの更新で変わったら入れ直す） */
+  /**
+   * 同梱したパッケージの一覧のハッシュ（アプリの更新で変わったら入れ直す）
+   * コメント行は除く（コメントだけの変更で、数百 MB を入れ直さないため）
+   */
   private async requirementsHash(): Promise<string> {
-    return createHash('sha256')
-      .update(await fs.readFile(path.join(this.bundleDir, REQUIREMENTS_FILE)))
-      .digest('hex');
+    const text = await fs.readFile(
+      path.join(this.bundleDir, REQUIREMENTS_FILE),
+      'utf-8',
+    );
+    const packages = text
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    return createHash('sha256').update(packages).digest('hex');
   }
 
   /**
@@ -129,7 +150,7 @@ export class GinzaEnvService {
 
   /** 今の状態 */
   async getStatus(): Promise<GinzaStatus> {
-    if (process.platform !== 'darwin' || !UV_TARGET[process.arch]) {
+    if (!isSupportedPlatform()) {
       return {
         state: 'unsupported',
         message: 'GiNZA のキーワード抽出は macOS でだけ使えます',
@@ -159,6 +180,8 @@ export class GinzaEnvService {
 
   /** インストールを始める（終わるのを待たない。すでに進めている場合は何もしない） */
   startInstall(): void {
+    // 対応外の環境では、今ある環境を消したり、ダウンロードを始めたりしない
+    if (!isSupportedPlatform()) return;
     if (this.installing) return;
     this.lastError = '';
     this.installing = this.install()
@@ -230,10 +253,15 @@ export class GinzaEnvService {
     ]);
 
     this.progress = '動作を確かめています';
+    // 本番の解析と同じ環境変数で確かめる（親の PYTHONPATH などで読み込むパッケージが変わらないように）
     const { stdout } = await execFileAsync(
       this.pythonPath,
       [this.scriptPath, '--check'],
-      { timeout: 2 * 60 * 1000 },
+      {
+        env: this.pythonEnv,
+        timeout: 2 * 60 * 1000,
+        maxBuffer: 10 * 1024 * 1024,
+      },
     );
     const checked = JSON.parse(stdout) as {
       ok?: boolean;
@@ -303,4 +331,9 @@ export class GinzaEnvService {
       return null;
     }
   }
+}
+
+/** GiNZA を入れられる環境か（macOS で、uv の配布ファイルがあるアーキテクチャ） */
+function isSupportedPlatform(): boolean {
+  return process.platform === 'darwin' && UV_TARGET[process.arch] !== undefined;
 }

@@ -7,6 +7,7 @@ describe('GinzaKeywordsService', () => {
     const env = {
       pythonPath: '/usr/bin/false',
       scriptPath: 'unused',
+      pythonEnv: { PATH: '/usr/bin:/bin' },
     } as unknown as GinzaEnvService;
     const service = new GinzaKeywordsService(
       env,
