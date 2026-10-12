@@ -10,6 +10,7 @@
 | 言語 | TypeScript | 5.7.x |
 | 音声文字起こし | [ElevenLabs Scribe v2](https://elevenlabs.io/docs/overview/capabilities/speech-to-text) API | - |
 | 会話分析 | [Claude API](https://docs.anthropic.com/ja/docs/welcome)（[Anthropic](https://www.anthropic.com/)） | - |
+| キーワード抽出（ベータ） | [GiNZA](https://megagonlabs.github.io/ginza/)（Python。初回利用時に uv で入れる。[開発者ガイド](../docs/developers/README.md#ginza-のキーワード抽出ベータ機能)） | 5.3.x |
 | ストレージ | ローカルファイル | - |
 | テスト | Jest | 30.x |
 | リンター | ESLint + Prettier | - |
@@ -78,6 +79,7 @@ npm run start:prod
 | `transcription/transcription.utils.spec.ts` | `mergeWordsIntoPhrases`, `buildSpeakers`, `groupWordsIntoUtterances` | 文字起こし結果の組み立てロジック |
 | `transcription/chunked-transcription.utils.spec.ts` | `adjustTimestamps`, `resolveSpeakerMapping`, `mergeChunkResults` | 長時間音声のチャンク分割・結合処理 |
 | `document/document.utils.spec.ts` | `chunkText`, `splitIntoSentences`, `truncateToBytes` | PDF検索用のテキスト分割処理 |
+| `ginza/ginza-keywords.utils.spec.ts` | `stripSoundTags`, `countRegexKeywords`, `rankKeywords` など | GiNZA で取り出した語の並べ替え（回数・TF-IDF・一般的な語の除外） |
 
 テスト対象の関数は `*.utils.ts` に純粋関数として切り出しており、外部依存なしで高速に実行できます。
 
