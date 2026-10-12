@@ -147,6 +147,13 @@ export class GinzaKeywordsService {
         clearTimeout(timer);
         reject(error);
       });
+      // Python が読み込む前に終了すると、書き込みで EPIPE になる。
+      // リスナーがないとバックエンド全体が止まるため、ここで受け止める（結果は close で判断する）
+      child.stdin.on('error', (error) => {
+        this.logger.warn(
+          `GiNZA にテキストを渡せませんでした: ${error.message}`,
+        );
+      });
       child.on('close', (code) => {
         clearTimeout(timer);
         if (code !== 0) {
