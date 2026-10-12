@@ -12,6 +12,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { isIgnoredPii } from './privacy.utils';
 import { awsCredentials } from '../aws/aws-credentials';
+import { isAiAnalysisEnabled } from '../settings/ai-analysis';
 
 /** 1回の ApplyGuardrail に渡す文字数（Standard ティアのコンテンツフィルターの上限 500 テキストユニット未満） */
 export const GUARDRAIL_CHUNK_CHARS = 30_000;
@@ -61,8 +62,9 @@ export class GuardrailService {
     );
   }
 
+  /** Guardrails を呼べる設定か（AI 分析を OFF にしている場合は、ID があっても呼ばない） */
   isConfigured(): boolean {
-    return this.guardrailId !== '';
+    return this.guardrailId !== '' && isAiAnalysisEnabled();
   }
 
   /**

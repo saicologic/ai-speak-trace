@@ -20,8 +20,7 @@ export class SettingsController {
       dataDir?: string;
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
-      enableDeepSearch?: boolean;
-      enableContextAnalysis?: boolean;
+      enableAiAnalysis?: boolean;
       enableGinzaKeywords?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;

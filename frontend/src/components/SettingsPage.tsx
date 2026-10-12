@@ -95,8 +95,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [removeElevenlabsKey, setRemoveElevenlabsKey] = useState(false);
   const [removeAnthropicKey, setRemoveAnthropicKey] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [enableDeepSearch, setEnableDeepSearch] = useState(false);
-  const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [enableAiAnalysis, setEnableAiAnalysis] = useState(false);
   const [enableGinzaKeywords, setEnableGinzaKeywords] = useState(false);
   const [guardrailId, setGuardrailId] = useState('');
   const [guardrailVersion, setGuardrailVersion] = useState('');
@@ -109,8 +108,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     setAnthropicApiKey('');
     setRemoveElevenlabsKey(false);
     setRemoveAnthropicKey(false);
-    setEnableDeepSearch(s.enableDeepSearch ?? false);
-    setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+    setEnableAiAnalysis(s.enableAiAnalysis ?? false);
     setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
     setGuardrailId(s.guardrail?.id ?? '');
     setGuardrailVersion(s.guardrail?.version ?? '');
@@ -148,8 +146,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     const dto: {
       elevenlabsApiKey?: string;
       anthropicApiKey?: string;
-      enableDeepSearch?: boolean;
-      enableContextAnalysis?: boolean;
+      enableAiAnalysis?: boolean;
       enableGinzaKeywords?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;
@@ -166,11 +163,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     } else if (anthropicApiKey.trim()) {
       dto.anthropicApiKey = anthropicApiKey.trim();
     }
-    if (enableDeepSearch !== (settings?.enableDeepSearch ?? false)) {
-      dto.enableDeepSearch = enableDeepSearch;
-    }
-    if (enableContextAnalysis !== (settings?.enableContextAnalysis ?? false)) {
-      dto.enableContextAnalysis = enableContextAnalysis;
+    if (enableAiAnalysis !== (settings?.enableAiAnalysis ?? false)) {
+      dto.enableAiAnalysis = enableAiAnalysis;
     }
     if (enableGinzaKeywords !== (settings?.enableGinzaKeywords ?? false)) {
       dto.enableGinzaKeywords = enableGinzaKeywords;
@@ -203,8 +197,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       anthropicApiKey.trim() !== '' ||
       removeElevenlabsKey ||
       removeAnthropicKey ||
-      enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
-      enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
+      enableAiAnalysis !== (settings.enableAiAnalysis ?? false) ||
       enableGinzaKeywords !== (settings.enableGinzaKeywords ?? false) ||
       guardrailId !== (settings.guardrail?.id ?? '') ||
       guardrailVersion.trim() !== (settings.guardrail?.version ?? '') ||
@@ -272,126 +265,114 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               />
             </div>
 
-            {/* AI 分析（Claude） */}
+            {/* AI 分析（Claude と AWS） */}
             <div className="settings-section">
-              <h2>AI 分析（Claude）</h2>
-              <p className="settings-checkbox-hint">
-                要約・会話分析・発言の文脈・ディープサーチを使うには、Anthropic の API キーと Amazon Bedrock Guardrails（AWS）の両方を設定してください。
-                Claude に送る内容と Claude の応答は、毎回 Guardrails で確認します（個人情報・プロンプト攻撃など）。
-                会話の本文は AWS（APAC リージョン内）でも処理されます。AWS の認証情報は、この Mac の AWS CLI の設定を使います。
-              </p>
-              <div
-                className={`settings-ai-status ${aiMissing.length === 0 ? 'ready' : 'missing'}`}
-                role="status"
-              >
-                {aiMissing.length === 0
-                  ? '使えます（保存済みの設定）'
-                  : `未設定: ${aiMissing.join('・')}`}
-              </div>
-
-              <ApiKeyInput
-                label="Anthropic APIキー"
-                link="https://console.anthropic.com/settings/keys"
-                status={settings.apiKeys?.anthropicApiKey}
-                value={anthropicApiKey}
-                removing={removeAnthropicKey}
-                onChange={(v) => {
-                  setAnthropicApiKey(v);
-                  setShowSuccess(false);
-                }}
-                onToggleRemove={() => {
-                  setRemoveAnthropicKey((v) => !v);
-                  setAnthropicApiKey('');
-                  setShowSuccess(false);
-                }}
-              />
-
-              <h3 className="settings-subheading">Amazon Bedrock Guardrails（AWS）</h3>
-              <p className="settings-checkbox-hint">
-                ディープサーチで会話を選んだときは、会話に含まれる個人情報（氏名・電話番号など）も検出します。
-                ディープサーチ・要約・会話分析で Claude に送る前に、検出した文字列を伏せられます。
-              </p>
-              <div className="settings-input-group">
-                <label>Guardrail ID</label>
-                <input
-                  type="text"
-                  className="settings-input"
-                  value={guardrailId}
-                  onChange={(e) => {
-                    setGuardrailId(e.target.value);
-                    setShowSuccess(false);
-                  }}
-                  placeholder="未設定の場合、Claude を使う機能は使えません"
-                />
-              </div>
-              <div className="settings-input-group">
-                <label>バージョン</label>
-                <input
-                  type="text"
-                  className="settings-input"
-                  value={guardrailVersion}
-                  onChange={(e) => {
-                    setGuardrailVersion(e.target.value);
-                    setShowSuccess(false);
-                  }}
-                  placeholder="DRAFT"
-                />
-                <p className="settings-checkbox-hint">
-                  空の場合は DRAFT を使います。DRAFT は AWS のコンソールで編集するとすぐに変わるため、
-                  Guardrail のバージョンを作成し、その番号（1 など）を指定することを勧めます。
-                  保存する前に、指定したバージョンで確認できることを確かめます。
-                  どのバージョンで確認したかは、Claude の呼び出しの記録（claude-audit-logs/）に残ります。
-                </p>
-              </div>
-              <div className="settings-input-group">
-                <label>AWS プロファイル</label>
-                <input
-                  type="text"
-                  className="settings-input"
-                  value={awsProfile}
-                  onChange={(e) => {
-                    setAwsProfile(e.target.value);
-                    setShowSuccess(false);
-                  }}
-                  placeholder="default"
-                />
-                <p className="settings-checkbox-hint">
-                  AWS の認証情報に使う、~/.aws/credentials のプロファイル名です。空の場合は default を使います。
-                  アプリはターミナルの環境変数（AWS_PROFILE など）を使えないため、default 以外を使う場合はここで指定してください。
-                  アクセスキーで設定したプロファイルに対応します（SSO などには対応していません）。
-                  変えると、保存する前にそのプロファイルで Guardrail を呼べることを確かめます。
-                </p>
-              </div>
-
-              <h3 className="settings-subheading">ベータ機能</h3>
+              <h2>AI 分析（Claude と AWS）</h2>
               <label className="settings-checkbox-label">
                 <input
                   type="checkbox"
-                  checked={enableContextAnalysis}
+                  checked={enableAiAnalysis}
                   onChange={(e) => {
-                    setEnableContextAnalysis(e.target.checked);
+                    setEnableAiAnalysis(e.target.checked);
                     setShowSuccess(false);
                   }}
                 />
-                発言の文脈を有効にする
+                AI 分析を使う
               </label>
               <p className="settings-checkbox-hint">
-                有効にすると、右サイドバーに「発言の文脈」ボタンが表示されます（AI 分析の設定が済んでいる場合）。
+                ON にすると、要約・会話分析・発言の文脈・ディープサーチを使えます。Anthropic の API キーと Amazon Bedrock Guardrails（AWS）の両方が必要です。
+                Claude に送る内容と Claude の応答は、毎回 Guardrails で確認します（個人情報・プロンプト攻撃など）。
+                会話の本文は AWS（APAC リージョン内）でも処理されます。AWS の認証情報は、この Mac の AWS CLI の設定を使います。
+                OFF の場合は、Claude にも AWS にも何も送りません（ボタンは押せない状態で表示します）。
               </p>
-              <label className="settings-checkbox-label" style={{ marginTop: '0.75rem' }}>
-                <input
-                  type="checkbox"
-                  checked={enableDeepSearch}
-                  onChange={(e) => {
-                    setEnableDeepSearch(e.target.checked);
+              {enableAiAnalysis && (
+                <>
+                  <div
+                    className={`settings-ai-status ${aiMissing.length === 0 ? 'ready' : 'missing'}`}
+                    role="status"
+                  >
+                    {aiMissing.length > 0
+                      ? `未設定: ${aiMissing.join('・')}`
+                      : settings.enableAiAnalysis
+                        ? '使えます（保存済みの設定）'
+                        : '設定は済んでいます。保存すると使えます'}
+                  </div>
+
+                <ApiKeyInput
+                  label="Anthropic APIキー"
+                  link="https://console.anthropic.com/settings/keys"
+                  status={settings.apiKeys?.anthropicApiKey}
+                  value={anthropicApiKey}
+                  removing={removeAnthropicKey}
+                  onChange={(v) => {
+                    setAnthropicApiKey(v);
+                    setShowSuccess(false);
+                  }}
+                  onToggleRemove={() => {
+                    setRemoveAnthropicKey((v) => !v);
+                    setAnthropicApiKey('');
                     setShowSuccess(false);
                   }}
                 />
-                ディープサーチを有効にする
-              </label>
-              <p className="settings-checkbox-hint">
-                有効にすると、左のメニューに「ディープサーチ（ベータ）」が表示されます（AI 分析の設定が済んでいる場合）。
-              </p>
+
+                <h3 className="settings-subheading">Amazon Bedrock Guardrails（AWS）</h3>
+                <p className="settings-checkbox-hint">
+                  ディープサーチで会話を選んだときは、会話に含まれる個人情報（氏名・電話番号など）も検出します。
+                  ディープサーチ・要約・会話分析で Claude に送る前に、検出した文字列を伏せられます。
+                </p>
+                <div className="settings-input-group">
+                  <label>Guardrail ID</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={guardrailId}
+                    onChange={(e) => {
+                      setGuardrailId(e.target.value);
+                      setShowSuccess(false);
+                    }}
+                    placeholder="未設定の場合、Claude を使う機能は使えません"
+                  />
+                </div>
+                <div className="settings-input-group">
+                  <label>バージョン</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={guardrailVersion}
+                    onChange={(e) => {
+                      setGuardrailVersion(e.target.value);
+                      setShowSuccess(false);
+                    }}
+                    placeholder="DRAFT"
+                  />
+                  <p className="settings-checkbox-hint">
+                    空の場合は DRAFT を使います。DRAFT は AWS のコンソールで編集するとすぐに変わるため、
+                    Guardrail のバージョンを作成し、その番号（1 など）を指定することを勧めます。
+                    保存する前に、指定したバージョンで確認できることを確かめます。
+                    どのバージョンで確認したかは、Claude の呼び出しの記録（claude-audit-logs/）に残ります。
+                  </p>
+                </div>
+                <div className="settings-input-group">
+                  <label>AWS プロファイル</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={awsProfile}
+                    onChange={(e) => {
+                      setAwsProfile(e.target.value);
+                      setShowSuccess(false);
+                    }}
+                    placeholder="default"
+                  />
+                  <p className="settings-checkbox-hint">
+                    AWS の認証情報に使う、~/.aws/credentials のプロファイル名です。空の場合は default を使います。
+                    アプリはターミナルの環境変数（AWS_PROFILE など）を使えないため、default 以外を使う場合はここで指定してください。
+                    アクセスキーで設定したプロファイルに対応します（SSO などには対応していません）。
+                    変えると、保存する前にそのプロファイルで Guardrail を呼べることを確かめます。
+                  </p>
+                </div>
+                </>
+              )}
             </div>
 
             {/* キーワード */}

@@ -12,7 +12,22 @@ export function missingAiSettings(settings: AppSettings | null): string[] {
   return missing;
 }
 
-/** AI 分析を使える設定か（設定を読み込めていない間は使えないとみなす） */
+/**
+ * AI 分析の状態
+ * - ready: ON で、設定も済んでいる（ボタンを押せる）
+ * - off: OFF にしている
+ * - missing: ON だが、設定が足りない
+ * - loading: 設定を読み込めていない
+ */
+export type AiAnalysisState = 'ready' | 'off' | 'missing' | 'loading';
+
+export function aiAnalysisState(settings: AppSettings | null): AiAnalysisState {
+  if (!settings) return 'loading';
+  if (!settings.enableAiAnalysis) return 'off';
+  return missingAiSettings(settings).length === 0 ? 'ready' : 'missing';
+}
+
+/** AI 分析のボタンを押せるか（設定を読み込めていない間は押せない） */
 export function isAiAnalysisReady(settings: AppSettings | null): boolean {
-  return settings !== null && missingAiSettings(settings).length === 0;
+  return aiAnalysisState(settings) === 'ready';
 }

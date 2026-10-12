@@ -34,10 +34,10 @@ tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
 | 設定画面の項目 | 使える機能 | 必要な設定 | 取得先 |
 |---|---|---|---|
 | 文字起こし | 文字起こし・結果の表示・キーワード | ElevenLabs の API キー | https://elevenlabs.io/app/developers/api-keys |
-| AI 分析（Claude） | 要約・会話分析・発言の文脈・ディープサーチ | Anthropic の API キー ＋ Amazon Bedrock Guardrails（Guardrail ID・AWS プロファイル） | https://console.anthropic.com ・ AWS のコンソール（Bedrock の Guardrails） |
+| AI 分析（Claude と AWS） | 要約・会話分析・発言の文脈・ディープサーチ | 「AI 分析を使う」を ON ＋ Anthropic の API キー ＋ Amazon Bedrock Guardrails（Guardrail ID・AWS プロファイル） | https://console.anthropic.com ・ AWS のコンソール（Bedrock の Guardrails） |
 | キーワード | GiNZA のキーワード抽出（ベータ） | なし（初めて使うときに GiNZA をダウンロード） | |
 
-AI 分析は、Claude に送る前に Guardrails で個人情報やプロンプト攻撃を確認します。Anthropic の API キーと Guardrail ID の両方を設定するまで、要約・会話分析などのボタンは表示されません（代わりに設定を案内します）。AWS の認証情報は、この Mac の `~/.aws`（設定画面の「AWS プロファイル」で指定したプロファイル）を使います。
+AI 分析は、Claude に送る前に Guardrails で個人情報やプロンプト攻撃を確認するため、AWS が必要です。要約・会話分析・発言の文脈・ディープサーチのボタンはいつも表示し、「AI 分析を使う」が OFF のときや、Anthropic の API キー・Guardrail ID が足りないときは押せない状態にします。右サイドバーのボタンの上に、使えるか・OFF か・足りない設定を表示します。OFF のときは、Claude にも AWS にも何も送りません。新しく入れたときは OFF です（以前のバージョンで API キーと Guardrail ID を設定していた場合は ON）。AWS の認証情報は、この Mac の `~/.aws`（設定画面の「AWS プロファイル」で指定したプロファイル）を使います。
 
 #### ElevenLabs APIキーのアクセス制限
 
@@ -111,24 +111,26 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 
 ### 4. 会話分析
 
-AI 分析（Claude）の設定が済んでいる場合に使えます。
+「AI 分析を使う」が ON で、設定が済んでいる場合に使えます（以下の 5・6 も同じ）。
 
 1. 「会話分析」ボタンで会話分析ページに遷移
 2. 話者を選択するとその話者のキーワードが表示される（GiNZA のキーワード抽出が有効な場合は「標準」と「GiNZA」を切り替えられる）
 3. キーワードを選択して「質問を生成」→ チェックボックスで質問を選択 →「分析する」で実行
 4. [Claude API](https://docs.anthropic.com/ja/docs/welcome)がWeb検索付きの分析レポートを生成し、出典URLも表示
 
-### 5. ベータ版の機能
+### 5. ディープサーチ
 
-以下の機能は設定画面から個別に有効化できます（デフォルトは無効）。ディープサーチと発言の文脈は、AI 分析（Claude）の設定も必要です。GiNZA のキーワード抽出は AWS も Claude も使いません。
-
-**ディープサーチ**
-- 選んだ会話からキーワードを提案し、Web検索で調査
+- 左サイドバーの「ディープサーチ」から、選んだ会話のキーワードを提案し、Web検索で調査
 - 調査結果を[Claude API](https://docs.anthropic.com/ja/docs/welcome)で統合分析
 
-**発言の文脈**
-- 文字起こし結果から発言を複数選択して文脈を分析
+### 6. 発言の文脈
+
+- 右サイドバーの「発言の文脈」を押し、文字起こし結果から発言を複数選択して文脈を分析
 - 各発言の意図・トピックを[Claude API](https://docs.anthropic.com/ja/docs/welcome)で解析
+
+### 7. ベータ版の機能
+
+設定画面の「キーワード」から有効化できます（デフォルトは無効）。AWS も Claude も使いません。
 
 **GiNZA のキーワード抽出**
 - 右サイドバーのキーワード一覧と会話分析で、キーワードの抽出方法を「標準」と「GiNZA」で切り替えられる。選んだ方法は会話ごとに保存される
@@ -167,7 +169,7 @@ GiNZA のキーワード抽出（ベータ機能）で入れた Python と GiNZA
 | 文字起こしが中断・失敗した | 左サイドバーの「中断中のジョブ」→ 対象ジョブを選択 →「途中から再開する」をクリック。完了済みチャンクはスキップされます |
 | 起動直後に「サーバーに接続できません」と表示される | バックエンドの起動待ち中です。自動リトライされるので数秒お待ちください |
 | 文字起こしが実行できない | 設定画面でElevenLabs APIキーが正しく設定されているか確認してください |
-| 要約・会話分析のボタンが表示されない | 設定画面の「AI 分析（Claude）」で、Anthropic の API キーと Guardrail ID を設定してください |
+| 要約・会話分析・ディープサーチのボタンを押せない | 右サイドバーのボタンの上に理由が表示されます。設定画面の「AI 分析（Claude と AWS）」で「AI 分析を使う」を ON にし、Anthropic の API キーと Guardrail ID を設定してください |
 | 「AWS の認証情報（プロファイル: 〇〇）が無効なため、Guardrails で確認できませんでした」と表示される | `aws sts get-caller-identity --profile 〇〇` で認証情報が使えるか確認し、設定画面の「AWS プロファイル」を Guardrail があるアカウントのプロファイルにしてください |
 | 長時間音声の文字起こし中に「Load failed」と表示される | WebViewのコネクションタイムアウトです。バックエンドは処理を継続しているため、進捗画面で完了を待つか、「中断中のジョブ」から再開してください |
 | 中断中のジョブが表示されない | 同じファイル名で完了済みの文字起こしがある場合、中断ジョブは自動的に非表示になります |

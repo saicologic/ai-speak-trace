@@ -83,6 +83,12 @@
   background-color: #2563eb;
 }
 
+.sidebar-tab-action:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
 .sidebar-tab-action--warning {
   background-color: #d97706;
 }

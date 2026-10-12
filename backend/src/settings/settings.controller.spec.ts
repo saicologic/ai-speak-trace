@@ -11,8 +11,7 @@ const sampleSettings = {
   },
   elevenlabsApiKey: 'el-key',
   anthropicApiKey: 'ant-key',
-  enableDeepSearch: false,
-  enableContextAnalysis: true,
+  enableAiAnalysis: true,
 };
 
 describe('SettingsController', () => {
@@ -49,12 +48,14 @@ describe('SettingsController', () => {
 
   describe('updateSettings', () => {
     it('設定を更新して返す', () => {
-      const updated = { ...sampleSettings, enableDeepSearch: true };
+      const updated = { ...sampleSettings, enableAiAnalysis: false };
       settingsService.updateSettings.mockReturnValue(updated as any);
 
-      const result = controller.updateSettings({ enableDeepSearch: true });
+      const result = controller.updateSettings({ enableAiAnalysis: false });
 
-      expect(settingsService.updateSettings).toHaveBeenCalledWith({ enableDeepSearch: true });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith({
+        enableAiAnalysis: false,
+      });
       expect(result).toEqual(updated);
     });
 
@@ -63,7 +64,9 @@ describe('SettingsController', () => {
 
       controller.updateSettings({ elevenlabsApiKey: 'new-key' });
 
-      expect(settingsService.updateSettings).toHaveBeenCalledWith({ elevenlabsApiKey: 'new-key' });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith({
+        elevenlabsApiKey: 'new-key',
+      });
     });
   });
 });

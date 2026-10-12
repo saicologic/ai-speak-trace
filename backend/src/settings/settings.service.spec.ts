@@ -86,9 +86,12 @@ describe('SettingsService', () => {
     service = module.get<SettingsService>(SettingsService);
     process.env.ELEVENLABS_API_KEY = '';
     process.env.ANTHROPIC_API_KEY = '';
+    // AI 分析の ON/OFF を保存していない状態から始める
+    delete process.env.AI_ANALYSIS;
   });
 
   afterEach(() => {
+    process.env.AI_ANALYSIS = 'on';
     fs.rmSync(tmpDir, { recursive: true, force: true });
     delete process.env.ELEVENLABS_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
@@ -102,8 +105,8 @@ describe('SettingsService', () => {
     it('初期状態で正しいデフォルト値を返す', () => {
       const settings = service.getSettings();
 
-      expect(settings.enableDeepSearch).toBe(false);
-      expect(settings.enableContextAnalysis).toBe(false);
+      expect(settings.enableAiAnalysis).toBe(false);
+      expect(settings.enableGinzaKeywords).toBe(false);
       expect(settings.paths.dataDir).toBeTruthy();
       expect(settings.paths.audioDir).toContain('audio');
       expect(settings.paths.transcriptionsDir).toContain('transcriptions');
@@ -111,12 +114,19 @@ describe('SettingsService', () => {
     });
 
     it('settings.jsonが存在する場合はその値を反映する', () => {
-      writeSettings({ enableDeepSearch: true, enableContextAnalysis: true });
+      writeSettings({ enableGinzaKeywords: true });
 
       const settings = service.getSettings();
 
-      expect(settings.enableDeepSearch).toBe(true);
-      expect(settings.enableContextAnalysis).toBe(true);
+      expect(settings.enableGinzaKeywords).toBe(true);
+    });
+
+    it('AI 分析の ON/OFF を保存していない場合は、API キーと Guardrail ID の両方があれば ON にする', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-value-abcdefgh-1234';
+      expect(service.getSettings().enableAiAnalysis).toBe(false);
+
+      process.env.BEDROCK_GUARDRAIL_ID = 'gr-1';
+      expect(service.getSettings().enableAiAnalysis).toBe(true);
     });
 
     it('settings.jsonが壊れていてもクラッシュせずデフォルト値を返す', () => {
@@ -124,7 +134,7 @@ describe('SettingsService', () => {
 
       const settings = service.getSettings();
 
-      expect(settings.enableDeepSearch).toBe(false);
+      expect(settings.enableGinzaKeywords).toBe(false);
     });
 
     it('API キーの値そのものは返さず、設定済みかと末尾4文字だけを返す', () => {
@@ -164,39 +174,38 @@ describe('SettingsService', () => {
       expect(process.env.ANTHROPIC_API_KEY).toBe('anthropic-key-456');
     });
 
-    it('enableDeepSearchをtrueに更新できる', async () => {
-      const result = await service.updateSettings({ enableDeepSearch: true });
+    it('AI 分析を ON/OFF でき、すぐに反映される（API キーと Guardrail ID があっても OFF にできる）', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-value-abcdefgh-1234';
+      process.env.BEDROCK_GUARDRAIL_ID = 'gr-1';
 
-      expect(result.settings.enableDeepSearch).toBe(true);
-    });
+      const off = await service.updateSettings({ enableAiAnalysis: false });
+      expect(off.settings.enableAiAnalysis).toBe(false);
+      expect(process.env.AI_ANALYSIS).toBe('off');
 
-    it('enableContextAnalysisをtrueに更新できる', async () => {
-      const result = await service.updateSettings({
-        enableContextAnalysis: true,
-      });
-
-      expect(result.settings.enableContextAnalysis).toBe(true);
+      const on = await service.updateSettings({ enableAiAnalysis: true });
+      expect(on.settings.enableAiAnalysis).toBe(true);
+      expect(process.env.AI_ANALYSIS).toBe('on');
     });
 
     it('キーチェーンを使えない環境では、更新内容がsettings.jsonに永続化される', async () => {
       await service.updateSettings({
-        enableDeepSearch: true,
+        enableAiAnalysis: true,
         elevenlabsApiKey: 'saved-key',
       });
 
       const raw = readSettings();
-      expect(raw.enableDeepSearch).toBe(true);
+      expect(raw.enableAiAnalysis).toBe(true);
       expect(raw.elevenlabsApiKey).toBe('saved-key');
     });
 
     it('既存の設定値を上書きせずに部分更新できる', async () => {
-      writeSettings({ enableDeepSearch: true, enableContextAnalysis: false });
+      writeSettings({ enableGinzaKeywords: true, enableAiAnalysis: false });
 
-      await service.updateSettings({ enableContextAnalysis: true });
+      await service.updateSettings({ enableAiAnalysis: true });
 
       const raw = readSettings();
-      expect(raw.enableDeepSearch).toBe(true);
-      expect(raw.enableContextAnalysis).toBe(true);
+      expect(raw.enableGinzaKeywords).toBe(true);
+      expect(raw.enableAiAnalysis).toBe(true);
     });
 
     describe('キーチェーンを使える環境', () => {

@@ -17,8 +17,10 @@ interface Props {
   onSpeakerFilterChange: (speakerId: string | null) => void;
   /** キーワードの出し方の切り替え（GiNZA のベータ機能が有効なときだけ） */
   sourceSwitch?: ReactNode;
-  /** AI 分析の設定が済んでいないときの案内（要約・会話分析のボタンの代わりに出す） */
-  aiSetupNotice?: ReactNode;
+  /** AI 分析の状態（使えるか、OFF か、足りない設定）。ボタンの上に出す */
+  aiStatus?: ReactNode;
+  /** AI 分析を使えないときは、要約・会話分析・発言の文脈のボタンを押せなくする */
+  aiDisabled?: boolean;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -36,7 +38,8 @@ export function KeywordList({
   selectedSpeakerId,
   onSpeakerFilterChange,
   sourceSwitch,
-  aiSetupNotice,
+  aiStatus,
+  aiDisabled = false,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -50,7 +53,7 @@ export function KeywordList({
   if (keywords.length === 0 && !sourceSwitch) {
     return (
       <div className="keyword-list">
-        {aiSetupNotice}
+        {aiStatus}
         <h2>キーワード</h2>
         <p className="keyword-list-empty">キーワードが見つかりません</p>
       </div>
@@ -59,11 +62,12 @@ export function KeywordList({
 
   return (
     <div className="keyword-list">
-      {aiSetupNotice}
+      {aiStatus}
       {onNavigateSummary && (
         <button
           className="keyword-interview-button"
           onClick={onNavigateSummary}
+          disabled={aiDisabled}
         >
           要約
         </button>
@@ -72,6 +76,7 @@ export function KeywordList({
         <button
           className="keyword-interview-button"
           onClick={onNavigateInterview}
+          disabled={aiDisabled}
         >
           会話分析
         </button>
@@ -80,6 +85,7 @@ export function KeywordList({
         <button
           className={`keyword-context-button ${contextSelectMode ? 'active' : ''}`}
           onClick={onToggleContextMode}
+          disabled={aiDisabled}
         >
           {contextSelectMode ? '発言の文脈（選択中...）' : '発言の文脈'}
         </button>
