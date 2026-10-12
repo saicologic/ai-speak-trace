@@ -1,0 +1,70 @@
+.keyword-source {
+  margin-bottom: 0.75rem;
+}
+
+.keyword-source-tabs {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.keyword-source-tabs button {
+  flex: 1;
+  padding: 0.35rem 0.25rem;
+  border: none;
+  background-color: #ffffff;
+  color: #4b5563;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.keyword-source-tabs button + button {
+  border-left: 1px solid #d1d5db;
+}
+
+.keyword-source-tabs button:hover {
+  background-color: #f3f4f6;
+}
+
+.keyword-source-tabs button.active {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.keyword-source-status {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.keyword-source-status p {
+  margin: 0 0 0.4rem;
+  line-height: 1.5;
+}
+
+.keyword-source-progress {
+  color: #2563eb;
+}
+
+.keyword-source-error {
+  color: #dc2626;
+}
+
+.keyword-source-install {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #3b82f6;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.keyword-source-install:hover {
+  background-color: #eff6ff;
+}

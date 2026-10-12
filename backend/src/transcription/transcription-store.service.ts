@@ -4,6 +4,7 @@ import type { TranscriptionStorage } from '../storage/interfaces/transcription-s
 import { Transcription } from './types/transcription.types';
 import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
 import { DerivedLogCleaner } from './derived-log-cleaner.service';
+import { GinzaKeywordStore } from './ginza-keyword-store.service';
 import { PrivacyService } from '../privacy/privacy.service';
 
 /** 文字起こし結果ストレージの薄いラッパー（他モジュールとの互換性を維持） */
@@ -14,6 +15,7 @@ export class TranscriptionStoreService {
     private readonly storage: TranscriptionStorage,
     private readonly utteranceEmbeddingStore: UtteranceEmbeddingStore,
     private readonly derivedLogCleaner: DerivedLogCleaner,
+    private readonly ginzaKeywordStore: GinzaKeywordStore,
     private readonly privacyService: PrivacyService,
   ) {}
 
@@ -44,13 +46,14 @@ export class TranscriptionStoreService {
   }
 
   /**
-   * 文字起こし結果と、そこから作ったデータ（発話ベクトルのキャッシュ、会話分析・要約・
+   * 文字起こし結果と、そこから作ったデータ（発話ベクトルと GiNZA のキャッシュ、会話分析・要約・
    * ディープサーチのログ）を削除する。削除した会話の内容をディスクに残さないため
    */
   async delete(id: string): Promise<void> {
     // 派生データを先に削除する。失敗した場合は文字起こしを残し、やり直せるようにする
     await this.derivedLogCleaner.deleteLogsForTranscription(id);
     await this.utteranceEmbeddingStore.delete(id);
+    await this.ginzaKeywordStore.delete(id);
     await this.storage.delete(id);
   }
 }

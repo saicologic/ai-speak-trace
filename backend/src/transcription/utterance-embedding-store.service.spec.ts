@@ -11,6 +11,7 @@ import {
 import { TranscriptionStoreService } from './transcription-store.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { DerivedLogCleaner } from './derived-log-cleaner.service';
+import { GinzaKeywordStore } from './ginza-keyword-store.service';
 import { TRANSCRIPTION_STORAGE } from '../storage/interfaces/transcription-storage.interface';
 
 const CACHE: UtteranceEmbeddingCache = {
@@ -35,6 +36,7 @@ describe('UtteranceEmbeddingStore', () => {
         UtteranceEmbeddingStore,
         TranscriptionStoreService,
         DerivedLogCleaner,
+        GinzaKeywordStore,
         { provide: TRANSCRIPTION_STORAGE, useValue: storage },
         { provide: PrivacyService, useValue: {} },
         {

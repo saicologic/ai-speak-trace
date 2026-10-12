@@ -96,6 +96,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [enableGinzaKeywords, setEnableGinzaKeywords] = useState(false);
   const [guardrailId, setGuardrailId] = useState('');
   const [guardrailVersion, setGuardrailVersion] = useState('');
   const [awsProfile, setAwsProfile] = useState('');
@@ -109,6 +110,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     setRemoveAnthropicKey(false);
     setEnableDeepSearch(s.enableDeepSearch ?? false);
     setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+    setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
     setGuardrailId(s.guardrail?.id ?? '');
     setGuardrailVersion(s.guardrail?.version ?? '');
     setAwsProfile(s.awsProfile ?? '');
@@ -147,6 +149,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
+      enableGinzaKeywords?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;
       awsProfile?: string;
@@ -167,6 +170,9 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     }
     if (enableContextAnalysis !== (settings?.enableContextAnalysis ?? false)) {
       dto.enableContextAnalysis = enableContextAnalysis;
+    }
+    if (enableGinzaKeywords !== (settings?.enableGinzaKeywords ?? false)) {
+      dto.enableGinzaKeywords = enableGinzaKeywords;
     }
     if (guardrailId !== (settings?.guardrail?.id ?? '')) {
       dto.bedrockGuardrailId = guardrailId;
@@ -198,6 +204,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       removeAnthropicKey ||
       enableDeepSearch !== (settings.enableDeepSearch ?? false) ||
       enableContextAnalysis !== (settings.enableContextAnalysis ?? false) ||
+      enableGinzaKeywords !== (settings.enableGinzaKeywords ?? false) ||
       guardrailId !== (settings.guardrail?.id ?? '') ||
       guardrailVersion.trim() !== (settings.guardrail?.version ?? '') ||
       awsProfile.trim() !== (settings.awsProfile ?? '')
@@ -212,6 +219,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     { label: '要約ログ', path: 'summary-logs/' },
     { label: 'Claude の呼び出しの記録', path: 'claude-audit-logs/' },
     { label: '誤りの報告', path: 'feedback/' },
+    { label: 'GiNZA のキーワード（ベータ）', path: 'ginza-keywords/' },
   ];
 
   return (
@@ -400,6 +408,22 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               </label>
               <p className="settings-checkbox-hint">
                 有効にすると、右サイドバーに「発言の文脈」ボタンが表示されます。
+              </p>
+              <label className="settings-checkbox-label" style={{ marginTop: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={enableGinzaKeywords}
+                  onChange={(e) => {
+                    setEnableGinzaKeywords(e.target.checked);
+                    setShowSuccess(false);
+                  }}
+                />
+                GiNZA のキーワード抽出を有効にする
+              </label>
+              <p className="settings-checkbox-hint">
+                有効にすると、キーワードの一覧と会話分析で「標準」と「GiNZA」を切り替えられます。
+                GiNZA は日本語を解析して、評価・型チェックのような漢字の語も取り出します。
+                初めて使うときに Python と GiNZA（約 500MB）をダウンロードします。解析は手元で行い、会話を外部に送りません。
               </p>
             </div>
 

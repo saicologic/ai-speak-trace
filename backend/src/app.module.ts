@@ -12,6 +12,7 @@ import { ResearchModule } from './research/research.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { SettingsModule } from './settings/settings.module';
 import { PodcastModule } from './podcast/podcast.module';
+import { GinzaModule } from './ginza/ginza.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PodcastModule } from './podcast/podcast.module';
     FeedbackModule,
     SettingsModule,
     PodcastModule,
+    GinzaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,6 +13,8 @@ import type {
   TranscriptionSummaryLog,
   SummaryConfig,
   PrivacyStatus,
+  GinzaStatus,
+  GinzaKeywords,
 } from '../types';
 import type { ResearchJob, ResearchJobSummary, ResearchTarget } from '../types/research';
 
@@ -790,6 +792,7 @@ export async function updateSettings(
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
+    enableGinzaKeywords?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
     awsProfile?: string;
@@ -958,4 +961,35 @@ export async function updatePrivacyMasks(
     throw new Error(await errorMessage(res, '設定を保存できませんでした'));
   }
   return (await res.json()).privacy;
+}
+
+// === GiNZA のキーワード抽出（ベータ機能） ===
+
+/** GiNZA の準備の状態を取得する */
+export async function fetchGinzaStatus(): Promise<GinzaStatus> {
+  const res = await fetch(`${BASE_URL}/ginza/status`);
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA の状態を取得できませんでした'));
+  }
+  return (await res.json()).status;
+}
+
+/** GiNZA のインストールを始める（終わるのを待たない） */
+export async function startGinzaInstall(): Promise<GinzaStatus> {
+  const res = await fetch(`${BASE_URL}/ginza/install`, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA のインストールを始められませんでした'));
+  }
+  return (await res.json()).status;
+}
+
+/** GiNZA で取り出した会話のキーワード（全体と話者ごと）を取得する */
+export async function fetchGinzaKeywords(transcriptionId: string): Promise<GinzaKeywords> {
+  const res = await fetch(
+    `${BASE_URL}/ginza/transcriptions/${encodeURIComponent(transcriptionId)}/keywords`,
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA でキーワードを取り出せませんでした'));
+  }
+  return res.json();
 }

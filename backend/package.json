@@ -24,7 +24,10 @@
   },
   "pkg": {
     "scripts": "dist/**/*.js",
-    "assets": [],
+    "assets": [
+      "python/ginza_keywords.py",
+      "python/requirements.txt"
+    ],
     "targets": [
       "node24-macos-arm64"
     ],

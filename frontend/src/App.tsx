@@ -11,6 +11,8 @@ import { TranscribePage } from './components/TranscribePage';
 import { JobProgressPage } from './components/JobProgressPage';
 import { ResumableJobsPage } from './components/ResumableJobsPage';
 import { ContextAnalysisModal } from './components/ContextAnalysisModal';
+import { KeywordSourceSwitch } from './components/KeywordSourceSwitch';
+import { useKeywordSource } from './hooks/useKeywordSource';
 import SettingsPage from './components/SettingsPage';
 import {
   fetchTranscription,
@@ -19,7 +21,8 @@ import {
   fetchResumableJobs,
 } from './api/client';
 import type { ChunkedJobDetail } from './api/client';
-import { extractKeywords } from './utils/keywords';
+import { keywordsFor } from './utils/speakerKeywords';
+import { keepAvailable } from './utils/keywordSelection';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
@@ -50,6 +53,7 @@ function App() {
   const [contextAnalyzing, setContextAnalyzing] = useState(false);
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [enableGinzaKeywords, setEnableGinzaKeywords] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -61,6 +65,7 @@ function App() {
       .then((s) => {
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
       })
       .catch(() => {});
 
@@ -70,11 +75,30 @@ function App() {
       .catch(() => {});
   }, []);
 
-  /** 文字起こしテキストからキーワードを抽出（メモ化） */
+  /** キーワードの出し方（標準 / GiNZA。GiNZA はベータ機能） */
+  const keywordSource = useKeywordSource(transcription?.id ?? '', enableGinzaKeywords);
+
+  /** 文字起こしからキーワードを抽出（話者フィルターで話者を選んだ場合は、その話者の発話だけ。メモ化） */
   const keywords = useMemo(
-    () => (transcription ? extractKeywords(transcription.fullText) : []),
-    [transcription],
+    () =>
+      transcription
+        ? keywordsFor(
+            transcription.utterances,
+            keywordSource.source,
+            keywordSource.ginza,
+            selectedSpeakerId,
+            transcription.fullText,
+          )
+        : [],
+    [transcription, keywordSource.source, keywordSource.ginza, selectedSpeakerId],
   );
+
+  /** 出し方を切り替えたら、切り替え後の一覧にない語の選択を外す（GiNZA の解析中は待つ） */
+  const keywordsLoading = keywordSource.source === 'ginza' && !keywordSource.ginza;
+  useEffect(() => {
+    if (keywordsLoading) return;
+    setHighlightedKeywords((prev) => keepAvailable(prev, keywords));
+  }, [keywords, keywordsLoading]);
 
   /** 発話選択のトグル */
   const toggleUtteranceSelection = (index: number) => {
@@ -218,6 +242,7 @@ function App() {
         transcriptionId={transcription.id}
         speakers={transcription.speakers}
         utterances={transcription.utterances}
+        enableGinzaKeywords={enableGinzaKeywords}
         onBack={() => setPage('main')}
       />
     );
@@ -303,6 +328,7 @@ function App() {
         const s = await fetchSettings();
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
       } catch {
         // 取得失敗時はログのみ（メイン画面に遷移は継続）
         console.warn('設定の再読み込みに失敗しました');
@@ -443,6 +469,9 @@ function App() {
               speakers={transcription.speakers}
               selectedSpeakerId={selectedSpeakerId}
               onSpeakerFilterChange={setSelectedSpeakerId}
+              sourceSwitch={
+                enableGinzaKeywords ? <KeywordSourceSwitch state={keywordSource} /> : undefined
+              }
             />
           </aside>
         )}
