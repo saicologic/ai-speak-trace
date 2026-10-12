@@ -23,6 +23,7 @@ import {
 import type { ChunkedJobDetail } from './api/client';
 import { keywordsFor } from './utils/speakerKeywords';
 import { keepAvailable } from './utils/keywordSelection';
+import { isAiAnalysisReady } from './utils/aiAnalysis';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
@@ -54,6 +55,8 @@ function App() {
   const [enableDeepSearch, setEnableDeepSearch] = useState(false);
   const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
   const [enableGinzaKeywords, setEnableGinzaKeywords] = useState(false);
+  /** AI 分析（Claude と Guardrails）の設定が済んでいるか。済んでいなければ、AI 分析のボタンを出さない */
+  const [aiReady, setAiReady] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -66,6 +69,7 @@ function App() {
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
         setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
+        setAiReady(isAiAnalysisReady(s));
       })
       .catch(() => {});
 
@@ -329,6 +333,7 @@ function App() {
         setEnableDeepSearch(s.enableDeepSearch ?? false);
         setEnableContextAnalysis(s.enableContextAnalysis ?? false);
         setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
+        setAiReady(isAiAnalysisReady(s));
       } catch {
         // 取得失敗時はログのみ（メイン画面に遷移は継続）
         console.warn('設定の再読み込みに失敗しました');
@@ -392,7 +397,7 @@ function App() {
               ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
-          {enableDeepSearch && (
+          {enableDeepSearch && aiReady && (
             <div className="sidebar-tabs">
               <button
                 className="sidebar-tab-action"
@@ -462,9 +467,21 @@ function App() {
               onToggleKeyword={toggleKeywordHighlight}
               filterActive={filterActive}
               onToggleFilter={() => setFilterActive((prev) => !prev)}
-              onNavigateSummary={() => setPage('summary')}
-              onNavigateInterview={() => setPage('interview')}
-              onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
+              onNavigateSummary={aiReady ? () => setPage('summary') : undefined}
+              onNavigateInterview={aiReady ? () => setPage('interview') : undefined}
+              onToggleContextMode={
+                aiReady && enableContextAnalysis ? toggleContextMode : undefined
+              }
+              aiSetupNotice={
+                aiReady ? undefined : (
+                  <p className="keyword-ai-setup-notice">
+                    要約・会話分析を使うには、設定画面の「AI 分析（Claude）」を設定してください。
+                    <button type="button" onClick={() => setPage('settings')}>
+                      設定を開く
+                    </button>
+                  </p>
+                )
+              }
               contextSelectMode={contextSelectMode}
               speakers={transcription.speakers}
               selectedSpeakerId={selectedSpeakerId}

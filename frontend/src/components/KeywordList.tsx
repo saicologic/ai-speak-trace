@@ -17,6 +17,8 @@ interface Props {
   onSpeakerFilterChange: (speakerId: string | null) => void;
   /** キーワードの出し方の切り替え（GiNZA のベータ機能が有効なときだけ） */
   sourceSwitch?: ReactNode;
+  /** AI 分析の設定が済んでいないときの案内（要約・会話分析のボタンの代わりに出す） */
+  aiSetupNotice?: ReactNode;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -34,6 +36,7 @@ export function KeywordList({
   selectedSpeakerId,
   onSpeakerFilterChange,
   sourceSwitch,
+  aiSetupNotice,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -47,6 +50,7 @@ export function KeywordList({
   if (keywords.length === 0 && !sourceSwitch) {
     return (
       <div className="keyword-list">
+        {aiSetupNotice}
         <h2>キーワード</h2>
         <p className="keyword-list-empty">キーワードが見つかりません</p>
       </div>
@@ -55,6 +59,7 @@ export function KeywordList({
 
   return (
     <div className="keyword-list">
+      {aiSetupNotice}
       {onNavigateSummary && (
         <button
           className="keyword-interview-button"

@@ -43,6 +43,30 @@ describe('SettingsPage', () => {
     }
   });
 
+  it('AI 分析は、Anthropic の API キーと Guardrail ID がそろっていれば「使えます」と表示する', async () => {
+    render(<SettingsPage onBack={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: 'AI 分析（Claude）' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('使えます');
+  });
+
+  it('AI 分析に足りない設定を表示する', async () => {
+    vi.mocked(fetchSettings).mockResolvedValue(
+      settings({
+        apiKeys: {
+          elevenlabsApiKey: { configured: true, last4: '' },
+          anthropicApiKey: { configured: false, last4: '' },
+        },
+        guardrail: { id: '', version: '' },
+      }),
+    );
+    render(<SettingsPage onBack={vi.fn()} />);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '未設定: Anthropic の API キー・Guardrail ID',
+    );
+  });
+
   it('入力した API キーだけを保存する', async () => {
     render(<SettingsPage onBack={vi.fn()} />);
     const input = await screen.findByPlaceholderText('変更する場合だけ、新しいキーを入力');

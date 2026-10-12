@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import {
   GuardrailService,
+  describeAwsError,
   mergeAssessment,
   splitText,
   GuardrailFindings,
@@ -208,5 +209,43 @@ describe('GuardrailService.verify', () => {
     });
 
     await expect(service.verify('gr-1', '99')).rejects.toThrow('NotFound');
+  });
+
+  it('AWS の認証情報が無効な場合は、設定を確かめるよう伝える例外にする', async () => {
+    const service = new GuardrailService({
+      get: (key: string, fallback?: string) =>
+        key === 'BEDROCK_GUARDRAIL_ID' ? 'gr-1' : fallback,
+    } as unknown as ConfigService);
+    const invalid = Object.assign(
+      new Error('The security token included in the request is invalid.'),
+      { name: 'UnrecognizedClientException' },
+    );
+    Object.assign(service, {
+      client: { send: jest.fn().mockRejectedValue(invalid) },
+    });
+
+    await expect(service.inspect('確認する文', 'INPUT')).rejects.toMatchObject({
+      status: 503,
+      message: expect.stringContaining('AWS の認証情報') as unknown,
+    });
+  });
+});
+
+describe('describeAwsError', () => {
+  const named = (name: string) => Object.assign(new Error(name), { name });
+
+  it.each([
+    ['UnrecognizedClientException', 'AWS の認証情報'],
+    ['CredentialsProviderError', 'AWS の認証情報'],
+    ['AccessDeniedException', 'bedrock:ApplyGuardrail'],
+    ['ResourceNotFoundException', 'gr-1'],
+  ])('%s は、何を確かめればよいかを伝える', (name, expected) => {
+    expect(describeAwsError(named(name), 'gr-1')).toContain(expected);
+  });
+
+  it('設定で直せないエラーは null（元のエラーのまま扱う）', () => {
+    expect(describeAwsError(named('ThrottlingException'), 'gr-1')).toBeNull();
+    expect(describeAwsError(new Error('x'), 'gr-1')).toBeNull();
+    expect(describeAwsError('x', 'gr-1')).toBeNull();
   });
 });
