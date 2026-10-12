@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
@@ -255,15 +256,18 @@ export class GinzaEnvService {
   private async downloadUv(arch: string): Promise<string> {
     const target = UV_TARGET[arch];
     const url = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${target}.tar.gz`;
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    // pkg でバイナリにしたバックエンド（--jitless）では fetch が動かないため、axios を使う
+    const response = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: DOWNLOAD_TIMEOUT_MS,
+      validateStatus: () => true,
     });
-    if (!response.ok) {
+    if (response.status !== 200) {
       throw new Error(
         `uv をダウンロードできませんでした（${response.status}）`,
       );
     }
-    const data = Buffer.from(await response.arrayBuffer());
+    const data = Buffer.from(response.data);
     const digest = createHash('sha256').update(data).digest('hex');
     if (digest !== UV_SHA256[arch]) {
       throw new Error('ダウンロードした uv のハッシュが一致しません');
