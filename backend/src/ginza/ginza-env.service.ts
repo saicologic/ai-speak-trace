@@ -114,27 +114,33 @@ export class GinzaEnvService {
    * コメント行は除く（コメントだけの変更で、数百 MB を入れ直さないため）
    */
   private async requirementsHash(): Promise<string> {
-    const text = await fs.readFile(
-      path.join(this.bundleDir, REQUIREMENTS_FILE),
-      'utf-8',
-    );
-    const packages = text
-      .split('\n')
-      .filter((line) => !line.trim().startsWith('#'))
-      .join('\n');
-    return createHash('sha256').update(packages).digest('hex');
+    return createHash('sha256')
+      .update(await this.readPackages())
+      .digest('hex');
   }
 
   /**
    * 同梱したスクリプトとパッケージの一覧のハッシュ
-   * アプリの更新でどちらかが変わったら、解析結果を作り直す
+   * アプリの更新でどちらかが変わったら、解析結果を作り直す（パッケージの一覧のコメント行は除く）
    */
   async engineHash(): Promise<string> {
-    const hash = createHash('sha256');
-    for (const file of [REQUIREMENTS_FILE, SCRIPT_FILE]) {
-      hash.update(await fs.readFile(path.join(this.bundleDir, file)));
-    }
-    return hash.digest('hex');
+    return createHash('sha256')
+      .update(await this.readPackages())
+      .update('\u0000')
+      .update(await fs.readFile(path.join(this.bundleDir, SCRIPT_FILE)))
+      .digest('hex');
+  }
+
+  /** 同梱したパッケージの一覧から、コメント行を除いたもの */
+  private async readPackages(): Promise<string> {
+    const text = await fs.readFile(
+      path.join(this.bundleDir, REQUIREMENTS_FILE),
+      'utf-8',
+    );
+    return text
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
   }
 
   /**
