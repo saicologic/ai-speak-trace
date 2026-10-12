@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
+import { isAiAnalysisEnabled } from '../settings/ai-analysis';
 import {
   GuardrailFindings,
   GuardrailService,
@@ -80,16 +81,31 @@ export class ClaudeClientService {
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-    const method = (init?.method ?? (typeof input !== 'string' && !(input instanceof URL) ? (input as Request).method : undefined) ?? 'GET').toUpperCase();
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
+    const method = (
+      init?.method ??
+      (typeof input !== 'string' && !(input instanceof URL)
+        ? (input as Request).method
+        : undefined) ??
+      'GET'
+    ).toUpperCase();
 
     const headers: Record<string, string> = {};
     if (init?.headers) {
       const h = init.headers;
       if (h instanceof Headers) {
-        h.forEach((v, k) => { headers[k] = v; });
+        h.forEach((v, k) => {
+          headers[k] = v;
+        });
       } else if (Array.isArray(h)) {
-        h.forEach(([k, v]) => { headers[k] = v; });
+        h.forEach(([k, v]) => {
+          headers[k] = v;
+        });
       } else {
         Object.assign(headers, h);
       }
@@ -137,6 +153,11 @@ export class ClaudeClientService {
     params: Anthropic.MessageCreateParamsNonStreaming,
     options: CreateMessageOptions = {},
   ): Promise<{ message: Anthropic.Message; warnings: ContentWarning[] }> {
+    if (!isAiAnalysisEnabled()) {
+      throw new BadRequestException(
+        'AI 分析が OFF のため、Claude には送りません。設定画面の「AI 分析」を ON にしてください',
+      );
+    }
     if (!this.guardrail.isConfigured()) {
       throw new BadRequestException(
         'Claude に送る前のチェックのため、設定画面で Guardrail ID を設定してください',

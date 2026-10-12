@@ -477,7 +477,7 @@ export async function generateQuestions(
     body: JSON.stringify({ transcriptionId, speakerId, keywords }),
   });
   if (!res.ok) {
-    throw new Error(`質問生成に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '質問生成に失敗しました'));
   }
   const data = await res.json();
   return data.questions;
@@ -496,7 +496,7 @@ export async function analyzeInterview(
     body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
   });
   if (!res.ok) {
-    throw new Error(`分析に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '分析に失敗しました'));
   }
   const data = await res.json();
   return data.analysis;
@@ -569,7 +569,7 @@ export async function analyzeUtteranceContext(
     body: JSON.stringify({ transcriptionId, utteranceIndices }),
   });
   if (!res.ok) {
-    throw new Error(`文脈分析に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '文脈分析に失敗しました'));
   }
   const data = await res.json();
   return data.analysis;
@@ -653,7 +653,7 @@ export async function summarizeTranscription(
     body: JSON.stringify({ transcriptionId, model, prompt }),
   });
   if (!res.ok) {
-    throw new Error(`要約の生成に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '要約の生成に失敗しました'));
   }
   const data = await res.json();
   return data.summary;
@@ -702,8 +702,7 @@ export async function updateSettings(
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
-    enableDeepSearch?: boolean;
-    enableContextAnalysis?: boolean;
+    enableAiAnalysis?: boolean;
     enableGinzaKeywords?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;

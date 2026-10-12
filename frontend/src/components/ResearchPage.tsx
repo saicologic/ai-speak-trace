@@ -280,7 +280,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
         <button className="research-back-button" onClick={onBack}>
           ← 戻る
         </button>
-        <h1>ディープサーチ（ベータ）</h1>
+        <h1>ディープサーチ</h1>
         {activeTab === 'new' && job && (
           <button className="research-new-button" onClick={() => setJob(null)}>
             ＋ 新しい調査

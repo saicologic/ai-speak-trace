@@ -73,6 +73,19 @@ describe('ClaudeClientService.createMessage', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it('AI 分析が OFF なら、Guardrails にも Claude にも送らない', async () => {
+    process.env.AI_ANALYSIS = 'off';
+    try {
+      await expect(service.createMessage(params)).rejects.toThrow(
+        'AI 分析が OFF',
+      );
+      expect(guardrail.inspect).not.toHaveBeenCalled();
+      expect(mockCreate).not.toHaveBeenCalled();
+    } finally {
+      process.env.AI_ANALYSIS = 'on';
+    }
+  });
+
   it('プロンプト攻撃が検出されたら Claude に送らない', async () => {
     guardrail.inspect.mockResolvedValueOnce({
       ...noFindings(),

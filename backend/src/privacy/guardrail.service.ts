@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApplyGuardrailCommand,
@@ -8,6 +12,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { isIgnoredPii } from './privacy.utils';
 import { awsCredentials } from '../aws/aws-credentials';
+import { isAiAnalysisEnabled } from '../settings/ai-analysis';
 
 /** 1回の ApplyGuardrail に渡す文字数（Standard ティアのコンテンツフィルターの上限 500 テキストユニット未満） */
 export const GUARDRAIL_CHUNK_CHARS = 30_000;
@@ -57,8 +62,9 @@ export class GuardrailService {
     );
   }
 
+  /** Guardrails を呼べる設定か（AI 分析を OFF にしている場合は、ID があっても呼ばない） */
   isConfigured(): boolean {
-    return this.guardrailId !== '';
+    return this.guardrailId !== '' && isAiAnalysisEnabled();
   }
 
   /**
@@ -158,15 +164,22 @@ export class GuardrailService {
     if (!this.isConfigured()) {
       throw new Error('Guardrail ID が設定されていません');
     }
-    const response = await this.getClient().send(
-      new ApplyGuardrailCommand({
-        guardrailIdentifier: this.guardrailId,
-        guardrailVersion: this.guardrailVersion,
-        source,
-        content,
-        outputScope: 'FULL',
-      }),
-    );
+    let response: ApplyGuardrailCommandOutput;
+    try {
+      response = await this.getClient().send(
+        new ApplyGuardrailCommand({
+          guardrailIdentifier: this.guardrailId,
+          guardrailVersion: this.guardrailVersion,
+          source,
+          content,
+          outputScope: 'FULL',
+        }),
+      );
+    } catch (error) {
+      const message = describeAwsError(error, this.guardrailId);
+      if (message) throw new ServiceUnavailableException(message);
+      throw error;
+    }
     this.logger.debug(
       `ApplyGuardrail: source=${source}, action=${response.action}`,
     );
@@ -230,4 +243,37 @@ export function mergeAssessment(
       findings.content.push({ type: f.type, confidence: f.confidence });
     }
   }
+}
+
+/** AWS の認証情報が使えないときのエラー名（キーが無効・期限切れ・見つからない） */
+const CREDENTIAL_ERRORS = new Set([
+  'UnrecognizedClientException',
+  'InvalidClientTokenId',
+  'InvalidSignatureException',
+  'ExpiredTokenException',
+  'ExpiredToken',
+  'CredentialsProviderError',
+]);
+
+/**
+ * 利用者が設定で直せる AWS のエラーを、何を確かめればよいかがわかる文にする（それ以外は null）
+ * 「500」だけでは、AWS の認証情報の問題だとわからないため
+ */
+export function describeAwsError(
+  error: unknown,
+  guardrailId: string,
+): string | null {
+  const name = (error as { name?: unknown } | null)?.name;
+  if (typeof name !== 'string') return null;
+  const profile = process.env.AWS_PROFILE || 'default';
+  if (CREDENTIAL_ERRORS.has(name)) {
+    return `AWS の認証情報（プロファイル: ${profile}）が無効なため、Guardrails で確認できませんでした。設定画面の「AWS プロファイル」と ~/.aws の設定を確認してください（${name}）`;
+  }
+  if (name === 'AccessDeniedException') {
+    return `AWS のプロファイル（${profile}）に Guardrail を使う権限（bedrock:ApplyGuardrail）がないため、Guardrails で確認できませんでした（${name}）`;
+  }
+  if (name === 'ResourceNotFoundException') {
+    return `Guardrail（ID: ${guardrailId}）が見つからないため、Guardrails で確認できませんでした。設定画面の Guardrail ID・バージョンと、AWS のプロファイル（${profile}）のアカウント・リージョンを確認してください（${name}）`;
+  }
+  return null;
 }

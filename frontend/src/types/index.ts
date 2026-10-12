@@ -173,8 +173,8 @@ export interface AppSettings {
   };
   /** API キーの保存先（macOS ではキーチェーン） */
   apiKeyStorage: 'keychain' | 'file';
-  enableDeepSearch: boolean;
-  enableContextAnalysis: boolean;
+  /** AI 分析（要約・会話分析・発言の文脈・ディープサーチ。Claude と AWS を使う）を使うか */
+  enableAiAnalysis: boolean;
   /** GiNZA のキーワード抽出（ベータ機能） */
   enableGinzaKeywords?: boolean;
   /** 個人情報チェックに使う Amazon Bedrock Guardrails */
