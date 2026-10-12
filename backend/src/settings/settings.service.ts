@@ -239,7 +239,6 @@ export class SettingsService {
     }
     if (dto.enableAiAnalysis !== undefined) {
       updated.enableAiAnalysis = dto.enableAiAnalysis;
-      process.env.AI_ANALYSIS = dto.enableAiAnalysis ? 'on' : 'off';
     }
     if (dto.enableGinzaKeywords !== undefined) {
       updated.enableGinzaKeywords = dto.enableGinzaKeywords;
@@ -259,6 +258,10 @@ export class SettingsService {
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
+    // 保存できたあとで切り替える（保存に失敗したときに、保存した内容と動きが食い違わないように）
+    if (dto.enableAiAnalysis !== undefined) {
+      process.env.AI_ANALYSIS = dto.enableAiAnalysis ? 'on' : 'off';
+    }
 
     if (apiKeyChanged) {
       this.logger.log('APIキーを即時反映しました（再起動不要）');

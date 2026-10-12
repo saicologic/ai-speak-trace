@@ -110,4 +110,57 @@ describe('LocalAudioStorage', () => {
       expect(storage.getBaseDir()).toBe(audioDir);
     });
   });
+  describe('音声ディレクトリの外を指すファイル名', () => {
+    const outside = [
+      '../target.mp3',
+      '../../etc/passwd',
+      'sub/file.mp3',
+      '..',
+      '.',
+      '',
+      'a\\b.mp3',
+    ];
+
+    it.each(outside)(
+      '%j は受け付けず、音声ディレクトリの外のファイルを消さない',
+      async (fileName) => {
+        const target = path.join(tmpDir, 'target.mp3');
+        await fs.writeFile(target, 'keep');
+
+        await expect(storage.deleteFile(fileName)).rejects.toThrow(
+          '音声ファイル名が正しくありません',
+        );
+        await expect(storage.exists(fileName)).rejects.toThrow(
+          '音声ファイル名が正しくありません',
+        );
+        await expect(storage.readFile(fileName)).rejects.toThrow(
+          '音声ファイル名が正しくありません',
+        );
+        await expect(
+          storage.saveFile(fileName, Buffer.from('x')),
+        ).rejects.toThrow('音声ファイル名が正しくありません');
+        expect(await fs.readFile(target, 'utf-8')).toBe('keep');
+      },
+    );
+
+    it('音声ディレクトリの中のシンボリックリンクは読み書きせず、リンク先を書き換えない', async () => {
+      const target = path.join(tmpDir, 'outside.txt');
+      await fs.writeFile(target, 'keep');
+      await fs.mkdir(audioDir, { recursive: true });
+      await fs.symlink(target, path.join(audioDir, 'link.mp3'));
+
+      await expect(storage.readFile('link.mp3')).rejects.toThrow(
+        'シンボリックリンク',
+      );
+      await expect(
+        storage.saveFile('link.mp3', Buffer.from('x')),
+      ).rejects.toThrow('シンボリックリンク');
+      expect(await fs.readFile(target, 'utf-8')).toBe('keep');
+    });
+
+    it('日本語や空白を含むファイル名は使える', async () => {
+      await storage.saveFile('会話 録音 1.m4a', Buffer.from('x'));
+      expect(await storage.exists('会話 録音 1.m4a')).toBe(true);
+    });
+  });
 });
