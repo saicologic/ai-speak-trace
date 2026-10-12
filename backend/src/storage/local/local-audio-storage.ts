@@ -71,12 +71,32 @@ export class LocalAudioStorage implements AudioStorage {
     return filePath;
   }
 
+  /**
+   * シンボリックリンクは読み書きしない（音声ディレクトリの中のリンクが、外のファイルを指している場合があるため）
+   * ファイルがまだない場合（新しく保存する場合）は、そのまま使える
+   */
+  private async assertNotSymlink(filePath: string): Promise<void> {
+    try {
+      const stat = await fs.lstat(filePath);
+      if (stat.isSymbolicLink()) {
+        throw new BadRequestException(
+          '音声ファイルがシンボリックリンクのため、使えません',
+        );
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+  }
+
   async exists(fileName: string): Promise<boolean> {
     return existsSync(this.resolveFilePath(fileName));
   }
 
   async readFile(fileName: string): Promise<Buffer> {
-    return fs.readFile(this.resolveFilePath(fileName));
+    const filePath = this.resolveFilePath(fileName);
+    await this.assertNotSymlink(filePath);
+    return fs.readFile(filePath);
   }
 
   async getPlaybackUrl(fileName: string): Promise<string> {
@@ -88,6 +108,7 @@ export class LocalAudioStorage implements AudioStorage {
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {
     const filePath = this.resolveFilePath(fileName);
     await fs.mkdir(this.baseDir, { recursive: true });
+    await this.assertNotSymlink(filePath);
     await fs.writeFile(filePath, buffer);
     this.logger.log(`音声ファイル保存完了: ${fileName}`);
   }
