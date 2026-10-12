@@ -152,7 +152,7 @@ AI Speak Trace.app (Tauri)
 
 - DMG を大きくしないため、Python と GiNZA は同梱しない。利用者が初めて使うときに、バックエンド（`backend/src/ginza/ginza-env.service.ts`）が `settings.json` と同じフォルダの `ginza/` に入れる（開発時は `backend/ginza/`。git では無視する）
   1. uv をGitHubのリリースからダウンロードし、SHA-256 を確かめる（バージョンとハッシュはコードに固定）
-  2. uv で Python 3.12 の仮想環境（`ginza/venv`）を作る
+  2. uv で Python 3.12 の仮想環境（`ginza/venv`）を作る（3.13 以降は Apple シリコン向けの高速化（`thinc-apple-ops`）が入らず、解析が約4倍遅くなるため 3.12 にしている）
   3. `backend/python/requirements.txt` を `--require-hashes --only-binary :all:` で入れる
   4. `backend/python/ginza_keywords.py --check` で GiNZA を読み込めることを確かめ、`ginza/installed.json` に記録する
 - `requirements.txt` が変わったときだけ入れ直す。`ginza_keywords.py` だけが変わったときは、解析の前に写し直す

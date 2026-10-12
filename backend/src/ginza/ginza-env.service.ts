@@ -21,7 +21,11 @@ const UV_TARGET: Record<string, string> = {
   x64: 'x86_64-apple-darwin',
 };
 
-/** GiNZA を動かす Python のバージョン */
+/**
+ * GiNZA を動かす Python のバージョン
+ * 3.13 以降も動き、解析結果も同じだが、Apple シリコンで計算を速くする thinc-apple-ops が 3.12 までしか対応していない。
+ * 3.14 では解析が約4倍遅くなる（会話1件 約1.4秒 → 約6秒）ため、thinc-apple-ops が対応するまで 3.12 にする
+ */
 const PYTHON_VERSION = '3.12';
 
 /** 同梱するファイル（backend/python） */
