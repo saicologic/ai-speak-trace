@@ -116,18 +116,6 @@ export interface ContextAnalysisResponse {
   contentWarnings: ContentWarning[];
 }
 
-/** PDFドキュメント情報 */
-export interface DocumentInfo {
-  id: string;
-  fileName: string;
-  sizeBytes: number;
-  status: 'uploading' | 'processing' | 'searchable' | 'error';
-  chunkCount: number;
-  errorMessage?: string;
-  createdAt: string;
-  processedAt?: string;
-}
-
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
 export type InterviewAnalysisSummary = Omit<InterviewAnalysis, 'results'>;
 
@@ -172,13 +160,10 @@ export interface SummaryConfig {
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;
-  storageType: string;
   paths: {
     dataDir: string;
     audioDir: string;
     transcriptionsDir: string;
-    documentsDir: string;
-    documentMetadataDir: string;
     summaryLogsDir: string;
   };
   /** API キーの状態（値そのものは返らない） */

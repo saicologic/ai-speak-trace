@@ -7,7 +7,6 @@ import { AppService } from './app.service';
 import { StorageModule } from './storage/storage.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { InterviewModule } from './interview/interview.module';
-import { DocumentModule } from './document/document.module';
 import { ResearchModule } from './research/research.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { SettingsModule } from './settings/settings.module';
@@ -21,20 +20,15 @@ import { GinzaModule } from './ginza/ginza.module';
       isGlobal: true,
       expandVariables: true,
     }),
-    // ストレージモジュール（STORAGE_TYPEでローカル/S3を切り替え）
+    // ストレージモジュール（音声ファイルと文字起こしをローカルに保存）
     StorageModule.forRoot(),
-    // ローカルモード時のみ音声ファイルを静的配信
+    // 音声ファイルを静的配信
     ServeStaticModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        const storageType = configService.get<string>('STORAGE_TYPE', 'local');
-        if (storageType === 's3') {
-          return [];
-        }
         const dataDir = configService.get<string>('DATA_DIR') || './data';
         const audioDir = resolve(
-          configService.get<string>('AUDIO_DIR') ||
-            `${dataDir}/audio`,
+          configService.get<string>('AUDIO_DIR') || `${dataDir}/audio`,
         );
         return [{ rootPath: audioDir, serveRoot: '/audio' }];
       },
@@ -42,7 +36,6 @@ import { GinzaModule } from './ginza/ginza.module';
     }),
     TranscriptionModule,
     InterviewModule,
-    DocumentModule,
     ResearchModule,
     FeedbackModule,
     SettingsModule,

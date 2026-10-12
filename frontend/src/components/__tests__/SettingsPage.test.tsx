@@ -7,13 +7,10 @@ vi.mock('../../api/client');
 
 const settings = (overrides: Partial<AppSettings> = {}): AppSettings => ({
   appVersion: '0.1.0',
-  storageType: 'local',
   paths: {
     dataDir: '/data',
     audioDir: '/data/audio',
     transcriptionsDir: '/data/transcriptions',
-    documentsDir: '/data/documents',
-    documentMetadataDir: '/data/document-metadata',
     summaryLogsDir: '/data/summary-logs',
   },
   apiKeys: {

@@ -105,13 +105,6 @@ describe('LocalAudioStorage', () => {
     });
   });
 
-  describe('getUploadUrl', () => {
-    it('ローカルストレージはnullを返す', async () => {
-      const url = await storage.getUploadUrl('test.mp3');
-      expect(url).toBeNull();
-    });
-  });
-
   describe('getBaseDir', () => {
     it('ベースディレクトリを返す', () => {
       expect(storage.getBaseDir()).toBe(audioDir);

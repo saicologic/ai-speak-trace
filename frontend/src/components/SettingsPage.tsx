@@ -214,8 +214,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const subDirs = [
     { label: '音声ファイル', path: 'audio/' },
     { label: '文字起こし', path: 'transcriptions/' },
-    { label: 'PDFドキュメント', path: 'documents/' },
-    { label: 'メタデータ', path: 'document-metadata/' },
     { label: '要約ログ', path: 'summary-logs/' },
     { label: 'Claude の呼び出しの記録', path: 'claude-audit-logs/' },
     { label: '誤りの報告', path: 'feedback/' },

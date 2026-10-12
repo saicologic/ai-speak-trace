@@ -120,9 +120,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 以下の機能は設定画面から個別に有効化できます（デフォルトは無効）。
 
 **ディープサーチ**
-- 会話データ・PDFドキュメント・Web検索を横断的に検索
-- Amazon Bedrock Titan Embeddings V2によるベクトル検索（PDF）
-- 検索結果を[Claude API](https://docs.anthropic.com/ja/docs/welcome)で統合分析
+- 選んだ会話からキーワードを提案し、Web検索で調査
+- 調査結果を[Claude API](https://docs.anthropic.com/ja/docs/welcome)で統合分析
 
 **発言の文脈**
 - 文字起こし結果から発言を複数選択して文脈を分析
@@ -153,8 +152,6 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 ├── transcriptions/   # 文字起こし結果
 ├── chunks/           # チャンク分割された音声ファイル（処理中のみ）
 ├── chunked-jobs/     # チャンク分割ジョブの状態
-├── documents/        # PDFファイル
-├── document-metadata/# PDFメタデータ
 └── ginza-keywords/   # GiNZA で抽出したキーワード（会話ごと。文字起こしを削除すると一緒に削除）
 ```
 

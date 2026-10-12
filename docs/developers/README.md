@@ -182,9 +182,7 @@ ai-speak-trace/
     ├── python/            # GiNZA のキーワード抽出（ベータ）のスクリプトとパッケージの一覧
     └── data/
         ├── audio/                # 音声ファイルの配置先
-        ├── transcriptions/       # 文字起こし結果の保存先
-        ├── documents/            # PDFファイルの保存先
-        └── document-metadata/    # PDFメタデータの保存先
+        └── transcriptions/       # 文字起こし結果の保存先
 ```
 
 ## Claude Code スキル
