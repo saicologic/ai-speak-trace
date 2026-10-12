@@ -31,7 +31,7 @@ import {
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
 
-/** AI 分析の状態の表示（設定が足りないときは、足りない設定を出す） */
+/** AI 分析を使えないときの表示（使えるときは何も出さない。設定が足りないときは、足りない設定を出す） */
 const AI_STATUS_TEXT: Record<AiAnalysisState, string> = {
   ready: 'AI 分析を使えます',
   off: 'AI 分析は OFF です。設定画面で ON にすると、要約・会話分析・発言の文脈・ディープサーチを使えます',
@@ -483,16 +483,18 @@ function App() {
               onToggleContextMode={toggleContextMode}
               aiDisabled={!aiReady}
               aiStatus={
-                <p className={`keyword-ai-status ${aiState}`} role="status">
-                  {aiState === 'missing'
-                    ? `AI 分析の設定が足りません: ${aiMissing.join('・')}`
-                    : AI_STATUS_TEXT[aiState]}
-                  {(aiState === 'off' || aiState === 'missing') && (
-                    <button type="button" onClick={() => setPage('settings')}>
-                      設定を開く
-                    </button>
-                  )}
-                </p>
+                aiReady ? undefined : (
+                  <p className={`keyword-ai-status ${aiState}`} role="status">
+                    {aiState === 'missing'
+                      ? `AI 分析の設定が足りません: ${aiMissing.join('・')}`
+                      : AI_STATUS_TEXT[aiState]}
+                    {(aiState === 'off' || aiState === 'missing') && (
+                      <button type="button" onClick={() => setPage('settings')}>
+                        設定を開く
+                      </button>
+                    )}
+                  </p>
+                )
               }
               contextSelectMode={contextSelectMode}
               speakers={transcription.speakers}

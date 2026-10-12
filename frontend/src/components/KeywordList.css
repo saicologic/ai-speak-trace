@@ -229,12 +229,6 @@
   line-height: 1.5;
 }
 
-.keyword-ai-status.ready {
-  border-color: #bbf7d0;
-  background-color: #f0fdf4;
-  color: #166534;
-}
-
 .keyword-ai-status.off {
   border-color: #e5e7eb;
   background-color: #f9fafb;
