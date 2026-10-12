@@ -179,11 +179,11 @@ GiNZA のキーワード抽出（ベータ機能）で入れた Python と GiNZA
 
 ### AI に動作確認を頼む
 
-PR の手動確認項目は、[Claude Code](https://docs.anthropic.com/ja/docs/claude-code/overview) に頼むと、AI が画面を操作して確かめます（自動テスト）。PR の「手動確認項目」には、確かめる内容を含めた AI への依頼文だけを書きます。
+CI とコードレビューでは確かめられない動作（画面の操作・DMG のアプリなど）は、[Claude Code](https://docs.anthropic.com/ja/docs/claude-code/overview) に頼むと、AI が画面を操作して確かめます。AI で確かめられる項目は、PR に「## 自動テスト項目」として、確かめる内容を含めた AI への依頼文だけを書きます。
 
 **依頼のしかた**
 
-PR の「手動確認項目」に書かれた依頼文を、Claude Code にそのまま渡します。確かめる場所は次の2つです。
+PR の「自動テスト項目」に書かれた依頼文を、Claude Code にそのまま渡します。確かめる場所は次の2つです。
 
 | 確かめる場所 | AI が使うもの | 向いている確認 |
 |---|---|---|
@@ -193,7 +193,7 @@ PR の「手動確認項目」に書かれた依頼文を、Claude Code にそ�
 **PR に書く例**
 
 ````markdown
-## 手動確認項目
+## 自動テスト項目
 
 自動テストで行えます。次の依頼文を Claude Code に渡してください（README の「AI に動作確認を頼む」を参照）。
 
