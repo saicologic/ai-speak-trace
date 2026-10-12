@@ -129,6 +129,13 @@ function App() {
     });
   };
 
+  /** AI 分析を使えなくなったら（設定画面で OFF にした場合など）、文脈選択と選んだ発言をクリアする */
+  useEffect(() => {
+    if (aiReady) return;
+    setContextSelectMode(false);
+    setSelectedUtteranceIndices(new Set());
+  }, [aiReady]);
+
   /** 文脈選択モードのON/OFF */
   const toggleContextMode = () => {
     setContextSelectMode((prev) => {
