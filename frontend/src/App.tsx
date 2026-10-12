@@ -402,7 +402,7 @@ function App() {
           </div>
           <div className="sidebar-tabs">
             <button
-              className="sidebar-tab-action sidebar-tab-action--warning"
+              className="sidebar-tab-action"
               onClick={() => setPage('resumable-jobs')}
             >
               ジョブ進捗確認（{resumableJobs.length}件）
