@@ -12,6 +12,9 @@ src-tauri/target/
 src-tauri/binaries/nestjs-server*
 src-tauri/gen/
 
+# GiNZA のキーワード抽出（ベータ）で、開発時に入れる Python と GiNZA
+backend/ginza/
+
 # 開発時バックエンドポートファイル
 .backend-port
 

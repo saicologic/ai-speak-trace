@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Keyword, Speaker } from '../types';
 import './KeywordList.css';
 
@@ -15,6 +15,8 @@ interface Props {
   speakers?: Speaker[];
   selectedSpeakerId: string | null;
   onSpeakerFilterChange: (speakerId: string | null) => void;
+  /** キーワードの出し方の切り替え（GiNZA のベータ機能が有効なときだけ） */
+  sourceSwitch?: ReactNode;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -31,6 +33,7 @@ export function KeywordList({
   speakers,
   selectedSpeakerId,
   onSpeakerFilterChange,
+  sourceSwitch,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -40,7 +43,8 @@ export function KeywordList({
     return keywords.filter((kw) => kw.text.toLowerCase().includes(lower));
   }, [keywords, filter]);
 
-  if (keywords.length === 0) {
+  // 切り替えがない場合は、これまでどおりキーワードがないことだけを出す
+  if (keywords.length === 0 && !sourceSwitch) {
     return (
       <div className="keyword-list">
         <h2>キーワード</h2>
@@ -90,6 +94,7 @@ export function KeywordList({
           </select>
         </div>
       )}
+      {sourceSwitch}
       <div className="keyword-list-header">
         <h2>キーワード</h2>
         <span className="keyword-list-count">{filteredKeywords.length}件</span>
@@ -114,6 +119,9 @@ export function KeywordList({
           {filterActive ? 'フィルター解除' : 'フィルター'}
         </button>
       </div>
+      {keywords.length === 0 && (
+        <p className="keyword-list-empty">キーワードが見つかりません</p>
+      )}
       <ul className="keyword-list-items">
         {filteredKeywords.map((keyword) => {
           const isActive = highlightedKeywords.has(keyword.text);

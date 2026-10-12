@@ -8,5 +8,6 @@ import { PrivacyModule } from '../privacy/privacy.module';
   imports: [ConfigModule, PrivacyModule],
   controllers: [SettingsController],
   providers: [SettingsService],
+  exports: [SettingsService],
 })
 export class SettingsModule {}

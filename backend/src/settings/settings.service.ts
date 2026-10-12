@@ -14,6 +14,8 @@ interface SettingsFile {
   anthropicApiKey?: string;
   enableDeepSearch?: boolean;
   enableContextAnalysis?: boolean;
+  /** GiNZA のキーワード抽出（ベータ機能。初めて使うときに Python と GiNZA を入れる） */
+  enableGinzaKeywords?: boolean;
   /** 個人情報チェックと Claude に送る前の確認に使う Amazon Bedrock Guardrails の ID */
   bedrockGuardrailId?: string;
   /**
@@ -69,6 +71,7 @@ export interface AppSettings {
   apiKeyStorage: 'keychain' | 'file';
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
+  enableGinzaKeywords: boolean;
   guardrail: {
     id: string;
     /** 設定したバージョン（空の場合は DRAFT を使う） */
@@ -136,6 +139,7 @@ export class SettingsService {
       enableDeepSearch: this.readSettingsFile().enableDeepSearch ?? false,
       enableContextAnalysis:
         this.readSettingsFile().enableContextAnalysis ?? false,
+      enableGinzaKeywords: this.readSettingsFile().enableGinzaKeywords ?? false,
       guardrail: {
         id: this.configService.get<string>('BEDROCK_GUARDRAIL_ID') || '',
         version: (
@@ -165,6 +169,7 @@ export class SettingsService {
     anthropicApiKey?: string;
     enableDeepSearch?: boolean;
     enableContextAnalysis?: boolean;
+    enableGinzaKeywords?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
     awsProfile?: string;
@@ -245,6 +250,9 @@ export class SettingsService {
     }
     if (dto.enableContextAnalysis !== undefined) {
       updated.enableContextAnalysis = dto.enableContextAnalysis;
+    }
+    if (dto.enableGinzaKeywords !== undefined) {
+      updated.enableGinzaKeywords = dto.enableGinzaKeywords;
     }
     if (dto.bedrockGuardrailId !== undefined) {
       updated.bedrockGuardrailId = dto.bedrockGuardrailId.trim();

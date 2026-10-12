@@ -22,6 +22,7 @@ export class SettingsController {
       anthropicApiKey?: string;
       enableDeepSearch?: boolean;
       enableContextAnalysis?: boolean;
+      enableGinzaKeywords?: boolean;
       bedrockGuardrailId?: string;
       bedrockGuardrailVersion?: string;
       awsProfile?: string;

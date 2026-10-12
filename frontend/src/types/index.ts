@@ -56,6 +56,23 @@ export interface Keyword {
   count: number;
 }
 
+/** キーワードの出し方（標準: 正規表現、GiNZA: 日本語の解析。ベータ機能） */
+export type KeywordSource = 'standard' | 'ginza';
+
+/** GiNZA の準備の状態 */
+export interface GinzaStatus {
+  state: 'unsupported' | 'not_installed' | 'installing' | 'ready' | 'error';
+  /** 進み具合やエラーの説明 */
+  message: string;
+  versions?: Record<string, string>;
+}
+
+/** GiNZA で取り出したキーワード（会話全体と話者ごと） */
+export interface GinzaKeywords {
+  keywords: Keyword[];
+  bySpeaker: Record<string, Keyword[]>;
+}
+
 /** 分析結果（1つの質問に対する回答） */
 export interface AnalysisResult {
   question: string;
@@ -173,6 +190,8 @@ export interface AppSettings {
   apiKeyStorage: 'keychain' | 'file';
   enableDeepSearch: boolean;
   enableContextAnalysis: boolean;
+  /** GiNZA のキーワード抽出（ベータ機能） */
+  enableGinzaKeywords?: boolean;
   /** 個人情報チェックに使う Amazon Bedrock Guardrails */
   guardrail?: {
     id: string;
