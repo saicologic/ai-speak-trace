@@ -1,0 +1,19 @@
+[project]
+name = "answer-eval"
+version = "0.1.0"
+description = "会話から相手の質問を取り出し、答えと組にする手法を比べる実験用プロジェクト（アプリには含めない）"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "sudachipy>=0.6.8",
+    "sudachidict-core>=20240716",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
