@@ -187,6 +187,17 @@ describe('SettingsService', () => {
       expect(process.env.AI_ANALYSIS).toBe('on');
     });
 
+    it('設定を保存できなかった場合は、AI 分析の ON/OFF を切り替えない', async () => {
+      process.env.AI_ANALYSIS = 'off';
+      // 設定ファイルの場所にフォルダを置き、書き込みを失敗させる
+      fs.mkdirSync(settingsFilePath, { recursive: true });
+
+      await expect(
+        service.updateSettings({ enableAiAnalysis: true }),
+      ).rejects.toThrow();
+      expect(process.env.AI_ANALYSIS).toBe('off');
+    });
+
     it('キーチェーンを使えない環境では、更新内容がsettings.jsonに永続化される', async () => {
       await service.updateSettings({
         enableAiAnalysis: true,
