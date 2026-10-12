@@ -16,5 +16,7 @@ import type { AwsCredentialIdentityProvider } from '@smithy/types';
  * サイドカーでは動かない。
  */
 export function awsCredentials(): AwsCredentialIdentityProvider {
-  return chain(fromEnv(), fromIni());
+  // AWS SDK は ~/.aws のファイルの内容をプロセスの間ずっと使い回すため、起動後に足したプロファイルが見つからない。
+  // 設定画面でプロファイルを切り替えたときに作り直すクライアントでは、ファイルを読み直す（ignoreCache）
+  return chain(fromEnv(), fromIni({ ignoreCache: true }));
 }
