@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { FeedbackButton } from './FeedbackButton';
 import { marked } from 'marked';
 import { generateQuestions, analyzeInterview, fetchAnalysisLogs, fetchAnalysisLog } from '../api/client';
-import { extractKeywords } from '../utils/keywords';
+import { keywordsFor } from '../utils/speakerKeywords';
+import { keepAvailable } from '../utils/keywordSelection';
+import { useKeywordSource } from '../hooks/useKeywordSource';
+import { KeywordSourceSwitch } from './KeywordSourceSwitch';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
@@ -27,6 +30,8 @@ interface Props {
   transcriptionId: string;
   speakers: Speaker[];
   utterances: Utterance[];
+  /** GiNZA のキーワード抽出（ベータ機能）が有効か */
+  enableGinzaKeywords?: boolean;
   onBack: () => void;
 }
 
@@ -35,6 +40,7 @@ export function InterviewPage({
   transcriptionId,
   speakers,
   utterances,
+  enableGinzaKeywords = false,
   onBack,
 }: Props) {
   const [selectedSpeakerId, setSelectedSpeakerId] = useState(
@@ -100,14 +106,21 @@ export function InterviewPage({
     }
   };
 
+  /** キーワードの出し方（標準 / GiNZA。GiNZA はベータ機能） */
+  const keywordSource = useKeywordSource(transcriptionId, enableGinzaKeywords);
+
   /** 選択中の話者の発話テキストからキーワードを抽出（メモ化） */
-  const keywords = useMemo(() => {
-    const speakerText = utterances
-      .filter((u) => u.speakerId === selectedSpeakerId)
-      .map((u) => u.text)
-      .join('\n');
-    return extractKeywords(speakerText);
-  }, [utterances, selectedSpeakerId]);
+  const keywords = useMemo(
+    () => keywordsFor(utterances, keywordSource.source, keywordSource.ginza, selectedSpeakerId),
+    [utterances, selectedSpeakerId, keywordSource.source, keywordSource.ginza],
+  );
+
+  /** 出し方を切り替えたら、切り替え後の一覧にない語の選択を外す（GiNZA の解析中は待つ） */
+  const keywordsLoading = keywordSource.source === 'ginza' && !keywordSource.ginza;
+  useEffect(() => {
+    if (keywordsLoading) return;
+    setSelectedKeywords((prev) => keepAvailable(prev, keywords));
+  }, [keywords, keywordsLoading]);
 
   /** 話者を変更したときにキーワード選択・質問をリセット */
   const handleSpeakerChange = (speakerId: string) => {
@@ -284,6 +297,7 @@ export function InterviewPage({
           {/* キーワード選択 */}
           <section className="interview-section">
             <h2>分析キーワード</h2>
+            {enableGinzaKeywords && <KeywordSourceSwitch state={keywordSource} />}
             <p className="interview-hint">
               クリックでキーワードを選択（{selectedKeywords.size}件選択中）
             </p>

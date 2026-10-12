@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Keyword, Speaker } from '../types';
 import './KeywordList.css';
 
@@ -15,6 +15,12 @@ interface Props {
   speakers?: Speaker[];
   selectedSpeakerId: string | null;
   onSpeakerFilterChange: (speakerId: string | null) => void;
+  /** キーワードの出し方の切り替え（GiNZA のベータ機能が有効なときだけ） */
+  sourceSwitch?: ReactNode;
+  /** AI 分析の状態（使えるか、OFF か、足りない設定）。ボタンの上に出す */
+  aiStatus?: ReactNode;
+  /** AI 分析を使えないときは、要約・会話分析・発言の文脈のボタンを押せなくする */
+  aiDisabled?: boolean;
 }
 
 /** キーワード一覧コンポーネント（右サイドバー） */
@@ -31,6 +37,9 @@ export function KeywordList({
   speakers,
   selectedSpeakerId,
   onSpeakerFilterChange,
+  sourceSwitch,
+  aiStatus,
+  aiDisabled = false,
 }: Props) {
   const [filter, setFilter] = useState('');
 
@@ -40,9 +49,11 @@ export function KeywordList({
     return keywords.filter((kw) => kw.text.toLowerCase().includes(lower));
   }, [keywords, filter]);
 
-  if (keywords.length === 0) {
+  // 切り替えがない場合は、これまでどおりキーワードがないことだけを出す
+  if (keywords.length === 0 && !sourceSwitch) {
     return (
       <div className="keyword-list">
+        {aiStatus}
         <h2>キーワード</h2>
         <p className="keyword-list-empty">キーワードが見つかりません</p>
       </div>
@@ -51,10 +62,12 @@ export function KeywordList({
 
   return (
     <div className="keyword-list">
+      {aiStatus}
       {onNavigateSummary && (
         <button
           className="keyword-interview-button"
           onClick={onNavigateSummary}
+          disabled={aiDisabled}
         >
           要約
         </button>
@@ -63,6 +76,7 @@ export function KeywordList({
         <button
           className="keyword-interview-button"
           onClick={onNavigateInterview}
+          disabled={aiDisabled}
         >
           会話分析
         </button>
@@ -71,6 +85,7 @@ export function KeywordList({
         <button
           className={`keyword-context-button ${contextSelectMode ? 'active' : ''}`}
           onClick={onToggleContextMode}
+          disabled={aiDisabled}
         >
           {contextSelectMode ? '発言の文脈（選択中...）' : '発言の文脈'}
         </button>
@@ -90,6 +105,7 @@ export function KeywordList({
           </select>
         </div>
       )}
+      {sourceSwitch}
       <div className="keyword-list-header">
         <h2>キーワード</h2>
         <span className="keyword-list-count">{filteredKeywords.length}件</span>
@@ -114,6 +130,9 @@ export function KeywordList({
           {filterActive ? 'フィルター解除' : 'フィルター'}
         </button>
       </div>
+      {keywords.length === 0 && (
+        <p className="keyword-list-empty">キーワードが見つかりません</p>
+      )}
       <ul className="keyword-list-items">
         {filteredKeywords.map((keyword) => {
           const isActive = highlightedKeywords.has(keyword.text);

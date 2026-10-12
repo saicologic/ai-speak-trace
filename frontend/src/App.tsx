@@ -11,6 +11,8 @@ import { TranscribePage } from './components/TranscribePage';
 import { JobProgressPage } from './components/JobProgressPage';
 import { ResumableJobsPage } from './components/ResumableJobsPage';
 import { ContextAnalysisModal } from './components/ContextAnalysisModal';
+import { KeywordSourceSwitch } from './components/KeywordSourceSwitch';
+import { useKeywordSource } from './hooks/useKeywordSource';
 import SettingsPage from './components/SettingsPage';
 import {
   fetchTranscription,
@@ -19,9 +21,23 @@ import {
   fetchResumableJobs,
 } from './api/client';
 import type { ChunkedJobDetail } from './api/client';
-import { extractKeywords } from './utils/keywords';
+import { keywordsFor } from './utils/speakerKeywords';
+import { keepAvailable } from './utils/keywordSelection';
+import {
+  aiAnalysisState,
+  missingAiSettings,
+  type AiAnalysisState,
+} from './utils/aiAnalysis';
 import type { Transcription, ContextAnalysisResponse } from './types';
 import './App.css';
+
+/** AI 分析を使えないときの表示（使えるときは何も出さない。設定が足りないときは、足りない設定を出す） */
+const AI_STATUS_TEXT: Record<AiAnalysisState, string> = {
+  ready: 'AI 分析を使えます',
+  off: 'AI 分析は OFF です。設定画面で ON にすると、要約・会話分析・発言の文脈・ディープサーチを使えます',
+  missing: 'AI 分析の設定が足りません',
+  loading: '設定を読み込んでいます',
+};
 
 type Page = 'main' | 'transcribe' | 'summary' | 'interview' | 'deep-search' | 'settings' | 'job-progress' | 'resumable-jobs';
 
@@ -48,8 +64,12 @@ function App() {
   const [contextAnalysis, setContextAnalysis] =
     useState<ContextAnalysisResponse | null>(null);
   const [contextAnalyzing, setContextAnalyzing] = useState(false);
-  const [enableDeepSearch, setEnableDeepSearch] = useState(false);
-  const [enableContextAnalysis, setEnableContextAnalysis] = useState(false);
+  const [enableGinzaKeywords, setEnableGinzaKeywords] = useState(false);
+  /** AI 分析（Claude と Guardrails）の状態。ready 以外は、AI 分析のボタンを押せなくする */
+  const [aiState, setAiState] = useState<AiAnalysisState>('loading');
+  /** AI 分析に足りない設定（ON で設定が足りないときに表示する） */
+  const [aiMissing, setAiMissing] = useState<string[]>([]);
+  const aiReady = aiState === 'ready';
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [resumableJobs, setResumableJobs] = useState<ChunkedJobDetail[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -59,8 +79,9 @@ function App() {
   useEffect(() => {
     fetchSettings()
       .then((s) => {
-        setEnableDeepSearch(s.enableDeepSearch ?? false);
-        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
+        setAiState(aiAnalysisState(s));
+        setAiMissing(missingAiSettings(s));
       })
       .catch(() => {});
 
@@ -70,11 +91,30 @@ function App() {
       .catch(() => {});
   }, []);
 
-  /** 文字起こしテキストからキーワードを抽出（メモ化） */
+  /** キーワードの出し方（標準 / GiNZA。GiNZA はベータ機能） */
+  const keywordSource = useKeywordSource(transcription?.id ?? '', enableGinzaKeywords);
+
+  /** 文字起こしからキーワードを抽出（話者フィルターで話者を選んだ場合は、その話者の発話だけ。メモ化） */
   const keywords = useMemo(
-    () => (transcription ? extractKeywords(transcription.fullText) : []),
-    [transcription],
+    () =>
+      transcription
+        ? keywordsFor(
+            transcription.utterances,
+            keywordSource.source,
+            keywordSource.ginza,
+            selectedSpeakerId,
+            transcription.fullText,
+          )
+        : [],
+    [transcription, keywordSource.source, keywordSource.ginza, selectedSpeakerId],
   );
+
+  /** 出し方を切り替えたら、切り替え後の一覧にない語の選択を外す（GiNZA の解析中は待つ） */
+  const keywordsLoading = keywordSource.source === 'ginza' && !keywordSource.ginza;
+  useEffect(() => {
+    if (keywordsLoading) return;
+    setHighlightedKeywords((prev) => keepAvailable(prev, keywords));
+  }, [keywords, keywordsLoading]);
 
   /** 発話選択のトグル */
   const toggleUtteranceSelection = (index: number) => {
@@ -89,6 +129,19 @@ function App() {
     });
   };
 
+  /**
+   * 文脈選択を画面に出すか。AI 分析を使えないときは、下の useEffect がクリアするより前の描画でも出さない
+   * （設定画面から戻った直後に、古い「分析する」ボタンを押せないように）
+   */
+  const contextSelectActive = contextSelectMode && aiReady;
+
+  /** AI 分析を使えなくなったら（設定画面で OFF にした場合など）、文脈選択と選んだ発言をクリアする */
+  useEffect(() => {
+    if (aiReady) return;
+    setContextSelectMode(false);
+    setSelectedUtteranceIndices(new Set());
+  }, [aiReady]);
+
   /** 文脈選択モードのON/OFF */
   const toggleContextMode = () => {
     setContextSelectMode((prev) => {
@@ -102,7 +155,7 @@ function App() {
 
   /** 選択された発話の文脈を分析 */
   const handleAnalyzeContext = async () => {
-    if (!transcription || selectedUtteranceIndices.size === 0) return;
+    if (!transcription || !aiReady || selectedUtteranceIndices.size === 0) return;
     setContextAnalyzing(true);
     try {
       const result = await analyzeUtteranceContext(
@@ -218,6 +271,7 @@ function App() {
         transcriptionId={transcription.id}
         speakers={transcription.speakers}
         utterances={transcription.utterances}
+        enableGinzaKeywords={enableGinzaKeywords}
         onBack={() => setPage('main')}
       />
     );
@@ -301,8 +355,9 @@ function App() {
       // 設定変更を反映するために再読み込み
       try {
         const s = await fetchSettings();
-        setEnableDeepSearch(s.enableDeepSearch ?? false);
-        setEnableContextAnalysis(s.enableContextAnalysis ?? false);
+        setEnableGinzaKeywords(s.enableGinzaKeywords ?? false);
+        setAiState(aiAnalysisState(s));
+        setAiMissing(missingAiSettings(s));
       } catch {
         // 取得失敗時はログのみ（メイン画面に遷移は継続）
         console.warn('設定の再読み込みに失敗しました');
@@ -360,22 +415,22 @@ function App() {
           </div>
           <div className="sidebar-tabs">
             <button
-              className="sidebar-tab-action sidebar-tab-action--warning"
+              className="sidebar-tab-action"
               onClick={() => setPage('resumable-jobs')}
             >
               ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
-          {enableDeepSearch && (
-            <div className="sidebar-tabs">
-              <button
-                className="sidebar-tab-action"
-                onClick={() => setPage('deep-search')}
-              >
-                ディープサーチ（ベータ）
-              </button>
-            </div>
-          )}
+          <div className="sidebar-tabs">
+            <button
+              className="sidebar-tab-action"
+              onClick={() => setPage('deep-search')}
+              disabled={!aiReady}
+              title={aiReady ? undefined : AI_STATUS_TEXT[aiState]}
+            >
+              ディープサーチ
+            </button>
+          </div>
           <div className="sidebar-section-title">履歴</div>
           <TranscriptionList
             selectedId={selectedTranscriptionId}
@@ -417,7 +472,7 @@ function App() {
                   highlightedKeywords={highlightedKeywords}
                   filterActive={filterActive}
                   selectedSpeakerId={selectedSpeakerId}
-                  contextSelectMode={contextSelectMode}
+                  contextSelectMode={contextSelectActive}
                   selectedUtteranceIndices={selectedUtteranceIndices}
                   onToggleUtteranceSelection={toggleUtteranceSelection}
                   scrollToUtteranceIndex={scrollToUtteranceIndex}
@@ -438,18 +493,36 @@ function App() {
               onToggleFilter={() => setFilterActive((prev) => !prev)}
               onNavigateSummary={() => setPage('summary')}
               onNavigateInterview={() => setPage('interview')}
-              onToggleContextMode={enableContextAnalysis ? toggleContextMode : undefined}
-              contextSelectMode={contextSelectMode}
+              onToggleContextMode={toggleContextMode}
+              aiDisabled={!aiReady}
+              aiStatus={
+                aiReady ? undefined : (
+                  <p className={`keyword-ai-status ${aiState}`} role="status">
+                    {aiState === 'missing'
+                      ? `AI 分析の設定が足りません: ${aiMissing.join('・')}`
+                      : AI_STATUS_TEXT[aiState]}
+                    {(aiState === 'off' || aiState === 'missing') && (
+                      <button type="button" onClick={() => setPage('settings')}>
+                        設定を開く
+                      </button>
+                    )}
+                  </p>
+                )
+              }
+              contextSelectMode={contextSelectActive}
               speakers={transcription.speakers}
               selectedSpeakerId={selectedSpeakerId}
               onSpeakerFilterChange={setSelectedSpeakerId}
+              sourceSwitch={
+                enableGinzaKeywords ? <KeywordSourceSwitch state={keywordSource} /> : undefined
+              }
             />
           </aside>
         )}
       </main>
 
       {/* 文脈分析：フローティング分析ボタン */}
-      {contextSelectMode && selectedUtteranceIndices.size > 0 && (
+      {contextSelectActive && selectedUtteranceIndices.size > 0 && (
         <button
           className="context-floating-button"
           onClick={handleAnalyzeContext}

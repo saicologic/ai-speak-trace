@@ -7,13 +7,10 @@ vi.mock('../../api/client');
 
 const settings = (overrides: Partial<AppSettings> = {}): AppSettings => ({
   appVersion: '0.1.0',
-  storageType: 'local',
   paths: {
     dataDir: '/data',
     audioDir: '/data/audio',
     transcriptionsDir: '/data/transcriptions',
-    documentsDir: '/data/documents',
-    documentMetadataDir: '/data/document-metadata',
     summaryLogsDir: '/data/summary-logs',
   },
   apiKeys: {
@@ -21,8 +18,7 @@ const settings = (overrides: Partial<AppSettings> = {}): AppSettings => ({
     anthropicApiKey: { configured: true, last4: '1234' },
   },
   apiKeyStorage: 'keychain',
-  enableDeepSearch: false,
-  enableContextAnalysis: false,
+  enableAiAnalysis: true,
   guardrail: { id: 'gr-1', version: '' },
   ...overrides,
 });
@@ -44,6 +40,49 @@ describe('SettingsPage', () => {
     for (const input of screen.getAllByPlaceholderText(/キー/)) {
       expect(input).toHaveValue('');
     }
+  });
+
+  it('AI 分析は、Anthropic の API キーと Guardrail ID がそろっていれば「使えます」と表示する', async () => {
+    render(<SettingsPage onBack={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: 'AI 分析（Claude と AWS）' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'AI 分析を使う' })).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('使えます');
+  });
+
+  it('AI 分析が OFF の場合は、Claude と AWS の設定を出さず、ON にすると出す', async () => {
+    vi.mocked(fetchSettings).mockResolvedValue(settings({ enableAiAnalysis: false }));
+    render(<SettingsPage onBack={vi.fn()} />);
+
+    const toggle = await screen.findByRole('checkbox', { name: 'AI 分析を使う' });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByPlaceholderText('DRAFT')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.getByPlaceholderText('DRAFT')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('保存すると使えます');
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith({ enableAiAnalysis: true }),
+    );
+  });
+
+  it('AI 分析に足りない設定を表示する', async () => {
+    vi.mocked(fetchSettings).mockResolvedValue(
+      settings({
+        apiKeys: {
+          elevenlabsApiKey: { configured: true, last4: '' },
+          anthropicApiKey: { configured: false, last4: '' },
+        },
+        guardrail: { id: '', version: '' },
+      }),
+    );
+    render(<SettingsPage onBack={vi.fn()} />);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '未設定: Anthropic の API キー・Guardrail ID',
+    );
   });
 
   it('入力した API キーだけを保存する', async () => {

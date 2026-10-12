@@ -56,6 +56,23 @@ export interface Keyword {
   count: number;
 }
 
+/** キーワードの出し方（標準: 正規表現、GiNZA: 日本語の解析。ベータ機能） */
+export type KeywordSource = 'standard' | 'ginza';
+
+/** GiNZA の準備の状態 */
+export interface GinzaStatus {
+  state: 'unsupported' | 'not_installed' | 'installing' | 'ready' | 'error';
+  /** 進み具合やエラーの説明 */
+  message: string;
+  versions?: Record<string, string>;
+}
+
+/** GiNZA で取り出したキーワード（会話全体と話者ごと） */
+export interface GinzaKeywords {
+  keywords: Keyword[];
+  bySpeaker: Record<string, Keyword[]>;
+}
+
 /** 分析結果（1つの質問に対する回答） */
 export interface AnalysisResult {
   question: string;
@@ -97,18 +114,6 @@ export interface ContextAnalysisResponse {
   results: UtteranceContextResult[];
   model: string;
   contentWarnings: ContentWarning[];
-}
-
-/** PDFドキュメント情報 */
-export interface DocumentInfo {
-  id: string;
-  fileName: string;
-  sizeBytes: number;
-  status: 'uploading' | 'processing' | 'searchable' | 'error';
-  chunkCount: number;
-  errorMessage?: string;
-  createdAt: string;
-  processedAt?: string;
 }
 
 /** 会話分析ログサマリー（results を除いた一覧表示用） */
@@ -155,13 +160,10 @@ export interface SummaryConfig {
 /** アプリ設定 */
 export interface AppSettings {
   appVersion: string;
-  storageType: string;
   paths: {
     dataDir: string;
     audioDir: string;
     transcriptionsDir: string;
-    documentsDir: string;
-    documentMetadataDir: string;
     summaryLogsDir: string;
   };
   /** API キーの状態（値そのものは返らない） */
@@ -171,8 +173,10 @@ export interface AppSettings {
   };
   /** API キーの保存先（macOS ではキーチェーン） */
   apiKeyStorage: 'keychain' | 'file';
-  enableDeepSearch: boolean;
-  enableContextAnalysis: boolean;
+  /** AI 分析（要約・会話分析・発言の文脈・ディープサーチ。Claude と AWS を使う）を使うか */
+  enableAiAnalysis: boolean;
+  /** GiNZA のキーワード抽出（ベータ機能） */
+  enableGinzaKeywords?: boolean;
   /** 個人情報チェックに使う Amazon Bedrock Guardrails */
   guardrail?: {
     id: string;

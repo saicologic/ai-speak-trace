@@ -17,7 +17,7 @@
 - **バックエンド**: NestJS（sidecarバイナリとしてバンドル）
 - **AI / 音声**: ElevenLabs Scribe v2（Speech-to-Text）
 - **AI / 分析**: Claude API（Anthropic）
-- **ベクトル検索**: Amazon Bedrock + S3 Vectors
+- **個人情報・プロンプト攻撃の検出**: Amazon Bedrock Guardrails
 - **バイナリ化**: @yao-pkg/pkg
 - **開発環境**: Claude Code
 
@@ -38,9 +38,7 @@ ai-speak-trace/
 └── backend/               # バックエンド API（NestJS）
     └── data/
         ├── audio/                # 音声ファイルの配置先
-        ├── transcriptions/       # 文字起こし結果の保存先
-        ├── documents/            # PDFファイルの保存先
-        └── document-metadata/    # PDFメタデータの保存先
+        └── transcriptions/       # 文字起こし結果の保存先
 ```
 
 ## 機能要件
@@ -79,9 +77,8 @@ ai-speak-trace/
 
 ### 6. ディープサーチ
 
-- 会話データ・PDFドキュメント・Web検索を横断的に検索
-- Amazon Bedrock Titan Embeddings V2によるベクトル検索（PDF）
-- 検索結果をClaudeで統合分析
+- 選んだ会話からキーワードを提案し、Web検索で調査
+- 調査結果をClaudeで統合分析
 
 ## 前提条件
 
@@ -157,8 +154,10 @@ CIの結果（`build`・`backend-test`・`frontend-test`）はPRのチェック�
 
 PR本文には、CIとコードレビューでは確認できない動作がある場合のみ「## 手動確認項目」を書く。例：
 
-- 外部API（ElevenLabs・Claude・Amazon Bedrock・S3 Vectors）につないだときの動作
+- 外部API（ElevenLabs・Claude・Amazon Bedrock Guardrails）につないだときの動作
 - Tauriのデスクトップアプリとして起動したときの動作（sidecar・DMG）
 - 画面の表示やユーザー操作
 
 書く項目はすべて必須とし、「任意」「オプション」と記載しない。確認する必要がない場合はセクションごと省略する。
+
+AI（Claude Code）で確かめられる項目は、「## 手動確認項目」ではなく「## 自動テスト項目」に書く。「自動テストで行えます」と書き、確かめる内容を含めた AI への依頼文だけを書く。書き方は README.md の「AI に動作確認を頼む」に従う。

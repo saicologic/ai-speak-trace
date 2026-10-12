@@ -129,6 +129,7 @@ Apple Developer証明書による署名・公証済みのため、Gatekeeperの�
 | バックエンド | NestJS（sidecarバイナリとしてバンドル） |
 | 音声認識 | ElevenLabs Scribe v2 |
 | AI分析 | Claude API（Anthropic） |
+| 日本語の解析（ベータ） | GiNZA（Python 3.12。初回利用時に uv で入れる） |
 | バイナリ化 | @yao-pkg/pkg |
 
 ## アーキテクチャ
@@ -138,13 +139,27 @@ AI Speak Trace.app (Tauri)
 ├── WebView (frontend/dist)        ← Vite ビルド済みの React アプリ
 ├── Rust Core (src-tauri/)         ← Tauri 本体 + sidecar管理・ポート通知
 └── Sidecar (nestjs-server)        ← NestJS を pkg でバイナリ化
-    └── HTTP API (127.0.0.1:動的ポート)
+    ├── HTTP API (127.0.0.1:動的ポート)
+    └── Python (ginza/venv)        ← GiNZA のキーワード抽出（ベータ）。必要なときに子プロセスとして起動
 ```
 
 - フロントエンドは WebView 内で動作し、NestJS sidecar と HTTP 通信
 - NestJS は `listen(0)` でOSに空きポートを自動割り当て。Rust が stdout の `PORT=xxxxx` を検知してフロントへ通知
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
+
+### GiNZA のキーワード抽出（ベータ機能）
+
+- DMG を大きくしないため、Python と GiNZA は同梱しない。利用者が初めて使うときに、バックエンド（`backend/src/ginza/ginza-env.service.ts`）が `settings.json` と同じフォルダの `ginza/` に入れる（開発時は `backend/ginza/`。git では無視する）
+  1. uv をGitHubのリリースからダウンロードし、SHA-256 を確かめる（バージョンとハッシュはコードに固定）
+  2. uv で Python 3.12 の仮想環境（`ginza/venv`）を作る（3.13 以降は Apple シリコン向けの高速化（`thinc-apple-ops`）が入らず、解析が約4倍遅くなるため 3.12 にしている）
+  3. `backend/python/requirements.txt` を `--require-hashes --only-binary :all:` で入れる
+  4. `backend/python/ginza_keywords.py --check` で GiNZA を読み込めることを確かめ、`ginza/installed.json` に記録する
+- `requirements.txt` が変わったときだけ入れ直す。`ginza_keywords.py` だけが変わったときは、解析の前に写し直す
+- 解析は `ginza_keywords.py` を子プロセスで起動し、発話のテキストを標準入力で渡す。発話ごとの結果を `data/ginza-keywords/` にキャッシュし、並べ替え（回数・TF-IDF・一般的な語の除外）は TypeScript（`backend/src/ginza/ginza-keywords.utils.ts`）で行う
+- `backend/python/` の2つのファイルは、pkg の `assets`（`backend/package.json`）でバイナリに含める。Python からはバイナリの中のファイルを読めないため、`ginza/` に写してから使う
+- Python のパッケージを更新するときは、`backend/python/requirements.in` を編集し、`requirements.txt` の先頭に書いたコマンドで作り直す（`--exclude-newer` で、公開から2週間以上たった版に限る。いまの GiNZA 5.3.0 は評価に使った版にそろえるための例外で、そのことも先頭に書いてある）
+- API: `GET /api/ginza/status`・`POST /api/ginza/install`・`GET /api/ginza/transcriptions/:id/keywords`
 
 ## ディレクトリ構成
 
@@ -164,11 +179,10 @@ ai-speak-trace/
 │   └── README.md
 └── backend/               # バックエンドAPI（NestJS）
     ├── README.md
+    ├── python/            # GiNZA のキーワード抽出（ベータ）のスクリプトとパッケージの一覧
     └── data/
         ├── audio/                # 音声ファイルの配置先
-        ├── transcriptions/       # 文字起こし結果の保存先
-        ├── documents/            # PDFファイルの保存先
-        └── document-metadata/    # PDFメタデータの保存先
+        └── transcriptions/       # 文字起こし結果の保存先
 ```
 
 ## Claude Code スキル

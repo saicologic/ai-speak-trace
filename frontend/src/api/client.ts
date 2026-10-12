@@ -2,7 +2,6 @@ import type {
   AppSettings,
   AudioFileInfo,
   ContextAnalysisResponse,
-  DocumentInfo,
   Feedback,
   FeedbackCategory,
   FeedbackFeature,
@@ -13,6 +12,8 @@ import type {
   TranscriptionSummaryLog,
   SummaryConfig,
   PrivacyStatus,
+  GinzaStatus,
+  GinzaKeywords,
 } from '../types';
 import type { ResearchJob, ResearchJobSummary, ResearchTarget } from '../types/research';
 
@@ -109,46 +110,10 @@ export async function fetchAudioFiles(): Promise<AudioFileInfo[]> {
   return data.files;
 }
 
-/** アップロード用署名付きURLを取得 */
-async function getUploadUrl(fileName: string): Promise<string | null> {
-  const res = await fetch(`${BASE_URL}/audio-files/upload-url`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName }),
-  });
-  if (!res.ok) {
-    console.error('[API] getUploadUrl failed:', res.status);
-    return null;
-  }
-  const data = await res.json();
-  return data.url;
-}
-
-/** 音声ファイルをアップロード（S3の場合は署名付きURLで直接アップロード） */
+/** 音声ファイルをアップロード */
 export async function uploadAudioFile(file: File): Promise<string> {
   console.log('[API] uploadAudioFile:', file.name, file.size, file.type);
 
-  // 署名付きURLを取得（S3モードならURLが返る、ローカルならnull）
-  const uploadUrl = await getUploadUrl(file.name);
-
-  if (uploadUrl) {
-    // S3に直接アップロード
-    console.log('[API] uploading directly to S3');
-    const res = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: file,
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      console.error('[API] S3 upload error:', res.status, body);
-      throw new Error(`S3へのアップロードに失敗しました: ${res.status}`);
-    }
-    console.log('[API] S3 upload success');
-    return file.name;
-  }
-
-  // ローカルモード: 従来のmultipartアップロード
-  console.log('[API] uploading via multipart');
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${BASE_URL}/audio-files`, {
@@ -174,8 +139,7 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
     throw new Error(`音声ファイルURLの取得に失敗しました: ${res.status}`);
   }
   const data = await res.json();
-  // ローカルモードでは "/audio/..." 形式のパスが返るため、ベースURLを補完する
-  // S3モードでは完全なURLが返るためそのまま使用する
+  // "/audio/..." 形式のパスが返るため、ベースURLを補完する
   const url: string = data.url;
   if (url.startsWith('/')) {
     // BASE_URL から origin 部分を取り出す（例: "http://127.0.0.1:52341/api" → "http://127.0.0.1:52341"）
@@ -513,7 +477,7 @@ export async function generateQuestions(
     body: JSON.stringify({ transcriptionId, speakerId, keywords }),
   });
   if (!res.ok) {
-    throw new Error(`質問生成に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '質問生成に失敗しました'));
   }
   const data = await res.json();
   return data.questions;
@@ -532,7 +496,7 @@ export async function analyzeInterview(
     body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
   });
   if (!res.ok) {
-    throw new Error(`分析に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '分析に失敗しました'));
   }
   const data = await res.json();
   return data.analysis;
@@ -605,60 +569,10 @@ export async function analyzeUtteranceContext(
     body: JSON.stringify({ transcriptionId, utteranceIndices }),
   });
   if (!res.ok) {
-    throw new Error(`文脈分析に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '文脈分析に失敗しました'));
   }
   const data = await res.json();
   return data.analysis;
-}
-
-// === PDFドキュメント管理 ===
-
-/** PDFドキュメント一覧を取得 */
-export async function fetchDocuments(): Promise<DocumentInfo[]> {
-  const res = await fetch(`${BASE_URL}/documents`);
-  if (!res.ok) {
-    throw new Error(`ドキュメント一覧の取得に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.documents;
-}
-
-/** PDFをアップロード */
-export async function uploadDocument(file: File): Promise<DocumentInfo> {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await fetch(`${BASE_URL}/documents`, {
-    method: 'POST',
-    body: formData,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`PDFのアップロードに失敗しました: ${res.status} ${body}`);
-  }
-  const data = await res.json();
-  return data.document;
-}
-
-/** ドキュメントの処理ステータスを取得 */
-export async function fetchDocumentStatus(
-  id: string,
-): Promise<DocumentInfo> {
-  const res = await fetch(`${BASE_URL}/documents/${id}/status`);
-  if (!res.ok) {
-    throw new Error(`ステータスの取得に失敗しました: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.document;
-}
-
-/** ドキュメントを削除 */
-export async function deleteDocument(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/documents/${id}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    throw new Error(`ドキュメントの削除に失敗しました: ${res.status}`);
-  }
 }
 
 // === Podcastファイル ===
@@ -739,7 +653,7 @@ export async function summarizeTranscription(
     body: JSON.stringify({ transcriptionId, model, prompt }),
   });
   if (!res.ok) {
-    throw new Error(`要約の生成に失敗しました: ${res.status}`);
+    throw new Error(await errorMessage(res, '要約の生成に失敗しました'));
   }
   const data = await res.json();
   return data.summary;
@@ -788,8 +702,8 @@ export async function updateSettings(
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
-    enableDeepSearch?: boolean;
-    enableContextAnalysis?: boolean;
+    enableAiAnalysis?: boolean;
+    enableGinzaKeywords?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
     awsProfile?: string;
@@ -958,4 +872,35 @@ export async function updatePrivacyMasks(
     throw new Error(await errorMessage(res, '設定を保存できませんでした'));
   }
   return (await res.json()).privacy;
+}
+
+// === GiNZA のキーワード抽出（ベータ機能） ===
+
+/** GiNZA の準備の状態を取得する */
+export async function fetchGinzaStatus(): Promise<GinzaStatus> {
+  const res = await fetch(`${BASE_URL}/ginza/status`);
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA の状態を取得できませんでした'));
+  }
+  return (await res.json()).status;
+}
+
+/** GiNZA のインストールを始める（終わるのを待たない） */
+export async function startGinzaInstall(): Promise<GinzaStatus> {
+  const res = await fetch(`${BASE_URL}/ginza/install`, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA のインストールを始められませんでした'));
+  }
+  return (await res.json()).status;
+}
+
+/** GiNZA で取り出した会話のキーワード（全体と話者ごと）を取得する */
+export async function fetchGinzaKeywords(transcriptionId: string): Promise<GinzaKeywords> {
+  const res = await fetch(
+    `${BASE_URL}/ginza/transcriptions/${encodeURIComponent(transcriptionId)}/keywords`,
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'GiNZA でキーワードを取り出せませんでした'));
+  }
+  return res.json();
 }

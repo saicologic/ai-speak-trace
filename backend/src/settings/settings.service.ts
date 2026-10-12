@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { GuardrailService } from '../privacy/guardrail.service';
 import { KeychainSecretStore } from './secret-store';
+import { isAiAnalysisEnabled } from './ai-analysis';
 
 /** 設定ファイルの内容 */
 interface SettingsFile {
@@ -12,8 +13,16 @@ interface SettingsFile {
   elevenlabsApiKey?: string;
   /** キーチェーンを使えない環境だけ保存する（macOS では起動時にキーチェーンへ移し、ファイルから消す） */
   anthropicApiKey?: string;
+  /** 以前のベータ機能の設定（ディープサーチ・発言の文脈は AI 分析の機能になったため、読み込まない） */
   enableDeepSearch?: boolean;
   enableContextAnalysis?: boolean;
+  /**
+   * AI 分析（Claude と Amazon Bedrock Guardrails）を使うか
+   * 未保存の場合は、Anthropic の API キーと Guardrail ID の両方があれば使う（以前のバージョンからの更新で使えなくならないように）
+   */
+  enableAiAnalysis?: boolean;
+  /** GiNZA のキーワード抽出（ベータ機能。初めて使うときに Python と GiNZA を入れる） */
+  enableGinzaKeywords?: boolean;
   /** 個人情報チェックと Claude に送る前の確認に使う Amazon Bedrock Guardrails の ID */
   bedrockGuardrailId?: string;
   /**
@@ -55,20 +64,18 @@ const GUARDRAIL_VERSION_PATTERN = /^(|DRAFT|[1-9][0-9]*)$/;
 /** API レスポンス用の設定情報 */
 export interface AppSettings {
   appVersion: string;
-  storageType: string;
   paths: {
     dataDir: string;
     audioDir: string;
     transcriptionsDir: string;
-    documentsDir: string;
-    documentMetadataDir: string;
     summaryLogsDir: string;
   };
   apiKeys: Record<ApiKeyField, ApiKeyStatus>;
   /** API キーの保存先（macOS ではキーチェーン） */
   apiKeyStorage: 'keychain' | 'file';
-  enableDeepSearch: boolean;
-  enableContextAnalysis: boolean;
+  /** AI 分析（要約・会話分析・発言の文脈・ディープサーチ）を使うか */
+  enableAiAnalysis: boolean;
+  enableGinzaKeywords: boolean;
   guardrail: {
     id: string;
     /** 設定したバージョン（空の場合は DRAFT を使う） */
@@ -103,7 +110,6 @@ export class SettingsService {
 
     return {
       appVersion: '0.1.0',
-      storageType: this.configService.get<string>('STORAGE_TYPE', 'local'),
       paths: {
         dataDir,
         audioDir: path.resolve(
@@ -113,14 +119,6 @@ export class SettingsService {
         transcriptionsDir: path.resolve(
           this.configService.get<string>('TRANSCRIPTIONS_DIR') ||
             path.join(dataDir, 'transcriptions'),
-        ),
-        documentsDir: path.resolve(
-          this.configService.get<string>('DOCUMENTS_DIR') ||
-            path.join(dataDir, 'documents'),
-        ),
-        documentMetadataDir: path.resolve(
-          this.configService.get<string>('DOCUMENT_METADATA_DIR') ||
-            path.join(dataDir, 'document-metadata'),
         ),
         summaryLogsDir: path.resolve(path.join(dataDir, 'summary-logs')),
       },
@@ -133,9 +131,8 @@ export class SettingsService {
         ),
       },
       apiKeyStorage: KeychainSecretStore.isAvailable() ? 'keychain' : 'file',
-      enableDeepSearch: this.readSettingsFile().enableDeepSearch ?? false,
-      enableContextAnalysis:
-        this.readSettingsFile().enableContextAnalysis ?? false,
+      enableAiAnalysis: isAiAnalysisEnabled(),
+      enableGinzaKeywords: this.readSettingsFile().enableGinzaKeywords ?? false,
       guardrail: {
         id: this.configService.get<string>('BEDROCK_GUARDRAIL_ID') || '',
         version: (
@@ -163,8 +160,8 @@ export class SettingsService {
     dataDir?: string;
     elevenlabsApiKey?: string;
     anthropicApiKey?: string;
-    enableDeepSearch?: boolean;
-    enableContextAnalysis?: boolean;
+    enableAiAnalysis?: boolean;
+    enableGinzaKeywords?: boolean;
     bedrockGuardrailId?: string;
     bedrockGuardrailVersion?: string;
     awsProfile?: string;
@@ -240,11 +237,11 @@ export class SettingsService {
       process.env[env] = value;
       apiKeyChanged = true;
     }
-    if (dto.enableDeepSearch !== undefined) {
-      updated.enableDeepSearch = dto.enableDeepSearch;
+    if (dto.enableAiAnalysis !== undefined) {
+      updated.enableAiAnalysis = dto.enableAiAnalysis;
     }
-    if (dto.enableContextAnalysis !== undefined) {
-      updated.enableContextAnalysis = dto.enableContextAnalysis;
+    if (dto.enableGinzaKeywords !== undefined) {
+      updated.enableGinzaKeywords = dto.enableGinzaKeywords;
     }
     if (dto.bedrockGuardrailId !== undefined) {
       updated.bedrockGuardrailId = dto.bedrockGuardrailId.trim();
@@ -261,6 +258,10 @@ export class SettingsService {
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
+    // 保存できたあとで切り替える（保存に失敗したときに、保存した内容と動きが食い違わないように）
+    if (dto.enableAiAnalysis !== undefined) {
+      process.env.AI_ANALYSIS = dto.enableAiAnalysis ? 'on' : 'off';
+    }
 
     if (apiKeyChanged) {
       this.logger.log('APIキーを即時反映しました（再起動不要）');
@@ -382,6 +383,10 @@ export class SettingsService {
       // 設定画面で指定したプロファイルを、シェルの AWS_PROFILE より優先する
       if (settings.awsProfile) {
         setAwsProfile(settings.awsProfile);
+      }
+      // AI 分析の ON/OFF（保存していない場合は、API キーと Guardrail ID の有無で決める）
+      if (settings.enableAiAnalysis !== undefined) {
+        process.env.AI_ANALYSIS = settings.enableAiAnalysis ? 'on' : 'off';
       }
     } catch (error) {
       console.warn(`[Settings] 設定ファイルの読み込みに失敗: ${error}`);

@@ -10,7 +10,6 @@ const mockTranscriptionService = {
   getAudioFiles: jest.fn(),
   checkAudioFileExists: jest.fn(),
   deleteAllResourcesByFileName: jest.fn(),
-  getUploadUrl: jest.fn(),
   uploadAudioFile: jest.fn(),
   getAudioFileUrl: jest.fn(),
   transcribe: jest.fn(),

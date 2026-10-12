@@ -8,6 +8,7 @@ import { ChunkedTranscriptionService } from './chunked-transcription.service';
 import { ChunkedJobStoreService } from './chunked-job-store.service';
 import { UtteranceEmbeddingStore } from './utterance-embedding-store.service';
 import { DerivedLogCleaner } from './derived-log-cleaner.service';
+import { GinzaKeywordStore } from './ginza-keyword-store.service';
 import { PrivacyModule } from '../privacy/privacy.module';
 
 @Module({
@@ -22,11 +23,13 @@ import { PrivacyModule } from '../privacy/privacy.module';
     ChunkedJobStoreService,
     UtteranceEmbeddingStore,
     DerivedLogCleaner,
+    GinzaKeywordStore,
   ],
   exports: [
     TranscriptionStoreService,
     TranscriptionService,
     UtteranceEmbeddingStore,
+    GinzaKeywordStore,
   ],
 })
 export class TranscriptionModule {}
