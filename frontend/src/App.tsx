@@ -129,6 +129,12 @@ function App() {
     });
   };
 
+  /**
+   * 文脈選択を画面に出すか。AI 分析を使えないときは、下の useEffect がクリアするより前の描画でも出さない
+   * （設定画面から戻った直後に、古い「分析する」ボタンを押せないように）
+   */
+  const contextSelectActive = contextSelectMode && aiReady;
+
   /** AI 分析を使えなくなったら（設定画面で OFF にした場合など）、文脈選択と選んだ発言をクリアする */
   useEffect(() => {
     if (aiReady) return;
@@ -149,7 +155,7 @@ function App() {
 
   /** 選択された発話の文脈を分析 */
   const handleAnalyzeContext = async () => {
-    if (!transcription || selectedUtteranceIndices.size === 0) return;
+    if (!transcription || !aiReady || selectedUtteranceIndices.size === 0) return;
     setContextAnalyzing(true);
     try {
       const result = await analyzeUtteranceContext(
@@ -466,7 +472,7 @@ function App() {
                   highlightedKeywords={highlightedKeywords}
                   filterActive={filterActive}
                   selectedSpeakerId={selectedSpeakerId}
-                  contextSelectMode={contextSelectMode}
+                  contextSelectMode={contextSelectActive}
                   selectedUtteranceIndices={selectedUtteranceIndices}
                   onToggleUtteranceSelection={toggleUtteranceSelection}
                   scrollToUtteranceIndex={scrollToUtteranceIndex}
@@ -503,7 +509,7 @@ function App() {
                   </p>
                 )
               }
-              contextSelectMode={contextSelectMode}
+              contextSelectMode={contextSelectActive}
               speakers={transcription.speakers}
               selectedSpeakerId={selectedSpeakerId}
               onSpeakerFilterChange={setSelectedSpeakerId}
@@ -516,7 +522,7 @@ function App() {
       </main>
 
       {/* 文脈分析：フローティング分析ボタン */}
-      {contextSelectMode && selectedUtteranceIndices.size > 0 && (
+      {contextSelectActive && selectedUtteranceIndices.size > 0 && (
         <button
           className="context-floating-button"
           onClick={handleAnalyzeContext}
