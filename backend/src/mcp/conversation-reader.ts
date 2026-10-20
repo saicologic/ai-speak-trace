@@ -216,10 +216,7 @@ export class ConversationReader {
       return reject(id, 'error');
     }
     const known = {
-      createdAt:
-        typeof transcription.createdAt === 'string'
-          ? transcription.createdAt
-          : undefined,
+      createdAt: transcription.createdAt,
       utteranceCount: transcription.utterances.length,
     };
     if (!scan) return reject(id, 'unchecked', known);
@@ -249,15 +246,9 @@ export class ConversationReader {
 function reject(
   id: string,
   privacy: Exclude<PrivacyState, 'checked'>,
-  known?: { createdAt?: string; utteranceCount: number },
+  known?: { createdAt: string; utteranceCount: number },
 ): ConversationEntry {
-  return {
-    id,
-    privacy,
-    reason: PRIVACY_REASONS[privacy],
-    ...(known?.createdAt !== undefined && { createdAt: known.createdAt }),
-    ...(known && { utteranceCount: known.utteranceCount }),
-  };
+  return { id, privacy, reason: PRIVACY_REASONS[privacy], ...known };
 }
 
 /**
@@ -309,7 +300,10 @@ function isFindings(value: unknown): value is PiiFinding[] {
   );
 }
 
-/** 読み込んだ値が、ツールと伏せ字の処理（maskTranscription）で使う項目を持つ文字起こしか */
+/**
+ * 読み込んだ値が、ツールと伏せ字の処理（maskTranscription）で使う項目を持つ文字起こしか
+ * createdAt は一覧と全件検索の並べ替えで文字列として比べるため、文字列であることも確かめる
+ */
 function isTranscription(value: unknown): value is Transcription {
   if (typeof value !== 'object' || value === null) return false;
   const t = value as Partial<Transcription>;
@@ -320,6 +314,7 @@ function isTranscription(value: unknown): value is Transcription {
         typeof w === 'object' && w !== null && typeof w.text === 'string',
     );
   return (
+    typeof t.createdAt === 'string' &&
     typeof t.fullText === 'string' &&
     isWords(t.words) &&
     Array.isArray(t.speakers) &&

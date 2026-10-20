@@ -779,6 +779,7 @@ describe('MCP サーバー', () => {
 
   describe('不完全な文字起こし', () => {
     it.each([
+      ['createdAt が文字列ではない', { createdAt: 20260101 }],
       ['fullText がない', { fullText: undefined }],
       ['words がない', { words: undefined }],
       ['話者名が文字列ではない', { speakers: [{ id: 'speaker_0', name: 1 }] }],
