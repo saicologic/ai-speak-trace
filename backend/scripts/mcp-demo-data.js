@@ -66,7 +66,19 @@ function writeScan(id, findings) {
   });
 }
 
-fs.rmSync(dir, { recursive: true, force: true });
+// このスクリプトが作ったフォルダの目印（ほかのフォルダを消さないため）
+const MARKER = path.join(dir, '.mcp-demo-data');
+if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
+  if (!fs.existsSync(MARKER)) {
+    console.error(
+      `空でないフォルダには作れません（このスクリプトが作ったフォルダではありません）: ${dir}`,
+    );
+    process.exit(1);
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+fs.mkdirSync(dir, { recursive: true });
+fs.writeFileSync(MARKER, '');
 
 // チェック済み: 「伏せる」を選んだ名前と、連絡先を含む
 const checked = writeTranscription(

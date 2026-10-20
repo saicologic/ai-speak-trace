@@ -186,6 +186,20 @@ npm run mcp:build   # backend/dist/mcp/main.js ができる
 claude mcp add --scope user ai-speak-trace -- node /Users/you/ai-speak-trace/backend/dist/mcp/main.js
 ```
 
+Claude Code では、データのフォルダを `Read` で直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で直接読むのを禁止しておきます（MCP サーバーは別のプロセスなので、この設定の影響を受けません）。
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Read(//Users/you/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)"
+    ]
+  }
+}
+```
+
+`Bash`（`cat` など）で読むことまでは防げません。会話を読ませる作業では、`Bash` の実行を確かめてから許可してください。
+
 データの場所は、既定でアプリと同じ `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` です。開発用のデータ（`backend/data/` など）を読む場合は、環境変数 `DATA_DIR` で指定します（Claude Desktop は `"env": { "DATA_DIR": "..." }`、Claude Code は `claude mcp add -e DATA_DIR=... ...`）。
 
 **ブラウザで確かめる（MCP Inspector）**

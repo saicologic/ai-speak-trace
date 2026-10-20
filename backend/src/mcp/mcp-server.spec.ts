@@ -712,28 +712,32 @@ describe('MCP サーバー', () => {
 
   describe('ファイル名・連絡先を返さない', () => {
     it('フォルダ名（音声ファイル名）に入った名前を、ID・一覧・発話の結果に出さない', async () => {
-      const lines: [string, string][] = [['speaker_0', '架空の面談の話です']];
+      const lines: [string, string][] = [
+        ['speaker_0', '架空の打ち合わせの話です'],
+      ];
       // チェック済みの会話（名前はファイル名にだけあり、個人情報チェックでは検出されていない）
       await data.writeChecked(
-        makeTranscription(`${HIDDEN_NAME}さん面談`, lines, {
-          audioFileName: `${HIDDEN_NAME}さん面談.mp3`,
+        makeTranscription(`${HIDDEN_NAME}さん打ち合わせ`, lines, {
+          audioFileName: `${HIDDEN_NAME}さん打ち合わせ.mp3`,
         }),
       );
       // チェックしていない会話
       await data.writeTranscription(
-        makeTranscription(`${HIDDEN_NAME}さん面談2`, lines),
+        makeTranscription(`${HIDDEN_NAME}さん打ち合わせ2`, lines),
       );
 
       const list = await call('list_transcriptions');
       expect(list.text).not.toContain(HIDDEN_NAME);
-      expect(list.text).not.toContain('面談');
+      expect(list.text).not.toContain('打ち合わせ');
       for (const t of list.json.transcriptions) {
         expect(t.id).toMatch(/^t_[0-9a-f]{24}$/);
         expect(t).not.toHaveProperty('audioFileName');
       }
 
-      const id = h(`${HIDDEN_NAME}さん面談`);
-      const search = await call('search_utterances', { query: '架空の面談' });
+      const id = h(`${HIDDEN_NAME}さん打ち合わせ`);
+      const search = await call('search_utterances', {
+        query: '架空の打ち合わせ',
+      });
       expect(search.json.utterances[0].transcriptionId).toBe(id);
       expect(search.text).not.toContain(HIDDEN_NAME);
       const page = await call('get_utterances', {

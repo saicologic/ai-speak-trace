@@ -33,9 +33,9 @@ describe('cursor', () => {
 describe('ConversationReader.handleOf', () => {
   it('同じ鍵なら同じ ID になり、フォルダ名を含まない', () => {
     const key = Buffer.alloc(32, 1);
-    const id = new ConversationReader('', key).handleOf('架空の面談 第1回');
+    const id = new ConversationReader('', key).handleOf('架空の会話 第1回');
     expect(id).toMatch(/^t_[0-9a-f]{24}$/);
-    expect(new ConversationReader('', key).handleOf('架空の面談 第1回')).toBe(
+    expect(new ConversationReader('', key).handleOf('架空の会話 第1回')).toBe(
       id,
     );
   });
