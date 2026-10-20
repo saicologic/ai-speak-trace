@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
@@ -9,14 +10,14 @@ import {
   PRIVACY_SCANS_DIR,
   readPrivacyScan,
 } from '../privacy/privacy-scan.store';
-import { PiiFinding } from '../privacy/privacy.types';
+import { PiiFinding, PrivacyScan } from '../privacy/privacy.types';
 import {
   maskText,
   maskTranscription,
   withoutIgnoredPii,
 } from '../privacy/privacy.utils';
 import { Transcription } from '../transcription/types/transcription.types';
-import { MAX_ID_CHARS } from './mcp.constants';
+import { maskContacts } from './contact-patterns';
 
 /**
  * 個人情報チェックの状態
@@ -51,10 +52,16 @@ export const PRIVACY_REASONS: Record<
 /** ツールが受け付けない呼び出し（監査ログの outcome は rejected。理由はクライアントに返す） */
 export class ToolRejection extends Error {}
 
+/** 外に返す会話の ID の形（t_ と16進数24文字） */
+const HANDLE_PATTERN = /^t_[0-9a-f]{24}$/;
+
 /** 伏せ字にした会話（返してよいもの） */
 export interface MaskedConversation {
+  /** 外に返す会話の ID（ファイル名を含まない。handleOf を参照） */
   id: string;
-  /** 伏せ字にした文字起こし（話者名・本文・音声ファイル名） */
+  /** 文字起こしのフォルダ名（監査ログと、伏せる前の発話のハッシュにだけ使う。返さない） */
+  sourceId: string;
+  /** 伏せ字にした文字起こし（話者名・本文） */
   transcription: Transcription;
   /** 伏せた文字列（キーワードを除くために使う。返さない） */
   maskedTexts: string[];
@@ -62,6 +69,7 @@ export interface MaskedConversation {
 
 /** 一覧の1件 */
 export interface ConversationEntry {
+  /** 外に返す会話の ID */
   id: string;
   privacy: PrivacyState;
   /** checked のときだけ */
@@ -81,16 +89,35 @@ export class ConversationReader {
   private readonly transcriptionsDir: string;
   private readonly privacyScansDir: string;
 
-  constructor(readonly dataDir: string) {
+  /**
+   * - handleKey: 外に返す会話の ID を作る鍵。既定はプロセスごとに作り直す
+   *   （ファイル名から作った ID を推測で戻せないようにするため。サーバーを起動し直すと ID は変わる）
+   */
+  constructor(
+    readonly dataDir: string,
+    private readonly handleKey: Buffer = randomBytes(32),
+  ) {
     this.transcriptionsDir = path.join(dataDir, 'transcriptions');
     this.privacyScansDir = path.join(dataDir, PRIVACY_SCANS_DIR);
   }
 
+  /**
+   * 外に返す会話の ID
+   * 文字起こしのフォルダ名は音声ファイル名から作られ、名前などを含むことがあるため、そのまま返さない
+   */
+  handleOf(sourceId: string): string {
+    const digest = createHmac('sha256', this.handleKey)
+      .update(sourceId)
+      .digest('hex');
+    return `t_${digest.slice(0, 24)}`;
+  }
+
   /** すべての会話の状態（伏せ字にできたものは会話も） */
   async list(): Promise<ConversationEntry[]> {
-    const ids = await listTranscriptionIds(this.transcriptionsDir);
     const entries: ConversationEntry[] = [];
-    for (const id of ids) entries.push(await this.load(id));
+    for (const sourceId of await listTranscriptionIds(this.transcriptionsDir)) {
+      entries.push(await this.load(sourceId));
+    }
     return entries;
   }
 
@@ -99,8 +126,7 @@ export class ConversationReader {
    * 不正な ID・存在しない会話・返さない会話は ToolRejection
    */
   async get(id: string): Promise<MaskedConversation> {
-    await this.assertKnownId(id);
-    const entry = await this.load(id);
+    const entry = await this.load(await this.resolve(id));
     if (!entry.conversation) {
       throw new ToolRejection(
         `この会話は返せません（${entry.privacy}）: ${entry.reason}`,
@@ -110,129 +136,211 @@ export class ConversationReader {
   }
 
   /**
-   * 伏せ字にしていない文字起こし（GiNZA のキーワードの並べ替えにだけ使う。返さない）
-   * 読めないものは除く
+   * 伏せ字にしていない文字起こし（GiNZA のキャッシュのハッシュを確かめるためだけに使う。返さない）
+   * 読めない場合は null
    */
-  async readRawAll(): Promise<Transcription[]> {
-    const result: Transcription[] = [];
-    for (const id of await listTranscriptionIds(this.transcriptionsDir)) {
-      try {
-        const t = await readTranscriptionFile(this.transcriptionsDir, id);
-        if (t && isTranscription(t)) result.push(t);
-      } catch {
-        // 書き込み途中などで読めない会話は、並べ替えに使わない
-      }
+  async readUnmasked(
+    conversation: MaskedConversation,
+  ): Promise<Transcription | null> {
+    try {
+      const t = await readTranscriptionFile(
+        this.transcriptionsDir,
+        conversation.sourceId,
+      );
+      return t && isTranscription(t) ? t : null;
+    } catch {
+      return null;
     }
-    return result;
   }
 
   /**
-   * ID を確かめる
-   * 日本語や空白を含むファイル名から作られるため文字種では絞らず、パスとして危ないものだけを拒否し、
-   * transcriptions/ の一覧に完全に一致するものだけを使う（ID からパスを組み立てて直接開かない）
+   * 監査ログに残す文字列（検索語など）を伏せる
+   * どの会話で検出された文字列も、「伏せる」を選んだかどうかにかかわらず伏せ、連絡先なども伏せる
    */
-  async assertKnownId(id: string): Promise<void> {
-    if (!isSafeId(id)) {
-      throw new ToolRejection('transcriptionId が不正です');
+  async redactForAudit(text: string): Promise<string> {
+    const findings: PiiFinding[] = [];
+    for (const sourceId of await listTranscriptionIds(this.transcriptionsDir)) {
+      try {
+        const scan = await readPrivacyScan(this.privacyScansDir, sourceId);
+        if (scan && Array.isArray(scan.findings)) {
+          for (const f of scan.findings) {
+            if (typeof f?.text === 'string' && typeof f.label === 'string') {
+              findings.push({ ...f, mask: true });
+            }
+          }
+        }
+      } catch {
+        // 読めない結果は使わない
+      }
     }
-    const ids = await listTranscriptionIds(this.transcriptionsDir);
-    if (!ids.includes(id)) {
-      throw new ToolRejection(
-        `会話が見つかりません: ${id}（list_transcriptions で ID を確かめてください）`,
-      );
-    }
+    return maskContacts(maskText(text, findings));
   }
 
-  private async load(id: string): Promise<ConversationEntry> {
+  /** 外に返した ID から、文字起こしのフォルダ名を探す */
+  private async resolve(id: string): Promise<string> {
+    if (!HANDLE_PATTERN.test(id)) {
+      throw new ToolRejection(
+        'transcriptionId が不正です（list_transcriptions の id を渡してください）',
+      );
+    }
+    const ids = await listTranscriptionIds(this.transcriptionsDir);
+    const sourceId = ids.find((s) => this.handleOf(s) === id);
+    if (!sourceId) {
+      throw new ToolRejection(
+        `会話が見つかりません: ${id}（サーバーを起動し直すと id は変わります。list_transcriptions で id を確かめてください）`,
+      );
+    }
+    return sourceId;
+  }
+
+  private async load(sourceId: string): Promise<ConversationEntry> {
+    const id = this.handleOf(sourceId);
     let transcription: Transcription | null;
-    let scan: Awaited<ReturnType<typeof readPrivacyScan>>;
+    let scan: PrivacyScan | null;
     let modifiedAt: number;
     try {
-      transcription = await readTranscriptionFile(this.transcriptionsDir, id);
+      transcription = await readTranscriptionFile(
+        this.transcriptionsDir,
+        sourceId,
+      );
       if (!transcription || !isTranscription(transcription)) {
-        return this.reject(id, 'error');
+        return reject(id, 'error');
       }
-      scan = await readPrivacyScan(this.privacyScansDir, id);
+      scan = await readPrivacyScan(this.privacyScansDir, sourceId);
       modifiedAt = (
-        await fs.stat(path.join(this.transcriptionsDir, id, TRANSCRIPTION_FILE))
+        await fs.stat(
+          path.join(this.transcriptionsDir, sourceId, TRANSCRIPTION_FILE),
+        )
       ).mtimeMs;
     } catch {
-      return this.reject(id, 'error');
+      return reject(id, 'error');
     }
     const known = {
-      createdAt: transcription.createdAt,
+      createdAt:
+        typeof transcription.createdAt === 'string'
+          ? transcription.createdAt
+          : undefined,
       utteranceCount: transcription.utterances.length,
     };
-    if (!scan) return this.reject(id, 'unchecked', known);
-    if (!Array.isArray(scan.findings)) return this.reject(id, 'error');
+    if (!scan) return reject(id, 'unchecked', known);
+    if (!isFindings(scan.findings)) return reject(id, 'error');
 
     const scannedAt = Date.parse(scan.scannedAt);
     if (Number.isNaN(scannedAt) || modifiedAt > scannedAt) {
-      return this.reject(id, 'stale', known);
+      return reject(id, 'stale', known);
     }
     // アプリの画面に出さない検出（ユーザー名・国名だけの住所など）は、利用者が選べないため要確認として扱わない
-    const findings = withoutIgnoredPii(scan.findings);
-    if (findings.some((f) => f.needsReview)) {
-      return this.reject(id, 'needs_review', known);
+    if (withoutIgnoredPii(scan.findings).some((f) => f.needsReview)) {
+      return reject(id, 'needs_review', known);
     }
-    return {
-      id,
-      privacy: 'checked',
-      conversation: mask(id, transcription, scan.findings),
-    };
-  }
-
-  private reject(
-    id: string,
-    privacy: Exclude<PrivacyState, 'checked'>,
-    known?: { createdAt: string; utteranceCount: number },
-  ): ConversationEntry {
-    return { id, privacy, reason: PRIVACY_REASONS[privacy], ...known };
+    try {
+      return {
+        id,
+        privacy: 'checked',
+        conversation: mask(id, sourceId, transcription, scan.findings),
+      };
+    } catch {
+      // 形を確かめた後でも伏せ字にできない会話は、この1件だけを除く
+      return reject(id, 'error');
+    }
   }
 }
 
-/** アプリが Claude に送るときと同じ方法（PrivacyService.maskForSending）で伏せ字にする */
+function reject(
+  id: string,
+  privacy: Exclude<PrivacyState, 'checked'>,
+  known?: { createdAt?: string; utteranceCount: number },
+): ConversationEntry {
+  return {
+    id,
+    privacy,
+    reason: PRIVACY_REASONS[privacy],
+    ...(known?.createdAt !== undefined && { createdAt: known.createdAt }),
+    ...(known && { utteranceCount: known.utteranceCount }),
+  };
+}
+
+/**
+ * アプリが Claude に送るときと同じ方法（PrivacyService.maskForSending）で伏せ字にし、
+ * さらに連絡先など（Guardrails を呼ばない代わりに、この Mac の中の正規表現で検出したもの）を伏せる
+ */
 function mask(
   id: string,
+  sourceId: string,
   transcription: Transcription,
   findings: PiiFinding[],
 ): MaskedConversation {
   const masked = maskTranscription(transcription, findings);
   return {
     id,
+    sourceId,
     transcription: {
       ...masked,
-      // 音声ファイル名に名前などが入っていることがあるため、ファイル名も伏せる
-      audioFileName: maskText(transcription.audioFileName ?? '', findings),
+      id,
+      // 音声ファイル名は個人情報チェックの対象ではなく、名前などが残ることがあるため返さない
+      audioFileName: '',
+      fullText: maskContacts(masked.fullText),
+      speakers: masked.speakers.map((s) => ({
+        ...s,
+        name: maskContacts(s.name),
+      })),
+      utterances: masked.utterances.map((u) => ({
+        ...u,
+        speakerName: maskContacts(u.speakerName),
+        text: maskContacts(u.text),
+      })),
     },
     maskedTexts: findings.filter((f) => f.mask && f.text).map((f) => f.text),
   };
 }
 
-/** パスとして危ない ID（区切り文字・NUL・. と ..・長すぎるもの）ではないか */
-export function isSafeId(id: string): boolean {
+/** 検出結果が、伏せ字の処理で使える形か */
+function isFindings(value: unknown): value is PiiFinding[] {
   return (
-    id.length > 0 &&
-    id.length <= MAX_ID_CHARS &&
-    !/[/\\\0]/.test(id) &&
-    id !== '.' &&
-    id !== '..'
+    Array.isArray(value) &&
+    value.every(
+      (f: Partial<PiiFinding> | null) =>
+        typeof f === 'object' &&
+        f !== null &&
+        typeof f.text === 'string' &&
+        typeof f.label === 'string' &&
+        typeof f.type === 'string',
+    )
   );
 }
 
-/** 読み込んだ値が、ツールで使う項目を持つ文字起こしか */
-function isTranscription(value: Transcription): boolean {
+/** 読み込んだ値が、ツールと伏せ字の処理（maskTranscription）で使う項目を持つ文字起こしか */
+function isTranscription(value: unknown): value is Transcription {
+  if (typeof value !== 'object' || value === null) return false;
+  const t = value as Partial<Transcription>;
+  const isWords = (words: unknown) =>
+    Array.isArray(words) &&
+    words.every(
+      (w: { text?: unknown } | null) =>
+        typeof w === 'object' && w !== null && typeof w.text === 'string',
+    );
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray(value.utterances) &&
-    Array.isArray(value.speakers) &&
-    value.utterances.every(
+    typeof t.fullText === 'string' &&
+    isWords(t.words) &&
+    Array.isArray(t.speakers) &&
+    t.speakers.every(
+      (s) =>
+        typeof s === 'object' &&
+        s !== null &&
+        typeof s.id === 'string' &&
+        typeof s.name === 'string',
+    ) &&
+    Array.isArray(t.utterances) &&
+    t.utterances.every(
       (u) =>
         typeof u === 'object' &&
         u !== null &&
+        typeof u.speakerId === 'string' &&
+        typeof u.speakerName === 'string' &&
         typeof u.text === 'string' &&
-        typeof u.speakerName === 'string',
+        typeof u.start === 'number' &&
+        typeof u.end === 'number' &&
+        isWords(u.words),
     )
   );
 }

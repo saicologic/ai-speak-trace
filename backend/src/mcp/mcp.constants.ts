@@ -28,8 +28,5 @@ export const MAX_SEARCH_TRANSCRIPTIONS = 50;
 /** get_keywords で返すキーワードの数 */
 export const MAX_KEYWORDS = 100;
 
-/** 文字起こしの ID（フォルダ名）の文字数の上限 */
-export const MAX_ID_CHARS = 255;
-
 /** 監査ログの保存先（DATA_DIR 配下） */
 export const MCP_AUDIT_DIR = 'mcp-audit-logs';

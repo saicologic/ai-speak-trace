@@ -18,6 +18,8 @@ export interface McpServerDeps {
   /** ログ（stderr に出す。stdout は MCP の通信に使う） */
   log?: (message: string) => void;
   now?: () => Date;
+  /** 外に返す会話の ID を作る鍵（テストで固定する。既定はプロセスごとに作る） */
+  handleKey?: Buffer;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface McpServerDeps {
 export function createMcpServer(deps: McpServerDeps): McpServer {
   const log = deps.log ?? ((message: string) => console.error(message));
   const ctx: ToolContext = {
-    reader: new ConversationReader(deps.dataDir),
+    reader: new ConversationReader(deps.dataDir, deps.handleKey),
     audit: new McpAudit(deps.dataDir, log),
     log,
     now: deps.now ?? (() => new Date()),

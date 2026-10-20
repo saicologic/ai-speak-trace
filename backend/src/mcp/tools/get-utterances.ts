@@ -67,6 +67,7 @@ export function registerGetUtterances(
           ...(next < total && { nextFrom: next }),
         },
         returned: page.length,
+        sources: [conversation.sourceId],
       };
     },
   );

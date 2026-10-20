@@ -88,9 +88,13 @@ export function registerSearchUtterances(
         });
       }
 
-      const views = matches
-        .slice(offset, offset + (limit ?? DEFAULT_SEARCH_LIMIT))
-        .map(({ conversation, index }) => toUtteranceView(conversation, index));
+      const hits = matches.slice(
+        offset,
+        offset + (limit ?? DEFAULT_SEARCH_LIMIT),
+      );
+      const views = hits.map(({ conversation, index }) =>
+        toUtteranceView(conversation, index),
+      );
       const page = views.slice(0, countFitting(views, 300));
       const next = offset + page.length;
       return {
@@ -100,6 +104,9 @@ export function registerSearchUtterances(
           ...(next < matches.length && { nextCursor: encodeCursor(next) }),
         },
         returned: page.length,
+        sources: hits
+          .slice(0, page.length)
+          .map(({ conversation }) => conversation.sourceId),
       };
     },
   );

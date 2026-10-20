@@ -7,6 +7,7 @@ import { hashTexts, stripSoundTags } from '../ginza/ginza-keywords.utils';
 import { PiiFinding } from '../privacy/privacy.types';
 import { Transcription } from '../transcription/types/transcription.types';
 import { MAX_RESPONSE_CHARS, MAX_UTTERANCE_CHARS } from './mcp.constants';
+import { ConversationReader } from './conversation-reader';
 import { createMcpServer } from './server';
 
 /** テスト用の架空の会話（実在の人・会社の会話ではない） */
@@ -166,6 +167,13 @@ const FINDINGS = [
   maskedFinding('PHONE', '電話番号', HIDDEN_PHONE),
 ];
 
+/** 外に返す会話の ID を作る鍵（テストでは固定する） */
+const HANDLE_KEY = Buffer.alloc(32, 7);
+
+/** 文字起こしのフォルダ名から、外に返す会話の ID を作る */
+const h = (sourceId: string) =>
+  new ConversationReader('', HANDLE_KEY).handleOf(sourceId);
+
 describe('MCP サーバー', () => {
   let data: TestDataDir;
   let client: Client;
@@ -203,6 +211,7 @@ describe('MCP サーバー', () => {
       version: 'test',
       log: (message) => logs.push(message),
       now: () => new Date('2026-10-20T00:00:00.000Z'),
+      handleKey: HANDLE_KEY,
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -255,8 +264,7 @@ describe('MCP サーバー', () => {
       const { json } = await call('list_transcriptions');
       expect(json.transcriptions).toEqual([
         {
-          id: 'checked-talk',
-          audioFileName: '[氏名]との会話.mp3',
+          id: h('checked-talk'),
           createdAt: '2026-03-01T00:00:00.000Z',
           speakers: [
             { id: 'speaker_0', name: '[氏名]' },
@@ -312,9 +320,9 @@ describe('MCP サーバー', () => {
       const byId = Object.fromEntries(
         json.transcriptions.map((t) => [t.id, t]),
       );
-      const { reason, ...unchecked } = byId['unchecked-talk'];
+      const { reason, ...unchecked } = byId[h('unchecked-talk')];
       expect(unchecked).toEqual({
-        id: 'unchecked-talk',
+        id: h('unchecked-talk'),
         createdAt: '2026-02-01T00:00:00.000Z',
         utteranceCount: 1,
         privacy: 'unchecked',
@@ -322,22 +330,22 @@ describe('MCP サーバー', () => {
       expect(reason).toContain(
         'アプリのディープサーチで会話を選び、個人情報チェックを行ってください',
       );
-      expect(byId['stale-talk'].privacy).toBe('stale');
-      expect(byId['review-talk'].privacy).toBe('needs_review');
-      expect(Object.keys(byId['broken-talk']).sort()).toEqual([
+      expect(byId[h('stale-talk')].privacy).toBe('stale');
+      expect(byId[h('review-talk')].privacy).toBe('needs_review');
+      expect(Object.keys(byId[h('broken-talk')]).sort()).toEqual([
         'id',
         'privacy',
         'reason',
       ]);
-      expect(byId['broken-talk'].privacy).toBe('error');
-      expect(byId['checked-talk'].privacy).toBe('checked');
+      expect(byId[h('broken-talk')].privacy).toBe('error');
+      expect(byId[h('checked-talk')].privacy).toBe('checked');
       // 新しい順（作成日時のないものは最後）
       expect(json.transcriptions.map((t) => t.id)).toEqual([
-        'checked-talk',
-        'unchecked-talk',
-        'stale-talk',
-        'review-talk',
-        'broken-talk',
+        h('checked-talk'),
+        h('unchecked-talk'),
+        h('stale-talk'),
+        h('review-talk'),
+        h('broken-talk'),
       ]);
       // 返さない会話の名前は出さない
       expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
@@ -358,7 +366,9 @@ describe('MCP サーバー', () => {
         },
       ]);
       const { json } = await call('list_transcriptions');
-      const entry = json.transcriptions.find((x) => x.id === 'username-talk');
+      const entry = json.transcriptions.find(
+        (x) => x.id === h('username-talk'),
+      );
       expect(entry?.privacy).toBe('checked');
     });
 
@@ -407,7 +417,7 @@ describe('MCP サーバー', () => {
       expect(json.total).toBe(1);
       expect(json.utterances).toEqual([
         {
-          transcriptionId: 'checked-talk',
+          transcriptionId: h('checked-talk'),
           index: 3,
           speakerName: 'Bさん',
           start: 30,
@@ -455,8 +465,8 @@ describe('MCP サーバー', () => {
       );
       const { json } = await call('search_utterances', { query: '型チェック' });
       expect(json.utterances.map((u) => u.transcriptionId)).toEqual([
-        'checked-talk',
-        'checked-talk',
+        h('checked-talk'),
+        h('checked-talk'),
       ]);
     });
 
@@ -466,7 +476,7 @@ describe('MCP サーバー', () => {
       );
       const result = await call('search_utterances', {
         query: '型チェック',
-        transcriptionIds: ['checked-talk', 'unchecked-talk'],
+        transcriptionIds: [h('checked-talk'), h('unchecked-talk')],
       });
       expect(result.isError).toBe(true);
       expect(result.text).toContain('unchecked');
@@ -506,7 +516,7 @@ describe('MCP サーバー', () => {
   describe('get_utterances', () => {
     it('範囲の発話と nextFrom を返す', async () => {
       const first = await call('get_utterances', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         from: 0,
         count: 2,
       });
@@ -515,7 +525,7 @@ describe('MCP サーバー', () => {
       expect(first.json.total).toBe(5);
 
       const last = await call('get_utterances', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         from: 4,
       });
       expect(last.json.utterances).toHaveLength(1);
@@ -525,9 +535,9 @@ describe('MCP サーバー', () => {
 
     it('範囲外の from・上限を超える count はエラーにする', async () => {
       for (const args of [
-        { transcriptionId: 'checked-talk', from: 5 },
-        { transcriptionId: 'checked-talk', from: -1 },
-        { transcriptionId: 'checked-talk', from: 0, count: 101 },
+        { transcriptionId: h('checked-talk'), from: 5 },
+        { transcriptionId: h('checked-talk'), from: -1 },
+        { transcriptionId: h('checked-talk'), from: 0, count: 101 },
       ]) {
         expect((await call('get_utterances', args)).isError).toBe(true);
       }
@@ -545,7 +555,7 @@ describe('MCP サーバー', () => {
       await data.writeChecked(t);
 
       const result = await call('get_utterances', {
-        transcriptionId: 'long-talk',
+        transcriptionId: h('long-talk'),
         from: 0,
         count: 100,
       });
@@ -561,7 +571,7 @@ describe('MCP サーバー', () => {
   describe('get_context', () => {
     it('前後の発話を返し、中心に印を付ける', async () => {
       const { json } = await call('get_context', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         index: 1,
         before: 1,
         after: 10,
@@ -574,9 +584,9 @@ describe('MCP サーバー', () => {
 
     it('範囲外の index・上限を超える前後の数はエラーにする', async () => {
       for (const args of [
-        { transcriptionId: 'checked-talk', index: 5 },
-        { transcriptionId: 'checked-talk', index: 0, before: 11 },
-        { transcriptionId: 'checked-talk', index: 0, after: 11 },
+        { transcriptionId: h('checked-talk'), index: 5 },
+        { transcriptionId: h('checked-talk'), index: 0, before: 11 },
+        { transcriptionId: h('checked-talk'), index: 0, after: 11 },
       ]) {
         expect((await call('get_context', args)).isError).toBe(true);
       }
@@ -597,10 +607,10 @@ describe('MCP サーバー', () => {
 
     it('抽出していなければ not_extracted で空を返す', async () => {
       const { json } = await call('get_keywords', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
       });
       expect(json).toEqual({
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         status: 'not_extracted',
         keywords: [],
       });
@@ -609,7 +619,7 @@ describe('MCP サーバー', () => {
     it('抽出の後に発話が変わっていれば stale で空を返す', async () => {
       await data.writeGinzaCache(checked, terms, 'old-hash');
       const { json } = await call('get_keywords', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
       });
       expect(json.status).toBe('stale');
       expect(json.keywords).toEqual([]);
@@ -618,7 +628,7 @@ describe('MCP サーバー', () => {
     it('回数の多い順に返し、伏せた文字列（とその一部）を含むキーワードは除く', async () => {
       await data.writeGinzaCache(checked, terms);
       const { json } = await call('get_keywords', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
       });
       expect(json.status).toBe('ok');
       const texts = json.keywords.map((k) => k.text);
@@ -631,13 +641,13 @@ describe('MCP サーバー', () => {
     it('話者で絞り込める', async () => {
       await data.writeGinzaCache(checked, terms);
       const { json } = await call('get_keywords', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         speakerId: 'speaker_1',
       });
       expect(json.speakerName).toBe('Bさん');
       expect(json.keywords.map((k) => k.text)).not.toContain('連絡先');
       const unknown = await call('get_keywords', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         speakerId: 'speaker_9',
       });
       expect(unknown.isError).toBe(true);
@@ -676,13 +686,13 @@ describe('MCP サーバー', () => {
         await data.writeScan('linked-talk', []);
 
         const result = await call('get_utterances', {
-          transcriptionId: 'linked-talk',
+          transcriptionId: h('linked-talk'),
           from: 0,
         });
         expect(result.isError).toBe(true);
         expect(result.text).toContain('見つかりません');
         const list = await call('list_transcriptions');
-        expect(JSON.stringify(list.json)).not.toContain('linked-talk');
+        expect(JSON.stringify(list.json)).not.toContain(h('linked-talk'));
       } finally {
         await fs.rm(outside, { recursive: true, force: true });
       }
@@ -692,7 +702,7 @@ describe('MCP サーバー', () => {
       const t = makeTranscription('雑談 第1回', [['speaker_0', 'こんにちは']]);
       await data.writeChecked(t);
       const result = await call('get_utterances', {
-        transcriptionId: '雑談 第1回',
+        transcriptionId: h('雑談 第1回'),
         from: 0,
       });
       expect(result.isError).toBe(false);
@@ -700,11 +710,147 @@ describe('MCP サーバー', () => {
     });
   });
 
+  describe('ファイル名・連絡先を返さない', () => {
+    it('フォルダ名（音声ファイル名）に入った名前を、ID・一覧・発話の結果に出さない', async () => {
+      const lines: [string, string][] = [['speaker_0', '架空の面談の話です']];
+      // チェック済みの会話（名前はファイル名にだけあり、個人情報チェックでは検出されていない）
+      await data.writeChecked(
+        makeTranscription(`${HIDDEN_NAME}さん面談`, lines, {
+          audioFileName: `${HIDDEN_NAME}さん面談.mp3`,
+        }),
+      );
+      // チェックしていない会話
+      await data.writeTranscription(
+        makeTranscription(`${HIDDEN_NAME}さん面談2`, lines),
+      );
+
+      const list = await call('list_transcriptions');
+      expect(list.text).not.toContain(HIDDEN_NAME);
+      expect(list.text).not.toContain('面談');
+      for (const t of list.json.transcriptions) {
+        expect(t.id).toMatch(/^t_[0-9a-f]{24}$/);
+        expect(t).not.toHaveProperty('audioFileName');
+      }
+
+      const id = h(`${HIDDEN_NAME}さん面談`);
+      const search = await call('search_utterances', { query: '架空の面談' });
+      expect(search.json.utterances[0].transcriptionId).toBe(id);
+      expect(search.text).not.toContain(HIDDEN_NAME);
+      const page = await call('get_utterances', {
+        transcriptionId: id,
+        from: 0,
+      });
+      expect(page.text).not.toContain(HIDDEN_NAME);
+      const context = await call('get_context', {
+        transcriptionId: id,
+        index: 0,
+      });
+      expect(context.text).not.toContain(HIDDEN_NAME);
+    });
+
+    it('フォルダ名をそのまま id に渡しても読めない', async () => {
+      const result = await call('get_utterances', {
+        transcriptionId: 'checked-talk',
+        from: 0,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain('transcriptionId が不正です');
+    });
+
+    it('個人情報チェックで見つからなかった連絡先も伏せ、その連絡先では検索できない', async () => {
+      await data.writeChecked(
+        makeTranscription('contact-talk', [
+          ['speaker_0', 'メールは taro@example.com、電話は 080-1111-2222 です'],
+        ]),
+      );
+      const result = await call('get_utterances', {
+        transcriptionId: h('contact-talk'),
+        from: 0,
+      });
+      expect(result.json.utterances[0].text).toBe(
+        'メールは [メールアドレス]、電話は [電話番号] です',
+      );
+      for (const query of ['taro@example.com', '080-1111-2222', 'example']) {
+        const search = await call('search_utterances', { query });
+        expect(search.json.total).toBe(0);
+      }
+    });
+  });
+
+  describe('不完全な文字起こし', () => {
+    it.each([
+      ['fullText がない', { fullText: undefined }],
+      ['words がない', { words: undefined }],
+      ['話者名が文字列ではない', { speakers: [{ id: 'speaker_0', name: 1 }] }],
+      [
+        '発話の words がない',
+        {
+          utterances: [
+            {
+              speakerId: 'speaker_0',
+              speakerName: 'Aさん',
+              start: 0,
+              end: 1,
+              text: 'x',
+            },
+          ],
+        },
+      ],
+    ])(
+      'その会話だけを error にし、ほかの会話は返す（%s）',
+      async (_, broken) => {
+        const t = {
+          ...makeTranscription('broken-talk', [['speaker_0', 'x']]),
+          ...broken,
+        };
+        await data.writeChecked(t as Transcription, FINDINGS);
+        const { json, isError } = await call('list_transcriptions');
+        expect(isError).toBe(false);
+        const byId = Object.fromEntries(
+          json.transcriptions.map((x) => [x.id, x]),
+        );
+        expect(byId[h('broken-talk')].privacy).toBe('error');
+        expect(byId[h('checked-talk')].privacy).toBe('checked');
+        const search = await call('search_utterances', { query: '型チェック' });
+        expect(search.json.total).toBe(2);
+      },
+    );
+  });
+
+  describe('get_context の大きさ', () => {
+    it('結果が大きすぎる場合は、中心を残して遠い発話から除く', async () => {
+      // JSON にすると文字数が増える文字（改行）で、1発話を大きくする
+      const long = '\n'.repeat(MAX_UTTERANCE_CHARS);
+      await data.writeChecked(
+        makeTranscription(
+          'wide-talk',
+          Array.from({ length: 21 }, (): [string, string] => [
+            'speaker_0',
+            long,
+          ]),
+        ),
+      );
+      const result = await call('get_context', {
+        transcriptionId: h('wide-talk'),
+        index: 10,
+        before: 10,
+        after: 10,
+      });
+      expect(result.text.length).toBeLessThanOrEqual(MAX_RESPONSE_CHARS);
+      const { utterances } = result.json;
+      expect(utterances.length).toBeLessThan(21);
+      expect(utterances.some((u) => u.center && u.index === 10)).toBe(true);
+      expect((result.json as unknown as { truncated: boolean }).truncated).toBe(
+        true,
+      );
+    });
+  });
+
   describe('監査ログ', () => {
     it('呼び出しごとに記録し、発話の本文は残さない', async () => {
       await call('search_utterances', { query: '型チェック' });
       await call('get_utterances', {
-        transcriptionId: 'checked-talk',
+        transcriptionId: h('checked-talk'),
         from: 0,
       });
       await call('get_context', { transcriptionId: '../x', index: 0 });
@@ -719,13 +865,15 @@ describe('MCP サーバー', () => {
           at: '2026-10-20T00:00:00.000Z',
           tool: 'search_utterances',
           args: { query: '型チェック' },
+          sources: ['checked-talk'],
           returned: 2,
           outcome: 'ok',
         },
         {
           at: '2026-10-20T00:00:00.000Z',
           tool: 'get_utterances',
-          args: { transcriptionId: 'checked-talk', from: 0 },
+          args: { transcriptionId: h('checked-talk'), from: 0 },
+          sources: ['checked-talk'],
           returned: 5,
           outcome: 'ok',
         },
@@ -735,7 +883,8 @@ describe('MCP サーバー', () => {
           args: { transcriptionId: '../x', index: 0 },
           returned: 0,
           outcome: 'rejected',
-          reason: 'transcriptionId が不正です',
+          reason:
+            'transcriptionId が不正です（list_transcriptions の id を渡してください）',
         },
       ]);
       expect(await fs.readdir(path.join(data.dir, 'mcp-audit-logs'))).toEqual([
@@ -743,6 +892,22 @@ describe('MCP サーバー', () => {
       ]);
       for (const u of checked.utterances) expect(log).not.toContain(u.text);
       expect(log).not.toContain('今日は');
+    });
+
+    it('検索語・話者名の中の個人情報は伏せて記録する', async () => {
+      await call('search_utterances', {
+        query: `${HIDDEN_NAME} 080-1111-2222 test@example.com`,
+        speakerName: HIDDEN_NAME,
+      });
+      const log = await data.readAuditLog();
+      expect(log).not.toContain(HIDDEN_NAME);
+      expect(log).not.toContain('080-1111-2222');
+      expect(log).not.toContain('test@example.com');
+      const record = JSON.parse(log.trim()) as { args: Record<string, string> };
+      expect(record.args).toEqual({
+        query: '[氏名] [電話番号] [メールアドレス]',
+        speakerName: '[氏名]',
+      });
     });
 
     it('記録に失敗しても結果は返す', async () => {

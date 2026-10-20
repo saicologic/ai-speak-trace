@@ -7,8 +7,10 @@ export interface McpAuditRecord {
   /** 記録した日時（ISO 8601） */
   at: string;
   tool: string;
-  /** 呼び出しの引数（query は MAX_QUERY_CHARS まで） */
+  /** 呼び出しの引数（query・speakerName は個人情報を伏せたもの。query は MAX_QUERY_CHARS まで） */
   args: Record<string, unknown>;
+  /** 結果を返した会話（文字起こしのフォルダ名。外に返す ID はサーバーを起動し直すと変わるため） */
+  sources?: string[];
   /** 返した件数（会話・発話・キーワードの数） */
   returned: number;
   /**

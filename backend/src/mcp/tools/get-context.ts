@@ -1,7 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ToolRejection } from '../conversation-reader';
-import { DEFAULT_CONTEXT, MAX_CONTEXT } from '../mcp.constants';
+import {
+  DEFAULT_CONTEXT,
+  MAX_CONTEXT,
+  MAX_RESPONSE_CHARS,
+} from '../mcp.constants';
 import {
   ToolContext,
   UNTRUSTED_NOTE,
@@ -29,7 +33,7 @@ export function registerGetContext(server: McpServer, ctx: ToolContext): void {
       title: '発話の前後を読む',
       description:
         '1つの発話と、その前後の発話を返します。search_utterances で見つけた発話が、どんな流れで話されたかを確かめるときに使います。' +
-        '指定した発話には center: true が付きます。' +
+        '指定した発話には center: true が付きます。結果が大きすぎる場合は中心から遠い発話を除き、truncated: true を付けます。' +
         UNTRUSTED_NOTE,
       inputSchema: {
         transcriptionId: transcriptionIdSchema,
@@ -55,9 +59,28 @@ export function registerGetContext(server: McpServer, ctx: ToolContext): void {
           i === index ? { ...view, center: true as const } : view,
         );
       }
+      // 結果が大きすぎる場合は、中心の発話を残し、中心から遠い発話から除く
+      let size = JSON.stringify(utterances).length;
+      let truncated = false;
+      while (size > MAX_RESPONSE_CHARS - 300 && utterances.length > 1) {
+        const first = utterances[0];
+        const last = utterances[utterances.length - 1];
+        const removed =
+          index - first.index > last.index - index
+            ? utterances.shift()
+            : utterances.pop();
+        size -= JSON.stringify(removed).length + 1;
+        truncated = true;
+      }
       return {
-        result: { transcriptionId, utterances, total },
+        result: {
+          transcriptionId,
+          utterances,
+          total,
+          ...(truncated && { truncated: true }),
+        },
         returned: utterances.length,
+        sources: [conversation.sourceId],
       };
     },
   );

@@ -1,6 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
-import { isSafeId } from '../conversation-reader';
+import { ConversationReader } from '../conversation-reader';
 import { DEFAULT_DATA_DIR, resolveDataDir } from '../data-dir';
 import { decodeCursor, encodeCursor, formatTime } from './tool-helpers';
 
@@ -30,21 +30,20 @@ describe('cursor', () => {
   });
 });
 
-describe('isSafeId', () => {
-  it('日本語や空白を含む ID は使える', () => {
-    expect(isSafeId('雑談 第1回 (2)')).toBe(true);
+describe('ConversationReader.handleOf', () => {
+  it('同じ鍵なら同じ ID になり、フォルダ名を含まない', () => {
+    const key = Buffer.alloc(32, 1);
+    const id = new ConversationReader('', key).handleOf('架空の面談 第1回');
+    expect(id).toMatch(/^t_[0-9a-f]{24}$/);
+    expect(new ConversationReader('', key).handleOf('架空の面談 第1回')).toBe(
+      id,
+    );
   });
 
-  it.each([
-    [''],
-    ['.'],
-    ['..'],
-    ['a/b'],
-    ['a\\b'],
-    ['a\0b'],
-    ['x'.repeat(256)],
-  ])('パスとして危ない ID は使わない（%j）', (id) => {
-    expect(isSafeId(id)).toBe(false);
+  it('鍵が違えば別の ID になる（既定の鍵はプロセスごとに作る）', () => {
+    expect(new ConversationReader('').handleOf('a')).not.toBe(
+      new ConversationReader('').handleOf('a'),
+    );
   });
 });
 
