@@ -140,6 +140,56 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 - 初めて「GiNZA」を選んだときに「GiNZA を入れる」を押すと、Python 3.12 と GiNZA（約 500MB）をダウンロードして `~/Library/Application Support/io.github.saicologic.ai-speak-trace/ginza/` に入れる（1分ほどかかる）。DMG には含まれない
 - 解析はこの Mac の中で行い、会話を外部に送らない。macOS（Apple シリコン）で動作確認している
 
+### 8. MCP サーバー（Claude Desktop・Claude Code から会話を読む）
+
+文字起こしした会話を、[MCP](https://modelcontextprotocol.io/)（Model Context Protocol）で Claude Desktop や Claude Code から読み取り専用で検索・参照できます。
+
+- 読めるのは、アプリのディープサーチで**個人情報チェックを済ませた会話だけ**です。「伏せる」を選んだ文字列は `[氏名]` のように置き換えて返します。チェックしていない会話・チェックの後に変わった会話・「要確認」が残っている会話は返しません（一覧には理由を表示します）
+- 会話を書き換えるツールはありません。呼び出しの記録を `data/mcp-audit-logs/` に残します（発話の本文は残しません）
+- 会話の内容は、登録した MCP クライアント（Claude Desktop・Claude Code）を通じて Anthropic に送られます。詳しくは [PRIVACY.md](PRIVACY.md) の「MCP サーバー」を確認してください
+- DMG には含まれていません。ソースコードからビルドして使います（アプリを起動していなくても使えます）
+
+| ツール | 内容 |
+|---|---|
+| `list_transcriptions` | 会話の一覧（ID・ファイル名・作成日時・話者名・発話数・個人情報チェックの状態） |
+| `search_utterances` | 発話を語で検索する（空白区切りで AND） |
+| `get_utterances` | 1つの会話の発話を順に読む（1回に100件まで） |
+| `get_context` | 1つの発話の前後を読む（前後10件まで） |
+| `get_keywords` | GiNZA のキーワード抽出（ベータ機能）で抽出したキーワード |
+
+**ビルド**
+
+```bash
+cd backend
+npm install
+npm run mcp:build   # backend/dist/mcp/main.js ができる
+```
+
+**Claude Desktop に登録する**
+
+`~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` には `which node` で表示される node の絶対パスを、`args` にはクローンしたフォルダの絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
+
+```json
+{
+  "mcpServers": {
+    "ai-speak-trace": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/Users/you/ai-speak-trace/backend/dist/mcp/main.js"]
+    }
+  }
+}
+```
+
+**Claude Code に登録する**
+
+```bash
+claude mcp add --scope user ai-speak-trace -- node /Users/you/ai-speak-trace/backend/dist/mcp/main.js
+```
+
+データの場所は、既定でアプリと同じ `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` です。開発用のデータ（`backend/data/` など）を読む場合は、環境変数 `DATA_DIR` で指定します（Claude Desktop は `"env": { "DATA_DIR": "..." }`、Claude Code は `claude mcp add -e DATA_DIR=... ...`）。
+
+設計の理由は [MCP サーバーの設計](docs/developers/mcp-server.md) を確認してください。
+
 ---
 
 ## プライバシーとAIの利用
@@ -157,7 +207,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 ├── transcriptions/   # 文字起こし結果
 ├── chunks/           # チャンク分割された音声ファイル（処理中のみ）
 ├── chunked-jobs/     # チャンク分割ジョブの状態
-└── ginza-keywords/   # GiNZA で抽出したキーワード（会話ごと。文字起こしを削除すると一緒に削除）
+├── ginza-keywords/   # GiNZA で抽出したキーワード（会話ごと。文字起こしを削除すると一緒に削除）
+└── mcp-audit-logs/   # MCP サーバーの呼び出しの記録（発話の本文は含まない）
 ```
 
 GiNZA のキーワード抽出（ベータ機能）で入れた Python と GiNZA は、`data/` と同じ階層の `ginza/` に保存されます。ほかのフォルダの一覧は [PRIVACY.md](PRIVACY.md) の「端末に保存するデータ」を確認してください。

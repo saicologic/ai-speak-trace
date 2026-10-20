@@ -5,6 +5,11 @@ import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { TranscriptionStorage } from '../interfaces/transcription-storage.interface';
 import { Transcription } from '../../transcription/types/transcription.types';
+import {
+  TRANSCRIPTION_FILE,
+  listTranscriptionIds,
+  readTranscriptionFile,
+} from './transcription-files';
 
 /** ローカルファイルシステムによる文字起こしストレージ実装 */
 @Injectable()
@@ -30,26 +35,18 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
     return path.join(this.storeDir, id);
   }
 
-  /** IDからtranscription.jsonパスを取得 */
-  private getFilePath(id: string): string {
-    return path.join(this.getItemDir(id), 'transcription.json');
-  }
-
   async save(transcription: Transcription): Promise<void> {
     const itemDir = this.getItemDir(transcription.id);
     await fs.mkdir(itemDir, { recursive: true });
     await fs.writeFile(
-      path.join(itemDir, 'transcription.json'),
+      path.join(itemDir, TRANSCRIPTION_FILE),
       JSON.stringify(transcription, null, 2),
       'utf-8',
     );
   }
 
   async findById(id: string): Promise<Transcription | null> {
-    const filePath = this.getFilePath(id);
-    if (!existsSync(filePath)) return null;
-    const content = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(content) as Transcription;
+    return readTranscriptionFile(this.storeDir, id);
   }
 
   async findAll(): Promise<Transcription[]> {
@@ -60,22 +57,19 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
       return [];
     }
 
-    const entries = await fs.readdir(this.storeDir, { withFileTypes: true });
     const transcriptions: Transcription[] = [];
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const filePath = path.join(this.storeDir, entry.name, 'transcription.json');
-      if (!existsSync(filePath)) continue;
+    for (const id of await listTranscriptionIds(this.storeDir)) {
       try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        transcriptions.push(JSON.parse(content) as Transcription);
+        const transcription = await readTranscriptionFile(this.storeDir, id);
+        if (transcription) transcriptions.push(transcription);
       } catch (error) {
-        this.logger.warn(`JSONファイルの読み込みに失敗: ${entry.name}`, error);
+        this.logger.warn(`JSONファイルの読み込みに失敗: ${id}`, error);
       }
     }
 
-    this.logger.log(`findAll 完了: ${transcriptions.length}件の文字起こしを返却`);
+    this.logger.log(
+      `findAll 完了: ${transcriptions.length}件の文字起こしを返却`,
+    );
     return transcriptions;
   }
 
