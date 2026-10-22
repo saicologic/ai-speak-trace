@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
@@ -65,6 +65,8 @@ export interface MaskedConversation {
   transcription: Transcription;
   /** 伏せた文字列（キーワードを除くために使う。返さない） */
   maskedTexts: string[];
+  /** 個人情報チェックを通した、伏せる前の文字起こしのハッシュ（readUnmasked で同じものか確かめる。返さない） */
+  sourceHash: string;
 }
 
 /** 一覧の1件 */
@@ -137,7 +139,7 @@ export class ConversationReader {
 
   /**
    * 伏せ字にしていない文字起こし（GiNZA のキャッシュのハッシュを確かめるためだけに使う。返さない）
-   * 読めない場合は null
+   * 読めない場合と、get() で個人情報チェックを確かめた後に書き換わった場合は null
    */
   async readUnmasked(
     conversation: MaskedConversation,
@@ -147,7 +149,11 @@ export class ConversationReader {
         this.transcriptionsDir,
         conversation.sourceId,
       );
-      return t && isTranscription(t) ? t : null;
+      return t &&
+        isTranscription(t) &&
+        hashTranscription(t) === conversation.sourceHash
+        ? t
+        : null;
     } catch {
       return null;
     }
@@ -282,7 +288,15 @@ function mask(
       })),
     },
     maskedTexts: findings.filter((f) => f.mask && f.text).map((f) => f.text),
+    sourceHash: hashTranscription(transcription),
   };
+}
+
+/** 伏せる前の文字起こしのハッシュ（読み直した文字起こしが、個人情報チェックを通したものと同じか比べる） */
+function hashTranscription(transcription: Transcription): string {
+  return createHash('sha256')
+    .update(JSON.stringify(transcription))
+    .digest('hex');
 }
 
 /** 検出結果が、伏せ字の処理で使える形か */

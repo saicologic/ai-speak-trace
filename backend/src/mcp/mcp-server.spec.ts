@@ -652,6 +652,20 @@ describe('MCP サーバー', () => {
       });
       expect(unknown.isError).toBe(true);
     });
+
+    it('個人情報チェックを確かめた後に文字起こしが書き換わったら、伏せる前の本文を読まない', async () => {
+      const reader = new ConversationReader(data.dir, HANDLE_KEY);
+      const conversation = await reader.get(h('checked-talk'));
+      expect(await reader.readUnmasked(conversation)).not.toBeNull();
+
+      // チェックしていない名前を含む本文に書き換え、その本文に合う GiNZA のキャッシュも置く
+      const replaced = makeTranscription('checked-talk', [
+        ['speaker_0', '架空花子さんと型チェックの話をします'],
+      ]);
+      await data.writeTranscription(replaced);
+      await data.writeGinzaCache(replaced, [[['架空花子', '架空花子']]]);
+      expect(await reader.readUnmasked(conversation)).toBeNull();
+    });
   });
 
   describe('不正な id', () => {
