@@ -140,6 +140,79 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 - 初めて「GiNZA」を選んだときに「GiNZA を入れる」を押すと、Python 3.12 と GiNZA（約 500MB）をダウンロードして `~/Library/Application Support/io.github.saicologic.ai-speak-trace/ginza/` に入れる（1分ほどかかる）。DMG には含まれない
 - 解析はこの Mac の中で行い、会話を外部に送らない。macOS（Apple シリコン）で動作確認している
 
+### 8. MCP サーバー（Claude Desktop・Claude Code から会話を読む）
+
+文字起こしした会話を、[MCP](https://modelcontextprotocol.io/)（Model Context Protocol）で Claude Desktop や Claude Code から読み取り専用で検索・参照できます。
+
+- 読めるのは、アプリのディープサーチで**個人情報チェックを済ませた会話だけ**です。「伏せる」を選んだ文字列と、電話番号・メールアドレスなどの連絡先は `[氏名]`・`[電話番号]` のように置き換えて返します。音声ファイル名は返さず、会話の ID もファイル名を含まない値（`t_` で始まる。サーバーを起動するたびに変わる）にします。チェックしていない会話・チェックの後に変わった会話・「要確認」が残っている会話は返しません（一覧には理由を表示します）
+- 会話を書き換えるツールはありません。呼び出しの記録を `data/mcp-audit-logs/` に残します（発話の本文は残しません）
+- 会話の内容は、登録した MCP クライアント（Claude Desktop・Claude Code）を通じて Anthropic に送られます。詳しくは [PRIVACY.md](PRIVACY.md) の「MCP サーバー」を確認してください
+- DMG には含まれていません。ソースコードからビルドして使います（アプリを起動していなくても使えます）
+
+| ツール | 内容 |
+|---|---|
+| `list_transcriptions` | 会話の一覧（ID・作成日時・話者名・発話数・個人情報チェックの状態） |
+| `search_utterances` | 発話を語で検索する（空白区切りで AND） |
+| `get_utterances` | 1つの会話の発話を順に読む（1回に100件まで） |
+| `get_context` | 1つの発話の前後を読む（前後10件まで） |
+| `get_keywords` | GiNZA のキーワード抽出（ベータ機能）で抽出したキーワード |
+
+**ビルド**
+
+```bash
+cd backend
+npm install
+npm run mcp:build   # backend/dist/mcp/main.js ができる
+```
+
+**Claude Desktop に登録する**
+
+`~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` には `which node` で表示される node の絶対パスを、`args` にはクローンしたフォルダの絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
+
+```json
+{
+  "mcpServers": {
+    "ai-speak-trace": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/Users/you/ai-speak-trace/backend/dist/mcp/main.js"]
+    }
+  }
+}
+```
+
+**Claude Code に登録する**
+
+```bash
+claude mcp add --scope user ai-speak-trace -- node /Users/you/ai-speak-trace/backend/dist/mcp/main.js
+```
+
+Claude Code では、データのフォルダを `Read` で直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で直接読むのを禁止しておきます（MCP サーバーは別のプロセスなので、この設定の影響を受けません）。
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)"
+    ]
+  }
+}
+```
+
+`~/` はホームフォルダを表すので、ユーザー名に合わせて書き換える必要はありません。下の `DATA_DIR` でデータの場所を変えた場合は、拒否するパスもその場所に変えてください。`Bash`（`cat` など）で読むことまでは防げません。会話を読ませる作業では、`Bash` の実行を確かめてから許可してください。
+
+データの場所は、既定でアプリと同じ `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` です。開発用のデータ（`backend/data/` など）を読む場合は、環境変数 `DATA_DIR` で指定します（Claude Desktop は `"env": { "DATA_DIR": "..." }`、Claude Code は `claude mcp add -e DATA_DIR=... ...`）。
+
+**ブラウザで確かめる（MCP Inspector）**
+
+```bash
+cd backend
+npm run mcp:inspect
+```
+
+架空の会話3件（チェック済み・未チェック・要確認）で MCP サーバーを起動し、[MCP Inspector](https://github.com/modelcontextprotocol/inspector) の画面を Chrome で開きます。画面からツールを呼んで、結果を確かめられます。端末の実データは読みません。Ctrl+C で止めると、架空のデータも消します。
+
+設計の理由は [MCP サーバーの設計](docs/developers/mcp-server.md) を確認してください。
+
 ---
 
 ## プライバシーとAIの利用
@@ -157,7 +230,8 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 ├── transcriptions/   # 文字起こし結果
 ├── chunks/           # チャンク分割された音声ファイル（処理中のみ）
 ├── chunked-jobs/     # チャンク分割ジョブの状態
-└── ginza-keywords/   # GiNZA で抽出したキーワード（会話ごと。文字起こしを削除すると一緒に削除）
+├── ginza-keywords/   # GiNZA で抽出したキーワード（会話ごと。文字起こしを削除すると一緒に削除）
+└── mcp-audit-logs/   # MCP サーバーの呼び出しの記録（発話の本文は含まない）
 ```
 
 GiNZA のキーワード抽出（ベータ機能）で入れた Python と GiNZA は、`data/` と同じ階層の `ginza/` に保存されます。ほかのフォルダの一覧は [PRIVACY.md](PRIVACY.md) の「端末に保存するデータ」を確認してください。
@@ -186,12 +260,13 @@ CI とコードレビューでは確かめられない動作（画面の操作�
 
 **依頼のしかた**
 
-PR の「自動テスト項目」に書かれた依頼文を、Claude Code にそのまま渡します。確かめる場所は次の2つです。
+PR の「自動テスト項目」に書かれた依頼文を、Claude Code にそのまま渡します。確かめる場所は次の3つです。
 
 | 確かめる場所 | AI が使うもの | 向いている確認 |
 |---|---|---|
 | 開発用の画面（ブラウザ） | Playwright | 画面の表示・操作、バックエンドの API |
 | DMG で入れたアプリ | computer-use（デスクトップの画面操作） | サイドカー・DMG・アプリの再起動が関わる動作 |
+| MCP サーバー（`npm run mcp:inspect` で開く MCP Inspector の画面） | Claude in Chrome | ツールの呼び出しと結果（伏せ字・返さない会話の扱い） |
 
 **PR に書く例**
 
@@ -211,6 +286,7 @@ DMG を作って入れたアプリの画面で、次を確かめて。
 
 - 外部の API に送る操作（文字起こし・要約・会話分析など）と、元に戻せない操作（文字起こしの削除など）は、AI が実行する前に確認を求めます。確かめに使う会話も、そのときに指定してください
 - AI がアプリを操作している間は、アプリのウィンドウを手前に出したまま、パソコンを操作しないでください。ウィンドウが手前にないと、AI の操作が止まります
+- Claude in Chrome で確かめる依頼では、Claude Code を `claude --chrome` で起動するか `/chrome` でつないでおきます。Chrome の拡張機能につながらない場合、AI はほかの方法に切り替えずに確認を止めて報告します
 - AI は、確かめられた項目と確かめられなかった項目を分けて報告します。確かめられなかった項目は、自分で確かめるか、依頼し直してください
 
 ---

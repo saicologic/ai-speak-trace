@@ -28,22 +28,15 @@ export class GinzaKeywordStore {
     this.storeDir = path.resolve(path.join(dataDir, 'ginza-keywords'));
   }
 
-  /** キャッシュファイルのパス（パストラバーサル対策でファイル名部分のみ使う） */
   private getFilePath(transcriptionId: string): string {
-    return path.join(this.storeDir, `${path.basename(transcriptionId)}.json`);
+    return ginzaKeywordCachePath(this.storeDir, transcriptionId);
   }
 
   /** キャッシュを読み込む。存在しない・壊れている・形式が不正な場合は null */
   async find(transcriptionId: string): Promise<GinzaKeywordCache | null> {
     const filePath = this.getFilePath(transcriptionId);
-    if (!existsSync(filePath)) return null;
     try {
-      const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-      if (!isGinzaKeywordCache(parsed)) {
-        this.logger.warn(`GiNZA のキャッシュの形式が不正です: ${filePath}`);
-        return null;
-      }
-      return parsed;
+      return await readGinzaKeywordCache(this.storeDir, transcriptionId);
     } catch (error) {
       this.logger.warn(`GiNZA のキャッシュを読めません: ${filePath}`, error);
       return null;
@@ -63,6 +56,28 @@ export class GinzaKeywordStore {
   async delete(transcriptionId: string): Promise<void> {
     await fs.rm(this.getFilePath(transcriptionId), { force: true });
   }
+}
+
+/** キャッシュファイルのパス（パストラバーサル対策でファイル名部分のみ使う） */
+function ginzaKeywordCachePath(dir: string, transcriptionId: string): string {
+  return path.join(dir, `${path.basename(transcriptionId)}.json`);
+}
+
+/**
+ * キャッシュを読み込む（dir は ginza-keywords/ のフォルダ）。存在しなければ null
+ * 壊れている・形式が不正な場合は例外を投げる
+ */
+export async function readGinzaKeywordCache(
+  dir: string,
+  transcriptionId: string,
+): Promise<GinzaKeywordCache | null> {
+  const filePath = ginzaKeywordCachePath(dir, transcriptionId);
+  if (!existsSync(filePath)) return null;
+  const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+  if (!isGinzaKeywordCache(parsed)) {
+    throw new Error('GiNZA のキャッシュの形式が不正です');
+  }
+  return parsed;
 }
 
 /** 読み込んだ値がキャッシュの形か */
