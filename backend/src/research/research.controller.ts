@@ -97,6 +97,12 @@ export class ResearchController {
     return { job: await this.researchService.confirm(id, targets) };
   }
 
+  /** 失敗した調査を、終わっていない段階から再開する: POST /api/research/:id/resume */
+  @Post(':id/resume')
+  async resume(@Param('id') id: string) {
+    return { job: await this.researchService.resume(id) };
+  }
+
   /**
    * 調査のタイトルの変更: PATCH /api/research/:id
    * body: { title }

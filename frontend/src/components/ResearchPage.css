@@ -119,6 +119,60 @@
   color: #ffffff;
 }
 
+.research-step.failed {
+  color: #991b1b;
+  border-color: #f87171;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2);
+}
+
+.research-step.failed .research-step-number {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+/* 失敗した調査の原因・解決方法・再開ボタン */
+.research-failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.research-failure p {
+  margin: 0;
+}
+
+.research-failure-title {
+  font-weight: 600;
+}
+
+.research-failure-hint,
+.research-failure-finished {
+  color: #374151;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.research-failure .research-primary-button {
+  margin-top: 0.25rem;
+}
+
+.research-failure-resume-error {
+  font-size: 0.85rem;
+}
+
+.research-failure-detail {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.research-failure-detail code {
+  display: block;
+  margin-top: 0.25rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .research-section {
   margin-bottom: 2rem;
 }

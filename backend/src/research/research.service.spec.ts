@@ -7,6 +7,7 @@ import {
   evaluate,
   normalizeTitle,
   ResearchService,
+  resumeStage,
   sendableWords,
 } from './research.service';
 import { Transcription } from '../transcription/types/transcription.types';
@@ -346,6 +347,300 @@ describe('ResearchService', () => {
       }
     ).fail(baseJob, new Error('失敗'));
     expect(jobStore.save).not.toHaveBeenCalled();
+  });
+});
+
+/** Anthropic API のクレジット不足のエラー文 */
+const CREDIT_ERROR =
+  '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}';
+
+describe('resumeStage', () => {
+  const failed: ResearchJob = {
+    id: 'job-1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'failed',
+    error: CREDIT_ERROR,
+    transcriptionIds: ['t1'],
+    transcriptionNames: { t1: 'a.mp3' },
+    models: { analysis: 'model' },
+  };
+  const proposal = { keywords: [], domains: [] };
+  const confirmed = {
+    keywords: ['ハーネス', 'MCP'],
+    domains: [],
+    targets: [
+      { keyword: 'ハーネス', domains: [] },
+      { keyword: 'MCP', domains: [] },
+    ],
+  };
+  const source = {
+    url: 'https://example.com/a',
+    title: 'a',
+    domain: 'example.com',
+    official: false,
+    excerpts: ['抜粋'],
+  };
+
+  it('保存した結果から、終わっていない最初の段階を返す', () => {
+    expect(resumeStage(failed)).toEqual({ from: 'proposing' });
+    expect(resumeStage({ ...failed, proposal, confirmed })).toEqual({
+      from: 'researching',
+    });
+    expect(
+      resumeStage({ ...failed, proposal, confirmed, webSources: [source] }),
+    ).toEqual({ from: 'analyzing' });
+    expect(
+      resumeStage({
+        ...failed,
+        proposal,
+        confirmed,
+        webSources: [source],
+        report: [{ text: '本文', citations: [] }],
+      }),
+    ).toEqual({ from: 'evaluating' });
+  });
+
+  it('Web調査で待てば直る失敗があったキーワードだけを、調べ直すキーワードにする', () => {
+    expect(
+      resumeStage({
+        ...failed,
+        proposal,
+        confirmed,
+        webSources: [source],
+        webResearchFailures: [
+          { keyword: 'ハーネス', error: CREDIT_ERROR },
+          { keyword: 'MCP', error: '検索結果を読み取れませんでした' },
+        ],
+      }),
+    ).toEqual({ from: 'researching', retryKeywords: ['ハーネス'] });
+  });
+
+  it('失敗していない調査と、再開しても同じ理由で失敗する調査は再開しない', () => {
+    expect(resumeStage({ ...failed, status: 'completed' })).toBeNull();
+    expect(
+      resumeStage({
+        ...failed,
+        error:
+          '送る内容に指示の書き換え（プロンプト攻撃）の疑いがあるため、Claude に送りませんでした（PROMPT_ATTACK）',
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('ResearchService（失敗した調査の再開）', () => {
+  const transcription = {
+    id: 't1',
+    audioFileName: 'a.mp3',
+    utterances: [{ speakerName: 'Aさん', start: 0, text: 'ハーネスとMCPの話' }],
+  } as unknown as Transcription;
+  const source = (url: string) => ({
+    url,
+    title: url,
+    domain: 'example.com',
+    official: false,
+    excerpts: ['抜粋'],
+  });
+  const confirmedJob: ResearchJob = {
+    id: 'job-1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'failed',
+    error: CREDIT_ERROR,
+    transcriptionIds: ['t1'],
+    transcriptionNames: { t1: 'a.mp3' },
+    models: { analysis: 'model' },
+    proposal: { keywords: [], domains: [] },
+    confirmed: {
+      keywords: ['ハーネス', 'MCP'],
+      domains: [],
+      targets: [
+        { keyword: 'ハーネス', domains: [] },
+        { keyword: 'MCP', domains: [] },
+      ],
+    },
+  };
+
+  const setup = (stored: ResearchJob) => {
+    let current: ResearchJob | null = stored;
+    const jobStore = {
+      findById: jest.fn(() => Promise.resolve(current)),
+      save: jest.fn((job: ResearchJob) => {
+        current = job;
+        return Promise.resolve();
+      }),
+      findAllSummaries: jest.fn(() =>
+        Promise.resolve(
+          current ? [{ id: current.id, status: current.status }] : [],
+        ),
+      ),
+    };
+    const claude = {
+      researchWeb: jest.fn(),
+      analyze: jest.fn(() =>
+        Promise.resolve([{ text: '本文', citations: [] }]),
+      ),
+      judge: jest.fn(() =>
+        Promise.resolve({ claims: [], relevance: [], ethics: ethicsOk }),
+      ),
+    };
+    const service = new ResearchService(
+      {
+        findForSending: jest.fn(() => Promise.resolve(transcription)),
+      } as unknown as TranscriptionStoreService,
+      jobStore as unknown as ResearchJobStore,
+      claude as unknown as ResearchClaudeService,
+      {
+        isConfigured: () => true,
+        guardrailId: 'g1',
+        inspect: jest.fn(() =>
+          Promise.resolve({ pii: [], words: [], content: [] }),
+        ),
+        checkGrounding: jest.fn(() => Promise.resolve(null)),
+      } as unknown as GuardrailService,
+      {
+        waitForScans: jest.fn(() => Promise.resolve()),
+        getStatus: jest.fn(() =>
+          Promise.resolve({
+            configured: true,
+            scanning: false,
+            scan: { findings: [] },
+          }),
+        ),
+      } as unknown as PrivacyService,
+    );
+    /** バックグラウンドの処理が、指定した状態になるまで待つ */
+    const waitFor = async (status: ResearchJob['status']) => {
+      for (let i = 0; i < 50 && current?.status !== status; i++) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      return current!;
+    };
+    return { service, jobStore, claude, waitFor };
+  };
+
+  it('統合分析で失敗した調査は、保存した情報源を使って④から再開する（Web調査をやり直さない）', async () => {
+    const webSources = [source('https://example.com/a')];
+    const { service, claude, waitFor } = setup({
+      ...confirmedJob,
+      webSources,
+    });
+
+    const resumed = await service.resume('job-1');
+    expect(resumed.status).toBe('analyzing');
+    expect(resumed.error).toBeUndefined();
+
+    const done = await waitFor('completed');
+    expect(done.status).toBe('completed');
+    expect(claude.researchWeb).not.toHaveBeenCalled();
+    expect(claude.analyze).toHaveBeenCalledWith(expect.any(Array), webSources, [
+      'ハーネス',
+      'MCP',
+    ]);
+  });
+
+  it('Web調査で待てば直る失敗があれば④に進まずに止め、再開すると失敗したキーワードだけを調べ直す', async () => {
+    const { service, claude, waitFor } = setup({
+      ...confirmedJob,
+      status: 'awaiting_confirmation',
+      error: undefined,
+    });
+    claude.researchWeb.mockResolvedValueOnce({
+      sources: [source('https://example.com/a')],
+      failures: [{ keyword: 'MCP', error: CREDIT_ERROR }],
+    });
+    await service.confirm('job-1', confirmedJob.confirmed!.targets!);
+    const failed = await waitFor('failed');
+    expect(claude.analyze).not.toHaveBeenCalled();
+    expect(failed.failedStage).toBe('researching');
+    expect(failed.errorInfo?.kind).toBe('credit');
+    // 成功したキーワードの情報源は保存しておく
+    expect(failed.webSources).toHaveLength(1);
+    expect((await service.findById('job-1')).resume).toEqual({
+      from: 'researching',
+      retryKeywords: ['MCP'],
+    });
+
+    claude.researchWeb.mockResolvedValueOnce({
+      sources: [source('https://example.com/b')],
+      failures: [],
+    });
+    await service.resume('job-1');
+    const done = await waitFor('completed');
+    expect(claude.researchWeb).toHaveBeenLastCalledWith([
+      { keyword: 'MCP', domains: [] },
+    ]);
+    expect(done.webSources?.map((s) => s.url)).toEqual([
+      'https://example.com/a',
+      'https://example.com/b',
+    ]);
+    expect(done.webResearchFailures).toBeUndefined();
+  });
+
+  it('待っても直らない Web調査の失敗は、これまでどおりほかのキーワードの結果で続ける', async () => {
+    const { service, claude, waitFor } = setup({
+      ...confirmedJob,
+      status: 'awaiting_confirmation',
+      error: undefined,
+    });
+    claude.researchWeb.mockResolvedValueOnce({
+      sources: [source('https://example.com/a')],
+      failures: [{ keyword: 'MCP', error: '検索結果を読み取れませんでした' }],
+    });
+    await service.confirm('job-1', confirmedJob.confirmed!.targets!);
+    const done = await waitFor('completed');
+    expect(done.webResearchFailures).toEqual([
+      { keyword: 'MCP', error: '検索結果を読み取れませんでした' },
+    ]);
+  });
+
+  it('アプリの再起動で中断した調査は、中断した段階から再開できる', async () => {
+    const { service, jobStore } = setup({
+      ...confirmedJob,
+      status: 'analyzing',
+      error: undefined,
+      webSources: [source('https://example.com/a')],
+    });
+    await service.onModuleInit();
+    const job = await service.findById('job-1');
+    expect(job.status).toBe('failed');
+    expect(job.failedStage).toBe('analyzing');
+    expect(job.errorInfo?.kind).toBe('interrupted');
+    expect(job.resume).toEqual({ from: 'analyzing' });
+    // 再開する段階は保存しない
+    expect(jobStore.save.mock.calls.at(-1)![0].resume).toBeUndefined();
+  });
+
+  it('以前の失敗した調査にも、エラー文から失敗の説明を付ける', async () => {
+    const { service } = setup(confirmedJob);
+    const job = await service.findById('job-1');
+    expect(job.errorInfo?.kind).toBe('credit');
+    expect(job.resume).toEqual({ from: 'researching' });
+  });
+
+  it('失敗していない調査と、再開しても同じ理由で失敗する調査は、再開を拒否する', async () => {
+    await expect(
+      setup({ ...confirmedJob, status: 'completed' }).service.resume('job-1'),
+    ).rejects.toThrow('再開できる状態ではありません');
+    await expect(
+      setup({
+        ...confirmedJob,
+        error:
+          'Claude の応答に不適切な表現（侮辱）が検出されたため、応答を使いませんでした',
+      }).service.resume('job-1'),
+    ).rejects.toThrow('新しく調査を始めてください');
+  });
+
+  it('同じ調査の再開を同時に2回受けた場合、2回目を拒否する', async () => {
+    const { service } = setup({
+      ...confirmedJob,
+      webSources: [source('https://example.com/a')],
+    });
+    const results = await Promise.allSettled([
+      service.resume('job-1'),
+      service.resume('job-1'),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
   });
 });
 

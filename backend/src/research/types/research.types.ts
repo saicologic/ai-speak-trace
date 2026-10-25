@@ -16,6 +16,44 @@ export type ResearchStatus =
   | 'completed'
   | 'failed';
 
+/** 実行中の段階（失敗した段階と、再開する段階に使う） */
+export type ResearchStage =
+  | 'proposing'
+  | 'researching'
+  | 'analyzing'
+  | 'evaluating';
+
+/** 失敗の種類と、画面に出す説明 */
+export interface ResearchErrorInfo {
+  kind:
+    | 'credit' // Anthropic API のクレジット不足
+    | 'auth' // API キーが無効
+    | 'permission' // API キーの権限がない
+    | 'rate_limit' // 利用回数の上限
+    | 'overloaded' // 混雑
+    | 'server' // Anthropic API のエラー
+    | 'network' // 接続できない
+    | 'aws' // Guardrails（AWS）で確認できない
+    | 'settings' // 設定が足りない
+    | 'blocked' // Guardrails のチェックで止めた
+    | 'not_found' // 会話が見つからない
+    | 'no_sources' // Web調査で情報が見つからない
+    | 'interrupted' // アプリの再起動で中断した
+    | 'unknown';
+  title: string;
+  /** 解決方法 */
+  hint: string;
+  /** 原因を取り除けば、再開して続けられるか */
+  retryable: boolean;
+}
+
+/** 失敗した調査を再開するときの、再開する段階（保存した結果から決める。保存はしない） */
+export interface ResearchResume {
+  from: ResearchStage;
+  /** ③から再開する場合に、Web調査をやり直すキーワード（失敗したキーワードだけを調べ直す場合） */
+  retryKeywords?: string[];
+}
+
 /** 会話からの引用（提案の根拠） */
 export interface TranscriptQuote {
   transcriptionId: string;
@@ -216,6 +254,18 @@ export interface ResearchJob {
   /** 調査のタイトル（② の提案で作り、利用者が変更できる。以前の調査にはない） */
   title?: string;
   error?: string;
+  /** 失敗の種類と解決方法（以前の調査にはない） */
+  errorInfo?: ResearchErrorInfo;
+  /** 失敗した段階（以前の調査にはない） */
+  failedStage?: ResearchStage;
+  /** 失敗した調査の再開（取得したときに付ける） */
+  resume?: ResearchResume;
+  /** ② の提案に渡した頻出語（提案から再開するときに使う。以前の調査にはない） */
+  proposalInput?: {
+    words: { word: string; count: number }[];
+    /** 伏せた後の会話に出てこないため、渡さなかった頻出語の数 */
+    droppedFrequentWords: number;
+  };
   /** ① 選んだ会話 */
   transcriptionIds: string[];
   transcriptionNames: Record<string, string>;
@@ -235,7 +285,11 @@ export interface ResearchJob {
   };
   /** ③ Web調査の情報源 */
   webSources?: WebSource[];
-  /** ③ Web調査に失敗したキーワード（ほかのキーワードの結果で調査を続けた） */
+  /**
+   * ③ Web調査に失敗したキーワード
+   * 待てば直る失敗（クレジット不足・混雑など）の場合は、調査を止め、再開したときに調べ直す。
+   * それ以外の失敗の場合は、ほかのキーワードの結果で調査を続けた
+   */
   webResearchFailures?: WebResearchFailure[];
   /** ④ 統合分析（⑤で根拠のない主張を除いたもの） */
   report?: ReportSegment[];
