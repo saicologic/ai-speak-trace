@@ -63,17 +63,23 @@ if [ -n "$check_cli" ]; then
 fi
 if [ -n "$check_github" ] && repo=$(cd "$top" && gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null); then
   # 枠切れの文面は Walkthrough のコメントに書かれ、レビューが終わると書き換わる。
-  # 枠は数十分で戻るため、直近3時間に更新されたコメントを全ページ読む
+  # 枠は数十分〜1時間で戻るため、直近3時間に更新されたコメントを全ページ読む
+  # 文面は2種類ある:
+  #   - 枠切れで止まったとき: 「Next included review available in N minutes」→ コメントの時刻 + N 分
+  #   - 最後の1回を使ったとき: 「up to 1 included review per hour; 0 remain」→ コメントの時刻 + 1時間（day なら1日）
   since=$(date -u -r $((now - 10800)) '+%Y-%m-%dT%H:%M:%SZ')
   gh_until=$(gh api --paginate "repos/$repo/issues/comments?since=$since&per_page=100" 2>/dev/null | jq -rs '
     [ add[]?
       | select(.user.login == "coderabbitai[bot]")
-      | select(.body | test("available in [0-9]"))
-      | (.body | capture("available in (?<d>[^.*\\n]+)") | .d) as $d
-      | ((($d | capture("(?<n>[0-9]+) hour") | .n | tonumber) // 0) * 3600
-         + (($d | capture("(?<n>[0-9]+) minute") | .n | tonumber) // 0) * 60
-         + (($d | capture("(?<n>[0-9]+) second") | .n | tonumber) // 0)) as $secs
-      | (.updated_at | fromdateiso8601) + $secs
+      | (.updated_at | fromdateiso8601) as $at
+      | if (.body | test("available in [0-9]")) then
+          (.body | capture("available in (?<d>[^.*\\n]+)") | .d) as $d
+          | $at + ((($d | capture("(?<n>[0-9]+) hour") | .n | tonumber) // 0) * 3600
+                   + (($d | capture("(?<n>[0-9]+) minute") | .n | tonumber) // 0) * 60
+                   + (($d | capture("(?<n>[0-9]+) second") | .n | tonumber) // 0))
+        elif (.body | test("included reviews? per (hour|day); 0 remain")) then
+          $at + (if (.body | test("per day; 0 remain")) then 86400 else 3600 end)
+        else empty end
     ] | max // 0 | floor' 2>/dev/null) || gh_until=0
   case "$gh_until" in ''|*[!0-9]*) gh_until=0 ;; esac
   if [ "$gh_until" -gt "$until" ]; then
