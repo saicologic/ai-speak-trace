@@ -830,6 +830,17 @@ export async function confirmResearch(
   return (await res.json()).job;
 }
 
+/** 失敗した調査を、終わっていない段階から再開する */
+export async function resumeResearch(id: string): Promise<ResearchJob> {
+  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/resume`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '調査を再開できませんでした'));
+  }
+  return (await res.json()).job;
+}
+
 // === 個人情報チェック ===
 
 /** 文字起こしの個人情報チェックの状態と結果を取得する */

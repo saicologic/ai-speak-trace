@@ -11,6 +11,40 @@ export type ResearchStatus =
   | 'completed'
   | 'failed';
 
+/** 実行中の段階（失敗した段階と、再開する段階） */
+export type ResearchStage = 'proposing' | 'researching' | 'analyzing' | 'evaluating';
+
+/** 失敗の種類と、画面に出す説明 */
+export interface ResearchErrorInfo {
+  kind:
+    | 'credit'
+    | 'auth'
+    | 'permission'
+    | 'rate_limit'
+    | 'overloaded'
+    | 'server'
+    | 'network'
+    | 'aws'
+    | 'settings'
+    | 'blocked'
+    | 'not_found'
+    | 'no_sources'
+    | 'interrupted'
+    | 'unknown';
+  title: string;
+  /** 解決方法 */
+  hint: string;
+  /** 原因を取り除けば、再開して続けられるか */
+  retryable: boolean;
+}
+
+/** 失敗した調査を再開するときの、再開する段階 */
+export interface ResearchResume {
+  from: ResearchStage;
+  /** ③から再開する場合に、Web調査をやり直すキーワード（失敗したキーワードだけを調べ直す場合） */
+  retryKeywords?: string[];
+}
+
 /** 会話からの引用（提案の根拠） */
 export interface TranscriptQuote {
   transcriptionId: string;
@@ -192,6 +226,12 @@ export interface ResearchJob {
   /** 調査のタイトル（② の提案で作り、利用者が変更できる。以前の調査にはない） */
   title?: string;
   error?: string;
+  /** 失敗の種類と解決方法 */
+  errorInfo?: ResearchErrorInfo;
+  /** 失敗した段階（以前の調査にはない） */
+  failedStage?: ResearchStage;
+  /** 再開する段階（再開できない失敗の場合はない） */
+  resume?: ResearchResume;
   /** ① 選んだ会話 */
   transcriptionIds: string[];
   transcriptionNames: Record<string, string>;
