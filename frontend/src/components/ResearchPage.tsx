@@ -614,6 +614,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                   onOpenTranscription={onOpenTranscription}
                   onContinue={(unfinished) => {
                     setJob(unfinished);
+                    // 再開した調査は、「調査結果」タブにも反映する（戻ったときに失敗の表示を残さない）
+                    setResultJob((prev) => (prev?.id === unfinished.id ? unfinished : prev));
                     setActiveTab('new');
                   }}
                   onTitleChange={(updated) => {
