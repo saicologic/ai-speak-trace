@@ -62,6 +62,21 @@ describe('describeResearchError', () => {
     expect(info.hint).toContain('Plans & Billing');
   });
 
+  it('Web調査の失敗をまとめたエラー文でも、接続の失敗を network と判定する', () => {
+    expect(
+      describeResearchError(
+        new Error(
+          '1個のキーワード（MCP）の Web調査に失敗しました: Connection error.',
+        ),
+      ).kind,
+    ).toBe('network');
+    expect(
+      stopsWebResearch(
+        'すべてのキーワードで Web調査に失敗しました: Request timed out.',
+      ),
+    ).toBe(true);
+  });
+
   it('Guardrails が止めた失敗は、再開できないものとして扱う', () => {
     const info = describeResearchError(
       new Error(

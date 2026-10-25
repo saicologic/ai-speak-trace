@@ -114,7 +114,7 @@ function classify(error: unknown): ResearchErrorInfo['kind'] {
   if (
     name === 'APIConnectionError' ||
     name === 'APIConnectionTimeoutError' ||
-    /^(Connection error\.|Request timed out\.)/.test(message) ||
+    /\b(Connection error|Request timed out)\./.test(message) ||
     /\b(ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN)\b/.test(message)
   ) {
     return 'network';
