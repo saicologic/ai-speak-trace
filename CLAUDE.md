@@ -148,6 +148,13 @@ Playwright MCP と Claude in Chrome を使い分ける。
 - Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
 - Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
 
+## CodeRabbit の枠切れ（Claude Code）
+
+- CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため
+- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push` と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
+- 戻る時刻は、直近の CodeRabbit のコメント（「Next included review available in N minutes」）と、`cr-review.sh` が記録した時刻から求める。調べられないときは止めない
+- 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける
+
 ## PRの手動確認項目
 
 CIの結果（`build`・`backend-test`・`frontend-test`）はPRのチェック欄と必須チェックで確認するため、PR本文には書かない。コードレビューはCodeRabbitが行う。
