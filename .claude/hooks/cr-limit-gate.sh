@@ -23,7 +23,8 @@ check_github=""
 while IFS= read -r seg; do
   # SKIP_CR_LIMIT=1 は、その部分の先頭に環境変数として付けたときだけ認める
   printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
-  if printf '%s' "$seg" | grep -Eq '(^|[[:space:]])(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
+  # cr-review.sh は、その部分の先頭で実行するときだけ見る（grep などの引数にパスがあるだけなら対象外）
+  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
     # --accept・--base はレビューを動かさない
     printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
   elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
