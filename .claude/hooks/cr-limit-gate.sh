@@ -15,27 +15,30 @@ command -v jq >/dev/null 2>&1 || exit 0
 input=$(cat)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
 [ -n "$cmd" ] || exit 0
-printf '%s' "$cmd" | grep -q 'SKIP_CR_LIMIT=1' && exit 0
-
 state_dir="$HOME/.claude/state"
 
-kind=""
-if printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
-  # --accept・--base はレビューを動かさない
-  printf '%s' "$cmd" | grep -Eq 'cr-review\.sh[^;&|]*(--accept|[[:space:]]--base([[:space:]]|$))' || kind="cli"
-elif printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)' &&
-  printf '%s' "$cmd" | grep -q '@coderabbitai'; then
-  kind="github"
-elif printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
-  kind="github"
-elif printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+ready([[:space:]]|$)' &&
-  ! printf '%s' "$cmd" | grep -q -- '--undo'; then
-  kind="github"
-elif printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' &&
-  ! printf '%s' "$cmd" | grep -Eq 'push[^;&|]*(--delete|--tags|[[:space:]]:[^[:space:]])'; then
-  kind="github"
-fi
-[ -n "$kind" ] || exit 0
+# コマンドを &&・||・;・|・改行で区切り、部分ごとに判定する（ある部分の除外が、ほかの部分に効かないように）
+check_cli=""
+check_github=""
+while IFS= read -r seg; do
+  # SKIP_CR_LIMIT=1 は、その部分の先頭に環境変数として付けたときだけ認める
+  printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
+  if printf '%s' "$seg" | grep -Eq '(^|[[:space:]])(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
+    # --accept・--base はレビューを動かさない
+    printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
+  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
+    # 本文の中の ; などで区切られても見落とさないよう、@coderabbitai はコマンド全体から探す
+    printf '%s' "$cmd" | grep -q '@coderabbitai' && check_github=1
+  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
+    check_github=1
+  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+ready([[:space:]]|$)'; then
+    printf '%s' "$seg" | grep -q -- '--undo' || check_github=1
+  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
+    # ブランチの削除・タグだけの push はレビューを動かさない
+    printf '%s' "$seg" | grep -Eq '[[:space:]](--delete|--tags)([[:space:]]|$)|[[:space:]]:[^[:space:]]' || check_github=1
+  fi
+done < <(printf '%s\n' "$cmd" | awk '{ gsub(/&&|\|\||;|\|/, "\n"); print }')
+[ -n "$check_cli$check_github" ] || exit 0
 
 # 対象のリポジトリ: git -C <dir> → 先頭の cd <dir> → フックの cwd
 dir=$(printf '%s' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+)[[:space:]]+push.*/\1/p')
@@ -49,14 +52,20 @@ top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 now=$(date +%s)
 until=0
 label=""
-if [ "$kind" = "cli" ]; then
-  until=$(cat "$state_dir/coderabbit-cli-limit-until" 2>/dev/null || echo 0)
-  label="手元の CodeRabbit CLI のレビュー枠"
-else
-  repo=$(cd "$top" && gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || exit 0
-  # 枠切れの文面は Walkthrough のコメントに書かれ、レビューが終わると書き換わるため、更新日時の新しい順に見る
-  until=$(gh api "repos/$repo/issues/comments?sort=updated&direction=desc&per_page=30" 2>/dev/null | jq -r '
-    [ .[]
+if [ -n "$check_cli" ]; then
+  cli_until=$(cat "$state_dir/coderabbit-cli-limit-until" 2>/dev/null || echo 0)
+  case "$cli_until" in ''|*[!0-9]*) cli_until=0 ;; esac
+  if [ "$cli_until" -gt "$until" ]; then
+    until=$cli_until
+    label="手元の CodeRabbit CLI のレビュー枠"
+  fi
+fi
+if [ -n "$check_github" ] && repo=$(cd "$top" && gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null); then
+  # 枠切れの文面は Walkthrough のコメントに書かれ、レビューが終わると書き換わる。
+  # 枠は数十分で戻るため、直近3時間に更新されたコメントを全ページ読む
+  since=$(date -u -r $((now - 10800)) '+%Y-%m-%dT%H:%M:%SZ')
+  gh_until=$(gh api --paginate "repos/$repo/issues/comments?since=$since&per_page=100" 2>/dev/null | jq -rs '
+    [ add[]?
       | select(.user.login == "coderabbitai[bot]")
       | select(.body | test("available in [0-9]"))
       | (.body | capture("available in (?<d>[^.*\\n]+)") | .d) as $d
@@ -64,10 +73,13 @@ else
          + (($d | capture("(?<n>[0-9]+) minute") | .n | tonumber) // 0) * 60
          + (($d | capture("(?<n>[0-9]+) second") | .n | tonumber) // 0)) as $secs
       | (.updated_at | fromdateiso8601) + $secs
-    ] | max // 0' 2>/dev/null) || exit 0
-  label="GitHub の CodeRabbit のレビュー枠（${repo}）"
+    ] | max // 0 | floor' 2>/dev/null) || gh_until=0
+  case "$gh_until" in ''|*[!0-9]*) gh_until=0 ;; esac
+  if [ "$gh_until" -gt "$until" ]; then
+    until=$gh_until
+    label="GitHub の CodeRabbit のレビュー枠（${repo}）"
+  fi
 fi
-case "$until" in ''|*[!0-9]*) exit 0 ;; esac
 [ "$until" -gt "$now" ] || exit 0
 
 mins=$(( (until - now + 59) / 60 ))
