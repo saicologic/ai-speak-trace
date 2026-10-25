@@ -117,7 +117,7 @@ ai-speak-trace/
 
 1. `fix/*` または `feature/*` ブランチで修正・実装する
 2. `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新
-3. `fix/*` → `release/vX.Y.Z` へPR作成・マージ
+3. `fix/*` または `feature/*` → `release/vX.Y.Z` へPR作成・マージ（新機能の `feature/*` は新機能の `release/*` へ）
 4. `release/vX.Y.Z` → `main` へPR作成・マージ（PRタイトルは `release: vX.Y.Z`、本文に `## Summary` または `## 変更内容` を書く。リリースノートに使われる）
 5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
    - `tag-release.yml` がマージコミットに `vX.Y.Z` タグを作成し、`release.yml` を起動する
