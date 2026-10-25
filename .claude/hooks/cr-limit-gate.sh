@@ -14,10 +14,13 @@
 command -v jq >/dev/null 2>&1 || exit 0
 input=$(cat)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
+cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
 [ -n "$cmd" ] || exit 0
 state_dir="$HOME/.claude/state"
 
 # コマンドを &&・||・;・|・改行で区切り、部分ごとに判定する（ある部分の除外が、ほかの部分に効かないように）
+# gh・git は、その部分の先頭（環境変数の代入の後）で実行するときだけ見る（コミットメッセージなどの文中は対象外）
+lead='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
 check_cli=""
 check_github=""
 while IFS= read -r seg; do
@@ -27,16 +30,42 @@ while IFS= read -r seg; do
   if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
     # --accept・--base はレビューを動かさない
     printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
-  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
+  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
     # 本文の中の ; などで区切られても見落とさないよう、@coderabbitai はコマンド全体から探す
     printf '%s' "$cmd" | grep -q '@coderabbitai' && check_github=1
-  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
+    # 本文をファイルから読む場合（-F・--body-file）は、そのファイルからも探す
+    body_file=$(printf '%s' "$seg" | sed -nE "s/.*(-F|--body-file)(=|[[:space:]]+)(\"[^\"]*\"|'[^']*'|[^[:space:]]+).*/\3/p")
+    body_file="${body_file%[\"\']}"; body_file="${body_file#[\"\']}"
+    body_file="${body_file/#\~/$HOME}"
+    [ -n "$body_file" ] && [ "${body_file#/}" = "$body_file" ] && body_file="$cwd/$body_file"
+    [ -f "$body_file" ] && grep -q '@coderabbitai' "$body_file" 2>/dev/null && check_github=1
+  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
     check_github=1
-  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+ready([[:space:]]|$)'; then
+  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+ready([[:space:]]|$)'; then
     printf '%s' "$seg" | grep -q -- '--undo' || check_github=1
-  elif printf '%s' "$seg" | grep -Eq '(^|[[:space:]])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
-    # ブランチの削除・タグだけの push はレビューを動かさない
-    printf '%s' "$seg" | grep -Eq '[[:space:]](--delete|--tags)([[:space:]]|$)|[[:space:]]:[^[:space:]]' || check_github=1
+  elif printf '%s' "$seg" | grep -Eq "$lead"'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
+    # ブランチの削除・タグだけの push はレビューを動かさない（ふつうのブランチも送る push は対象）
+    push_args=$(printf '%s' "$seg" | sed -E 's/.*(^|[[:space:]])push([[:space:]]|$)//')
+    read -ra push_toks <<<"$push_args"
+    has_delete=""; has_tags=""; remote=""; refspecs=()
+    for tok in "${push_toks[@]}"; do
+      case "$tok" in
+        --delete|-d) has_delete=1 ;;
+        --tags) has_tags=1 ;;
+        -*) ;;
+        *) if [ -z "$remote" ]; then remote=$tok; else refspecs+=("$tok"); fi ;;
+      esac
+    done
+    if [ -n "$has_delete" ]; then
+      :
+    elif [ "${#refspecs[@]}" -gt 0 ]; then
+      # 削除（:branch）以外の refspec が1つでもあれば対象
+      for r in "${refspecs[@]}"; do
+        case "$r" in :*) ;; *) check_github=1 ;; esac
+      done
+    elif [ -z "$has_tags" ]; then
+      check_github=1
+    fi
   fi
 done < <(printf '%s\n' "$cmd" | awk '{ gsub(/&&|\|\||;|\|/, "\n"); print }')
 [ -n "$check_cli$check_github" ] || exit 0
@@ -44,7 +73,7 @@ done < <(printf '%s\n' "$cmd" | awk '{ gsub(/&&|\|\||;|\|/, "\n"); print }')
 # 対象のリポジトリ: git -C <dir> → 先頭の cd <dir> → フックの cwd
 dir=$(printf '%s' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+)[[:space:]]+push.*/\1/p')
 [ -n "$dir" ] || dir=$(printf '%s' "$cmd" | sed -nE 's/^[[:space:]]*cd[[:space:]]+([^;&|[:space:]]+).*/\1/p')
-[ -n "$dir" ] || dir=$(printf '%s' "$input" | jq -r '.cwd // empty')
+[ -n "$dir" ] || dir=$cwd
 dir="${dir/#\~/$HOME}"
 dir="${dir%\"}"; dir="${dir#\"}"
 top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
@@ -63,11 +92,11 @@ if [ -n "$check_cli" ]; then
 fi
 if [ -n "$check_github" ] && repo=$(cd "$top" && gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null); then
   # 枠切れの文面は Walkthrough のコメントに書かれ、レビューが終わると書き換わる。
-  # 枠は数十分〜1時間で戻るため、直近3時間に更新されたコメントを全ページ読む
+  # 1日あたりの枠（per day）の文面も見落とさないよう、直近25時間に更新されたコメントを全ページ読む
   # 文面は2種類ある:
   #   - 枠切れで止まったとき: 「Next included review available in N minutes」→ コメントの時刻 + N 分
   #   - 最後の1回を使ったとき: 「up to 1 included review per hour; 0 remain」→ コメントの時刻 + 1時間（day なら1日）
-  since=$(date -u -r $((now - 10800)) '+%Y-%m-%dT%H:%M:%SZ')
+  since=$(date -u -r $((now - 90000)) '+%Y-%m-%dT%H:%M:%SZ')
   gh_until=$(gh api --paginate "repos/$repo/issues/comments?since=$since&per_page=100" 2>/dev/null | jq -rs '
     [ add[]?
       | select(.user.login == "coderabbitai[bot]")
