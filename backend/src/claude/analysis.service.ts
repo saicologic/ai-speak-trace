@@ -7,6 +7,7 @@ import {
 import { ContentWarning } from './claude-guard.utils';
 import { AnalysisResult } from '../interview/types/interview.types';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
+import { UntrustedSource, withUntrustedSource } from './untrusted-source';
 
 /** 会話分析・発言の文脈・ディープサーチに使うClaudeモデル */
 export const CLAUDE_MODEL = 'claude-sonnet-5-5';
@@ -42,17 +43,9 @@ export class AnalysisService {
 
   constructor(private readonly claudeClient: ClaudeClientService) {}
 
-  /** 質問生成プロンプトを構築 */
-  buildGenerateQuestionsPrompt(
-    keywords: string[],
-    speakerName: string,
-  ): string {
-    const keywordContext = keywords.map((kw) => `- 「${kw}」`).join('\n');
-
-    return `「${speakerName}」が話題にした以下のキーワードについて、調査質問を生成してください。
-
-## 対象キーワード
-${keywordContext}
+  /** 質問生成プロンプトを構築（話者名とキーワードは tool_result で渡す） */
+  buildGenerateQuestionsPrompt(): string {
+    return `読み込んだ分析の対象の data.speakerName が話題にした、data.keywords の各キーワードについて、調査質問を生成してください。
 
 ## 指示
 - 各キーワードについて1〜2件の質問を生成してください
@@ -61,6 +54,17 @@ ${keywordContext}
 - 質問の先頭に【キーワード名】を付けてください（例: 【富岳LLM】富岳LLMの性能ベンチマーク結果について教えてください）
 - 1行に1つの質問を書いてください
 - 質問文のみを出力してください（説明や前置きは不要）`;
+  }
+
+  /** 質問生成で送る内容を、確認用に1つの文にする（指示と、tool_result で渡す話者名・キーワード） */
+  describeGenerateQuestionsPrompt(
+    keywords: string[],
+    speakerName: string,
+  ): string {
+    return `${this.buildGenerateQuestionsPrompt()}
+
+## 分析の対象（指示とは分けて tool_result で渡す）
+${JSON.stringify({ speakerName, keywords }, null, 2)}`;
   }
 
   /** 分析プロンプトを構築（1つの質問分） */
@@ -79,21 +83,11 @@ ${question}
 - 調査結果を簡潔にまとめてください（300〜500文字程度）`;
   }
 
-  /** 発言の文脈分析プロンプトを構築 */
-  buildContextAnalysisPrompt(
-    allUtterances: { speakerName: string; text: string }[],
-    targetIndices: number[],
-  ): string {
-    const conversationLines = allUtterances
-      .map((u, i) => `[${i}] ${u.speakerName}: ${u.text}`)
-      .join('\n');
-
+  /** 発言の文脈分析プロンプトを構築（会話の全文は tool_result で渡す） */
+  buildContextAnalysisPrompt(targetIndices: number[]): string {
     const targetList = targetIndices.join(', ');
 
-    return `以下の会話の文字起こしから、指定された発話の文脈を分析してください。
-
-## 会話全文
-${conversationLines}
+    return `読み込んだ分析の対象の data.utterances（会話の文字起こし。index は発話番号）から、指定された発話の文脈を分析してください。
 
 ## 分析対象の発話番号
 ${targetList}
@@ -117,12 +111,14 @@ ${targetList}
   ): Promise<string[]> {
     this.logger.log(`質問生成開始: キーワード数=${keywords.length}`);
 
-    const prompt = this.buildGenerateQuestionsPrompt(keywords, speakerName);
-
-    const { text } = await this.createText(prompt, {
-      purpose: 'analysis-questions',
-      untrusted: [speakerName, ...keywords],
-    });
+    const { text } = await this.createText(
+      this.buildGenerateQuestionsPrompt(),
+      {
+        description: '会話の話者名と、その話者の発言から抽出したキーワード',
+        data: { speakerName, keywords },
+      },
+      { purpose: 'analysis-questions', untrusted: [] },
+    );
     const questions = text
       .split('\n')
       .map((line) => line.trim())
@@ -194,17 +190,20 @@ ${targetList}
   }> {
     this.logger.log(`文脈分析開始: 対象=${targetIndices.length}件`);
 
-    const prompt = this.buildContextAnalysisPrompt(
-      allUtterances,
-      targetIndices,
+    const { text, warnings } = await this.createText(
+      this.buildContextAnalysisPrompt(targetIndices),
+      {
+        description: '会議・インタビュー・Podcast の文字起こし',
+        data: {
+          utterances: allUtterances.map((u, index) => ({
+            index,
+            speakerName: u.speakerName,
+            text: u.text,
+          })),
+        },
+      },
+      { purpose: 'context', untrusted: [] },
     );
-
-    const { text, warnings } = await this.createText(prompt, {
-      purpose: 'context',
-      untrusted: allUtterances.map(
-        (u, i) => `[${i}] ${u.speakerName}: ${u.text}`,
-      ),
-    });
 
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -222,9 +221,13 @@ ${targetList}
     return { results: parsed, warnings };
   }
 
-  /** Web検索なしでClaudeを呼び出し、テキストと警告を返す */
+  /**
+   * Web検索なしでClaudeを呼び出し、テキストと警告を返す
+   * 外から来た内容（source）は、指示と分けて tool_result で渡す（untrusted-source.ts）
+   */
   private async createText(
-    prompt: string,
+    instructions: string,
+    source: UntrustedSource,
     options: CreateMessageOptions,
   ): Promise<{ text: string; warnings: ContentWarning[] }> {
     const { message, warnings } =
@@ -233,7 +236,7 @@ ${targetList}
           model: CLAUDE_MODEL,
           max_tokens: MAX_TOKENS,
           output_config: { effort: CLAUDE_EFFORT },
-          messages: [{ role: 'user', content: prompt }],
+          ...withUntrustedSource(source, instructions),
         },
         options,
       );

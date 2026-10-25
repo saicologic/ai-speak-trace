@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ClaudeClientService } from './claude-client.service';
 import { ContentWarning } from './claude-guard.utils';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
+import { withUntrustedSource } from './untrusted-source';
+
+/** プロンプトの {{fullText}} の代わりに書く、会話の全文の在りか（会話の全文は tool_result で渡す） */
+export const FULL_TEXT_REFERENCE =
+  '（会話の全文は、読み込んだ分析の対象の data.conversation にあります）';
 
 /** Claude が返す要約の形 */
 export interface SummaryOutput {
@@ -15,7 +20,10 @@ export interface SummaryOutput {
 export class SummaryService {
   private readonly logger = new Logger(SummaryService.name);
 
-  /** 要約プロンプトのデフォルトテンプレート（{{fullText}} を会話全文で置換して使う） */
+  /**
+   * 要約プロンプトのデフォルトテンプレート
+   * 会話の全文は tool_result で渡し、{{fullText}} はその在りかを示す文に置き換える
+   */
   static readonly DEFAULT_SUMMARY_PROMPT = `あなたは会議・インタビューの文字起こしを要約するアシスタントです。
 
 <conversation>
@@ -56,7 +64,11 @@ export class SummaryService {
   ): Promise<{ summary: SummaryOutput; warnings: ContentWarning[] }> {
     this.logger.log(`要約開始: model=${model}`);
 
-    const prompt = promptTemplate.replace('{{fullText}}', () => fullText);
+    // 会話の全文は外から来た内容のため、指示とは分けて tool_result で渡す（untrusted-source.ts）
+    const instructions = promptTemplate.replace(
+      '{{fullText}}',
+      () => FULL_TEXT_REFERENCE,
+    );
 
     const { message: response, warnings } =
       await this.claudeClient.createMessageWithReport(
@@ -65,10 +77,16 @@ export class SummaryService {
           // 思考のトークンも上限に含まれるため余裕を持たせる
           max_tokens: 16000,
           output_config: { effort: 'medium' },
-          messages: [{ role: 'user', content: prompt }],
+          ...withUntrustedSource(
+            {
+              description: '会議・インタビュー・Podcast の文字起こし',
+              data: { conversation: fullText },
+            },
+            instructions,
+          ),
         },
-        // プロンプト攻撃は、埋め込んだ会話の全文だけで確認する
-        { purpose: 'summary', untrusted: [fullText] },
+        // プロンプト攻撃は、tool_result で渡した会話の全文だけで確認する
+        { purpose: 'summary', untrusted: [] },
       );
     assertCompleteResponse(response);
 
