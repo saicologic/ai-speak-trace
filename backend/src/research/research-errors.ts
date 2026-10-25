@@ -124,7 +124,7 @@ function classify(error: unknown): ResearchErrorInfo['kind'] {
     return 'blocked';
   }
   if (
-    /AWS|Guardrails で確認できませんでした|Guardrails がチェックしなかった/.test(
+    /AWS の認証情報|AWS のプロファイル|Guardrails で確認できませんでした|Guardrails がチェックしなかった/.test(
       message,
     )
   ) {

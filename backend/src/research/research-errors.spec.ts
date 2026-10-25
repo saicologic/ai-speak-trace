@@ -79,6 +79,10 @@ describe('stopsWebResearch', () => {
     );
     expect(stopsWebResearch('Connection error.')).toBe(true);
     expect(stopsWebResearch('検索結果を読み取れませんでした')).toBe(false);
+    // キーワードの「AWS」がエラー文に含まれるだけでは止めない
+    expect(stopsWebResearch('「AWS」の検索結果を読み取れませんでした')).toBe(
+      false,
+    );
     expect(
       stopsWebResearch(
         '送る内容の、伏せられない部分（思考・検索語・検索結果の題名）に個人情報（氏名）が含まれるため、Claude に送りませんでした',
