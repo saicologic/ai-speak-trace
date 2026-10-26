@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SummaryService } from './summary.service';
+import type Anthropic from '@anthropic-ai/sdk';
+import { FULL_TEXT_REFERENCE, SummaryService } from './summary.service';
 import { ClaudeClientService } from './claude-client.service';
 
 /** Claude に送った内容と、応答のモック（ClaudeClientService.createMessageWithReport の中身） */
@@ -112,41 +113,56 @@ describe('SummaryService', () => {
       );
     });
 
-    it('{{fullText}} が会話全文に置換されてClaudeに渡される', async () => {
+    /** Claude に渡したリクエスト */
+    const sentParams = () =>
+      mockCreateMessageWithReport.mock.calls[
+        mockCreateMessageWithReport.mock.calls.length - 1
+      ][0] as Anthropic.MessageCreateParamsNonStreaming;
+    /** tool_result で渡した会話の全文 */
+    const sentConversation = (): unknown => {
+      const block = sentParams()
+        .messages.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+        .find(
+          (b) => b.type === 'tool_result',
+        ) as Anthropic.ToolResultBlockParam;
+      const parsed = JSON.parse(block.content as string) as {
+        data: { conversation: unknown };
+      };
+      return parsed.data.conversation;
+    };
+    /** 最後の user の指示 */
+    const sentInstructions = () => {
+      const messages = sentParams().messages;
+      return messages[messages.length - 1].content;
+    };
+
+    it('会話の全文は指示と分けて tool_result で渡し、{{fullText}} はその在りかの文に置き換える', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要', key_points: [], decisions: [] }));
 
       await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約してください: {{fullText}}');
 
-      expect(mockMessagesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: [{ role: 'user', content: '要約してください: 実際の会話内容' }],
-        }),
-        expect.anything(),
-      );
+      expect(sentConversation()).toBe('実際の会話内容');
+      expect(sentInstructions()).toBe(`要約してください: ${FULL_TEXT_REFERENCE}`);
+      expect(sentParams().tool_choice).toEqual({ type: 'none' });
     });
 
-    it('会話の全文を外からの内容として渡し、プロンプト攻撃はその部分だけで確認させる', async () => {
+    it('プロンプト攻撃は tool_result で渡した会話だけで確認させる', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
 
       await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約: {{fullText}}');
 
       expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
         expect.anything(),
-        { purpose: 'summary', untrusted: ['実際の会話内容'] },
+        { purpose: 'summary', untrusted: [] },
       );
     });
 
-    it('会話に $& などの置換パターンが含まれていても、そのまま埋め込む', async () => {
+    it('会話に $& などの置換パターンが含まれていても、そのまま渡す', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
 
       await service.summarize('価格は $& です', 'claude-sonnet-5-5', '要約: {{fullText}}');
 
-      expect(mockMessagesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: [{ role: 'user', content: '要約: 価格は $& です' }],
-        }),
-        expect.anything(),
-      );
+      expect(sentConversation()).toBe('価格は $& です');
     });
 
     it('応答に検出された警告を返す', async () => {

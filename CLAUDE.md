@@ -109,12 +109,15 @@ ai-speak-trace/
 - セキュリティパッチは必ずバージョンを上げてリリースする
 - DMGファイルはビルド時の依存関係が焼き込まれるため、パッチ適用済みバージョンを配布しないとユーザーが脆弱なバイナリを使い続けることになる
 - パッチリリースはパッチバージョン（X.Y.**Z**）を上げる（例: v0.5.7 → v0.5.8）
+- セキュリティ対応はパッチリリース（例: v0.8.x）に、新機能はマイナーリリース（例: v0.9.0）に分ける
+- セキュリティ対応の `fix/*` は、出ている中で一番新しいパッチの `release/vX.Y.Z` から作る。新機能の `release/*` から作らない（新機能のバージョン更新などが混ざり、パッチリリースに入れられなくなる）
+- パッチリリースを `main` にマージしたら、新機能の `release/*` から `fix/sync-main-into-release-vX.Y.Z` を作って `main` をマージし、新機能の `release/*` へPRを作る（`tauri.conf.json` のバージョンは新機能の側を残す）
 
 ### リリース手順
 
 1. `fix/*` または `feature/*` ブランチで修正・実装する
-2. `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新
-3. `fix/*` → `release/vX.Y.Z` へPR作成・マージ
+2. `main` から `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新（`main` にはリリース済みの内容だけがあるため、パッチリリースもマイナーリリースも `main` から作る）
+3. `fix/*` または `feature/*` → `release/vX.Y.Z` へPR作成・マージ（新機能の `feature/*` は新機能の `release/*` へ）
 4. `release/vX.Y.Z` → `main` へPR作成・マージ（PRタイトルは `release: vX.Y.Z`、本文に `## Summary` または `## 変更内容` を書く。リリースノートに使われる）
 5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
    - `tag-release.yml` がマージコミットに `vX.Y.Z` タグを作成し、`release.yml` を起動する
@@ -147,6 +150,13 @@ Playwright MCP と Claude in Chrome を使い分ける。
 - Playwright MCP は `.mcp.json` から `.claude/scripts/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
 - Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
 - Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
+
+## CodeRabbit の枠切れ（Claude Code）
+
+- CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため
+- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push` と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
+- 戻る時刻は、直近の CodeRabbit のコメント（「Next included review available in N minutes」）と、`cr-review.sh` が記録した時刻から求める。調べられないときは止めない
+- 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける
 
 ## PRの手動確認項目
 
