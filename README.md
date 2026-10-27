@@ -122,6 +122,7 @@ open ~/Library/Application\ Support/io.github.saicologic.ai-speak-trace/data
 
 - 左サイドバーの「ディープサーチ」から、選んだ会話のキーワードを提案し、Web検索で調査
 - 調査結果を[Claude API](https://docs.anthropic.com/ja/docs/welcome)で統合分析
+- 仕組みは[ディープサーチの設計](docs/developers/deep-search.md)を参照
 
 ### 6. 発言の文脈
 

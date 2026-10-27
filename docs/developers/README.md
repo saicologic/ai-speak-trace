@@ -161,6 +161,10 @@ AI Speak Trace.app (Tauri)
 - Python のパッケージを更新するときは、`backend/python/requirements.in` を編集し、`requirements.txt` の先頭に書いたコマンドで作り直す（`--exclude-newer` で、公開から2週間以上たった版に限る。いまの GiNZA 5.3.0 は評価に使った版にそろえるための例外で、そのことも先頭に書いてある）
 - API: `GET /api/ginza/status`・`POST /api/ginza/install`・`GET /api/ginza/transcriptions/:id/keywords`
 
+### ディープサーチ
+
+処理の流れ・検証の仕組み・他の Deep Research との違いは、[ディープサーチの設計](deep-search.md)を参照してください。
+
 ## ディレクトリ構成
 
 ```
