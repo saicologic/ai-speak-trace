@@ -129,6 +129,7 @@ Apple Developer証明書による署名・公証済みのため、Gatekeeperの�
 | バックエンド | NestJS（sidecarバイナリとしてバンドル） |
 | 音声認識 | ElevenLabs Scribe v2 |
 | AI分析 | Claude API（Anthropic） |
+| 個人情報・プロンプト攻撃の検出、根拠の確認 | Amazon Bedrock Guardrails |
 | 日本語の解析（ベータ） | GiNZA（Python 3.12。初回利用時に uv で入れる） |
 | バイナリ化 | @yao-pkg/pkg |
 
@@ -164,6 +165,10 @@ AI Speak Trace.app (Tauri)
 ### ディープサーチ
 
 処理の流れ・検証の仕組み・他の Deep Research との違いは、[ディープサーチの設計](deep-search.md)を参照してください。
+
+### AI に動作確認を頼む
+
+CI とコードレビューでは確かめられない動作を Claude Code に確かめてもらう方法と、PR の「## 自動テスト項目」の書き方は、[AI に動作確認を頼む](ai-testing.md)を参照してください。
 
 ## ディレクトリ構成
 
@@ -202,7 +207,9 @@ ai-speak-trace/
 | `/audit` | npm脆弱性チェック | なし |
 | `/pr` | PRサマリー生成 | なし |
 | `/release` | リリースPR作成 | バージョン（例: `v0.6.0`） |
-| `/fix-issue` | Issue修正フロー | Issue番号（例: `42`） |
+| `/github-issue` | Issueを分析し、修正の提案をIssueにコメントする（コードは変えない） | Issue番号（例: `42`） |
+| `/github-issue-dev` | Issueの修正を始める（最新の`main`からブランチを作り、修正・テスト・PR作成まで行う） | Issue番号（例: `42`） |
+| `/github-issue-propose` | チャットで伝えた困りごとを整理し、確認してからIssueを作る | 困りごとの内容 |
 | `/research` | コードベース調査 | 調査トピック |
 
 ### 使用例
@@ -236,7 +243,9 @@ ai-speak-trace/
 
 **Issue修正**
 ```
-/fix-issue 42
+/github-issue 42
+/github-issue-dev 42
+/github-issue-propose 文字起こしの話者名が保存されない
 ```
 
 **コードベース調査**
