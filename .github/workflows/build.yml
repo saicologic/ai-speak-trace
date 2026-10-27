@@ -30,8 +30,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          # 日本語などを含むパスが引用符付きにならないよう、NUL 区切りで取得する（失敗したらここで止まる）
-          git diff -z --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          # 日本語などを含むパスが引用符付きにならないよう NUL 区切りで、移動したファイルは移動元も含めて取得する（失敗したらここで止まる）
+          git diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           build=false
           while IFS= read -r -d '' f; do
             case "$f" in

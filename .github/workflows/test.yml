@@ -43,8 +43,8 @@ jobs:
             echo "frontend=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # 日本語などを含むパスが引用符付きにならないよう、NUL 区切りで取得する（失敗したらここで止まる）
-          git diff -z --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          # 日本語などを含むパスが引用符付きにならないよう NUL 区切りで、移動したファイルは移動元も含めて取得する（失敗したらここで止まる）
+          git diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           backend=false
           frontend=false
           while IFS= read -r -d '' f; do
