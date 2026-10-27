@@ -116,9 +116,25 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 
 ## 限界
 
-- Guardrails の根拠の確認は英語にしか対応していないため、日本語の文は審査モデルの判定だけで扱う
+- 今の実装は、Guardrails の根拠の確認を英語の文だけに使い、日本語の文は審査モデルの判定だけで扱う。根拠の確認の対応言語は tier によって違う（Classic tier は英語・フランス語・スペイン語）
 - Guardrails の単語フィルターは日本語に対応していないため、出力の英語の部分だけを確かめる
 - 調べる範囲を意図して狭くしているため、テーマを広く網羅する調査には向かない
+
+## 用語集
+
+| 用語 | 説明 | このアプリでの使い方 |
+|---|---|---|
+| Citations（引用） | Claude API の機能。渡した文書のどの部分を根拠にしたかを、回答の文ごとに返す（[Citations](https://platform.claude.com/docs/en/build-with-claude/citations)） | 統合分析で、会話の発言と Web の抜粋を引用させる |
+| LLM-as-a-Judge | AI の出力の良し悪しを、別の AI に判定させる評価の方法 | 分析とは別のモデル（`claude-haiku-5-5`）が、文ごとの裏付けを判定する |
+| Amazon Bedrock Guardrails | AWS のサービス。個人情報・不適切な表現・プロンプト攻撃の検出と、根拠の確認を行う（[Amazon Bedrock Guardrails](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html)） | Claude への送受信の確認と、統合分析の根拠スコアに使う |
+| 根拠スコア（contextual grounding check） | Guardrails の機能。回答が渡した根拠の文章に沿っているかを点数で返す。対応する言語は tier によって違う（[contextual grounding check](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)） | 英語の文だけを対象にし、しきい値 `0.8` 未満を「根拠と合わない」とする |
+| プロンプト攻撃 | 文章に紛れ込ませた指示で、AI に意図しない動きをさせる攻撃。プロンプトインジェクションとも呼ぶ（[prompt attacks](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-prompt-attack.html)） | Claude に送る内容を Guardrails で確かめ、検出したら送らない |
+| 伏せる（マスク）・要確認 | 個人情報チェックで、Claude に送る前に置き換える文字列と、伏せるかどうかを人が決める候補 | 伏せる文字列は置き換えてから送る。要確認のまま送った文字列は記録に残す |
+| `web_search` ツール | Claude API のサーバー側のツール。Claude が自分で Web を検索し、結果を引用付きで返す（[Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)） | Web調査で、キーワードごとに検索させる |
+| `allowed_domains` | `web_search` の検索先を、指定したサイトに絞る設定 | 選んだ公式サイトだけを調べるときに使う |
+| `max_uses` | 1回の呼び出しで検索できる回数の上限 | キーワード1つにつき最大3回 |
+| `pause_turn` | 時間のかかるサーバー側のツールの途中で、Claude が応答をいったん返したことを示す値。同じ会話を送り直すと続きから再開する | Web調査で最大3回まで再開する |
+| プロンプトキャッシュ（`cache_control`） | 同じ内容を続けて送るとき、2回目以降を安く速く処理する Claude API の機能（[Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)） | 会話の文書に付け、提案と統合分析で同じ会話を送る費用を抑える |
 
 ## コードの対応表
 
