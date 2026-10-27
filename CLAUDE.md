@@ -131,12 +131,13 @@ ai-speak-trace/
 
 ### ビルド対象ファイルの管理
 
-`build.yml` と `build-skip.yml` はトップレベルのファイル・フォルダをそれぞれ以下に分類している：
+`build.yml` と `test.yml` は PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。
 
-- **`build.yml`（`paths`）**: ビルドが必要なファイル（`src-tauri/`・`frontend/`・`backend/`・`package.json`・`package-lock.json`・`scripts/`）
-- **`build-skip.yml`（`paths`）**: ビルド不要なファイル（`.github/`・`docs/`・Markdownファイル等）
+- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/` 等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
+- **テスト不要なファイル**: `backend/`・`frontend/` 以外のファイルと、Markdownファイル
+- 一覧にないファイルはビルドする。ビルド不要なファイルを新しく足す場合だけ、`changes` ジョブの一覧に足す
 
-トップレベルに新しいファイル・フォルダを追加する場合は、必ずどちらかのファイルの `paths` に追加すること。追加し忘れると必須チェックが pending のままになりPRがマージできなくなる。
+必須チェックのワークフローに `paths` を付けない。`paths` で飛ばすと、必須チェックが pending のままになり PR がマージできなくなる。
 
 ## ブラウザ操作（Claude Code）
 
