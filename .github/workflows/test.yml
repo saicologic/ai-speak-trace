@@ -1,6 +1,6 @@
 name: Test
 
-# PRでは毎回実行し、backend・frontend のコード（Markdown 以外）が変わったときだけテストする。
+# PRでは毎回実行し、backend・frontend のコード（Markdown 以外）か .nvmrc が変わったときだけテストする。
 # ブランチ保護の必須チェック「backend-test」「frontend-test」は、paths で飛ばすと pending のまま残るため、
 # いつも動かし、テストが不要な場合は手順を飛ばして成功にする。
 # push ではテスト対象のファイルが変わったときだけ実行する（必須チェックではないため paths で絞る）。
@@ -11,6 +11,7 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - '.nvmrc'
       - '!**.md'
   pull_request:
     branches: [main]
@@ -50,6 +51,8 @@ jobs:
               *.md) ;;
               backend/*) backend=true ;;
               frontend/*) frontend=true ;;
+              # テストに使う Node のバージョンが変わるため、両方テストする
+              .nvmrc) backend=true; frontend=true ;;
             esac
           done <<< "$files"
           echo "backend=$backend" >> "$GITHUB_OUTPUT"

@@ -36,7 +36,7 @@ jobs:
             [ -z "$f" ] && continue
             case "$f" in
               # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）
-              *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.nvmrc|.coderabbit.yaml|.mcp.json) ;;
+              *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json) ;;
               *)
                 echo "ビルドが必要なファイル: $f"
                 build=true

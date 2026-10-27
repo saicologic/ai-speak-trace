@@ -134,7 +134,7 @@ ai-speak-trace/
 `build.yml` と `test.yml` は PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。
 
 - **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/` 等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
-- **テスト不要なファイル**: `backend/`・`frontend/` 以外のファイルと、Markdownファイル
+- **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc` 以外のファイルと、Markdownファイル
 - 一覧にないファイルはビルドする。ビルド不要なファイルを新しく足す場合だけ、`changes` ジョブの一覧に足す
 
 必須チェックのワークフローに `paths` を付けない。`paths` で飛ばすと、必須チェックが pending のままになり PR がマージできなくなる。
