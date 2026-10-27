@@ -1,3 +1,4 @@
+// CI の確認用（このコミットは戻す）
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

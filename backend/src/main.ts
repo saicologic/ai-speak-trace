@@ -1,3 +1,4 @@
+// CI の確認用（このコミットは戻す）
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SettingsService } from './settings/settings.service';
