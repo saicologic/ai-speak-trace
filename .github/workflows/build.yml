@@ -1,20 +1,53 @@
 name: Build
 
+# PRのたびに実行し、ビルドが必要なファイルが変わったときだけ macOS でビルドする。
+# ブランチ保護の必須チェック「build」は、paths で飛ばすと pending のまま残るため、
+# いつも動く build ジョブが changes と build-macos の結果をまとめて報告する。
+# ビルド不要なファイルは changes ジョブの一覧で決める（一覧にないファイルはビルドする）。
+
 on:
   pull_request:
     branches:
       - 'release/*'
       - main
-    paths:
-      - 'src-tauri/**'
-      - 'frontend/**'
-      - 'backend/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
 
 jobs:
-  build:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.filter.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ビルドが必要なファイルが変わったか調べる
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # 日本語などを含むパスが引用符付きにならないよう NUL 区切りで、移動したファイルは移動元も含めて取得する（失敗したらここで止まる）
+          git diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          build=false
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）
+              *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json) ;;
+              *)
+                echo "ビルドが必要なファイル: $f"
+                build=true
+                ;;
+            esac
+          done < "$RUNNER_TEMP/changed-files"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+  build-macos:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: macos-latest
     permissions:
       contents: read
@@ -55,3 +88,30 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: '--target aarch64-apple-darwin'
+
+  # 必須チェック「build」。changes が失敗した・ビルドが必要なのに成功しなかった場合は失敗にする
+  # （needs のジョブが失敗すると後のジョブは skipped になり、成功として扱われるため、always() で必ず動かす）
+  build:
+    needs: [changes, build-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: ビルドの結果をまとめる
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          NEEDS_BUILD: ${{ needs.changes.outputs.build }}
+          BUILD_RESULT: ${{ needs.build-macos.result }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "変更したファイルを調べられませんでした（$CHANGES_RESULT）"
+            exit 1
+          fi
+          if [ "$NEEDS_BUILD" != "true" ]; then
+            echo "ビルド対象外のファイルのみ変更のためスキップ"
+            exit 0
+          fi
+          if [ "$BUILD_RESULT" != "success" ]; then
+            echo "macOS のビルドが成功しませんでした（$BUILD_RESULT）"
+            exit 1
+          fi
+          echo "macOS のビルドが成功しました"
