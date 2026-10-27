@@ -33,7 +33,45 @@ tar xzf ~/Downloads/AI.Speak.Trace_*.app.tar.gz -C /Applications
 | AI 分析（Claude と AWS） | 要約・会話分析・発言の文脈・ディープサーチ | 「AI 分析を使う」を ON ＋ Anthropic の API キー ＋ Amazon Bedrock Guardrails（Guardrail ID・AWS プロファイル） | https://console.anthropic.com ・ AWS のコンソール（Bedrock の Guardrails） |
 | キーワード | GiNZA のキーワード抽出（ベータ） | なし（初めて使うときに GiNZA をダウンロード） | |
 
-AI 分析は、Claude に送る前に Guardrails で個人情報やプロンプト攻撃を確認するため、AWS が必要です。要約・会話分析・発言の文脈・ディープサーチのボタンはいつも表示し、「AI 分析を使う」が OFF のときや、Anthropic の API キー・Guardrail ID が足りないときは押せない状態にします。押せないときは、要約・会話分析・発言の文脈では右サイドバーのボタンの上に理由（OFF か、足りない設定）を表示し、左サイドバーのディープサーチではボタンにマウスを重ねると理由を表示します（使えるときは何も表示しません）。OFF のときは、Claude にも AWS にも何も送りません。新しく入れたときは OFF です（以前のバージョンで API キーと Guardrail ID を設定していた場合は ON）。AWS の認証情報は、この Mac の `~/.aws`（設定画面の「AWS プロファイル」で指定したプロファイル）を使います。
+AI 分析について:
+
+- **AWS が必要な理由**: Claude に送る前に、Guardrails で個人情報やプロンプト攻撃を確認するためです。準備のしかたは下の「Amazon Bedrock Guardrails の準備」を参照してください。
+- **OFF のとき**: Claude にも AWS にも何も送りません。新しく入れたときは OFF です（以前のバージョンで API キーと Guardrail ID を設定していた場合は ON）。
+- **ボタンを押せないとき**: 要約・会話分析・発言の文脈・ディープサーチのボタンはいつも表示し、「AI 分析を使う」が OFF のときや、Anthropic の API キー・Guardrail ID が足りないときは押せない状態にします。理由は次の場所に表示します（使えるときは何も表示しません）。
+  - 要約・会話分析・発言の文脈: 右サイドバーのボタンの上
+  - ディープサーチ: 左サイドバーのボタンにマウスを重ねたとき
+- **AWS の認証情報**: この Mac の `~/.aws`（設定画面の「AWS プロファイル」で指定したプロファイル）を使います。
+
+### Amazon Bedrock Guardrails の準備
+
+AI 分析を使うには、AWS アカウントに Guardrail を1つ作り、その ID を設定画面に入れます。
+
+1. **Guardrail を作る**: AWS のコンソールで、東京リージョン（`ap-northeast-1`）の Amazon Bedrock → Guardrails から作ります。アプリは東京リージョンの Guardrail を呼びます。
+   - **クロスリージョン推論**: 有効にし、Guardrail プロファイルに `apac.guardrail.v1:0` を選ぶ（日本語を確認できる Standard ティアに必要です）
+   - **コンテンツフィルター**: Standard ティアにし、「プロンプト攻撃」を有効にする。ヘイト・侮辱などのフィルターも有効にすると、Claude の応答に不適切な表現がないかも確認します
+   - **機密情報フィルター**: 検出したい個人情報の種類（氏名・住所・電話番号・メールアドレスなど）を選ぶ
+   - **根拠の確認（contextual grounding check）**: ディープサーチの根拠スコアに使います。使わない場合は有効にしなくてもかまいません
+   - **動作**: どのフィルターも「検出のみ」にする（ブロックしない）。伏せる・送らないの判断はアプリが行います
+2. **バージョンを作る**: 作った Guardrail のバージョンを作り、その番号（`1` など）を設定画面の「バージョン」に入れます。空の場合は DRAFT を使いますが、コンソールで編集するとすぐに変わるため、バージョンの指定を勧めます。
+3. **IAM の権限を付ける**: 使う IAM ユーザーに、Guardrail と、Guardrail プロファイルの送り先のリージョンへの `bedrock:ApplyGuardrail` を許可します。
+
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": ["bedrock:ApplyGuardrail"],
+     "Resource": [
+       "arn:aws:bedrock:ap-northeast-1:<アカウントID>:guardrail/<Guardrail ID>",
+       "arn:aws:bedrock:*:<アカウントID>:guardrail-profile/apac.guardrail.v1:0"
+     ]
+   }
+   ```
+
+4. **プロファイルを作る**: `aws configure --profile <名前>` で、その IAM ユーザーのアクセスキーを `~/.aws/credentials` に保存します（SSO には対応していません）。設定画面の「AWS プロファイル」にその名前を入れます（空の場合は `default`）。
+5. **確かめる**: `aws sts get-caller-identity --profile <名前>` で認証情報が使えることを確かめてから、設定画面で保存します。保存するときに、アプリが指定した Guardrail を呼べることを確かめます。
+
+会話の本文は、クロスリージョン推論により APAC のリージョン内（東京・大阪・ソウル・ムンバイ・シンガポール・シドニー）で処理されることがあります。詳しくは [PRIVACY.md](../../PRIVACY.md) を参照してください。
+
+参考（AWS の公式ドキュメント）: [Guardrail を作る](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html)・[クロスリージョン推論の権限](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrail-profiles-permissions.html)・[Guardrail プロファイルとリージョン](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-cross-region-support.html)・[対応言語](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-supported-languages.html)
 
 ### ElevenLabs APIキーのアクセス制限
 

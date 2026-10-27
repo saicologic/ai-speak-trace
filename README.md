@@ -12,6 +12,11 @@
 - ディープサーチ：会話に出てきた用語を、Web の公式情報で調べて解説
 - 個人情報チェック：Claude に送る前に、会話の個人情報を伏せる（Amazon Bedrock Guardrails）
 
+## 動作環境
+
+- macOS（Apple シリコン）。配布する DMG は Apple シリコン（arm64）向けだけです
+- 文字起こしには ElevenLabs の API キー、AI 分析にはさらに Anthropic の API キーと AWS（Amazon Bedrock Guardrails）が必要です
+
 ## はじめかた
 
 1. [GitHub Releases](https://github.com/saicologic/ai-speak-trace/releases/latest) から最新版をダウンロードして入れる
