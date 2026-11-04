@@ -139,7 +139,23 @@ describe('collectRequestText（assistant の発言）', () => {
     ]);
   });
 
-  it('チェックできない assistant の内容（tool_use）があれば例外を投げる', () => {
+  it('アプリが書いた tool_use は、入力をチェックの対象に含める', () => {
+    const text = collectRequestText({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 't1', name: 'x', input: { q: '入力' } },
+          ],
+        },
+      ],
+    });
+    expect(text).toContain('入力');
+  });
+
+  it('チェックできない assistant の内容があれば例外を投げる', () => {
     expect(() =>
       collectRequestText({
         model: 'claude-sonnet-5-5',
@@ -147,7 +163,12 @@ describe('collectRequestText（assistant の発言）', () => {
         messages: [
           {
             role: 'assistant',
-            content: [{ type: 'tool_use', id: 't1', name: 'x', input: {} }],
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: 'image/png', data: '' },
+              } as unknown as Anthropic.ContentBlockParam,
+            ],
           },
         ],
       }),
