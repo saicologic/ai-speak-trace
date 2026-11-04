@@ -11,10 +11,10 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 /** 使う uv のバージョンと、配布ファイルの SHA-256（GitHub のリリースに載っている値） */
-const UV_VERSION = '0.9.21';
+const UV_VERSION = '0.13.4';
 const UV_SHA256: Record<string, string> = {
-  arm64: '473977236ef8ac5937c80de08a3599cb6ed6021d0e015e10f88076767877a153',
-  x64: '26390da48bd55e21ab62451a80ad240ef6df10d4c48ec199cbb34c18b4288983',
+  arm64: 'e0b1d4743ce64c55d9f0f4a444afa6b81125680070ee04e853fcd0f6c1ebf8f1',
+  x64: '7be2dcd316122f4b3e5a0a7889f6248266c14425374e105ff7dc9779184603a6',
 };
 const UV_TARGET: Record<string, string> = {
   arm64: 'aarch64-apple-darwin',
