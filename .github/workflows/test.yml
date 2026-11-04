@@ -1,38 +1,122 @@
 name: Test
 
+# PRでは毎回実行し、backend・frontend のコード（Markdown 以外）か .nvmrc が変わったときだけテストする。
+# ブランチ保護の必須チェック「backend-test」「frontend-test」は、paths で飛ばすと pending のまま残るため、
+# いつも動かし、テストが不要な場合は手順を飛ばして成功にする。
+# push ではテスト対象のファイルが変わったときだけ実行する（必須チェックではないため paths で絞る）。
+
 on:
   push:
     branches: ['**']
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - '.nvmrc'
+      - '!**.md'
   pull_request:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
 
 jobs:
-  backend-test:
+  changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0
+
+      - name: テストが必要なファイルが変わったか調べる
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # push は paths で絞っているため、両方テストする
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 日本語などを含むパスが引用符付きにならないよう NUL 区切りで、移動したファイルは移動元も含めて取得する（失敗したらここで止まる）
+          git diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          backend=false
+          frontend=false
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *.md) ;;
+              backend/*) backend=true ;;
+              frontend/*) frontend=true ;;
+              # テストに使う Node のバージョンが変わるため、両方テストする
+              .nvmrc) backend=true; frontend=true ;;
+            esac
+          done < "$RUNNER_TEMP/changed-files"
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+
+  # 必須チェック。changes が失敗した場合は失敗にする
+  # （needs のジョブが失敗すると後のジョブは skipped になり、成功として扱われるため、always() で必ず動かす）
+  backend-test:
+    needs: changes
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 変更の確認の結果を確かめる
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          NEEDS_TEST: ${{ needs.changes.outputs.backend }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "変更したファイルを調べられませんでした（$CHANGES_RESULT）"
+            exit 1
+          fi
+          if [ "$NEEDS_TEST" != "true" ]; then
+            echo "テスト対象外のファイルのみ変更のためスキップ"
+          fi
+      - if: needs.changes.outputs.backend == 'true'
+        uses: actions/checkout@v4
+      - if: needs.changes.outputs.backend == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-      - run: cd backend && npm ci
-      - run: cd backend && npm test
+      - if: needs.changes.outputs.backend == 'true'
+        run: cd backend && npm ci
+      - if: needs.changes.outputs.backend == 'true'
+        run: cd backend && npm test
 
   frontend-test:
+    needs: changes
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: 変更の確認の結果を確かめる
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          NEEDS_TEST: ${{ needs.changes.outputs.frontend }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "変更したファイルを調べられませんでした（$CHANGES_RESULT）"
+            exit 1
+          fi
+          if [ "$NEEDS_TEST" != "true" ]; then
+            echo "テスト対象外のファイルのみ変更のためスキップ"
+          fi
+      - if: needs.changes.outputs.frontend == 'true'
+        uses: actions/checkout@v4
+      - if: needs.changes.outputs.frontend == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      - run: cd frontend && npm ci
-      - run: cd frontend && npm run test:run
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npm ci
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npm run test:run
