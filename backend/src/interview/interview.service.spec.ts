@@ -53,7 +53,7 @@ describe('InterviewService', () => {
           provide: AnalysisService,
           useValue: {
             generateQuestions: jest.fn(),
-            buildGenerateQuestionsPrompt: jest.fn(),
+            describeGenerateQuestionsPrompt: jest.fn(),
             buildAnalysisPrompt: jest.fn(),
             analyze: jest.fn(),
             analyzeContext: jest.fn(),
@@ -128,7 +128,7 @@ describe('InterviewService', () => {
   describe('previewPrompts', () => {
     it('質問生成プロンプトと分析プロンプトを返す', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.buildGenerateQuestionsPrompt.mockReturnValue('質問生成プロンプト');
+      claudeService.describeGenerateQuestionsPrompt.mockReturnValue('質問生成プロンプト');
       claudeService.buildAnalysisPrompt.mockReturnValue('分析プロンプト1');
 
       const result = await service.previewPrompts('sample', 'speaker_0', ['kw'], ['q1']);

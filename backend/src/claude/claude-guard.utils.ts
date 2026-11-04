@@ -83,7 +83,9 @@ function mapAssistantContent(
         return block;
       case 'redacted_thinking':
         return block;
+      // tool_use は、外から来た内容を tool_result で渡すためにアプリが書いたツール呼び出し（untrusted-source.ts）
       case 'server_tool_use':
+      case 'tool_use':
         inspect(JSON.stringify(block.input));
         return block;
       case 'web_search_tool_result':

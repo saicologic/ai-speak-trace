@@ -67,7 +67,10 @@ export class InterviewService {
     );
 
     const generateQuestionsPrompt =
-      this.analysisService.buildGenerateQuestionsPrompt(keywords, speakerName);
+      this.analysisService.describeGenerateQuestionsPrompt(
+        keywords,
+        speakerName,
+      );
 
     const analyzePrompts = questions.map((q) =>
       this.analysisService.buildAnalysisPrompt(q, keywords, speakerName),
