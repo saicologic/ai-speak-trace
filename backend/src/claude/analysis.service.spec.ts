@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalysisService, mergeWarnings } from './analysis.service';
 import { ClaudeClientService } from './claude-client.service';
@@ -64,6 +65,21 @@ describe('AnalysisService', () => {
   });
 
   describe('Guardrails の確認に渡すオプション', () => {
+    /** tool_result で渡した内容の data を取り出す */
+    const toolResultData = (
+      params: Anthropic.MessageCreateParamsNonStreaming,
+    ): unknown => {
+      const block = params.messages
+        .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+        .find(
+          (b) => b.type === 'tool_result',
+        ) as Anthropic.ToolResultBlockParam;
+      return (JSON.parse(block.content as string) as { data: unknown }).data;
+    };
+    /** 最後の user の指示 */
+    const lastUserText = (params: Anthropic.MessageCreateParamsNonStreaming) =>
+      params.messages[params.messages.length - 1].content as string;
+
     const textResponse = (text: string) => ({
       content: [{ type: 'text', text }],
       stop_reason: 'end_turn',
@@ -80,15 +96,20 @@ describe('AnalysisService', () => {
       );
     });
 
-    it('質問の生成は、話者名とキーワードを外からの内容として渡す', async () => {
+    it('質問の生成は、話者名とキーワードを指示と分けて tool_result で渡す', async () => {
       mockMessagesCreate.mockResolvedValue(textResponse('【AI】質問'));
 
       await service.generateQuestions(['AI'], 'Aさん');
 
-      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
-        expect.anything(),
-        { purpose: 'analysis-questions', untrusted: ['Aさん', 'AI'] },
-      );
+      const [params, options] = mockCreateMessageWithReport.mock.calls[
+        mockCreateMessageWithReport.mock.calls.length - 1
+      ] as [Anthropic.MessageCreateParamsNonStreaming, unknown];
+      expect(options).toEqual({ purpose: 'analysis-questions', untrusted: [] });
+      expect(toolResultData(params)).toEqual({
+        speakerName: 'Aさん',
+        keywords: ['AI'],
+      });
+      expect(lastUserText(params)).not.toContain('Aさん');
     });
 
     it('発言の文脈は、会話の各行を外からの内容として渡し、警告を返す', async () => {
@@ -102,10 +123,14 @@ describe('AnalysisService', () => {
         [0],
       );
 
-      expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
-        expect.anything(),
-        { purpose: 'context', untrusted: ['[0] Aさん: どうですか'] },
-      );
+      const [params, options] = mockCreateMessageWithReport.mock.calls[
+        mockCreateMessageWithReport.mock.calls.length - 1
+      ] as [Anthropic.MessageCreateParamsNonStreaming, unknown];
+      expect(options).toEqual({ purpose: 'context', untrusted: [] });
+      expect(toolResultData(params)).toEqual({
+        utterances: [{ index: 0, speakerName: 'Aさん', text: 'どうですか' }],
+      });
+      expect(lastUserText(params)).not.toContain('どうですか');
       expect(result).toEqual({
         results: [{ index: 0, intent: '質問', topic: '進捗' }],
         warnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }],

@@ -1,6 +1,6 @@
 # MCP サーバーの設計
 
-文字起こしした会話を、MCP（Model Context Protocol）で Claude Desktop・Claude Code から読み取り専用で検索・参照するためのサーバー。使い方と登録方法は [README の「MCP サーバー」](../../README.md#8-mcp-サーバーclaude-desktopclaude-code-から会話を読む)、データの扱いは [PRIVACY.md の「MCP サーバー」](../../PRIVACY.md#mcp-サーバー) を参照。
+文字起こしした会話を、MCP（Model Context Protocol）で Claude Desktop・Claude Code から読み取り専用で検索・参照するためのサーバー。使い方と登録方法は [使い方の「MCP サーバー」](../users/usage.md#11-mcp-サーバーclaude-desktopclaude-code-から会話を読む)、データの扱いは [PRIVACY.md の「MCP サーバー」](../../PRIVACY.md#mcp-サーバー) を参照。
 
 ## 構成
 
