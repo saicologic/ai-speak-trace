@@ -144,6 +144,8 @@ Claude Code では、データのフォルダを直接読めると、MCP サー�
   },
   "sandbox": {
     "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
     "filesystem": {
       "denyRead": [
         "~/Library/Application Support/io.github.saicologic.ai-speak-trace/data"
@@ -155,6 +157,7 @@ Claude Code では、データのフォルダを直接読めると、MCP サー�
 
 - `permissions.deny` の `Read(...)` は、Claude Code のファイルを読むツールと、`cat`・`head` などのファイル名を書いて読むコマンドを止めます。ただし、ファイル名を書かずに読むコマンド（そのフォルダで実行する `grep -r` など）や、スクリプトが自分でファイルを開く場合は止められません。また、`grep`・`cat` などの読むだけのコマンドは、確認を求めずに実行されます（[権限の設定](https://code.claude.com/docs/en/permissions)）
 - `sandbox.filesystem.denyRead` は、Claude Code が実行するコマンドと、そのコマンドが起動したプロセスから、そのフォルダを読めないようにします（macOS の機能で止めます）。ファイルを読むツールは止めないため、`Read(...)` の拒否と一緒に使います（[サンドボックス](https://code.claude.com/docs/en/sandboxing)）
+- 既定では、サンドボックスが動かないときはサンドボックスなしでコマンドを実行し、サンドボックスに止められたコマンドをサンドボックスの外で動かし直すこともあります。`failIfUnavailable: true` でサンドボックスが動かないときは Claude Code を起動させず、`allowUnsandboxedCommands: false` でサンドボックスの外で動かし直さないようにします
 
 `~/` はホームフォルダを表すので、ユーザー名に合わせて書き換える必要はありません。下の `DATA_DIR` でデータの場所を変えた場合は、拒否するパスもその場所に変えてください。
 
