@@ -653,6 +653,30 @@ describe('MCP サーバー', () => {
       expect(unknown.isError).toBe(true);
     });
 
+    it('個人情報チェックで見つからなかった連絡先の一部は、キーワードとして返さない', async () => {
+      const t = makeTranscription('contact-keywords', [
+        ['speaker_0', 'メールは taro@example.com に議事録を送ります'],
+      ]);
+      await data.writeChecked(t);
+      // GiNZA がメールアドレスの一部を語として取り出した場合
+      // （議事録は、ほかの会話に出てこないため一般的な語として除かれない）
+      await data.writeGinzaCache(t, [
+        [
+          ['taro', 'taro'],
+          ['example.com', 'example.com'],
+          ['議事録', '議事録'],
+        ],
+      ]);
+      const { json } = await call('get_keywords', {
+        transcriptionId: h('contact-keywords'),
+      });
+      expect(json.status).toBe('ok');
+      const texts = json.keywords.map((k) => k.text);
+      expect(texts).toContain('議事録');
+      expect(texts).not.toContain('taro');
+      expect(texts).not.toContain('example.com');
+    });
+
     it('個人情報チェックを確かめた後に文字起こしが書き換わったら、伏せる前の本文を読まない', async () => {
       const reader = new ConversationReader(data.dir, HANDLE_KEY);
       const conversation = await reader.get(h('checked-talk'));

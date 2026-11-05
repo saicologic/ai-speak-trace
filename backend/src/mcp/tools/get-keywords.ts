@@ -102,10 +102,18 @@ export function registerGetKeywords(server: McpServer, ctx: ToolContext): void {
         others,
       );
       const hidden = conversation.maskedTexts.map(normalizeForSearch);
+      // 伏せ字にした後の本文（個人情報チェックで伏せた文字列と、正規表現で伏せた連絡先の両方を伏せたもの）。
+      // キャッシュの語は伏せる前の発話から作られているため、連絡先の一部（メールアドレスの @ より前など）が
+      // 語として入っていることがある。伏せ字にした後の本文に出てこない語は返さない
+      const visibleText = compact(
+        indices.map((i) => masked.utterances[i]?.text ?? '').join('\n'),
+      );
       const keywords = ranked
         .filter(
           (k) =>
-            !containsMasked(k.text, hidden) && maskContacts(k.text) === k.text,
+            !containsMasked(k.text, hidden) &&
+            maskContacts(k.text) === k.text &&
+            visibleText.includes(compact(k.text)),
         )
         .slice(0, MAX_KEYWORDS);
       return {
@@ -115,6 +123,11 @@ export function registerGetKeywords(server: McpServer, ctx: ToolContext): void {
       };
     },
   );
+}
+
+/** 比べるために、表記をそろえて空白を除く（GiNZA の語と本文で空白の入り方が違うことがあるため） */
+function compact(text: string): string {
+  return normalizeForSearch(text).replace(/\s/g, '');
 }
 
 /**
