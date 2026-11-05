@@ -7,6 +7,7 @@ import { TranscriptionStorage } from '../interfaces/transcription-storage.interf
 import { Transcription } from '../../transcription/types/transcription.types';
 import {
   TRANSCRIPTION_FILE,
+  isSafeTranscriptionId,
   listTranscriptionIds,
   readTranscriptionFile,
 } from './transcription-files';
@@ -30,8 +31,16 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
     this.logger.log(`文字起こし保存ディレクトリ: ${this.storeDir}`);
   }
 
-  /** IDからサブフォルダパスを取得 */
+  /**
+   * IDからサブフォルダパスを取得
+   * 保存先の外のフォルダを作ったり消したりしないよう、1つのフォルダ名でない ID は例外にする
+   */
   private getItemDir(id: string): string {
+    if (!isSafeTranscriptionId(id)) {
+      throw new Error(
+        `文字起こしの ID として使えません: ${JSON.stringify(id)}`,
+      );
+    }
     return path.join(this.storeDir, id);
   }
 

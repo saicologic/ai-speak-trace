@@ -35,13 +35,29 @@ export async function listTranscriptionIds(dir: string): Promise<string[]> {
 }
 
 /**
+ * 文字起こしの ID として使えるか（1つのフォルダ名であり、保存先の外を指さない）
+ * REST の URL パラメータなど、外から来た ID でパスを作る前に確かめる
+ */
+export function isSafeTranscriptionId(id: string): boolean {
+  return (
+    id.length > 0 &&
+    id !== '.' &&
+    id !== '..' &&
+    path.basename(id) === id &&
+    !id.includes('\0')
+  );
+}
+
+/**
  * 文字起こし結果を読み込む。ファイルがなければ null
+ * ID が1つのフォルダ名でない場合（`..`・`a/b` など）も、保存先の外を読まないよう null
  * JSON として読めない場合（書き込み途中など）は例外を投げる
  */
 export async function readTranscriptionFile(
   dir: string,
   id: string,
 ): Promise<Transcription | null> {
+  if (!isSafeTranscriptionId(id)) return null;
   let content: string;
   try {
     content = await fs.readFile(
