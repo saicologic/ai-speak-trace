@@ -66,19 +66,15 @@ function writeScan(id, findings) {
   });
 }
 
-// このスクリプトが作ったフォルダの目印（ほかのフォルダを消さないため）
-const MARKER = path.join(dir, '.mcp-demo-data');
+// 置いてあるファイルを消したり上書きしたりしないよう、新しいフォルダか空のフォルダにだけ作る
+// （mcp-inspect.sh は毎回 mktemp で作った新しいフォルダを渡す）
 if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
-  if (!fs.existsSync(MARKER)) {
-    console.error(
-      `空でないフォルダには作れません（このスクリプトが作ったフォルダではありません）: ${dir}`,
-    );
-    process.exit(1);
-  }
-  fs.rmSync(dir, { recursive: true, force: true });
+  console.error(
+    `空でないフォルダには作れません。新しいフォルダを指定してください: ${dir}`,
+  );
+  process.exit(1);
 }
 fs.mkdirSync(dir, { recursive: true });
-fs.writeFileSync(MARKER, '');
 
 // チェック済み: 「伏せる」を選んだ名前と、連絡先を含む
 const checked = writeTranscription(
