@@ -15,6 +15,11 @@ const SEP = '[-－‐ー−\\s]?';
 /** 前後に続く数字がない（区切りをはさんで続く数字も含む。長い番号の一部だけを伏せないため） */
 const START = `(?<!${D}${SEP})`;
 const END = `(?!${SEP}${D})`;
+/**
+ * 電話番号の後ろに続く数字がない（ハイフンなどをはさんで続く数字は含むが、空白の後の数字は含まない）
+ * 「090-1234-5678 2件」のように、空白の後に別の数字が続く文でも番号を伏せるため
+ */
+const PHONE_END = `(?![-－‐ー−]?${D})`;
 
 interface ContactPattern {
   /** 個人情報の種類（表示名は piiLabel で決める） */
@@ -50,6 +55,13 @@ const CONTACT_PATTERNS: ContactPattern[] = [
     pattern: /[A-Za-z0-9._%+-]+[@＠][A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
   },
   {
+    // 日本語などのドメインのメールアドレス（taro@例え.日本 など）。
+    // ドメインに ASCII 以外の文字があるものだけを対象にする（ASCII だけのものは上で伏せる）
+    type: 'EMAIL',
+    pattern:
+      /[A-Za-z0-9._%+-]+[@＠](?=[\p{L}\p{N}.-]*\P{ASCII})[\p{L}\p{N}.-]+\.[\p{L}\p{N}-]{2,}/gu,
+  },
+  {
     type: 'CREDIT_DEBIT_CARD_NUMBER',
     pattern: new RegExp(`${START}${D}{4}(?:${SEP}${D}{2,4}){3}${END}`, 'g'),
     accept: (m) => {
@@ -65,7 +77,7 @@ const CONTACT_PATTERNS: ContactPattern[] = [
   {
     type: 'PHONE',
     pattern: new RegExp(
-      `${START}(?:[+＋]81${SEP}|${D})${D}{0,4}${SEP}[(（]?${D}{1,4}[)）]?${SEP}${D}{3,4}${END}`,
+      `${START}(?:[+＋]81${SEP}|${D})${D}{0,4}${SEP}[(（]?${D}{1,4}[)）]?${SEP}${D}{3,4}${PHONE_END}`,
       'g',
     ),
     accept: (m) => {

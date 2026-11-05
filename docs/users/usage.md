@@ -91,6 +91,7 @@ Amazon Bedrock Guardrails で会話に含まれる個人情報を検出し、Cla
 文字起こしした会話を、[MCP](https://modelcontextprotocol.io/)（Model Context Protocol）で Claude Desktop や Claude Code から読み取り専用で検索・参照できます。
 
 - 読めるのは、アプリのディープサーチで**個人情報チェックを済ませた会話だけ**です。「伏せる」を選んだ文字列と、電話番号・メールアドレスなどの連絡先は `[氏名]`・`[電話番号]` のように置き換えて返します。音声ファイル名は返さず、会話の ID もファイル名を含まない値（`t_` で始まる。サーバーを起動するたびに変わる）にします。チェックしていない会話・チェックの後に変わった会話・「要確認」が残っている会話は返しません（一覧には理由を表示します）
+- 連絡先は、形の決まったもの（国内の電話番号・メールアドレス・カード番号・マイナンバー・IP アドレス）を正規表現で見つけて伏せます。すべての形を見つけられるわけではありません（海外の電話番号など）。個人情報チェックでも見つからなかった連絡先は、伏せずに返ることがあります。残したくない連絡先は、個人情報チェックで「伏せる」を選んでください
 - 会話を書き換えるツールはありません。呼び出しの記録を `data/mcp-audit-logs/` に残します（発話の本文は残しません）
 - 会話の内容は、登録した MCP クライアント（Claude Desktop・Claude Code）を通じて Anthropic に送られます。詳しくは [PRIVACY.md](../../PRIVACY.md) の「MCP サーバー」を確認してください
 - DMG には含まれていません。ソースコードからビルドして使います（アプリを起動していなくても使えます）
@@ -132,7 +133,7 @@ npm run mcp:build   # backend/dist/mcp/main.js ができる
 claude mcp add --scope user ai-speak-trace -- node /Users/you/ai-speak-trace/backend/dist/mcp/main.js
 ```
 
-Claude Code では、データのフォルダを `Read` で直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で直接読むのを禁止しておきます（MCP サーバーは別のプロセスなので、この設定の影響を受けません）。
+Claude Code では、データのフォルダを直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で、直接読むのを2つの設定で禁止しておきます（MCP サーバーは Claude Code が別に起動するプロセスなので、どちらの設定の影響も受けません）。
 
 ```json
 {
@@ -140,11 +141,22 @@ Claude Code では、データのフォルダを `Read` で直接読めると、
     "deny": [
       "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "denyRead": [
+        "~/Library/Application Support/io.github.saicologic.ai-speak-trace/data"
+      ]
+    }
   }
 }
 ```
 
-`~/` はホームフォルダを表すので、ユーザー名に合わせて書き換える必要はありません。下の `DATA_DIR` でデータの場所を変えた場合は、拒否するパスもその場所に変えてください。`Bash`（`cat` など）で読むことまでは防げません。会話を読ませる作業では、`Bash` の実行を確かめてから許可してください。
+- `permissions.deny` の `Read(...)` は、Claude Code のファイルを読むツールと、`cat`・`head` などのファイル名を書いて読むコマンドを止めます。ただし、ファイル名を書かずに読むコマンド（そのフォルダで実行する `grep -r` など）や、スクリプトが自分でファイルを開く場合は止められません。また、`grep`・`cat` などの読むだけのコマンドは、確認を求めずに実行されます（[権限の設定](https://code.claude.com/docs/en/permissions)）
+- `sandbox.filesystem.denyRead` は、Claude Code が実行するコマンドと、そのコマンドが起動したプロセスから、そのフォルダを読めないようにします（macOS の機能で止めます）。ファイルを読むツールは止めないため、`Read(...)` の拒否と一緒に使います（[サンドボックス](https://code.claude.com/docs/en/sandboxing)）
+
+`~/` はホームフォルダを表すので、ユーザー名に合わせて書き換える必要はありません。下の `DATA_DIR` でデータの場所を変えた場合は、拒否するパスもその場所に変えてください。
 
 データの場所は、既定でアプリと同じ `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` です。開発用のデータ（`backend/data/` など）を読む場合は、環境変数 `DATA_DIR` で指定します（Claude Desktop は `"env": { "DATA_DIR": "..." }`、Claude Code は `claude mcp add -e DATA_DIR=... ...`）。
 
