@@ -85,11 +85,23 @@ const CONTACT_PATTERNS: ContactPattern[] = [
 
 /** 連絡先などを [電話番号] のように置き換える */
 export function maskContacts(text: string): string {
-  let result = text;
+  return replaceContacts(text).masked;
+}
+
+/** maskContacts で伏せる連絡先などの文字列（伏せる前のもの） */
+export function findContacts(text: string): string[] {
+  return replaceContacts(text).found;
+}
+
+function replaceContacts(text: string): { masked: string; found: string[] } {
+  let masked = text;
+  const found: string[] = [];
   for (const { type, pattern, accept } of CONTACT_PATTERNS) {
-    result = result.replace(pattern, (m) =>
-      !accept || accept(m) ? `[${piiLabel(type)}]` : m,
-    );
+    masked = masked.replace(pattern, (m) => {
+      if (accept && !accept(m)) return m;
+      found.push(m);
+      return `[${piiLabel(type)}]`;
+    });
   }
-  return result;
+  return { masked, found };
 }

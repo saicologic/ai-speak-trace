@@ -7,7 +7,7 @@ import {
   stripSoundTags,
 } from '../../ginza/ginza-keywords.utils';
 import { readGinzaKeywordCache } from '../../transcription/ginza-keyword-store.service';
-import { maskContacts } from '../contact-patterns';
+import { findContacts, maskContacts } from '../contact-patterns';
 import { ToolRejection } from '../conversation-reader';
 import { MAX_KEYWORDS } from '../mcp.constants';
 import {
@@ -101,10 +101,14 @@ export function registerGetKeywords(server: McpServer, ctx: ToolContext): void {
         indices.map((i) => texts[i]).join('\n'),
         others,
       );
-      const hidden = conversation.maskedTexts.map(normalizeForSearch);
-      // 伏せ字にした後の本文（個人情報チェックで伏せた文字列と、正規表現で伏せた連絡先の両方を伏せたもの）。
       // キャッシュの語は伏せる前の発話から作られているため、連絡先の一部（メールアドレスの @ より前など）が
-      // 語として入っていることがある。伏せ字にした後の本文に出てこない語は返さない
+      // 語として入っていることがある。個人情報チェックで伏せた文字列に加えて、正規表現で伏せる連絡先
+      // （伏せる前の本文から見つけたもの）も伏せた文字列として扱い、その一部を含む語を除く
+      const hidden = [
+        ...conversation.maskedTexts,
+        ...raw.utterances.flatMap((u) => findContacts(u.text)),
+      ].map(normalizeForSearch);
+      // 念のため、伏せ字にした後の本文に出てこない語も返さない
       const visibleText = compact(
         indices.map((i) => masked.utterances[i]?.text ?? '').join('\n'),
       );

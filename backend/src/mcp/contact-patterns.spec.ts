@@ -1,4 +1,16 @@
-import { maskContacts } from './contact-patterns';
+import { findContacts, maskContacts } from './contact-patterns';
+
+describe('findContacts', () => {
+  it('maskContacts で伏せる文字列を、伏せる前の形で返す', () => {
+    expect(
+      findContacts('メールは taro@example.com、電話は 090-1234-5678 です'),
+    ).toEqual(['taro@example.com', '090-1234-5678']);
+  });
+
+  it('連絡先がなければ空', () => {
+    expect(findContacts('バージョン 1.2.3 を使う')).toEqual([]);
+  });
+});
 
 describe('maskContacts', () => {
   it.each([

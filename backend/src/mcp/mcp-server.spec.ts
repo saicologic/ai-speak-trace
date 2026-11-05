@@ -677,6 +677,28 @@ describe('MCP サーバー', () => {
       expect(texts).not.toContain('example.com');
     });
 
+    it('連絡先の一部が、伏せた後の本文のほかの語の一部と同じでも返さない', async () => {
+      // taro は taroko の一部として伏せた後の本文にも出てくる
+      const t = makeTranscription('contact-keywords-2', [
+        ['speaker_0', 'メールは taro@example.com に送ります'],
+        ['speaker_1', 'taroko さんの議事録です'],
+      ]);
+      await data.writeChecked(t);
+      await data.writeGinzaCache(t, [
+        [['taro', 'taro']],
+        [
+          ['taroko', 'taroko'],
+          ['議事録', '議事録'],
+        ],
+      ]);
+      const { json } = await call('get_keywords', {
+        transcriptionId: h('contact-keywords-2'),
+      });
+      const texts = json.keywords.map((k) => k.text);
+      expect(texts).toContain('議事録');
+      expect(texts).not.toContain('taro');
+    });
+
     it('個人情報チェックを確かめた後に文字起こしが書き換わったら、伏せる前の本文を読まない', async () => {
       const reader = new ConversationReader(data.dir, HANDLE_KEY);
       const conversation = await reader.get(h('checked-talk'));
