@@ -6,6 +6,7 @@ import {
   fetchResearchJobs,
   fetchTranscription,
   fetchTranscriptions,
+  resumeResearch,
   startResearch,
   updateResearchTitle,
 } from '../api/client';
@@ -22,6 +23,7 @@ import type {
 import { extractKeywords } from '../utils/keywords';
 import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
 import { selectRelatedLinks } from '../utils/relatedLinks';
+import { finishedStages, resumeLabel } from '../utils/researchResume';
 import type { NumberedCitation } from '../utils/researchReport';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { FeedbackButton } from './FeedbackButton';
@@ -91,22 +93,73 @@ function percent(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
-/** 調査の流れ（5段） */
-function StepFlow({ status }: { status: ResearchStatus | undefined }) {
-  const { done, active } = stepState(status);
+/**
+ * 調査の流れ（5段）
+ * 失敗した調査は、失敗した段階に印を付ける（以前の調査は再開する段階を使い、それもなければ印を付けない）
+ */
+function StepFlow({ status, failedStage }: { status: ResearchStatus | undefined; failedStage?: ResearchStatus }) {
+  const { done, active } = stepState(status === 'failed' ? failedStage : status);
+  const failed = status === 'failed' ? active : null;
   return (
     <ol className="research-steps">
       {STEPS.map((step, i) => {
-        const state = i === active ? 'active' : i < done ? 'done' : 'pending';
+        const state = i === failed ? 'failed' : i === active ? 'active' : i < done ? 'done' : 'pending';
         return (
           <li key={step.label} className={`research-step ${state}`}>
-            <span className="research-step-number">{i < done && i !== active ? '✓' : i + 1}</span>
+            <span className="research-step-number">
+              {i === failed ? '✕' : i < done && i !== active ? '✓' : i + 1}
+            </span>
             <span className="research-step-label">{step.label}</span>
             <span className="research-step-detail">{step.detail}</span>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * 失敗した調査の表示（失敗の原因・解決方法・終わっている段階・再開ボタン）
+ * 再開すると、終わっている段階の結果はそのまま使い、終わっていない段階から続ける
+ */
+function ResearchFailure({ job, onResumed }: { job: ResearchJob; onResumed: (job: ResearchJob) => void }) {
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const info = job.errorInfo;
+  const finished = finishedStages(job);
+
+  const handleResume = async () => {
+    setResuming(true);
+    setResumeError(null);
+    try {
+      onResumed(await resumeResearch(job.id));
+    } catch (e) {
+      setResumeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  return (
+    <div className="research-error research-failure">
+      <p className="research-failure-title">{info?.title ?? '調査に失敗しました'}</p>
+      {info && <p className="research-failure-hint">解決方法: {info.hint}</p>}
+      {finished.length > 0 && (
+        <p className="research-failure-finished">終わっている段階: {finished.join('・')}</p>
+      )}
+      {job.resume && (
+        <button className="research-primary-button" disabled={resuming} onClick={() => void handleResume()}>
+          {resuming ? '再開しています...' : resumeLabel(job.resume)}
+        </button>
+      )}
+      {resumeError && <p className="research-failure-resume-error">{resumeError}</p>}
+      {job.error && (
+        <details className="research-failure-detail">
+          <summary>エラーの詳細</summary>
+          <code>{job.error}</code>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -307,7 +360,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
         <div className="research-content">
           {error && <div className="research-error">{error}</div>}
 
-          <StepFlow status={job?.status} />
+          <StepFlow status={job?.status} failedStage={job?.failedStage ?? job?.resume?.from} />
 
           {/* ① 会話の選択（新しい調査） */}
           {!job && (
@@ -380,9 +433,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             </section>
           )}
 
-          {job?.status === 'failed' && (
-            <div className="research-error">調査に失敗しました: {job.error}</div>
-          )}
+          {job?.status === 'failed' && <ResearchFailure job={job} onResumed={setJob} />}
 
           {job?.status === 'proposing' && (
             <div className="research-progress">
@@ -563,6 +614,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                   onOpenTranscription={onOpenTranscription}
                   onContinue={(unfinished) => {
                     setJob(unfinished);
+                    // 再開した調査は、「調査結果」タブにも反映する（戻ったときに失敗の表示を残さない）
+                    setResultJob((prev) => (prev?.id === unfinished.id ? unfinished : prev));
                     setActiveTab('new');
                   }}
                   onTitleChange={(updated) => {
@@ -1049,8 +1102,9 @@ function ResearchResult({
 
       {job.status === 'failed' && (
         <>
-          <StepFlow status={job.status} />
-          <div className="research-error">調査に失敗しました: {job.error}</div>
+          <StepFlow status={job.status} failedStage={job.failedStage ?? job.resume?.from} />
+          {/* 再開したら、進み具合を「新しい調査」のタブで見る */}
+          <ResearchFailure job={job} onResumed={onContinue} />
         </>
       )}
 
