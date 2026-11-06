@@ -119,5 +119,26 @@ describe('LocalTranscriptionStorage', () => {
     it('存在しないIDの削除は何もしない', async () => {
       await expect(storage.delete('missing')).resolves.not.toThrow();
     });
+
+    it('保存先の外を指す ID では削除せずに例外にする', async () => {
+      await storage.save(makeTranscription('test-audio'));
+
+      await expect(storage.delete('..')).rejects.toThrow();
+      await expect(storage.delete('../transcriptions')).rejects.toThrow();
+
+      // 保存先（transcriptions/）とその中の文字起こしは残っている
+      await expect(storage.findById('test-audio')).resolves.not.toBeNull();
+    });
+  });
+
+  describe('保存先の外を指す ID', () => {
+    it('findById は読まずに null を返す', async () => {
+      await expect(storage.findById('..')).resolves.toBeNull();
+      await expect(storage.findById('../x')).resolves.toBeNull();
+    });
+
+    it('save は書き込まずに例外にする', async () => {
+      await expect(storage.save(makeTranscription('../x'))).rejects.toThrow();
+    });
   });
 });

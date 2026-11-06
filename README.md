@@ -11,6 +11,7 @@
 - 要約・会話分析・発言の文脈（Claude API）
 - ディープサーチ：会話に出てきた用語を、Web の公式情報で調べて解説
 - 個人情報チェック：Claude に送る前に、会話の個人情報を伏せる（Amazon Bedrock Guardrails）
+- MCP サーバー：個人情報チェック済みの会話を、Claude Desktop・Claude Code から読み取り専用で検索・参照する（ソースコードからビルドして使う。[使い方](docs/users/usage.md#11-mcp-サーバーclaude-desktopclaude-code-から会話を読む)）
 
 ## 動作環境
 
