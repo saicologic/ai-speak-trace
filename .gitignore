@@ -7,6 +7,29 @@ settings.json
 backend/data/chunks/
 backend/data/chunked-jobs/
 
+# 音声・動画（会話の録音を公開リポジトリに入れない。アプリが受け付ける拡張子：local-audio-storage.ts の AUDIO_EXTENSIONS）
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.webm
+*.aac
+*.aiff
+*.opus
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.mpeg
+*.3gpp
+
+# 文字起こしの結果・出力（以前ルートに置いて入ってしまったため）
+/transcriptions/
+/outputs/
+
 # Tauri
 src-tauri/target/
 src-tauri/binaries/nestjs-server*
