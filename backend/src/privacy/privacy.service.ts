@@ -45,7 +45,7 @@ export class PrivacyService {
       ...(this.errors.has(transcriptionId) && {
         error: this.errors.get(transcriptionId),
       }),
-      // 以前のチェックで保存した、個人情報として扱わない検出（ユーザー名・国名だけの住所）は表示しない
+      // 以前のチェックで保存した、個人情報として扱わない検出（国名だけの住所・会社名や製品名だけの氏名など）は表示しない
       scan: scan && { ...scan, findings: withoutIgnoredPii(scan.findings) },
     };
   }
