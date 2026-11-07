@@ -6,6 +6,7 @@ import {
   maskTranscription,
   toFindings,
   toScanText,
+  withCurrentDefaults,
   withoutIgnoredPii,
 } from './privacy.utils';
 
@@ -210,9 +211,14 @@ describe('toScanText', () => {
 });
 
 describe('isIgnoredPii', () => {
-  it('ユーザー名は個人情報として扱わない', () => {
+  it('会社名・製品名だけのユーザー名は個人情報として扱わない', () => {
     expect(isIgnoredPii('USERNAME', 'ChatGPT')).toBe(true);
     expect(isIgnoredPii('USERNAME', 'Anthropic')).toBe(true);
+  });
+
+  it('ハンドルネームなどのユーザー名は個人情報として扱う', () => {
+    expect(isIgnoredPii('USERNAME', 'yamada01')).toBe(false);
+    expect(isIgnoredPii('USERNAME', '山田')).toBe(false);
   });
 
   it('国名だけの住所は個人情報として扱わない', () => {
@@ -256,17 +262,107 @@ describe('withoutIgnoredPii', () => {
     needsReview: !mask,
   });
 
-  it('保存済みの検出結果から、ユーザー名と国名だけの住所を除く', () => {
+  it('保存済みの検出結果から、製品名だけのユーザー名と国名だけの住所を除く', () => {
     const result = withoutIgnoredPii([
-      finding('USERNAME', 'Code', false),
+      finding('USERNAME', 'GitHub', false),
       finding('ADDRESS', '日本', false),
       finding('NAME', '山田', false),
     ]);
     expect(result.map((f) => f.text)).toEqual(['山田']);
   });
 
+  it('ハンドルネームなどのユーザー名は残す', () => {
+    const result = withoutIgnoredPii([finding('USERNAME', 'yamada01', false)]);
+    expect(result.map((f) => f.text)).toEqual(['yamada01']);
+  });
+
   it('利用者が「伏せる」を選んだものは残す', () => {
     const result = withoutIgnoredPii([finding('USERNAME', 'yamada01', true)]);
     expect(result.map((f) => f.text)).toEqual(['yamada01']);
+  });
+});
+
+describe('ユーザー名の初期状態', () => {
+  it('新しく見つかったユーザー名は、伏せて要確認にしない', () => {
+    const findings = toFindings(
+      [{ type: 'USERNAME', match: 'yamada01' }],
+      'ID は yamada01 です',
+    );
+    expect(findings).toEqual([
+      {
+        type: 'USERNAME',
+        label: 'ユーザー名',
+        text: 'yamada01',
+        count: 1,
+        mask: true,
+        needsReview: false,
+      },
+    ]);
+  });
+
+  it('以前に要確認として保存したユーザー名は、検出し直すと伏せる', () => {
+    const findings = toFindings(
+      [{ type: 'USERNAME', match: 'yamada01' }],
+      'ID は yamada01 です',
+      [
+        {
+          type: 'USERNAME',
+          label: 'ユーザー名',
+          text: 'yamada01',
+          count: 1,
+          mask: false,
+          needsReview: true,
+        },
+      ],
+    );
+    expect(findings[0]).toMatchObject({ mask: true, needsReview: false });
+  });
+
+  it('利用者が「伏せない」を選んだユーザー名は、検出し直してもそのまま', () => {
+    const findings = toFindings(
+      [{ type: 'USERNAME', match: 'yamada01' }],
+      'ID は yamada01 です',
+      [
+        {
+          type: 'USERNAME',
+          label: 'ユーザー名',
+          text: 'yamada01',
+          count: 1,
+          mask: false,
+          needsReview: false,
+        },
+      ],
+    );
+    expect(findings[0]).toMatchObject({ mask: false, needsReview: false });
+  });
+
+  it('保存済みの要確認のユーザー名は伏せ、氏名などの要確認はそのまま', () => {
+    const result = withCurrentDefaults([
+      {
+        type: 'USERNAME',
+        label: 'ユーザー名',
+        text: 'yamada01',
+        count: 1,
+        mask: false,
+        needsReview: true,
+      },
+      {
+        type: 'NAME',
+        label: '氏名',
+        text: '山田',
+        count: 1,
+        mask: false,
+        needsReview: true,
+      },
+    ]);
+    expect(result.map((f) => [f.text, f.mask, f.needsReview])).toEqual([
+      ['yamada01', true, false],
+      ['山田', false, true],
+    ]);
+  });
+
+  it('形の崩れた検出は、そのまま返す', () => {
+    const broken = [null, 'x'] as unknown as PiiFinding[];
+    expect(withCurrentDefaults(broken)).toEqual([null, 'x']);
   });
 });

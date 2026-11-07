@@ -232,7 +232,7 @@ export class ConversationReader {
     if (Number.isNaN(scannedAt) || modifiedAt > scannedAt) {
       return reject(id, 'stale', known);
     }
-    // アプリの画面に出さない検出（ユーザー名・国名だけの住所など）は、利用者が選べないため要確認として扱わない
+    // アプリの画面に出さない検出（国名だけの住所・会社名や製品名だけの氏名など）は、利用者が選べないため要確認として扱わない
     if (withoutIgnoredPii(scan.findings).some((f) => f.needsReview)) {
       return reject(id, 'needs_review', known);
     }

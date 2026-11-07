@@ -68,4 +68,17 @@ describe('toOutputChecks', () => {
     expect(content.passed).toBe(true);
     expect(words).toMatchObject({ passed: false, detail: '検出: damn' });
   });
+
+  it('ユーザー名は連絡先として不合格にせず、候補として数える', () => {
+    const [pii] = toOutputChecks(
+      {
+        pii: [{ type: 'USERNAME', match: 'yamada01' }],
+        words: [],
+        content: [],
+      },
+      [],
+    );
+    expect(pii.passed).toBe(true);
+    expect(pii.detail).toContain('候補 1件');
+  });
 });

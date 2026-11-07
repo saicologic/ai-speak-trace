@@ -21,11 +21,23 @@ const PII_LABELS: Record<string, string> = {
  * 誤検出が多い種類（製品名・会社名・国名・公開されている人の名前なども検出される）
  * 初期状態では伏せずに「要確認」にし、利用者に選んでもらう
  */
-const REVIEW_TYPES = new Set(['NAME', 'USERNAME', 'ADDRESS', 'AGE']);
+const REVIEW_TYPES = new Set(['NAME', 'ADDRESS', 'AGE']);
 
-/** 誤検出が多い種類か（氏名・ユーザー名・住所・年齢） */
+/** 初期状態で伏せずに「要確認」にする種類か（氏名・住所・年齢） */
 export function isReviewType(type: string): boolean {
   return REVIEW_TYPES.has(type);
+}
+
+/**
+ * 製品名などとの誤検出が多い種類（氏名・ユーザー名・住所・年齢）
+ * ユーザー名（ハンドルネームなど）は初期状態で伏せるが、製品名なども検出されるため、
+ * Claude の応答の評価では連絡先とは分けて候補として数える
+ */
+const UNCERTAIN_TYPES = new Set([...REVIEW_TYPES, 'USERNAME']);
+
+/** 製品名などとの誤検出が多い種類か（氏名・ユーザー名・住所・年齢） */
+export function isUncertainType(type: string): boolean {
+  return UNCERTAIN_TYPES.has(type);
 }
 
 /**
@@ -122,19 +134,35 @@ function normalizeName(name: string): string {
 
 /**
  * 個人情報として扱わない検出か
- * - ユーザー名: 話した会話にログインIDなどが出ることはまずなく、製品名・会社名の誤検出になるため
  * - 国名だけの住所: 個人を特定しないため（番地や市区町村を含む住所はこれまでどおり扱う）
- * - 会社名・製品名だけの氏名: 個人の名前ではないため（一致するものだけ。公開されている人の名前は利用者が選ぶ）
+ * - 会社名・製品名だけの氏名・ユーザー名: 個人の名前ではないため（一致するものだけ。
+ *   公開されている人の名前は利用者が選ぶ。ハンドルネームなどのユーザー名は初期状態で伏せる）
  */
 export function isIgnoredPii(type: string, match: string): boolean {
-  if (type === 'USERNAME') return true;
   if (type === 'ADDRESS') {
     return COUNTRY_NAMES.has(match.trim().toLowerCase());
   }
-  if (type === 'NAME') {
+  if (type === 'NAME' || type === 'USERNAME') {
     return ORGANIZATION_AND_PRODUCT_NAMES.has(normalizeName(match));
   }
   return false;
+}
+
+/**
+ * 保存済みの検出結果を、今の初期状態にそろえる
+ * 利用者がまだ選んでいない（要確認の）検出のうち、今は要確認にしない種類（ユーザー名）は、初期状態どおり伏せる。
+ * 以前のバージョンでは、ユーザー名を伏せずに要確認として保存していたため
+ */
+export function withCurrentDefaults(findings: PiiFinding[]): PiiFinding[] {
+  return findings.map((f) =>
+    // 形の崩れた検出は、そのまま返す（読み込む側で確かめる）
+    f &&
+    typeof f === 'object' &&
+    f.needsReview === true &&
+    !REVIEW_TYPES.has(f.type)
+      ? { ...f, mask: true, needsReview: false }
+      : f,
+  );
 }
 
 /** 保存済みの検出結果から、個人情報として扱わないものを除く（利用者が「伏せる」を選んだものは残す） */
@@ -161,13 +189,14 @@ function countIn(text: string, target: string): number {
 /**
  * Guardrails の検出結果を、種類・文字列ごとにまとめる
  * 前回のチェックで利用者が選んだ「伏せる／伏せない」は引き継ぐ。
- * 新しく見つかったものは、連絡先などは伏せ、誤検出の多い種類は伏せずに要確認にする
+ * 新しく見つかったものは、連絡先・ユーザー名などは伏せ、誤検出の多い種類は伏せずに要確認にする
  */
 export function toFindings(
   detected: { type: string; match: string }[],
   text: string,
-  previous: PiiFinding[] = [],
+  previousFindings: PiiFinding[] = [],
 ): PiiFinding[] {
+  const previous = withCurrentDefaults(previousFindings);
   const byKey = new Map<string, PiiFinding>();
   for (const { type, match } of detected) {
     const value = match.trim();
@@ -185,7 +214,7 @@ export function toFindings(
       needsReview: before?.needsReview ?? review,
     });
   }
-  // 個人情報として扱わない検出（ユーザー名・国名・会社名など）は Guardrails の結果から除いているため、
+  // 個人情報として扱わない検出（国名・会社名など）は Guardrails の結果から除いているため、
   // 利用者が以前に「伏せる」を選んだものは、会話に残っていれば検出し直した後も引き継ぐ
   for (const before of previous) {
     if (!before.mask || !isIgnoredPii(before.type, before.text)) continue;
