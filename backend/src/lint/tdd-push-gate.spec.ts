@@ -58,14 +58,42 @@ function fakeGh(pr: { baseRefName: string; labels: string[] } | null): void {
   );
 }
 
-function runHook(command: string): { status: number | null; stderr: string } {
-  const r = spawnSync('bash', [HOOK], {
+/**
+ * hook を流す。hook 自体は一時リポジトリの外（os.tmpdir()）で起動し、
+ * 入力の cwd だけでリポジトリを決めることを確かめる
+ */
+function runHook(
+  command: string,
+  pathEnv = `${fakeBin}:${process.env.PATH}`,
+): { status: number | null; stderr: string } {
+  const r = spawnSync(BASH, [HOOK], {
+    cwd: os.tmpdir(),
     input: JSON.stringify({ tool_input: { command }, cwd: repo }),
     encoding: 'utf-8',
-    env: { ...GIT_ENV, PATH: `${fakeBin}:${process.env.PATH}` },
+    env: { ...GIT_ENV, PATH: pathEnv },
   });
   return { status: r.status, stderr: r.stderr };
 }
+
+const BASH = execFileSync('sh', ['-c', 'command -v bash'], {
+  encoding: 'utf-8',
+}).trim();
+
+/** 決めたコマンドだけを置いた PATH を作る（jq・gh がない環境を作るため） */
+function minimalPath(commands: string[]): string {
+  const dir = fs.mkdtempSync(path.join(fakeBin, 'min-'));
+  for (const name of commands) {
+    const found =
+      name === 'gh'
+        ? path.join(fakeBin, 'gh')
+        : execFileSync('sh', ['-c', `command -v ${name}`], {
+            encoding: 'utf-8',
+          }).trim();
+    fs.symlinkSync(found, path.join(dir, name));
+  }
+  return dir;
+}
+const BASE_COMMANDS = ['git', 'grep', 'sed', 'cat', 'node', 'bash', 'sh'];
 
 const IMPL = 'backend/src/foo/foo.ts';
 const PUSH = ['git', 'push'].join(' ');
@@ -116,6 +144,13 @@ describe('tdd-push-gate.sh', () => {
     `cd backend && ${PUSH} -u origin fix/x`,
     `git -C . push`,
     `npm test; ${PUSH}`,
+    `FOO=1 ${PUSH}`,
+    `FOO="a b" ${PUSH}`,
+    `git -c core.x=1 push`,
+    `git -C "my dir" push`,
+    `false || ${PUSH}`,
+    `echo a | ${PUSH}`,
+    `npm test\n${PUSH}`,
   ])('「%s」も push として調べる', (command) => {
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
     expect(runHook(command).status).toBe(2);
@@ -125,6 +160,10 @@ describe('tdd-push-gate.sh', () => {
     'git status',
     `git commit -m "${PUSH} する前に直す"`,
     `echo ${PUSH}`,
+    `git commit -m "直す; ${PUSH} は後で"`,
+    `echo "a && ${PUSH}"`,
+    `git commit -m "$(cat <<'EOF'\n直す\n\n${PUSH} の前に確かめる\nEOF\n)"`,
+    `cat <<EOF > /dev/null\n${PUSH}\nEOF`,
   ])('push ではないコマンド（%s）は調べない（gh も呼ばない）', (command) => {
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
     expect(runHook(command).status).toBe(0);
@@ -134,6 +173,30 @@ describe('tdd-push-gate.sh', () => {
   it('SKIP_TDD_CHECK=1 を付けた push は止めない', () => {
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
     expect(runHook(`SKIP_TDD_CHECK=1 ${PUSH}`).status).toBe(0);
+  });
+
+  it.each([`SKIP_TDD_CHECK=1 echo x && ${PUSH}`, `${PUSH} # SKIP_TDD_CHECK=1`])(
+    'SKIP_TDD_CHECK=1 を push の部分の先頭以外に書いても止める（%s）',
+    (command) => {
+      commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
+      expect(runHook(command).status).toBe(2);
+    },
+  );
+
+  it('PR の宛先のブランチ（origin/<宛先>）がなければ止めない', () => {
+    fakeGh({ baseRefName: 'release/none', labels: [] });
+    commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
+    expect(runHook(PUSH).status).toBe(0);
+  });
+
+  it('jq がなければ止めない', () => {
+    commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
+    expect(runHook(PUSH, minimalPath([...BASE_COMMANDS, 'gh'])).status).toBe(0);
+  });
+
+  it('gh がなければ止めない', () => {
+    commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
+    expect(runHook(PUSH, minimalPath([...BASE_COMMANDS, 'jq'])).status).toBe(0);
   });
 
   it('PR に no-tdd のラベルがあれば止めない', () => {
