@@ -116,7 +116,7 @@ npm run mcp:build   # backend/dist/mcp/main.js ができる
 
 **Claude Desktop に登録する**
 
-MCP サーバーは、`backend/scripts/mcp-sandbox.sh` で sandbox（macOS の `sandbox-exec`）の中で起動します。sandbox の中では、外部へ通信できず、ホームフォルダの中で読めるのはデータのフォルダ・`backend/`・node だけ、書けるのは監査ログのフォルダ（`mcp-audit-logs/`）だけです。MCP サーバーが使う部品（MCP の SDK など）が乗っ取られても、会話を外に送ったり、ほかのファイル（`~/.aws/credentials` など）を読んだりできないようにするためです。
+MCP サーバーは、`backend/scripts/mcp-sandbox.sh` で sandbox（macOS の `sandbox-exec`）の中で起動します。sandbox の中では、MCP サーバーから直接外部へ通信できず、ホームフォルダの中で読めるのはデータのフォルダ・`backend/`・node だけ、書けるのは監査ログのフォルダ（`mcp-audit-logs/`）だけです。MCP サーバーが使う部品（MCP の SDK など）が乗っ取られても、MCP サーバーから直接会話を外に送ったり、ほかのファイル（`~/.aws/credentials` など）を読んだりできないようにするためです。MCP サーバーが返した内容は、これまでどおりクライアント（とその先のモデル）に送られます。
 
 `~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` にはクローンしたフォルダの `backend/scripts/mcp-sandbox.sh` の絶対パスを、`args` には `which node` で表示される node の絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
 
