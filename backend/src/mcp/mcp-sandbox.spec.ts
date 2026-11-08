@@ -166,6 +166,21 @@ describeOnMac('MCP サーバーの sandbox', () => {
     },
   );
 
+  it('node のフォルダがルート（/）になるときも、止まる', () => {
+    // /bin にある実行できるファイル（/bin/sh）を node として渡すと、node のフォルダは / になる
+    const result = spawnSync(SCRIPT, ['/bin/sh'], {
+      encoding: 'utf-8',
+      env: {
+        HOME: home,
+        DATA_DIR: dataDir,
+        PATH: '/usr/bin:/bin',
+        MCP_SANDBOX_DRY_RUN: '1',
+      },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('ホームフォルダを含む');
+  });
+
   it('外部に通信できない', async () => {
     const server = http.createServer((_, res) => res.end('ok'));
     await new Promise<void>((resolve) =>
