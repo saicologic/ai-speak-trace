@@ -103,8 +103,11 @@ export class LocalAudioStorage implements AudioStorage {
     }
   }
 
-  async exists(fileName: string): Promise<boolean> {
-    return existsSync(this.resolveFilePath(fileName));
+  exists(fileName: string): Promise<boolean> {
+    // async のときと同じく、resolveFilePath の例外は reject で返す
+    return Promise.resolve().then(() =>
+      existsSync(this.resolveFilePath(fileName)),
+    );
   }
 
   async readFile(fileName: string): Promise<Buffer> {
@@ -113,10 +116,13 @@ export class LocalAudioStorage implements AudioStorage {
     return fs.readFile(filePath);
   }
 
-  async getPlaybackUrl(fileName: string): Promise<string> {
+  getPlaybackUrl(fileName: string): Promise<string> {
     // ポートは動的割り当てのためホスト名は返さず、パスのみを返す
     // フロントエンドが BASE_URL と組み合わせて完全なURLを構築する
-    return `/audio/${encodeURIComponent(fileName)}`;
+    // async のときと同じく、例外は reject で返す
+    return Promise.resolve().then(
+      () => `/audio/${encodeURIComponent(fileName)}`,
+    );
   }
 
   async saveFile(fileName: string, buffer: Buffer): Promise<void> {

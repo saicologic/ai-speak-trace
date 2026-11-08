@@ -360,7 +360,7 @@ describe('TranscriptionService', () => {
       expect(result[0].id).toBe('new');
       expect(result[1].id).toBe('old');
       // サマリーのみ（speakers・words・utterancesは含まない）
-      expect((result[0] as any).speakers).toBeUndefined();
+      expect((result[0] as Record<string, unknown>).speakers).toBeUndefined();
     });
   });
 
@@ -422,14 +422,20 @@ describe('TranscriptionService', () => {
     });
 
     it('ジョブの進捗を取得する', async () => {
-      const job = { id: 'job-1', status: 'transcribing' } as any;
+      const job = { id: 'job-1', status: 'transcribing' } as NonNullable<
+        Awaited<ReturnType<ChunkedTranscriptionService['getJobStatus']>>
+      >;
       chunkedTranscriptionService.getJobStatus.mockResolvedValue(job);
 
       expect(await service.getChunkedJobStatus('job-1')).toEqual(job);
     });
 
     it('ファイル名でアクティブジョブを検索する', async () => {
-      const job = { id: 'job-1', audioFileName: 'test.mp3' } as any;
+      const job = { id: 'job-1', audioFileName: 'test.mp3' } as NonNullable<
+        Awaited<
+          ReturnType<ChunkedTranscriptionService['findActiveJobByFileName']>
+        >
+      >;
       chunkedTranscriptionService.findActiveJobByFileName.mockResolvedValue(
         job,
       );

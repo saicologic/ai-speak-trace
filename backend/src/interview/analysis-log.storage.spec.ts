@@ -98,7 +98,7 @@ describe('AnalysisLogStorage', () => {
 
       const summaries = await storage.findAllSummaries();
 
-      expect((summaries[0] as any).results).toBeUndefined();
+      expect((summaries[0] as Record<string, unknown>).results).toBeUndefined();
     });
 
     it('ログが存在しない場合は空配列を返す', async () => {

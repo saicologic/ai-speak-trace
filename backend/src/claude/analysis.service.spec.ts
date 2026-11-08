@@ -212,7 +212,7 @@ describe('AnalysisService', () => {
       } = await service.analyze(['質問'], ['AI'], 'Aさん');
 
       expect(mockMessagesCreate).toHaveBeenCalledTimes(2);
-      const secondCall = mockMessagesCreate.mock.calls[1][0] as {
+      const secondCall = (mockMessagesCreate.mock.calls[1] as [unknown])[0] as {
         messages: { role: string; content: unknown }[];
       };
       expect(secondCall.messages[1]).toEqual({

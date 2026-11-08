@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
-import FormDataNode = require('form-data');
+import FormDataNode from 'form-data';
 import {
   ElevenLabsCreditInfo,
   ElevenLabsResponse,

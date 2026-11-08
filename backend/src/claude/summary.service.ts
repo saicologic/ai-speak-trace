@@ -101,8 +101,8 @@ export class SummaryService {
 
     let parsed: SummaryOutput;
     try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (e) {
+      parsed = JSON.parse(jsonMatch[0]) as SummaryOutput;
+    } catch {
       this.logger.error(
         `要約JSONのパースに失敗。stop_reason=${response.stop_reason}、レスポンス末尾: ${text.slice(-200)}`,
       );

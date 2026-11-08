@@ -42,12 +42,11 @@ describe('ClaudeClientService.createMessage', () => {
     guardrailId: string;
     guardrailVersion: string;
   };
-  let auditStore: { append: jest.Mock };
+  let auditStore: { append: jest.Mock<Promise<void>, [ClaudeAuditRecord]> };
   let service: ClaudeClientService;
 
   /** 最後に記録した呼び出し */
-  const lastAudit = () =>
-    auditStore.append.mock.calls.at(-1)?.[0] as ClaudeAuditRecord;
+  const lastAudit = () => auditStore.append.mock.calls.at(-1)?.[0];
 
   beforeEach(() => {
     mockCreate.mockReset();
@@ -57,7 +56,11 @@ describe('ClaudeClientService.createMessage', () => {
       guardrailId: 'gr-1',
       guardrailVersion: '2',
     };
-    auditStore = { append: jest.fn().mockResolvedValue(undefined) };
+    auditStore = {
+      append: jest
+        .fn<Promise<void>, [ClaudeAuditRecord]>()
+        .mockResolvedValue(undefined),
+    };
     service = new ClaudeClientService(
       guardrail as unknown as GuardrailService,
       auditStore as unknown as ClaudeAuditStore,
@@ -242,7 +245,7 @@ describe('ClaudeClientService.createMessage', () => {
       { type: 'text', text: ETHICS_SYSTEM_PROMPT },
       { type: 'text', text: 'あなたは要約係です' },
     ]);
-    expect(guardrail.inspect.mock.calls[0][0]).not.toContain(
+    expect((guardrail.inspect.mock.calls[0] as [string])[0]).not.toContain(
       ETHICS_SYSTEM_PROMPT,
     );
   });
