@@ -905,6 +905,28 @@ describe('MCP サーバー', () => {
       expect(result.text).not.toMatch(INVISIBLE);
       expect(result.json.keywords.map((k) => k.text)).toContain('型チェック');
     });
+
+    it('見えない文字で分断された連絡先も、取り除いた後に伏せる', async () => {
+      await data.writeChecked(
+        makeTranscription('split-contact', [
+          [
+            'speaker_0',
+            'メールは taro​@example.com、電話は 080⁠-1111-2222 です',
+          ],
+        ]),
+      );
+      const result = await call('get_utterances', {
+        transcriptionId: h('split-contact'),
+        from: 0,
+      });
+      expect(result.json.utterances[0].text).toBe(
+        'メールは [メールアドレス]、電話は [電話番号] です',
+      );
+      for (const query of ['taro@example.com', '080-1111-2222']) {
+        const search = await call('search_utterances', { query });
+        expect(search.json.total).toBe(0);
+      }
+    });
   });
 
   describe('不完全な文字起こし', () => {
