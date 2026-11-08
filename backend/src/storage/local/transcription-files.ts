@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { isSafePathSegment } from '../../common/path-segment';
 import { Transcription } from '../../transcription/types/transcription.types';
 
 /** 文字起こしごとのフォルダの中にある、文字起こし結果のファイル名 */
@@ -39,13 +40,7 @@ export async function listTranscriptionIds(dir: string): Promise<string[]> {
  * REST の URL パラメータなど、外から来た ID でパスを作る前に確かめる
  */
 export function isSafeTranscriptionId(id: string): boolean {
-  return (
-    id.length > 0 &&
-    id !== '.' &&
-    id !== '..' &&
-    path.basename(id) === id &&
-    !id.includes('\0')
-  );
+  return isSafePathSegment(id);
 }
 
 /**

@@ -15,12 +15,19 @@ describe('isSafeTranscriptionId', () => {
     },
   );
 
-  it.each(['', '.', '..', '../other', 'a/b', '/etc', 'a\0b'])(
-    '保存先の外を指すおそれがある ID は使えない: %j',
-    (id) => {
-      expect(isSafeTranscriptionId(id)).toBe(false);
-    },
-  );
+  it.each([
+    '',
+    '.',
+    '..',
+    '../other',
+    'a/b',
+    '/etc',
+    'a\0b',
+    'a\\b',
+    '..\\other',
+  ])('保存先の外を指すおそれがある ID は使えない: %j', (id) => {
+    expect(isSafeTranscriptionId(id)).toBe(false);
+  });
 });
 
 describe('readTranscriptionFile', () => {
