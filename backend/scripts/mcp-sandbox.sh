@@ -40,7 +40,7 @@ NODE_DIR=$(real "$(dirname "$NODE_REAL")/..")
 HOME_DIR=$(real "$HOME")
 # node のフォルダがホームフォルダそのもの、またはその親だと、ホームフォルダ全体を読めてしまう
 case "$HOME_DIR/" in
-  "$NODE_DIR"/*)
+  "${NODE_DIR%/}"/*)
     echo "node のフォルダ（$NODE_DIR）がホームフォルダを含むため、sandbox で読み取りを制限できません。node を別の場所に入れてください" >&2
     exit 2
     ;;
