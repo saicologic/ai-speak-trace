@@ -214,7 +214,7 @@ export function mergeAssessment(
   const sensitive = assessment.sensitiveInformationPolicy;
   for (const e of sensitive?.piiEntities ?? []) {
     if (e.detected !== false && e.type && e.match) {
-      // 製品名などの誤検出になりやすいもの（ユーザー名・国名だけの住所）は除く
+      // 個人情報として扱わないもの（国名だけの住所・会社名や製品名だけの氏名・ユーザー名）は除く
       if (isIgnoredPii(e.type, e.match)) continue;
       findings.pii.push({ type: e.type, match: e.match });
     }

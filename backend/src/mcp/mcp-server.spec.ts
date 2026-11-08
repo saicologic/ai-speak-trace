@@ -351,7 +351,7 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
     });
 
-    it('画面に出さない検出（ユーザー名）の要確認は、返さない理由にしない', async () => {
+    it('以前に要確認として保存したユーザー名は、返さない理由にせず伏せる', async () => {
       const t = makeTranscription('username-talk', [
         ['speaker_0', 'こんにちは'],
       ]);
@@ -370,6 +370,7 @@ describe('MCP サーバー', () => {
         (x) => x.id === h('username-talk'),
       );
       expect(entry?.privacy).toBe('checked');
+      expect(JSON.stringify(entry)).not.toContain('Aさん');
     });
 
     it('会話が多い場合は nextCursor で続きを返す', async () => {
