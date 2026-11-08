@@ -129,6 +129,43 @@ describeOnMac('MCP サーバーの sandbox', () => {
     expect(result.stderr).toContain('node を実行できません');
   });
 
+  it.each([
+    ['ホームフォルダと同じ', (base: string) => path.join(base, 'home')],
+    ['ホームフォルダの親', (base: string) => path.join(base, 'x/home')],
+  ])(
+    'node のフォルダが%sになるときは、読み取りを制限できないため止まる',
+    (_, homeOf) => {
+      // node を入れたフォルダ（bin/node の2つ上）が、ホームフォルダかその親になる配置
+      const base = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-sb-node-')),
+      );
+      try {
+        const fakeHome = homeOf(base);
+        const binDir = path.join(
+          path.dirname(fakeHome) === base ? fakeHome : base,
+          'bin',
+        );
+        fs.mkdirSync(fakeHome, { recursive: true });
+        fs.mkdirSync(binDir, { recursive: true });
+        const fakeNode = path.join(binDir, 'node');
+        fs.writeFileSync(fakeNode, '#!/bin/sh\n', { mode: 0o755 });
+        const result = spawnSync(SCRIPT, [fakeNode], {
+          encoding: 'utf-8',
+          env: {
+            HOME: fakeHome,
+            DATA_DIR: path.join(fakeHome, 'data'),
+            PATH: '/usr/bin:/bin',
+            MCP_SANDBOX_DRY_RUN: '1',
+          },
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('ホームフォルダを含む');
+      } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+      }
+    },
+  );
+
   it('外部に通信できない', async () => {
     const server = http.createServer((_, res) => res.end('ok'));
     await new Promise<void>((resolve) =>
