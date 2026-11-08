@@ -91,7 +91,9 @@ function skipSubst(s, i) {
     else if (c === '"') j = skipDouble(s, j)
     else if (c === '`') j = skipBacktick(s, j)
     else if (c === '$' && s[j + 1] === '(') j = skipSubst(s, j + 2)
-    else if (c === '<' && s[j + 1] === '<' && s[j + 2] !== '<') {
+    // here-string（<<<）は heredoc ではない
+    else if (c === '<' && s[j + 1] === '<' && s[j + 2] === '<') j += 3
+    else if (c === '<' && s[j + 1] === '<') {
       const h = readHeredocStart(s, j)
       pending.push(h)
       j = h.end
@@ -159,7 +161,11 @@ function segments(s) {
       // コメントは行の終わりまで飛ばす
       const nl = s.indexOf('\n', i)
       i = nl < 0 ? s.length : nl
-    } else if (c === '<' && s[i + 1] === '<' && s[i + 2] !== '<') {
+    } else if (c === '<' && s[i + 1] === '<' && s[i + 2] === '<') {
+      // here-string（<<<）は heredoc ではない。後ろの言葉はふつうに読む
+      endWord()
+      i += 3
+    } else if (c === '<' && s[i + 1] === '<') {
       endWord()
       const h = readHeredocStart(s, i)
       pending.push(h)
@@ -170,6 +176,10 @@ function segments(s) {
     } else if (c === ';' || c === '&' || c === '|') {
       endSegment()
       i += s[i + 1] === c ? 2 : 1
+    } else if (c === '(' || c === ')') {
+      // サブシェル（( … )）の括弧も区切りにする
+      endSegment()
+      i++
     } else if (c === ' ' || c === '\t') {
       endWord()
       i++
@@ -184,11 +194,13 @@ function segments(s) {
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
+// 部分の先頭に来て、その後ろのコマンドを実行する言葉（{ git push; }・then git push・! git push など）
+const LEADING_KEYWORDS = new Set(['{', '}', '!', 'then', 'do', 'else', 'elif', 'if', 'while', 'until', 'time'])
 
 function isPush(words) {
   let i = 0
   let skip = false
-  while (i < words.length && ASSIGNMENT.test(words[i])) {
+  while (i < words.length && (LEADING_KEYWORDS.has(words[i]) || ASSIGNMENT.test(words[i]))) {
     if (words[i] === 'SKIP_TDD_CHECK=1') skip = true
     i++
   }
