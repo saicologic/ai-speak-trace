@@ -72,10 +72,24 @@ for c in $commits; do
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       # この実装を参照しているテスト（このコミットの前にあったものと、このコミットで足したもの）
-      related=$({
-        node "$script_dir/related-tests.mjs" "$c^" "$f"
-        node "$script_dir/related-tests.mjs" "$c" "$f"
-      } | sort -u)
+      # node が失敗したら、参照しているテストがないものとして通さずに止める
+      if ! related_after=$(node "$script_dir/related-tests.mjs" "$c" "$f"); then
+        echo "参照しているテストを探せませんでした（related-tests.mjs が失敗）: $short $subject"
+        echo "  実装: $f"
+        failed=1
+        continue
+      fi
+      related_before=""
+      # リポジトリの最初のコミットには、前のコミットがない
+      if git rev-parse -q --verify "$c^" >/dev/null; then
+        if ! related_before=$(node "$script_dir/related-tests.mjs" "$c^" "$f"); then
+          echo "参照しているテストを探せませんでした（related-tests.mjs が失敗）: $short $subject"
+          echo "  実装: $f"
+          failed=1
+          continue
+        fi
+      fi
+      related=$(printf '%s\n%s\n' "$related_before" "$related_after" | sed '/^$/d' | sort -u)
       if [ -n "$related" ]; then
         updated=false
         while IFS= read -r t; do

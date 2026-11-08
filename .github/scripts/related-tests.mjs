@@ -34,7 +34,14 @@ function readAll(files) {
   let pos = 0
   for (let i = 0; i < files.length; i++) {
     const headerEnd = out.indexOf(0x0a, pos)
-    const size = Number(out.subarray(pos, headerEnd).toString().split(' ')[2])
+    const header = out.subarray(pos, headerEnd).toString().split(' ')
+    // サブモジュール・ない物は、本文なしの「<名前> submodule」「<名前> missing」の1行だけが返る
+    if (header.length < 3) {
+      contents.push('')
+      pos = headerEnd + 1
+      continue
+    }
+    const size = Number(header[2])
     contents.push(out.subarray(headerEnd + 1, headerEnd + 1 + size).toString('utf-8'))
     pos = headerEnd + 1 + size + 1
   }
