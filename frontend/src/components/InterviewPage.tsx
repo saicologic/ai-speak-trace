@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FeedbackButton } from './FeedbackButton';
-import { marked } from 'marked';
 import { generateQuestions, analyzeInterview, fetchAnalysisLogs, fetchAnalysisLog } from '../api/client';
 import { keywordsFor } from '../utils/speakerKeywords';
 import { keepAvailable } from '../utils/keywordSelection';
@@ -9,17 +8,9 @@ import { KeywordSourceSwitch } from './KeywordSourceSwitch';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
 import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
+import { markdownToSafeHtml } from '../utils/markdownHtml';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
-
-// markedの設定: リンクを新しいタブで開く
-marked.use({
-  renderer: {
-    link({ href, text }) {
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-    },
-  },
-});
 
 interface QuestionItem {
   text: string;
@@ -218,12 +209,12 @@ export function InterviewPage({
 
   const selectedSpeaker = speakers.find((s) => s.id === selectedSpeakerId);
 
-  /** 分析結果のMarkdownをHTMLに変換（メモ化） */
+  /** 分析結果のMarkdownを、表示しても安全なHTMLに変換（メモ化） */
   const renderedResults = useMemo(() => {
     if (!analysis) return [];
     return analysis.results.map((result) => ({
       ...result,
-      answerHtml: marked.parse(result.answer) as string,
+      answerHtml: markdownToSafeHtml(result.answer),
     }));
   }, [analysis]);
 
@@ -232,7 +223,7 @@ export function InterviewPage({
     if (!logDetail) return [];
     return logDetail.results.map((result) => ({
       ...result,
-      answerHtml: marked.parse(result.answer) as string,
+      answerHtml: markdownToSafeHtml(result.answer),
     }));
   }, [logDetail]);
 

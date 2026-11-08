@@ -147,7 +147,11 @@ AI Speak Trace.app (Tauri)
 
 - フロントエンドは WebView 内で動作し、NestJS sidecar と HTTP 通信
 - NestJS は `listen(0)` でOSに空きポートを自動割り当て。Rust が stdout の `PORT=xxxxx` を検知してフロントへ通知
+- sidecar の API は、アプリの画面からだけ呼べる。Rust が起動のたびにトークン（32バイトの乱数）を作って環境変数 `API_TOKEN` で sidecar に渡し、画面は `invoke('get_api_token')` で受け取って `X-Api-Token` ヘッダーに付ける（`frontend/src/api/client.ts` の `apiFetch`。`fetch` を直接使うと ESLint のエラーになる）。ヘッダーを付けられない `<audio src>` の音声だけは、URL の `?token=` でも受け付ける（`backend/src/security/api-token.ts`）
+  - 127.0.0.1 で待ち受けていても、同じ Mac の別のプロセス（AI エージェントのコマンドや npm の install スクリプトなど）からは呼べるため。トークンがない呼び出しは 401 で断る
+  - アプリにまとめた sidecar は、`API_TOKEN` がないと起動しない。開発時（`npm run start:dev`）は `API_TOKEN` がなければトークンを求めない
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
+- リリース版（DMG）では Web インスペクタを開けない（`src-tauri/Cargo.toml` で tauri の `devtools` を付けない）。開くと sidecar のトークンや API の中身が見えるため。開発時（`tauri dev`）は開ける。DMG と同じ設定で CSP の違反などを確かめるときは、デバッグ版（`npx tauri build --debug`）を作って ⌘⌥I で開く
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
 
 ### GiNZA のキーワード抽出（ベータ機能）

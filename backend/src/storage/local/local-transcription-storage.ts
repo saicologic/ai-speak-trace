@@ -4,10 +4,10 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { TranscriptionStorage } from '../interfaces/transcription-storage.interface';
+import { assertSafePathSegment } from '../../common/safe-path';
 import { Transcription } from '../../transcription/types/transcription.types';
 import {
   TRANSCRIPTION_FILE,
-  isSafeTranscriptionId,
   listTranscriptionIds,
   readTranscriptionFile,
 } from './transcription-files';
@@ -36,11 +36,8 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
    * 保存先の外のフォルダを作ったり消したりしないよう、1つのフォルダ名でない ID は例外にする
    */
   private getItemDir(id: string): string {
-    if (!isSafeTranscriptionId(id)) {
-      throw new Error(
-        `文字起こしの ID として使えません: ${JSON.stringify(id)}`,
-      );
-    }
+    // ID は URL から受け取るため、保存先（transcriptions/）の外を指さないことを確かめる
+    assertSafePathSegment(id, '文字起こしの ID');
     return path.join(this.storeDir, id);
   }
 

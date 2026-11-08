@@ -28,6 +28,32 @@ import type { ResearchJob, ResearchJobSummary, ResearchTarget } from '../types/r
 export let BASE_URL = '/api';
 
 /**
+ * sidecar の API を呼ぶためのトークン
+ * - 本番（Tauri sidecar）: initBackendUrl() で Tauri から受け取る
+ * - 開発（Vite dev server）: バックエンドがトークンを求めないため null
+ */
+let API_TOKEN: string | null = null;
+
+/** トークンを付けるヘッダー（backend の API_TOKEN_HEADER と同じ） */
+const API_TOKEN_HEADER = 'X-Api-Token';
+
+/** sidecar の API を呼ぶ（トークンをヘッダーに付ける）。API はこの関数で呼ぶ */
+export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  // eslint-disable-next-line no-restricted-globals -- トークンを付けて呼ぶ、ただ1つの場所
+  if (!API_TOKEN) return fetch(input, init);
+  const headers = new Headers(init?.headers);
+  headers.set(API_TOKEN_HEADER, API_TOKEN);
+  // eslint-disable-next-line no-restricted-globals -- トークンを付けて呼ぶ、ただ1つの場所
+  return fetch(input, { ...init, headers });
+}
+
+/** ヘッダーを付けられない <audio src> の URL に、トークンをクエリで付ける */
+function withToken(url: string): string {
+  if (!API_TOKEN) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(API_TOKEN)}`;
+}
+
+/**
  * バックエンドURLを初期化する
  * - 本番: Tauri invoke('get_backend_port') でポートを取得してBASE_URLを更新
  * - 開発: Vite proxy が /api を転送するため何もしない
@@ -51,6 +77,7 @@ export async function initBackendUrl(): Promise<void> {
     const port: number | null = await invoke('get_backend_port');
     if (port !== null) {
       BASE_URL = `http://127.0.0.1:${port}/api`;
+      API_TOKEN = await invoke<string | null>('get_api_token');
       console.log(`[API] バックエンドポート確定: ${port} (BASE_URL=${BASE_URL})`);
       return;
     }
@@ -74,13 +101,13 @@ const RETRY_INITIAL_DELAY_MS = 500;
 
 /** ネットワークエラー時にリトライ付きでfetchを実行する */
 async function fetchWithRetry(
-  input: RequestInfo | URL,
+  input: string,
   init?: RequestInit,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < RETRY_MAX; attempt++) {
     try {
-      return await fetch(input, init);
+      return await apiFetch(input, init);
     } catch (err) {
       lastError = err;
       // ネットワークエラー（サーバー未起動など）の場合のみリトライ
@@ -116,7 +143,7 @@ export async function uploadAudioFile(file: File): Promise<string> {
 
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${BASE_URL}/audio-files`, {
+  const res = await apiFetch(`${BASE_URL}/audio-files`, {
     method: 'POST',
     body: formData,
   });
@@ -132,7 +159,7 @@ export async function uploadAudioFile(file: File): Promise<string> {
 
 /** 音声ファイルの再生用URLを取得 */
 export async function fetchAudioFileUrl(fileName: string): Promise<string> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${BASE_URL}/audio-files/${encodeURIComponent(fileName)}/url`,
   );
   if (!res.ok) {
@@ -146,7 +173,7 @@ export async function fetchAudioFileUrl(fileName: string): Promise<string> {
     const origin = BASE_URL.startsWith('http')
       ? new URL(BASE_URL).origin
       : window.location.origin;
-    return `${origin}${url}`;
+    return withToken(`${origin}${url}`);
   }
   return url;
 }
@@ -220,7 +247,7 @@ export async function fetchActiveJob(
   fileName: string,
 ): Promise<ChunkedJobStatus | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${BASE_URL}/transcribe/jobs/active?fileName=${encodeURIComponent(fileName)}`,
     );
     if (!res.ok) return null;
@@ -236,7 +263,7 @@ export async function checkExistingJob(
   fileName: string,
 ): Promise<ChunkedJobDetail | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${BASE_URL}/chunked-jobs/check/${encodeURIComponent(fileName)}`,
     );
     if (!res.ok) return null;
@@ -250,7 +277,7 @@ export async function checkExistingJob(
 /** 音声ファイルの存在確認 */
 export async function checkAudioFileExists(fileName: string): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${BASE_URL}/audio-files/exists/${encodeURIComponent(fileName)}`,
     );
     if (!res.ok) return false;
@@ -265,7 +292,7 @@ export async function checkAudioFileExists(fileName: string): Promise<boolean> {
 export async function deleteAllResourcesByFileName(
   fileName: string,
 ): Promise<void> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${BASE_URL}/audio-files/${encodeURIComponent(fileName)}/all`,
     { method: 'DELETE' },
   );
@@ -278,7 +305,7 @@ export async function deleteAllResourcesByFileName(
 export async function resumeTranscription(
   jobId: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcribe/resume`, {
+  const res = await apiFetch(`${BASE_URL}/transcribe/resume`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jobId }),
@@ -320,7 +347,7 @@ export interface CreditInfo {
 
 /** ElevenLabsクレジット残量を確認 */
 export async function checkCredits(): Promise<CreditInfo> {
-  const res = await fetch(`${BASE_URL}/credits/check`);
+  const res = await apiFetch(`${BASE_URL}/credits/check`);
   if (!res.ok) {
     const rawText = await res.text().catch(() => '');
     let body: Record<string, unknown> | null = null;
@@ -384,7 +411,7 @@ export async function fetchResumableJobs(): Promise<ChunkedJobDetail[]> {
 
 /** ジョブを削除 */
 export async function deleteChunkedJob(jobId: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`, {
+  const res = await apiFetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`, {
     method: 'DELETE',
   });
   if (!res.ok) {
@@ -397,7 +424,7 @@ export async function fetchJobDetail(
   jobId: string,
 ): Promise<ChunkedJobDetail | null> {
   try {
-    const res = await fetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`);
+    const res = await apiFetch(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}`);
     if (!res.ok) return null;
     const data = await res.json();
     return data.job;
@@ -408,7 +435,7 @@ export async function fetchJobDetail(
 
 /** チャンク音声のURLを取得 */
 export function getChunkAudioUrl(jobId: string, chunkIndex: number): string {
-  return `${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}/chunks/${chunkIndex}/audio`;
+  return withToken(`${BASE_URL}/transcribe/jobs/${encodeURIComponent(jobId)}/chunks/${chunkIndex}/audio`);
 }
 
 /** 文字起こし一覧を取得 */
@@ -457,7 +484,7 @@ export async function fetchTranscription(
  * ほかの文字起こしが使っていない音声も削除される
  */
 export async function deleteTranscription(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
   if (!res.ok) {
@@ -471,7 +498,7 @@ export async function generateQuestions(
   speakerId: string,
   keywords: string[],
 ): Promise<string[]> {
-  const res = await fetch(`${BASE_URL}/interview/generate-questions`, {
+  const res = await apiFetch(`${BASE_URL}/interview/generate-questions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionId, speakerId, keywords }),
@@ -490,7 +517,7 @@ export async function analyzeInterview(
   keywords: string[],
   questions: string[],
 ): Promise<InterviewAnalysis> {
-  const res = await fetch(`${BASE_URL}/interview/analyze`, {
+  const res = await apiFetch(`${BASE_URL}/interview/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
@@ -504,7 +531,7 @@ export async function analyzeInterview(
 
 /** 分析ログ一覧（サマリー）を取得 */
 export async function fetchAnalysisLogs(): Promise<InterviewAnalysisSummary[]> {
-  const res = await fetch(`${BASE_URL}/interview/logs`);
+  const res = await apiFetch(`${BASE_URL}/interview/logs`);
   if (!res.ok) {
     throw new Error(`分析ログ一覧の取得に失敗しました: ${res.status}`);
   }
@@ -514,7 +541,7 @@ export async function fetchAnalysisLogs(): Promise<InterviewAnalysisSummary[]> {
 
 /** 分析ログ詳細を取得 */
 export async function fetchAnalysisLog(id: string): Promise<InterviewAnalysis> {
-  const res = await fetch(`${BASE_URL}/interview/logs/${encodeURIComponent(id)}`);
+  const res = await apiFetch(`${BASE_URL}/interview/logs/${encodeURIComponent(id)}`);
   if (!res.ok) {
     throw new Error(`分析ログの取得に失敗しました: ${res.status}`);
   }
@@ -529,7 +556,7 @@ export async function previewPrompts(
   keywords: string[],
   questions: string[],
 ): Promise<{ generateQuestionsPrompt: string; analyzePrompts: string[] }> {
-  const res = await fetch(`${BASE_URL}/interview/preview-prompts`, {
+  const res = await apiFetch(`${BASE_URL}/interview/preview-prompts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionId, speakerId, keywords, questions }),
@@ -546,7 +573,7 @@ export async function updateSpeakerNames(
   id: string,
   speakers: { id: string; name: string }[],
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}/speakers`, {
+  const res = await apiFetch(`${BASE_URL}/transcriptions/${encodeURIComponent(id)}/speakers`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ speakers }),
@@ -563,7 +590,7 @@ export async function analyzeUtteranceContext(
   transcriptionId: string,
   utteranceIndices: number[],
 ): Promise<ContextAnalysisResponse> {
-  const res = await fetch(`${BASE_URL}/interview/analyze-context`, {
+  const res = await apiFetch(`${BASE_URL}/interview/analyze-context`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionId, utteranceIndices }),
@@ -600,14 +627,14 @@ export async function fetchPodcastFiles(): Promise<{
 
 /** Podcastファイルのストリーミング再生URLを取得 */
 export function getPodcastFileStreamUrl(fileName: string): string {
-  return `${BASE_URL}/podcast-files/${encodeURIComponent(fileName)}/stream`;
+  return withToken(`${BASE_URL}/podcast-files/${encodeURIComponent(fileName)}/stream`);
 }
 
 /** Podcastファイルを文字起こし */
 export async function transcribePodcastFile(
   fileName: string,
 ): Promise<Transcription> {
-  const res = await fetch(`${BASE_URL}/podcast-transcribe`, {
+  const res = await apiFetch(`${BASE_URL}/podcast-transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName }),
@@ -634,7 +661,7 @@ export async function transcribePodcastFile(
 
 /** 要約設定（デフォルトプロンプト・モデル一覧）を取得 */
 export async function fetchSummaryConfig(): Promise<SummaryConfig> {
-  const res = await fetch(`${BASE_URL}/interview/summary-config`);
+  const res = await apiFetch(`${BASE_URL}/interview/summary-config`);
   if (!res.ok) {
     throw new Error(`要約設定の取得に失敗しました: ${res.status}`);
   }
@@ -647,7 +674,7 @@ export async function summarizeTranscription(
   model: string,
   prompt: string,
 ): Promise<TranscriptionSummaryLog> {
-  const res = await fetch(`${BASE_URL}/interview/summarize`, {
+  const res = await apiFetch(`${BASE_URL}/interview/summarize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionId, model, prompt }),
@@ -661,7 +688,7 @@ export async function summarizeTranscription(
 
 /** 要約ログ一覧を取得 */
 export async function fetchSummaryLogs(): Promise<TranscriptionSummaryLog[]> {
-  const res = await fetch(`${BASE_URL}/interview/summary-logs`);
+  const res = await apiFetch(`${BASE_URL}/interview/summary-logs`);
   if (!res.ok) {
     throw new Error(`要約ログ一覧の取得に失敗しました: ${res.status}`);
   }
@@ -671,7 +698,7 @@ export async function fetchSummaryLogs(): Promise<TranscriptionSummaryLog[]> {
 
 /** 要約ログ詳細を取得 */
 export async function fetchSummaryLog(id: string): Promise<TranscriptionSummaryLog> {
-  const res = await fetch(`${BASE_URL}/interview/summary-logs/${encodeURIComponent(id)}`);
+  const res = await apiFetch(`${BASE_URL}/interview/summary-logs/${encodeURIComponent(id)}`);
   if (!res.ok) {
     throw new Error(`要約ログの取得に失敗しました: ${res.status}`);
   }
@@ -693,7 +720,7 @@ export async function fetchSettings(): Promise<AppSettings> {
 
 /** データフォルダをFinderで開く */
 export async function openDataFolder(): Promise<void> {
-  await fetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
+  await apiFetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
 }
 
 /** アプリ設定を更新 */
@@ -709,7 +736,7 @@ export async function updateSettings(
     awsProfile?: string;
   },
 ): Promise<{ settings: AppSettings; restartRequired: boolean }> {
-  const res = await fetch(`${BASE_URL}/settings`, {
+  const res = await apiFetch(`${BASE_URL}/settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(dto),
@@ -732,7 +759,7 @@ export async function submitFeedback(input: {
   quote: string;
   comment: string;
 }): Promise<Feedback> {
-  const res = await fetch(`${BASE_URL}/feedback`, {
+  const res = await apiFetch(`${BASE_URL}/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -750,7 +777,7 @@ export async function fetchFeedback(
   targetId: string,
 ): Promise<Feedback[]> {
   const params = new URLSearchParams({ feature, targetId });
-  const res = await fetch(`${BASE_URL}/feedback?${params.toString()}`);
+  const res = await apiFetch(`${BASE_URL}/feedback?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`報告の取得に失敗しました: ${res.status}`);
   }
@@ -790,7 +817,7 @@ export async function startResearch(
   transcriptionIds: string[],
   frequentWords: { word: string; count: number }[],
 ): Promise<ResearchJob> {
-  const res = await fetch(`${BASE_URL}/research`, {
+  const res = await apiFetch(`${BASE_URL}/research`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcriptionIds, frequentWords }),
@@ -803,7 +830,7 @@ export async function startResearch(
 
 /** 調査のタイトルを変更する */
 export async function updateResearchTitle(id: string, title: string): Promise<ResearchJob> {
-  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`${BASE_URL}/research/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title }),
@@ -819,7 +846,7 @@ export async function confirmResearch(
   id: string,
   targets: ResearchTarget[],
 ): Promise<ResearchJob> {
-  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/confirm`, {
+  const res = await apiFetch(`${BASE_URL}/research/${encodeURIComponent(id)}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ targets }),
@@ -856,7 +883,7 @@ export async function fetchPrivacy(transcriptionId: string): Promise<PrivacyStat
 
 /** 文字起こしの個人情報チェックを実行する */
 export async function scanPrivacy(transcriptionId: string): Promise<PrivacyStatus> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${BASE_URL}/transcriptions/${encodeURIComponent(transcriptionId)}/privacy/scan`,
     { method: 'POST' },
   );
@@ -871,7 +898,7 @@ export async function updatePrivacyMasks(
   transcriptionId: string,
   findings: { type: string; text: string; mask: boolean }[],
 ): Promise<PrivacyStatus> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${BASE_URL}/transcriptions/${encodeURIComponent(transcriptionId)}/privacy`,
     {
       method: 'PATCH',
@@ -889,7 +916,7 @@ export async function updatePrivacyMasks(
 
 /** GiNZA の準備の状態を取得する */
 export async function fetchGinzaStatus(): Promise<GinzaStatus> {
-  const res = await fetch(`${BASE_URL}/ginza/status`);
+  const res = await apiFetch(`${BASE_URL}/ginza/status`);
   if (!res.ok) {
     throw new Error(await errorMessage(res, 'GiNZA の状態を取得できませんでした'));
   }
@@ -898,7 +925,7 @@ export async function fetchGinzaStatus(): Promise<GinzaStatus> {
 
 /** GiNZA のインストールを始める（終わるのを待たない） */
 export async function startGinzaInstall(): Promise<GinzaStatus> {
-  const res = await fetch(`${BASE_URL}/ginza/install`, { method: 'POST' });
+  const res = await apiFetch(`${BASE_URL}/ginza/install`, { method: 'POST' });
   if (!res.ok) {
     throw new Error(await errorMessage(res, 'GiNZA のインストールを始められませんでした'));
   }
@@ -907,7 +934,7 @@ export async function startGinzaInstall(): Promise<GinzaStatus> {
 
 /** GiNZA で取り出した会話のキーワード（全体と話者ごと）を取得する */
 export async function fetchGinzaKeywords(transcriptionId: string): Promise<GinzaKeywords> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${BASE_URL}/ginza/transcriptions/${encodeURIComponent(transcriptionId)}/keywords`,
   );
   if (!res.ok) {

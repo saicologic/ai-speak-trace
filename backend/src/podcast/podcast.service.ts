@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync } from 'fs';
+import { assertSafePathSegment } from '../common/safe-path';
 import { homedir } from 'os';
 
 /** Podcastキャッシュファイル情報 */
@@ -70,13 +71,14 @@ export class PodcastService {
     // 最終更新日時の降順でソート
     return files.sort(
       (a, b) =>
-        new Date(b.lastModified).getTime() -
-        new Date(a.lastModified).getTime(),
+        new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime(),
     );
   }
 
   /** 指定ファイルのBufferを読み込み */
   async readFile(fileName: string): Promise<Buffer> {
+    // ファイル名は URL や本文から受け取るため、キャッシュの外を指さないことを確かめる
+    assertSafePathSegment(fileName, 'Podcast のファイル名');
     const filePath = path.join(this.podcastCacheDir, fileName);
     if (!existsSync(filePath)) {
       throw new NotFoundException(

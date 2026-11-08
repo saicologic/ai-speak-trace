@@ -20,4 +20,15 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // sidecar の API はトークンを付ける apiFetch で呼ぶ（fetch を直接使うと、トークンなしで断られる）
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'sidecar の API は api/client.ts の apiFetch で呼んでください' },
+      ],
+    },
+  },
 ])
