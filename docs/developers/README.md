@@ -119,7 +119,7 @@ Apple Developer証明書による署名・公証済みのため、Gatekeeperの�
 ./src-tauri/target/release/bundle/macos/AI\ Speak\ Trace.app/Contents/MacOS/ai-speak-trace
 ```
 
-アプリ起動後、`Cmd + Option + I` で DevTools を開き、フロントエンドのエラーを確認できます。
+リリース版では、DevTools（Web インスペクタ）は開けません（下の「技術スタック」を参照）。フロントエンドのエラーは、開発時（`npm run tauri dev`）に `Cmd + Option + I` で DevTools を開いて確認します。
 
 ## 技術スタック
 
@@ -149,9 +149,10 @@ AI Speak Trace.app (Tauri)
 - NestJS は `listen(0)` でOSに空きポートを自動割り当て。Rust が stdout の `PORT=xxxxx` を検知してフロントへ通知
 - sidecar の API は、アプリの画面からだけ呼べる。Rust が起動のたびにトークン（32バイトの乱数）を作って環境変数 `API_TOKEN` で sidecar に渡し、画面は `invoke('get_api_token')` で受け取って `X-Api-Token` ヘッダーに付ける（`frontend/src/api/client.ts` の `apiFetch`。`fetch` を直接使うと ESLint のエラーになる）。ヘッダーを付けられない `<audio src>` の音声だけは、URL の `?token=` でも受け付ける（`backend/src/security/api-token.ts`）
   - 127.0.0.1 で待ち受けていても、同じ Mac の別のプロセス（AI エージェントのコマンドや npm の install スクリプトなど）からは呼べるため。トークンがない呼び出しは 401 で断る
+  - 防げるのは、トークンを知らずに呼ぶ呼び出しまで。トークンは環境変数で sidecar に渡すため、同じユーザーの権限でほかのプロセスの環境変数やメモリを読めるものからは守れない
   - アプリにまとめた sidecar は、`API_TOKEN` がないと起動しない。開発時（`npm run start:dev`）は `API_TOKEN` がなければトークンを求めない
 - Tauri の Rust 側で sidecar プロセスの起動・終了をライフサイクル管理
-- リリース版（DMG）では Web インスペクタを開けない（`src-tauri/Cargo.toml` で tauri の `devtools` を付けない）。開くと sidecar のトークンや API の中身が見えるため。開発時（`tauri dev`）は開ける。DMG と同じ設定で CSP の違反などを確かめるときは、デバッグ版（`npx tauri build --debug`）を作って ⌘⌥I で開く
+- リリース版（DMG）では Web インスペクタを開けない（`src-tauri/Cargo.toml` で tauri の `devtools` を付けない）。開くと sidecar のトークンや API の中身が見えるため。開発時（`tauri dev`）は開ける。デバッグ版（`npx tauri build --debug`）も ⌘⌥I で開けるが、`cfg!(debug_assertions)` で開発時と同じ動きになり、sidecar を起動せず、トークンも使わない（先に `cd backend && npm run start:dev` でバックエンドを起動しておく）。そのため、デバッグ版で確かめられるのは CSP の違反など画面の側だけで、sidecar の起動やトークンの確認には使えない
 - データは `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存
 
 ### GiNZA のキーワード抽出（ベータ機能）
