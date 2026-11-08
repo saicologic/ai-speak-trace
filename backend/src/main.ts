@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SettingsService } from './settings/settings.service';
+import { configureApp } from './app-setup';
+import { resolveApiToken } from './security/api-token';
 
 // pkg --jitless 環境では DOMMatrix 等のグローバルが未定義になるためポリフィル
 if (typeof globalThis.DOMMatrix === 'undefined') {
@@ -19,26 +21,12 @@ SettingsService.loadSettingsIntoEnv();
 SettingsService.loadApiKeysFromKeychain();
 
 async function bootstrap() {
+  // pkg でまとめた sidecar では process.pkg がある
+  const packaged = 'pkg' in process;
+  const apiToken = resolveApiToken(process.env, packaged);
   const app = await NestFactory.create(AppModule);
 
-  // CORSを設定（CORS_ORIGIN環境変数でカンマ区切りで複数オリジン指定可能）
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-    : ['http://localhost:5173', 'tauri://localhost'];
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS not allowed: ${origin}`));
-      }
-    },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
-  });
-
-  // APIプレフィックスを設定
-  app.setGlobalPrefix('api');
+  configureApp(app, apiToken);
 
   // ポート0を指定してOSに空きポートを自動割り当てさせる
   await app.listen(0, '127.0.0.1');

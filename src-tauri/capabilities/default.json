@@ -1,16 +1,14 @@
 {
   "identifier": "default",
-  "description": "デフォルトパーミッション",
-  "windows": ["main"],
+  "description": "デフォルトパーミッション（画面から使う機能だけを許可する）",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    "shell:allow-spawn",
-    "shell:allow-execute",
-    "shell:default",
     "dialog:default",
     "dialog:allow-open",
-    "fs:allow-home-read-recursive",
-    "fs:allow-download-read-recursive",
-    "process:allow-restart"
+    "fs:allow-read-file",
+    "shell:allow-open"
   ]
 }
