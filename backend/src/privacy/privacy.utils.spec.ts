@@ -361,6 +361,18 @@ describe('ユーザー名の初期状態', () => {
     ]);
   });
 
+  it('保存済みの要確認のユーザー名でも、製品名などはそのまま', () => {
+    const github: PiiFinding = {
+      type: 'USERNAME',
+      label: 'ユーザー名',
+      text: 'GitHub',
+      count: 1,
+      mask: false,
+      needsReview: true,
+    };
+    expect(withCurrentDefaults([github])).toEqual([github]);
+  });
+
   it('形の崩れた検出は、そのまま返す', () => {
     const broken = [null, 'x'] as unknown as PiiFinding[];
     expect(withCurrentDefaults(broken)).toEqual([null, 'x']);
