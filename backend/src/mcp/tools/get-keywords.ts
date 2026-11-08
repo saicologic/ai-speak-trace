@@ -7,6 +7,7 @@ import {
   stripSoundTags,
 } from '../../ginza/ginza-keywords.utils';
 import { readGinzaKeywordCache } from '../../transcription/ginza-keyword-store.service';
+import { stripInvisible } from '../invisible-chars';
 import { findContacts, maskContacts } from '../contact-patterns';
 import { ToolRejection } from '../conversation-reader';
 import { MAX_KEYWORDS } from '../mcp.constants';
@@ -96,17 +97,20 @@ export function registerGetKeywords(server: McpServer, ctx: ToolContext): void {
         .flatMap((e) => (e.conversation ? [e.conversation] : []))
         .filter((c) => c.sourceId !== conversation.sourceId)
         .map((c) => c.transcription.fullText);
+      // キャッシュの語は伏せる前の発話から作られているため、返す本文と同じく見えない文字を取り除く
       const ranked = rankKeywords(
         indices.map((i) => cache.terms[i]),
         indices.map((i) => texts[i]).join('\n'),
         others,
-      );
+      )
+        .map((k) => ({ ...k, text: stripInvisible(k.text) }))
+        .filter((k) => k.text);
       // キャッシュの語は伏せる前の発話から作られているため、連絡先の一部（メールアドレスの @ より前など）が
       // 語として入っていることがある。個人情報チェックで伏せた文字列に加えて、正規表現で伏せる連絡先
       // （伏せる前の本文から見つけたもの）も伏せた文字列として扱い、その一部を含む語を除く
       const hidden = [
         ...conversation.maskedTexts,
-        ...raw.utterances.flatMap((u) => findContacts(u.text)),
+        ...raw.utterances.flatMap((u) => findContacts(stripInvisible(u.text))),
       ].map(normalizeForSearch);
       // 念のため、伏せ字にした後の本文に出てこない語も返さない
       const visibleText = compact(

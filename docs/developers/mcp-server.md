@@ -12,6 +12,7 @@ backend/src/mcp/
 ├── data-dir.ts             # データのフォルダ（既定はアプリと同じ。環境変数 DATA_DIR で上書き）
 ├── conversation-reader.ts  # 会話の読み込み・個人情報チェックの判定・伏せ字・外に返す ID。ツールはここを通してだけ会話を読む
 ├── contact-patterns.ts     # 連絡先など（電話番号・メール・カード番号・マイナンバー・IP アドレス）を正規表現で伏せる
+├── invisible-chars.ts      # 見えない文字（Tag Block・幅のない文字・文字の向きを変える制御文字）を取り除く
 ├── mcp-audit.ts            # 呼び出しの記録（data/mcp-audit-logs/YYYY-MM.jsonl）
 └── tools/                  # ツールごとのファイルと、共通の処理（tool-helpers.ts）
 ```
@@ -22,7 +23,7 @@ backend/src/mcp/
   - `transcription/ginza-keyword-store.service.ts`: `readGinzaKeywordCache(dir, id)`（`GinzaKeywordStore.find` も使う）
   - 伏せ字は `privacy/privacy.utils.ts` の `maskTranscription`・`maskText`（`PrivacyService.maskForSending` と同じ方法）
 - Nest の `Logger` を使わない。`Logger` は stdout に出すため、stdio の MCP の通信が壊れる。ログはすべて stderr に出す
-- バックエンドと同じ `nest build` でビルドし、`backend/dist/mcp/main.js` を起動する（`npm run mcp:build`・`npm run mcp:start`）
+- バックエンドと同じ `nest build` でビルドし、`backend/dist/mcp/main.js` を起動する（`npm run mcp:build`・`npm run mcp:start`）。MCP クライアントには、sandbox の中で起動する `backend/scripts/mcp-sandbox.sh` を登録する（下の「sandbox の中で起動する理由」）
 
 ## stdio を選んだ理由
 
@@ -72,6 +73,7 @@ backend/src/mcp/
 - 音声ファイル名は返さない。個人情報チェック（`toScanText`）は話者名と本文だけを調べるため、ファイル名にだけ出てくる名前は伏せられない
 - **検索は伏せ字にした後の本文で行う。** 伏せる前の本文で検索すると、伏せた名前で検索したときの件数から、その名前が会話に出てくることがわかってしまうため
 - キーワードは、伏せた文字列を含むもの・伏せた文字列の一部（氏名の姓だけなど）を除く
+- 話者名・本文・キーワードから、見えない文字（Unicode の `Default_Ignorable_Code_Point`。Tag Block・幅のない文字・文字の向きを変える制御文字・異体字セレクタなど）を取り除く（`invisible-chars.ts`）。文字を1つずつ挙げると漏れが出るため、Unicode の性質でまとめて指定する。絵文字をつなぐ文字（U+200D）なども取り除くため、絵文字が分かれて見えることがある。画面には見えないが AI には読めるため、指示や持ち出すデータを隠して埋め込めてしまう。伏せる文字列は元の本文から検出したものなので、その文字列で伏せた後に取り除く。連絡先の正規表現は、取り除いた後に通す（見えない文字で分断された連絡先も見つけるため）
 
 ### 会話の ID をファイル名から作らない理由
 
@@ -119,6 +121,22 @@ backend/src/mcp/
 - `query`・`speakerName` は、どの会話の個人情報チェックで検出された文字列も（「伏せる」を選んでいないものも）伏せ、連絡先なども伏せてから残す
 - 結果を返した会話のフォルダ名を `sources` に残す（外に返す ID はサーバーを起動し直すと変わるため）
 - zod の検証で断った引数は、ツールの処理に入る前に SDK が返すため記録しない
+
+## sandbox の中で起動する理由
+
+MCP サーバーは、データのフォルダを読み、監査ログを書くだけで、外部への通信は要らない。`backend/scripts/mcp-sandbox.sh` は、macOS の `sandbox-exec` で、それ以外をできないようにして起動する（制限の内容は `backend/scripts/mcp-sandbox.sb`）。
+
+- 外部への通信をすべて禁止する。MCP の通信は標準入出力で、ネットワークを使わない
+- ホームフォルダの中で中身を読めるのは、データのフォルダ・`backend/`（`dist` と `node_modules`）・node だけにする。`~/.aws/credentials` などは読めない
+- 書けるのは、監査ログのフォルダ（`mcp-audit-logs/`）だけにする
+
+自分たちのコードでも、依存（`@modelcontextprotocol/sdk`・`zod` など）は他人のコード。依存が乗っ取られても、MCP のプロセスから直接、会話を外に送ったり、ほかのファイルを読み書きしたりできないようにする。
+
+- sandbox が防ぐのは、MCP のプロセスからの直接の通信と、許可したフォルダ以外の読み書きだけ。乗っ取られた依存が、データのフォルダから読んだ会話（伏せ字にする前のものも含む）を MCP の応答に混ぜると、クライアントがその応答をモデル（Anthropic など）に送る。この経路は sandbox では防げないため、依存は `npm ci` で package-lock.json のとおりに入れ、Dependabot の更新で差分を確かめる`@anthropic-ai/sandbox-runtime` を `npx` で起動する方法もあるが、起動のたびに npm から取ってくることになり、それ自体が供給網の攻撃面になるため使わない。
+
+- `sandbox-exec` はシンボリックリンクを解決したパスで比べるため、スクリプトで実際のパスにしてから渡す
+- node のフォルダ（`bin/node` の2つ上）がホームフォルダそのもの、またはその親になる配置（`~/bin/node` など）では、ホームフォルダ全体を読めてしまうため、起動せずに止める
+- 制限は `src/mcp/mcp-sandbox.spec.ts` で確かめる（macOS だけで動く。CI の ubuntu では飛ばす）
 
 ## ブラウザでの動作確認
 

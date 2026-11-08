@@ -108,20 +108,24 @@ Amazon Bedrock Guardrails で会話に含まれる個人情報を検出し、Cla
 
 ```bash
 cd backend
-npm install
+npm ci              # package-lock.json のとおりに入れる（知らないうちに依存の版が変わらないようにする）
 npm run mcp:build   # backend/dist/mcp/main.js ができる
 ```
 
+`git pull` で更新したときは、もう一度ビルドします。ツールの定義（名前・説明）が変わることがあるため、更新した後は、Claude Desktop・Claude Code に表示されるツールが5つのままで、説明が想定どおりかを確かめてください。
+
 **Claude Desktop に登録する**
 
-`~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` には `which node` で表示される node の絶対パスを、`args` にはクローンしたフォルダの絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
+MCP サーバーは、`backend/scripts/mcp-sandbox.sh` で sandbox（macOS の `sandbox-exec`）の中で起動します。sandbox の中では、MCP サーバーから直接外部へ通信できず、ホームフォルダの中で読めるのはデータのフォルダ・`backend/`・node だけ、書けるのは監査ログのフォルダ（`mcp-audit-logs/`）だけです。MCP サーバーが使う部品（MCP の SDK など）が乗っ取られても、MCP サーバーから直接会話を外に送ったり、ほかのファイル（`~/.aws/credentials` など）を読んだりできないようにするためです。MCP サーバーが返した内容は、これまでどおりクライアント（とその先のモデル）に送られます。
+
+`~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` にはクローンしたフォルダの `backend/scripts/mcp-sandbox.sh` の絶対パスを、`args` には `which node` で表示される node の絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
 
 ```json
 {
   "mcpServers": {
     "ai-speak-trace": {
-      "command": "/opt/homebrew/bin/node",
-      "args": ["/Users/you/ai-speak-trace/backend/dist/mcp/main.js"]
+      "command": "/Users/you/ai-speak-trace/backend/scripts/mcp-sandbox.sh",
+      "args": ["/opt/homebrew/bin/node"]
     }
   }
 }
@@ -130,7 +134,7 @@ npm run mcp:build   # backend/dist/mcp/main.js ができる
 **Claude Code に登録する**
 
 ```bash
-claude mcp add --scope user ai-speak-trace -- node /Users/you/ai-speak-trace/backend/dist/mcp/main.js
+claude mcp add --scope user ai-speak-trace -- /Users/you/ai-speak-trace/backend/scripts/mcp-sandbox.sh "$(which node)"
 ```
 
 Claude Code では、データのフォルダを直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で、直接読むのを2つの設定で禁止しておきます（MCP サーバーは Claude Code が別に起動するプロセスなので、どちらの設定の影響も受けません）。

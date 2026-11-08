@@ -1,0 +1,30 @@
+;; MCP サーバーを動かす sandbox のプロファイル（macOS の sandbox-exec 用）
+;; MCP サーバーは、データのフォルダを読み、監査ログを書くだけで、外部への通信は要らない。
+;; 依存（MCP の SDK など）が乗っ取られても、会話を外に送ったり、ほかのファイルを読み書きしたりできないようにする。
+;;
+;; パラメータ（sandbox-exec -D で渡す。どれも実際のパス）
+;;   HOME_DIR    ホームフォルダ
+;;   DATA_DIR    アプリのデータのフォルダ
+;;   BACKEND_DIR リポジトリの backend/（dist と node_modules を読む）
+;;   NODE_DIR    node を入れたフォルダ（bin/node の2つ上）
+;;
+;; 後に書いた規則が優先される。
+(version 1)
+(allow default)
+
+;; 外部への通信をすべて禁止する（MCP の通信は標準入出力で、ネットワークを使わない）
+(deny network*)
+
+;; ホームフォルダの中身は、データのフォルダ・backend/・node だけ読める
+;; （パスを確かめるための属性の読み取り（file-read-metadata）は残す）
+(deny file-read-data (subpath (param "HOME_DIR")))
+(allow file-read-data
+  (subpath (param "DATA_DIR"))
+  (subpath (param "BACKEND_DIR"))
+  (subpath (param "NODE_DIR")))
+
+;; 書き込めるのは、監査ログのフォルダだけ
+(deny file-write*)
+(allow file-write*
+  (subpath (string-append (param "DATA_DIR") "/mcp-audit-logs"))
+  (literal "/dev/null"))

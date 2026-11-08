@@ -18,6 +18,7 @@ import {
 } from '../privacy/privacy.utils';
 import { Transcription } from '../transcription/types/transcription.types';
 import { maskContacts } from './contact-patterns';
+import { stripInvisible } from './invisible-chars';
 
 /**
  * 個人情報チェックの状態
@@ -259,7 +260,8 @@ function reject(
 
 /**
  * アプリが Claude に送るときと同じ方法（PrivacyService.maskForSending）で伏せ字にし、
- * さらに連絡先など（Guardrails を呼ばない代わりに、この Mac の中の正規表現で検出したもの）を伏せる
+ * さらに連絡先など（Guardrails を呼ばない代わりに、この Mac の中の正規表現で検出したもの）を伏せる。
+ * 見えない文字は、伏せる文字列で伏せた後、連絡先を伏せる前に取り除く（伏せる文字列は元の本文から検出したもの）
  */
 function mask(
   id: string,
@@ -276,20 +278,28 @@ function mask(
       id,
       // 音声ファイル名は個人情報チェックの対象ではなく、名前などが残ることがあるため返さない
       audioFileName: '',
-      fullText: maskContacts(masked.fullText),
+      fullText: clean(masked.fullText),
       speakers: masked.speakers.map((s) => ({
         ...s,
-        name: maskContacts(s.name),
+        name: clean(s.name),
       })),
       utterances: masked.utterances.map((u) => ({
         ...u,
-        speakerName: maskContacts(u.speakerName),
-        text: maskContacts(u.text),
+        speakerName: clean(u.speakerName),
+        text: clean(u.text),
       })),
     },
     maskedTexts: findings.filter((f) => f.mask && f.text).map((f) => f.text),
     sourceHash: hashTranscription(transcription),
   };
+}
+
+/**
+ * 見えない文字を取り除いてから、連絡先を伏せる
+ * （見えない文字で分断された連絡先（taro\u200B@example.com など）も、取り除いた後の形で見つけるため）
+ */
+function clean(text: string): string {
+  return maskContacts(stripInvisible(text));
 }
 
 /** 伏せる前の文字起こしのハッシュ（読み直した文字起こしが、個人情報チェックを通したものと同じか比べる） */
