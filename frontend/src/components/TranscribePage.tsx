@@ -7,6 +7,7 @@ import {
   checkAudioFileExists,
   deleteAllResourcesByFileName,
   BASE_URL,
+  apiFetch,
 } from '../api/client';
 import type { ChunkedJobStatus, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
@@ -291,7 +292,7 @@ export function TranscribePage({
     try {
       // 0. サーバーの疎通確認
       try {
-        await fetch(`${BASE_URL}/audio-files`);
+        await apiFetch(`${BASE_URL}/audio-files`);
       } catch {
         throw new Error('バックエンドサーバーに接続できません。sidecarが起動しているか確認してください。');
       }
