@@ -37,12 +37,19 @@ fi
 NODE_REAL=$(real "$(dirname "$NODE_REAL")")/$(basename "$NODE_REAL")
 # node を入れたフォルダ（.../bin/node の2つ上）
 NODE_DIR=$(real "$(dirname "$NODE_REAL")/..")
+HOME_DIR=$(real "$HOME")
+# node のフォルダがホームフォルダそのもの、またはその親だと、ホームフォルダ全体を読めてしまう
+case "$HOME_DIR/" in
+  "$NODE_DIR"/*)
+    echo "node のフォルダ（$NODE_DIR）がホームフォルダを含むため、sandbox で読み取りを制限できません。node を別の場所に入れてください" >&2
+    exit 2
+    ;;
+esac
 
 BACKEND_DIR=$(real "$(dirname "$0")/..")
 DATA_DIR=${DATA_DIR:-"$HOME/Library/Application Support/io.github.saicologic.ai-speak-trace/data"}
 mkdir -p "$DATA_DIR/mcp-audit-logs"
 DATA_DIR=$(real "$DATA_DIR")
-HOME_DIR=$(real "$HOME")
 
 # 起動せずに、sandbox に渡す値を表示する（テスト・確かめる用）
 if [ "${MCP_SANDBOX_DRY_RUN:-}" = 1 ]; then
