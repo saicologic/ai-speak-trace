@@ -10,10 +10,29 @@ struct SidecarState(Mutex<Option<CommandChild>>);
 /// 開発時は NestJS stdout から、本番時は sidecar stdout から取得してセット
 struct BackendPortState(Mutex<Option<u16>>);
 
+/// sidecar の API を呼ぶためのトークン（起動のたびに作る。開発時は None）
+struct ApiTokenState(Option<String>);
+
 /// フロントエンドから invoke でポートを取得するコマンド
 #[tauri::command]
 fn get_backend_port(state: tauri::State<BackendPortState>) -> Option<u16> {
     *state.0.lock().unwrap()
+}
+
+/// フロントエンドから invoke でトークンを取得するコマンド
+#[tauri::command]
+fn get_api_token(state: tauri::State<ApiTokenState>) -> Option<String> {
+    state.0.clone()
+}
+
+/// 推測できないトークンを作る（OS の乱数から 32 バイトを読み、16 進数にする）
+fn new_api_token() -> String {
+    use std::io::Read;
+    let mut bytes = [0u8; 32];
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut bytes))
+        .expect("トークンの乱数を読めませんでした");
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,7 +44,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(SidecarState(Mutex::new(None)))
         .manage(BackendPortState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![get_backend_port])
+        .invoke_handler(tauri::generate_handler![get_backend_port, get_api_token])
         .setup(|app| {
             // データ保存先ディレクトリを決定
             // ~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/
@@ -44,6 +63,8 @@ pub fn run() {
             // scripts/dev.mjs が書き込む .backend-port ファイルからポートを読んでセットする
             if cfg!(debug_assertions) {
                 println!("[tauri] 開発モード: sidecar の起動をスキップします（npm run start:dev を使用）");
+                // 開発時のバックエンドはトークンを求めない（API_TOKEN を渡さないため）
+                app.manage(ApiTokenState(None));
 
                 // プロジェクトルートの .backend-port ファイルからポートを読む
                 // tauri dev の cwd は src-tauri/ なので "../" で親ディレクトリを参照
@@ -92,6 +113,10 @@ pub fn run() {
                     format!("{}:{}", extra_paths, system_path)
                 };
 
+                // 画面以外から sidecar の API を呼べないよう、起動のたびにトークンを作って渡す
+                let api_token = new_api_token();
+                app.manage(ApiTokenState(Some(api_token.clone())));
+
                 let sidecar = shell
                     .sidecar("nestjs-server")
                     .expect("nestjs-server sidecar バイナリが見つかりません")
@@ -100,7 +125,8 @@ pub fn run() {
                     .env("DATA_DIR", data_dir.to_string_lossy().to_string())
                     .env("SETTINGS_FILE", settings_file.to_string_lossy().to_string())
                     .env("PODCAST_CACHE_DIR", podcast_cache_dir.to_string_lossy().to_string())
-                    .env("FFMPEG_PATH", ffmpeg_path.to_string_lossy().to_string());
+                    .env("FFMPEG_PATH", ffmpeg_path.to_string_lossy().to_string())
+                    .env("API_TOKEN", &api_token);
 
                 let (mut rx, child) = sidecar
                     .spawn()

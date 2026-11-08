@@ -1,6 +1,5 @@
-import { marked } from 'marked';
 import type { ReportCitation, ReportSegment } from '../types/research';
-import { sanitizeHtml } from './sanitizeHtml';
+import { markdownToSafeHtml } from './markdownHtml';
 
 /** 番号付きの根拠（同じ情報源・同じ引用は1つにまとめる） */
 export interface NumberedCitation extends ReportCitation {
@@ -99,7 +98,7 @@ export function buildReport(
   }
 
   const doc = new DOMParser().parseFromString(
-    sanitizeHtml(marked.parse(markdown, { async: false })),
+    markdownToSafeHtml(markdown),
     'text/html',
   );
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);

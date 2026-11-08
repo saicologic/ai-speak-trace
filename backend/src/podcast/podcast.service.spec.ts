@@ -94,4 +94,30 @@ describe('PodcastService', () => {
       );
     });
   });
+
+  describe('readFile の保存先の外', () => {
+    it('キャッシュの外を指すファイル名では読まずに例外にする', async () => {
+      // キャッシュの外にある、読まれてはいけないファイル
+      const outsideDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'podcast-outside-'),
+      );
+      const secret = path.join(outsideDir, 'secret.mp3');
+      await fs.writeFile(secret, 'secret');
+      try {
+        const relative = path.relative(tmpDir, secret);
+        await expect(service.readFile(relative)).rejects.toThrow();
+        await expect(service.readFile('../x.mp3')).rejects.toThrow();
+        await expect(service.readFile(secret)).rejects.toThrow();
+      } finally {
+        await fs.rm(outsideDir, { recursive: true, force: true });
+      }
+    });
+
+    it('キャッシュの中のファイルは読める', async () => {
+      await fs.writeFile(path.join(tmpDir, 'episode.mp3'), 'data');
+      await expect(service.readFile('episode.mp3')).resolves.toEqual(
+        Buffer.from('data'),
+      );
+    });
+  });
 });

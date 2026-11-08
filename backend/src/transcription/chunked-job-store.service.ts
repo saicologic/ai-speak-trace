@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { assertSafePathSegment, isSafePathSegment } from '../common/safe-path';
 import { ChunkedTranscriptionJob } from './types/chunked-job.types';
 
 /** チャンク分割ジョブ状態の永続化サービス（フォルダベース） */
@@ -28,6 +29,8 @@ export class ChunkedJobStoreService {
 
   /** ジョブIDからジョブフォルダパスを取得 */
   private getJobDir(jobId: string): string {
+    // ジョブ ID は URL から受け取るため、保存先の外を指さないことを確かめる（削除では、フォルダを丸ごと消すため）
+    assertSafePathSegment(jobId, 'ジョブの ID');
     return path.join(this.storeDir, jobId);
   }
 
@@ -50,6 +53,7 @@ export class ChunkedJobStoreService {
 
   /** ジョブIDで取得 */
   async findById(jobId: string): Promise<ChunkedTranscriptionJob | null> {
+    if (!isSafePathSegment(jobId)) return null;
     const filePath = this.getJobFilePath(jobId);
     if (!existsSync(filePath)) return null;
     const content = await fs.readFile(filePath, 'utf-8');
@@ -118,7 +122,8 @@ export class ChunkedJobStoreService {
       this.logger.log(`ジョブフォルダを削除: ${jobDir}`);
     }
 
-    // チャンク音声ディレクトリを削除
+    // チャンク音声ディレクトリを削除（getJobDir の確かめに頼らず、パスを作る前に確かめる）
+    assertSafePathSegment(jobId, 'ジョブの ID');
     const chunksDir = path.join(this.getChunksBaseDir(), jobId);
     if (existsSync(chunksDir)) {
       await fs.rm(chunksDir, { recursive: true, force: true });

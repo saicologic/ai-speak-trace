@@ -25,7 +25,9 @@ describe('LocalTranscriptionStorage', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'transcription-storage-test-'));
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'transcription-storage-test-'),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -97,7 +99,11 @@ describe('LocalTranscriptionStorage', () => {
       const storeDir = path.join(tmpDir, 'transcriptions');
       const brokenDir = path.join(storeDir, 'broken-entry');
       await fs.mkdir(brokenDir, { recursive: true });
-      await fs.writeFile(path.join(brokenDir, 'transcription.json'), 'not-json', 'utf-8');
+      await fs.writeFile(
+        path.join(brokenDir, 'transcription.json'),
+        'not-json',
+        'utf-8',
+      );
       await storage.save(makeTranscription('valid-audio'));
 
       const all = await storage.findAll();
@@ -122,17 +128,25 @@ describe('LocalTranscriptionStorage', () => {
 
     it('保存先の外を指す ID では削除せずに例外にする', async () => {
       await storage.save(makeTranscription('test-audio'));
+      // 保存先（transcriptions/）の外に置いた、消されてはいけないフォルダ
+      const outside = path.join(tmpDir, 'outside');
+      await fs.mkdir(outside);
 
       await expect(storage.delete('..')).rejects.toThrow();
-      await expect(storage.delete('../transcriptions')).rejects.toThrow();
+      await expect(storage.delete('../outside')).rejects.toThrow();
 
-      // 保存先（transcriptions/）とその中の文字起こしは残っている
       await expect(storage.findById('test-audio')).resolves.not.toBeNull();
+      await expect(fs.stat(outside)).resolves.toBeTruthy();
     });
   });
 
   describe('保存先の外を指す ID', () => {
     it('findById は読まずに null を返す', async () => {
+      // 保存先の外にある transcription.json
+      await fs.writeFile(
+        path.join(tmpDir, 'transcription.json'),
+        JSON.stringify(makeTranscription('outside')),
+      );
       await expect(storage.findById('..')).resolves.toBeNull();
       await expect(storage.findById('../x')).resolves.toBeNull();
     });
