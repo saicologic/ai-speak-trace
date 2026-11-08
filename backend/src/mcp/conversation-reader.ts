@@ -261,7 +261,7 @@ function reject(
 /**
  * アプリが Claude に送るときと同じ方法（PrivacyService.maskForSending）で伏せ字にし、
  * さらに連絡先など（Guardrails を呼ばない代わりに、この Mac の中の正規表現で検出したもの）を伏せる。
- * 最後に見えない文字を取り除く（伏せる文字列は元の本文から検出したものなので、伏せた後に取り除く）
+ * 見えない文字は、伏せる文字列で伏せた後、連絡先を伏せる前に取り除く（伏せる文字列は元の本文から検出したもの）
  */
 function mask(
   id: string,
@@ -294,9 +294,12 @@ function mask(
   };
 }
 
-/** 連絡先を伏せ、見えない文字を取り除く */
+/**
+ * 見えない文字を取り除いてから、連絡先を伏せる
+ * （見えない文字で分断された連絡先（taro\u200B@example.com など）も、取り除いた後の形で見つけるため）
+ */
 function clean(text: string): string {
-  return stripInvisible(maskContacts(text));
+  return maskContacts(stripInvisible(text));
 }
 
 /** 伏せる前の文字起こしのハッシュ（読み直した文字起こしが、個人情報チェックを通したものと同じか比べる） */

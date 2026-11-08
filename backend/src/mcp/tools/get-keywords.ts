@@ -110,7 +110,7 @@ export function registerGetKeywords(server: McpServer, ctx: ToolContext): void {
       // （伏せる前の本文から見つけたもの）も伏せた文字列として扱い、その一部を含む語を除く
       const hidden = [
         ...conversation.maskedTexts,
-        ...raw.utterances.flatMap((u) => findContacts(u.text)),
+        ...raw.utterances.flatMap((u) => findContacts(stripInvisible(u.text))),
       ].map(normalizeForSearch);
       // 念のため、伏せ字にした後の本文に出てこない語も返さない
       const visibleText = compact(
