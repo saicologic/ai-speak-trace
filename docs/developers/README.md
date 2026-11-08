@@ -119,7 +119,7 @@ Apple Developer証明書による署名・公証済みのため、Gatekeeperの�
 ./src-tauri/target/release/bundle/macos/AI\ Speak\ Trace.app/Contents/MacOS/ai-speak-trace
 ```
 
-リリース版では、DevTools（Web インスペクタ）は開けません（下の「技術スタック」を参照）。フロントエンドのエラーは、開発時（`npm run tauri dev`）に `Cmd + Option + I` で DevTools を開いて確認します。
+リリース版では、DevTools（Web インスペクタ）は開けません（下の「アーキテクチャ」を参照）。フロントエンドのエラーは、開発時（`npm run tauri dev`）に `Cmd + Option + I` で DevTools を開いて確認します。
 
 ## 技術スタック
 
