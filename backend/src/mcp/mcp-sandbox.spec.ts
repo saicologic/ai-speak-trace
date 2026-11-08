@@ -96,6 +96,39 @@ describeOnMac('MCP サーバーの sandbox', () => {
     }
   }, 30_000);
 
+  it('node が多段のシンボリックリンクでも、実体のフォルダを sandbox に渡す', () => {
+    // link2 → link1 → node の実体（nvm・asdf などで起こる形）
+    const links = path.join(home, 'a/b');
+    const middle = path.join(home, 'c/d');
+    fs.mkdirSync(links, { recursive: true });
+    fs.mkdirSync(middle, { recursive: true });
+    fs.symlinkSync(fs.realpathSync(NODE), path.join(middle, 'link1'));
+    fs.symlinkSync(path.join(middle, 'link1'), path.join(links, 'link2'));
+    // MCP_SANDBOX_DRY_RUN=1 は、起動せずに sandbox に渡す値を表示する
+    const result = spawnSync(SCRIPT, [path.join(links, 'link2')], {
+      encoding: 'utf-8',
+      env: {
+        HOME: home,
+        DATA_DIR: dataDir,
+        PATH: '/usr/bin:/bin',
+        MCP_SANDBOX_DRY_RUN: '1',
+      },
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      `NODE_DIR=${path.dirname(path.dirname(fs.realpathSync(NODE)))}\n`,
+    );
+  });
+
+  it('node を実行できないときは、理由を示して止まる', () => {
+    const result = spawnSync(SCRIPT, [path.join(home, 'no-node')], {
+      encoding: 'utf-8',
+      env: { HOME: home, DATA_DIR: dataDir, PATH: '/usr/bin:/bin' },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('node を実行できません');
+  });
+
   it('外部に通信できない', async () => {
     const server = http.createServer((_, res) => res.end('ok'));
     await new Promise<void>((resolve) =>
