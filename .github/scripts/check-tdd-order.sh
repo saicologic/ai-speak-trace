@@ -2,6 +2,8 @@
 # PR のコミットを古い順に見て、TDD の順番を守っているか確かめる
 #
 # 1. 実装のファイルを変えたコミットより前（または同じコミット）に、テストのファイルを変えたコミットがあること
+#    - その実装を参照しているテストがすでにあるときは、そのテストのどれかを変えていること
+#      （参照しているテストは related-tests.mjs で探す。ほかのテストを変えただけでは通さない）
 #    - refactor: と style: のコミットは、動きを変えないため対象外（今あるテストが通ることは CI のテストで確かめる）
 #    - 実装ではないファイル（設定・ドキュメント・依存など）だけのコミットは対象外
 # 2. test: 以外のコミットで、テストのファイルの expect( を減らしていないこと（テストのファイルを消すことも含む）
@@ -11,6 +13,7 @@
 #
 # 使い方: check-tdd-order.sh <base> <head>
 set -euo pipefail
+script_dir=$(cd "$(dirname "$0")" && pwd)
 
 if [ $# -ne 2 ]; then
   echo "使い方: $0 <base> <head>" >&2
@@ -45,6 +48,8 @@ count_expect() {
 }
 
 seen_test=false
+# PR の中で変えたテストのファイル（1行に1つ）
+changed_tests=""
 failed=0
 commits=$(git rev-list --reverse --first-parent --no-merges "$base..$head")
 
@@ -55,8 +60,9 @@ for c in $commits; do
   while IFS= read -r -d '' f; do
     if is_test "$f"; then
       seen_test=true
+      changed_tests="$changed_tests$f"$'\n'
     elif is_impl "$f"; then
-      impl_files="$impl_files  $f"$'\n'
+      impl_files="$impl_files$f"$'\n'
     fi
   done < <(git diff-tree --no-commit-id --name-only -r -z --no-renames "$c")
 
@@ -65,10 +71,32 @@ for c in $commits; do
     *) structural=false ;;
   esac
 
-  if [ -n "$impl_files" ] && [ "$structural" = false ] && [ "$seen_test" = false ]; then
-    echo "テストより先に実装を変えています: $short $subject"
-    printf '%s' "$impl_files"
-    failed=1
+  if [ -n "$impl_files" ] && [ "$structural" = false ]; then
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      # このコミットの前にあった、この実装を参照しているテスト
+      related=$(node "$script_dir/related-tests.mjs" "$c^" "$f")
+      if [ -n "$related" ]; then
+        updated=false
+        while IFS= read -r t; do
+          if printf '%s' "$changed_tests" | grep -qxF -- "$t"; then
+            updated=true
+          fi
+        done <<<"$related"
+        if [ "$updated" = false ]; then
+          echo "テストのある実装を、そのテストを変えずに変えています: $short $subject"
+          echo "  実装: $f"
+          while IFS= read -r t; do
+            echo "  テスト: $t"
+          done <<<"$related"
+          failed=1
+        fi
+      elif [ "$seen_test" = false ]; then
+        echo "テストより先に実装を変えています: $short $subject"
+        echo "  実装: $f"
+        failed=1
+      fi
+    done <<<"$impl_files"
   fi
 
   case "$subject" in
