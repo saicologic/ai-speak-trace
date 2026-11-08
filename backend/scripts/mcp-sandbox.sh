@@ -18,16 +18,24 @@ real() {
   (cd "$1" && pwd -P)
 }
 
+# node の実体のパス（多段のシンボリックリンクもたどる。nvm・asdf などで起こる）
 NODE=$1
-NODE_REAL=$(real "$(dirname "$NODE")")/$(basename "$NODE")
-# Homebrew などのシンボリックリンクの先（.../bin/node）から、node を入れたフォルダを求める
-if [ -L "$NODE" ]; then
-  LINK=$(readlink "$NODE")
+NODE_REAL=$NODE
+HOPS=0
+while [ -L "$NODE_REAL" ] && [ $HOPS -lt 40 ]; do
+  HOPS=$((HOPS + 1))
+  LINK=$(readlink "$NODE_REAL")
   case "$LINK" in
     /*) NODE_REAL=$LINK ;;
-    *) NODE_REAL=$(real "$(dirname "$NODE")/$(dirname "$LINK")")/$(basename "$LINK") ;;
+    *) NODE_REAL=$(dirname "$NODE_REAL")/$LINK ;;
   esac
+done
+if [ ! -f "$NODE_REAL" ] || [ ! -x "$NODE_REAL" ]; then
+  echo "node を実行できません: $NODE（node の絶対パスを渡してください）" >&2
+  exit 2
 fi
+NODE_REAL=$(real "$(dirname "$NODE_REAL")")/$(basename "$NODE_REAL")
+# node を入れたフォルダ（.../bin/node の2つ上）
 NODE_DIR=$(real "$(dirname "$NODE_REAL")/..")
 
 BACKEND_DIR=$(real "$(dirname "$0")/..")
@@ -35,6 +43,13 @@ DATA_DIR=${DATA_DIR:-"$HOME/Library/Application Support/io.github.saicologic.ai-
 mkdir -p "$DATA_DIR/mcp-audit-logs"
 DATA_DIR=$(real "$DATA_DIR")
 HOME_DIR=$(real "$HOME")
+
+# 起動せずに、sandbox に渡す値を表示する（テスト・確かめる用）
+if [ "${MCP_SANDBOX_DRY_RUN:-}" = 1 ]; then
+  printf 'HOME_DIR=%s\nDATA_DIR=%s\nBACKEND_DIR=%s\nNODE_DIR=%s\nNODE=%s\n' \
+    "$HOME_DIR" "$DATA_DIR" "$BACKEND_DIR" "$NODE_DIR" "$NODE_REAL"
+  exit 0
+fi
 
 export DATA_DIR
 exec /usr/bin/sandbox-exec -f "$BACKEND_DIR/scripts/mcp-sandbox.sb" \
