@@ -100,7 +100,9 @@ describe('check-tdd-order.sh', () => {
       [SPEC]:
         "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
     });
-    expect(check(base).status).toBe(1);
+    const r = check(base);
+    expect(r.status).toBe(1);
+    expect(r.output).toContain('fix: 先に直す');
   });
 
   it('同じコミットでテストと実装を変えたら通す', () => {
@@ -227,6 +229,7 @@ describe('check-tdd-order.sh', () => {
       commit('fix: bar を直す', { [BAR]: 'export const bar = 2;\n' });
       const r = check(base);
       expect(r.status).toBe(1);
+      expect(r.output).toContain('fix: bar を直す');
       expect(r.output).toContain(BAR);
       expect(r.output).toContain(BAR_SPEC);
     });
@@ -247,6 +250,28 @@ describe('check-tdd-order.sh', () => {
           "import { bar } from './bar.service';\nit('a', () => {\n  expect(bar).toBe(2);\n});\n",
       });
       expect(check(base).status).toBe(0);
+    });
+
+    it('同じコミットで、その実装を参照する新しいテストを足していれば通す', () => {
+      commit('fix: bar を直し、新しいテストを足す', {
+        [BAR]: 'export const bar = 2;\n',
+        'backend/src/bar/bar.extra.spec.ts':
+          "import { bar } from './bar.service';\nit('a', () => {\n  expect(bar).toBe(2);\n});\n",
+      });
+      expect(check(base).status).toBe(0);
+    });
+
+    it('別のテストの expect を足しても、そのテストの expect を減らしたら止める', () => {
+      commit('fix: bar を直し、通らない expect をほかのテストに移す', {
+        [BAR]: 'export const bar = 2;\n',
+        [BAR_SPEC]:
+          "import { bar } from './bar.service';\nit('a', () => {});\n",
+        [SPEC]:
+          "import { bar } from '../bar/bar.service';\nit('a', () => {\n  expect(1).toBe(1);\n  expect(bar).toBeDefined();\n});\n",
+      });
+      const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain(BAR_SPEC);
     });
 
     it('refactor のコミットは、そのテストを変えなくても通す', () => {
@@ -275,6 +300,24 @@ describe('check-tdd-order.sh', () => {
       'backend/scripts/run.sh',
       'backend/src/run/run.spec.ts',
       "const SCRIPT = path.join(BACKEND_DIR, 'scripts/run.sh');\nit('a', () => {\n  expect(SCRIPT).toBeDefined();\n});\n",
+    ],
+    [
+      'jest.mock だけで参照する実装',
+      'backend/src/mocked/dep.ts',
+      'backend/src/mocked/mocked.spec.ts',
+      "jest.mock('./dep');\nit('a', () => {\n  expect(1).toBe(1);\n});\n",
+    ],
+    [
+      'vi.mock だけで参照する実装',
+      'frontend/src/api/dep.ts',
+      'frontend/src/api/dep-user.test.ts',
+      "vi.mock('./dep')\nit('a', () => {\n  expect(1).toBe(1)\n})\n",
+    ],
+    [
+      "' が奇数個ある行の参照",
+      'backend/src/quote/quoted.ts',
+      'backend/src/quote/quote.spec.ts',
+      "/* it's mocked */ jest.mock('./quoted');\nit('a', () => {\n  expect(1).toBe(1);\n});\n",
     ],
   ])(
     '%s（%s）も、参照しているテスト（%s）を変えずに直したら止める',
