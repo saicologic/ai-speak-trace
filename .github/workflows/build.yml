@@ -33,18 +33,20 @@ jobs:
           # 日本語などを含むパスが引用符付きにならないよう NUL 区切りで、移動したファイルは移動元も含めて取得する（失敗したらここで止まる）
           git diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           build=false
+          # ファイル名は PR を作った人が決められるため、%q で改行などを見える形にして出す
+          # （改行の後の「::」で始まる行が、GitHub Actions の命令として読まれないように）
           while IFS= read -r -d '' f; do
             case "$f" in
               # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）
               *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json)
-                echo "ビルド不要なファイル: $f"
+                printf 'ビルド不要なファイル: %q\n' "$f"
                 ;;
               # テストのファイル（backend は tsconfig.build.json で、frontend は画面から import しないため、アプリに入らない）
               backend/src/*.spec.ts|frontend/src/*.test.ts|frontend/src/*.test.tsx)
-                echo "ビルド不要なテストのファイル: $f"
+                printf 'ビルド不要なテストのファイル: %q\n' "$f"
                 ;;
               *)
-                echo "ビルドが必要なファイル: $f"
+                printf 'ビルドが必要なファイル: %q\n' "$f"
                 build=true
                 ;;
             esac
