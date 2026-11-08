@@ -38,13 +38,14 @@ export class AudioSplitterService {
     const ffmpegPath = this.getFfmpegPath();
     try {
       // ffmpegは-i指定のみだとexit code 1になるがstderrにduration情報が出る
-      const { stderr } = await execFileAsync(ffmpegPath, [
-        '-i', filePath,
+      const { stderr } = (await execFileAsync(ffmpegPath, [
+        '-i',
+        filePath,
       ]).catch((err: { stderr?: string; code?: number }) => {
         // exit code 1は正常（入力のみ指定時の期待動作）
         if (err.stderr) return { stderr: err.stderr };
         throw err;
-      }) as { stderr: string };
+      })) as { stderr: string };
 
       const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
       if (!match) {
@@ -108,12 +109,16 @@ export class AudioSplitterService {
       const chunkPath = path.join(outputDir, chunkFileName);
 
       await execFileAsync(ffmpegPath, [
-        '-y',                          // 既存ファイルを上書き
-        '-ss', String(startSec),       // 開始位置
-        '-t', String(chunkDurationSec), // 切り出す長さ
-        '-i', sourcePath,              // 入力ファイル
-        '-c', 'copy',                  // コーデックコピー（再エンコードなし）
-        chunkPath,                     // 出力ファイル
+        '-y', // 既存ファイルを上書き
+        '-ss',
+        String(startSec), // 開始位置
+        '-t',
+        String(chunkDurationSec), // 切り出す長さ
+        '-i',
+        sourcePath, // 入力ファイル
+        '-c',
+        'copy', // コーデックコピー（再エンコードなし）
+        chunkPath, // 出力ファイル
       ]);
 
       chunkFiles.push(chunkPath);

@@ -7,7 +7,9 @@ jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 /** テスト用の最小限のElevenLabsレスポンスを生成 */
-function makeElResponse(overrides?: Partial<ElevenLabsResponse>): ElevenLabsResponse {
+function makeElResponse(
+  overrides?: Partial<ElevenLabsResponse>,
+): ElevenLabsResponse {
   return {
     language_code: 'ja',
     language_probability: 0.99,

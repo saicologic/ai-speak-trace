@@ -8,9 +8,23 @@ import { AudioFileInfo } from '../../transcription/types/transcription.types';
 
 /** 対応する音声・動画ファイル拡張子 */
 const AUDIO_EXTENSIONS = [
-  '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm',
-  '.aac', '.aiff', '.opus', '.mp4',
-  '.avi', '.mkv', '.mov', '.wmv', '.flv', '.mpeg', '.3gpp',
+  '.wav',
+  '.mp3',
+  '.m4a',
+  '.ogg',
+  '.flac',
+  '.webm',
+  '.aac',
+  '.aiff',
+  '.opus',
+  '.mp4',
+  '.avi',
+  '.mkv',
+  '.mov',
+  '.wmv',
+  '.flv',
+  '.mpeg',
+  '.3gpp',
 ];
 
 /** ローカルファイルシステムによる音声ストレージ実装 */

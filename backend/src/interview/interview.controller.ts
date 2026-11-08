@@ -76,7 +76,9 @@ export class InterviewController {
 
   /** 要約生成: POST /api/interview/summarize */
   @Post('summarize')
-  async summarize(@Body() body: { transcriptionId: string; model: string; prompt: string }) {
+  async summarize(
+    @Body() body: { transcriptionId: string; model: string; prompt: string },
+  ) {
     const summary = await this.interviewService.summarize(
       body.transcriptionId,
       body.model,

@@ -278,7 +278,11 @@ describe('collectRequestTextByTrust', () => {
             content: [
               {
                 type: 'document',
-                source: { type: 'text', media_type: 'text/plain', data: '会話' },
+                source: {
+                  type: 'text',
+                  media_type: 'text/plain',
+                  data: '会話',
+                },
               },
               { type: 'text', text: '指示' },
             ],

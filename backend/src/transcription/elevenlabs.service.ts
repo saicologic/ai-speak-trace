@@ -69,7 +69,10 @@ export class ElevenLabsService {
       });
     } catch (fetchError) {
       // タイムアウト
-      if (axios.isAxiosError(fetchError) && fetchError.code === 'ECONNABORTED') {
+      if (
+        axios.isAxiosError(fetchError) &&
+        fetchError.code === 'ECONNABORTED'
+      ) {
         this.logger.error(
           `文字起こしタイムアウト: ${TIMEOUT_MS / 60000}分を超過 (${fileName})`,
         );
@@ -122,11 +125,15 @@ export class ElevenLabsService {
     });
 
     if (response.status < 200 || response.status >= 300) {
-      this.logger.error(`ElevenLabs Subscription API エラー: ${response.status}`);
+      this.logger.error(
+        `ElevenLabs Subscription API エラー: ${response.status}`,
+      );
       if (response.status === 401) {
         throw new Error('ElevenLabs APIキーが無効です。');
       }
-      throw new Error(`クレジット情報の取得に失敗しました (${response.status})`);
+      throw new Error(
+        `クレジット情報の取得に失敗しました (${response.status})`,
+      );
     }
 
     const data = response.data;
@@ -180,9 +187,7 @@ export class ElevenLabsService {
           'ElevenLabs APIのレート制限に達しました。しばらく待ってから再試行してください。',
         );
       default:
-        throw new Error(
-          `ElevenLabs API エラー (${status}): ${errorBody}`,
-        );
+        throw new Error(`ElevenLabs API エラー (${status}): ${errorBody}`);
     }
   }
 
@@ -247,9 +252,7 @@ export class ElevenLabsService {
       }
 
       // その他のエラー
-      this.logger.error(
-        `文字起こしステータス確認エラー: ${response.status}`,
-      );
+      this.logger.error(`文字起こしステータス確認エラー: ${response.status}`);
       return {
         status: 'error',
         error_message: `ElevenLabs API エラー (${response.status})`,
