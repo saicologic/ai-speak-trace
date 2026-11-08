@@ -50,6 +50,15 @@ describe('sidecar の API のトークン', () => {
     expect(headers.get('X-Api-Token')).toBe(TOKEN);
   });
 
+  it('ディープサーチの再開も、トークンをヘッダーに付けて呼ぶ', async () => {
+    const client = await loadInTauri();
+    fetchMock.mockResolvedValue(new Response('{"job":{}}', { status: 200 }));
+    await client.resumeResearch('job-1');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:50000/api/research/job-1/resume');
+    expect(new Headers(init?.headers).get('X-Api-Token')).toBe(TOKEN);
+  });
+
   it('<audio src> の URL には、トークンをクエリで付ける', async () => {
     const client = await loadInTauri();
     expect(client.getChunkAudioUrl('j1', 2)).toBe(
