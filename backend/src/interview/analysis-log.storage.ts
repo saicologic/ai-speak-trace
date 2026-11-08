@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { InterviewAnalysis, TranscriptionSummaryLog } from './types/interview.types';
+import { assertSafePathSegment, isSafePathSegment } from '../common/safe-path';
+import {
+  InterviewAnalysis,
+  TranscriptionSummaryLog,
+} from './types/interview.types';
 
 /** 会話分析ログをローカルファイルに保存・取得するサービス */
 @Injectable()
@@ -23,6 +27,8 @@ export class AnalysisLogStorage {
 
   /** ログファイルパスを取得 */
   private getFilePath(id: string): string {
+    // ID は URL から受け取るため、保存先の外を指さないことを確かめる
+    assertSafePathSegment(id, 'ログの ID');
     return path.join(this.storeDir, `${id}.json`);
   }
 
@@ -35,6 +41,7 @@ export class AnalysisLogStorage {
 
   /** IDで分析結果を取得 */
   async findById(id: string): Promise<InterviewAnalysis | null> {
+    if (!isSafePathSegment(id)) return null;
     const filePath = this.getFilePath(id);
     if (!existsSync(filePath)) return null;
     const content = await fs.readFile(filePath, 'utf-8');
@@ -60,10 +67,7 @@ export class AnalysisLogStorage {
         const { results: _, ...summary } = log;
         summaries.push(summary);
       } catch (error) {
-        this.logger.warn(
-          `分析ログの読み込みに失敗: ${entry.name}`,
-          error,
-        );
+        this.logger.warn(`分析ログの読み込みに失敗: ${entry.name}`, error);
       }
     }
 
@@ -95,15 +99,22 @@ export class SummaryLogStorage {
   }
 
   private getFilePath(id: string): string {
+    // ID は URL から受け取るため、保存先の外を指さないことを確かめる
+    assertSafePathSegment(id, 'ログの ID');
     return path.join(this.storeDir, `${id}.json`);
   }
 
   async save(summary: TranscriptionSummaryLog): Promise<void> {
-    await fs.writeFile(this.getFilePath(summary.id), JSON.stringify(summary, null, 2), 'utf-8');
+    await fs.writeFile(
+      this.getFilePath(summary.id),
+      JSON.stringify(summary, null, 2),
+      'utf-8',
+    );
     this.logger.log(`要約ログ保存完了: ${summary.id}`);
   }
 
   async findById(id: string): Promise<TranscriptionSummaryLog | null> {
+    if (!isSafePathSegment(id)) return null;
     const filePath = this.getFilePath(id);
     if (!existsSync(filePath)) return null;
     const content = await fs.readFile(filePath, 'utf-8');
@@ -119,14 +130,20 @@ export class SummaryLogStorage {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
       try {
-        const content = await fs.readFile(path.join(this.storeDir, entry.name), 'utf-8');
+        const content = await fs.readFile(
+          path.join(this.storeDir, entry.name),
+          'utf-8',
+        );
         logs.push(JSON.parse(content) as TranscriptionSummaryLog);
       } catch (error) {
         this.logger.warn(`要約ログの読み込みに失敗: ${entry.name}`, error);
       }
     }
 
-    logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    logs.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
     this.logger.log(`要約ログ一覧取得完了: ${logs.length}件`);
     return logs;
   }

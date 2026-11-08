@@ -4,6 +4,10 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { TranscriptionStorage } from '../interfaces/transcription-storage.interface';
+import {
+  assertSafePathSegment,
+  isSafePathSegment,
+} from '../../common/safe-path';
 import { Transcription } from '../../transcription/types/transcription.types';
 
 /** ローカルファイルシステムによる文字起こしストレージ実装 */
@@ -27,6 +31,8 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
 
   /** IDからサブフォルダパスを取得 */
   private getItemDir(id: string): string {
+    // ID は URL から受け取るため、保存先（transcriptions/）の外を指さないことを確かめる
+    assertSafePathSegment(id, '文字起こしの ID');
     return path.join(this.storeDir, id);
   }
 
@@ -46,6 +52,7 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
   }
 
   async findById(id: string): Promise<Transcription | null> {
+    if (!isSafePathSegment(id)) return null;
     const filePath = this.getFilePath(id);
     if (!existsSync(filePath)) return null;
     const content = await fs.readFile(filePath, 'utf-8');
@@ -65,7 +72,11 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const filePath = path.join(this.storeDir, entry.name, 'transcription.json');
+      const filePath = path.join(
+        this.storeDir,
+        entry.name,
+        'transcription.json',
+      );
       if (!existsSync(filePath)) continue;
       try {
         const content = await fs.readFile(filePath, 'utf-8');
@@ -75,7 +86,9 @@ export class LocalTranscriptionStorage implements TranscriptionStorage {
       }
     }
 
-    this.logger.log(`findAll 完了: ${transcriptions.length}件の文字起こしを返却`);
+    this.logger.log(
+      `findAll 完了: ${transcriptions.length}件の文字起こしを返却`,
+    );
     return transcriptions;
   }
 
