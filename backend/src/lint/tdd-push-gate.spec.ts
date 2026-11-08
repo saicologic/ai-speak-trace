@@ -93,7 +93,17 @@ function minimalPath(commands: string[]): string {
   }
   return dir;
 }
-const BASE_COMMANDS = ['git', 'grep', 'sed', 'cat', 'node', 'bash', 'sh'];
+// hook が使うコマンド（jq・gh を除く）。足りないと、jq・gh を調べる前に別の理由で終わってしまう
+const BASE_COMMANDS = [
+  'git',
+  'grep',
+  'sed',
+  'cat',
+  'node',
+  'bash',
+  'sh',
+  'dirname',
+];
 
 const IMPL = 'backend/src/foo/foo.ts';
 const PUSH = ['git', 'push'].join(' ');
@@ -151,6 +161,11 @@ describe('tdd-push-gate.sh', () => {
     `false || ${PUSH}`,
     `echo a | ${PUSH}`,
     `npm test\n${PUSH}`,
+    `cat <<< "x"\n${PUSH}`,
+    `(cd backend && ${PUSH})`,
+    `{ ${PUSH}; }`,
+    `if true; then ${PUSH}; fi`,
+    `! ${PUSH}`,
   ])('「%s」も push として調べる', (command) => {
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
     expect(runHook(command).status).toBe(2);
