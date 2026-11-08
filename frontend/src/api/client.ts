@@ -859,7 +859,7 @@ export async function confirmResearch(
 
 /** 失敗した調査を、終わっていない段階から再開する */
 export async function resumeResearch(id: string): Promise<ResearchJob> {
-  const res = await fetch(`${BASE_URL}/research/${encodeURIComponent(id)}/resume`, {
+  const res = await apiFetch(`${BASE_URL}/research/${encodeURIComponent(id)}/resume`, {
     method: 'POST',
   });
   if (!res.ok) {
