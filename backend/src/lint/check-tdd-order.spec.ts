@@ -205,6 +205,114 @@ describe('check-tdd-order.sh', () => {
     expect(check(base).status).toBe(0);
   });
 
+  describe('すでにテストのある実装', () => {
+    const BAR = 'backend/src/bar/bar.service.ts';
+    const BAR_SPEC = 'backend/src/bar/bar.service.spec.ts';
+    let base: string;
+
+    beforeEach(() => {
+      commit('chore: テストのある実装を足す', {
+        [BAR]: 'export const bar = 1;\n',
+        [BAR_SPEC]:
+          "import { bar } from './bar.service';\nit('a', () => {\n  expect(bar).toBe(1);\n});\n",
+      });
+      base = git('rev-parse', 'HEAD');
+    });
+
+    it('ほかのテストだけを変えて直したら、そのテストを示して止める', () => {
+      commit('test: ほかのテストを変える', {
+        [SPEC]:
+          "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+      });
+      commit('fix: bar を直す', { [BAR]: 'export const bar = 2;\n' });
+      const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain(BAR);
+      expect(r.output).toContain(BAR_SPEC);
+    });
+
+    it('そのテストを先に変えていれば通す', () => {
+      commit('test: bar のテストを変える', {
+        [BAR_SPEC]:
+          "import { bar } from './bar.service';\nit('a', () => {\n  expect(bar).toBe(2);\n});\n",
+      });
+      commit('fix: bar を直す', { [BAR]: 'export const bar = 2;\n' });
+      expect(check(base).status).toBe(0);
+    });
+
+    it('そのテストを同じコミットで変えていれば通す', () => {
+      commit('fix: bar をテストと一緒に直す', {
+        [BAR]: 'export const bar = 2;\n',
+        [BAR_SPEC]:
+          "import { bar } from './bar.service';\nit('a', () => {\n  expect(bar).toBe(2);\n});\n",
+      });
+      expect(check(base).status).toBe(0);
+    });
+
+    it('refactor のコミットは、そのテストを変えなくても通す', () => {
+      commit('refactor: bar の書き方を変える', {
+        [BAR]: 'export const bar = 1 as const;\n',
+      });
+      expect(check(base).status).toBe(0);
+    });
+  });
+
+  it.each([
+    [
+      'frontend の部品',
+      'frontend/src/components/Foo.tsx',
+      'frontend/src/components/__tests__/Foo.test.tsx',
+      "import Foo from '../Foo'\nit('a', () => {\n  expect(Foo).toBeDefined()\n})\n",
+    ],
+    [
+      'index.ts のフォルダ',
+      'frontend/src/utils/index.ts',
+      'frontend/src/utils/utils.test.ts',
+      "import { u } from '.'\nit('a', () => {\n  expect(u).toBe(1)\n})\n",
+    ],
+    [
+      'スクリプト',
+      'backend/scripts/run.sh',
+      'backend/src/run/run.spec.ts',
+      "const SCRIPT = path.join(BACKEND_DIR, 'scripts/run.sh');\nit('a', () => {\n  expect(SCRIPT).toBeDefined();\n});\n",
+    ],
+  ])(
+    '%s（%s）も、参照しているテスト（%s）を変えずに直したら止める',
+    (_kind, impl, spec, specContent) => {
+      commit('chore: テストのある実装を足す', {
+        [impl]: 'x\n',
+        [spec]: specContent,
+      });
+      const base = git('rev-parse', 'HEAD');
+      commit('test: ほかのテストを変える', {
+        [SPEC]:
+          "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+      });
+      commit('fix: 直す', { [impl]: 'y\n' });
+      const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain(spec);
+    },
+  );
+
+  it('名前が同じでも、別のフォルダのファイルを参照しているテストは関係ないものとして扱う', () => {
+    commit('chore: 同じ名前のファイルを足す', {
+      'backend/src/a/types.ts': 'export type A = 1;\n',
+      'backend/src/b/types.ts': 'export type B = 1;\n',
+      'backend/src/b/b.spec.ts':
+        "import { B } from './types';\nit('a', () => {\n  expect(1 as B).toBe(1);\n});\n",
+    });
+    const base = git('rev-parse', 'HEAD');
+    commit('test: ほかのテストを変える', {
+      [SPEC]:
+        "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+    });
+    commit('fix: a の型を変える', {
+      'backend/src/a/types.ts': 'export type A = 2;\n',
+    });
+    expect(check(base).status).toBe(0);
+  });
+
   it('test のコミットでは、expect を減らしても通す（テストの書き直しのため）', () => {
     const base = git('rev-parse', 'HEAD');
     commit('test: テストを書き直す', { [SPEC]: "it('a', () => {});\n" });
