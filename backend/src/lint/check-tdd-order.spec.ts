@@ -49,10 +49,14 @@ function commit(subject: string, files: Record<string, string | null>): void {
   git('commit', '-q', '-m', subject);
 }
 
-function check(base: string): { status: number | null; output: string } {
+function check(
+  base: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { status: number | null; output: string } {
   const r = spawnSync('bash', [SCRIPT, base, 'HEAD'], {
     cwd: repo,
     encoding: 'utf-8',
+    env,
   });
   return { status: r.status, output: r.stdout + r.stderr };
 }
@@ -270,6 +274,57 @@ describe('check-tdd-order.sh', () => {
           "import { bar } from '../bar/bar.service';\nit('a', () => {\n  expect(1).toBe(1);\n  expect(bar).toBeDefined();\n});\n",
       });
       const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain(BAR_SPEC);
+    });
+
+    it('参照しているテストを探すところ（node）が失敗したら、通さずに止める', () => {
+      commit('test: ほかのテストを変える', {
+        [SPEC]:
+          "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+      });
+      commit('fix: bar を直す', { [BAR]: 'export const bar = 2;\n' });
+      // 失敗するだけの node を、PATH の先頭に置く
+      const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-node-'));
+      fs.writeFileSync(path.join(fakeBin, 'node'), '#!/bin/sh\nexit 1\n', {
+        mode: 0o755,
+      });
+      try {
+        const r = check(base, {
+          ...process.env,
+          PATH: `${fakeBin}:${process.env.PATH}`,
+        });
+        expect(r.status).toBe(1);
+        expect(r.output).toContain('related-tests.mjs');
+      } finally {
+        fs.rmSync(fakeBin, { recursive: true, force: true });
+      }
+    });
+
+    it('読めないテストのファイル（サブモジュールなど）があっても、ほかのテストの参照を見落とさない', () => {
+      // backend/src/a.spec.ts に別の git のリポジトリを置き、サブモジュール（gitlink）として登録する
+      const sub = path.join(repo, 'backend/src/a.spec.ts');
+      fs.mkdirSync(sub, { recursive: true });
+      fs.writeFileSync(path.join(sub, 'x.txt'), 'x\n');
+      const env = {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_AUTHOR_NAME: 't',
+        GIT_AUTHOR_EMAIL: 't@example.com',
+        GIT_COMMITTER_NAME: 't',
+        GIT_COMMITTER_EMAIL: 't@example.com',
+      };
+      execFileSync('git', ['init', '-q'], { cwd: sub, env });
+      execFileSync('git', ['add', '-A'], { cwd: sub, env });
+      execFileSync('git', ['commit', '-q', '-m', 'x'], { cwd: sub, env });
+      commit('chore: サブモジュールを足す', {});
+      const base2 = git('rev-parse', 'HEAD');
+      commit('test: ほかのテストを変える', {
+        [SPEC]:
+          "it('a', () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+      });
+      commit('fix: bar を直す', { [BAR]: 'export const bar = 2;\n' });
+      const r = check(base2);
       expect(r.status).toBe(1);
       expect(r.output).toContain(BAR_SPEC);
     });
