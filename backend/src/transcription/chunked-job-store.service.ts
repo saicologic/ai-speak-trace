@@ -122,7 +122,8 @@ export class ChunkedJobStoreService {
       this.logger.log(`ジョブフォルダを削除: ${jobDir}`);
     }
 
-    // チャンク音声ディレクトリを削除
+    // チャンク音声ディレクトリを削除（getJobDir の確かめに頼らず、パスを作る前に確かめる）
+    assertSafePathSegment(jobId, 'ジョブの ID');
     const chunksDir = path.join(this.getChunksBaseDir(), jobId);
     if (existsSync(chunksDir)) {
       await fs.rm(chunksDir, { recursive: true, force: true });
