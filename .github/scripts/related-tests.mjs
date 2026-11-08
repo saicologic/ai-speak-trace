@@ -54,10 +54,15 @@ function refersTo(testPath, literal) {
   return false
 }
 
-const LITERAL = /(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g
+// import・require・jest.mock・vi.mock などの参照先（前にある ' などに引きずられないよう、書き方を決めて探す）
+const MODULE_REF =
+  /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\b(?:jest|vi)\.(?:mock|doMock|unmock|requireActual|importActual)\s*\(\s*|^\s*import\s+)(['"])([^'"\n]+)\1/gm
+// .ts・.tsx 以外のファイルは、ファイル名で終わる文字列で探す
+const escaped = implName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const PATH_REF = new RegExp(`(['"\`])([^'"\`\\n]*${escaped})\\1`, 'g')
 const contents = readAll(tests)
 tests.forEach((testPath, i) => {
-  for (const m of contents[i].matchAll(LITERAL)) {
+  for (const m of contents[i].matchAll(isModule ? MODULE_REF : PATH_REF)) {
     if (refersTo(testPath, m[2])) {
       console.log(testPath)
       return

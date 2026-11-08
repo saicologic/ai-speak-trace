@@ -37,13 +37,10 @@ is_impl() {
   return 1
 }
 
-# テストのファイルの差分から、expect( の数を数える（$1 は + か -）
+# テストのファイルの差分から、expect( の数を数える（$1 は + か -、$3 はテストのファイル）
 count_expect() {
-  local sign=$1 commit=$2
-  git show --format= -U0 --no-renames "$commit" -- \
-    ':(glob)backend/src/**/*.spec.ts' \
-    ':(glob)frontend/src/**/*.test.ts' \
-    ':(glob)frontend/src/**/*.test.tsx' |
+  local sign=$1 commit=$2 file=$3
+  git show --format= -U0 --no-renames "$commit" -- "$file" |
     awk -v s="$sign" 'substr($0, 1, 1) == s && substr($0, 1, 4) != s s s " " { n += gsub(/expect\(/, "") } END { print n + 0 }'
 }
 
@@ -74,8 +71,11 @@ for c in $commits; do
   if [ -n "$impl_files" ] && [ "$structural" = false ]; then
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      # このコミットの前にあった、この実装を参照しているテスト
-      related=$(node "$script_dir/related-tests.mjs" "$c^" "$f")
+      # この実装を参照しているテスト（このコミットの前にあったものと、このコミットで足したもの）
+      related=$({
+        node "$script_dir/related-tests.mjs" "$c^" "$f"
+        node "$script_dir/related-tests.mjs" "$c" "$f"
+      } | sort -u)
       if [ -n "$related" ]; then
         updated=false
         while IFS= read -r t; do
@@ -102,12 +102,17 @@ for c in $commits; do
   case "$subject" in
     test:* | test\(*) ;;
     *)
-      removed=$(count_expect - "$c")
-      added=$(count_expect + "$c")
-      if [ "$removed" -gt "$added" ]; then
-        echo "テストのコミット（test:）以外で、テストの expect を減らしています（-$removed +$added）: $short $subject"
-        failed=1
-      fi
+      # ファイルごとに比べる（ほかのテストに expect を足して、数を合わせられないように）
+      while IFS= read -r -d '' t; do
+        is_test "$t" || continue
+        removed=$(count_expect - "$c" "$t")
+        added=$(count_expect + "$c" "$t")
+        if [ "$removed" -gt "$added" ]; then
+          echo "テストのコミット（test:）以外で、テストの expect を減らしています（-$removed +$added）: $short $subject"
+          echo "  テスト: $t"
+          failed=1
+        fi
+      done < <(git diff-tree --no-commit-id --name-only -r -z --no-renames "$c")
       ;;
   esac
 done
