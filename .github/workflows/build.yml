@@ -37,6 +37,8 @@ jobs:
             case "$f" in
               # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）
               *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json) ;;
+              # テストのファイル（backend は tsconfig.build.json で、frontend は画面から import しないため、アプリに入らない）
+              backend/src/*.spec.ts|frontend/src/*.test.ts|frontend/src/*.test.tsx) ;;
               *)
                 echo "ビルドが必要なファイル: $f"
                 build=true
