@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { AnalysisLogStorage } from './analysis-log.storage';
+import { AnalysisLogStorage, SummaryLogStorage } from './analysis-log.storage';
 import { InterviewAnalysis } from './types/interview.types';
 
 /** テスト用の分析ログデータ */
@@ -65,6 +65,23 @@ describe('AnalysisLogStorage', () => {
     });
   });
 
+  describe('保存先の外を指す ID', () => {
+    it('findById は保存先の外の .json を読まずに null を返す', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'outside.json'),
+        JSON.stringify(makeLog('outside', '2026-01-01T00:00:00Z')),
+      );
+      await expect(storage.findById('../outside')).resolves.toBeNull();
+    });
+
+    it('save は保存先の外に書き込まずに例外にする', async () => {
+      await expect(
+        storage.save(makeLog('../written', '2026-01-01T00:00:00Z')),
+      ).rejects.toThrow();
+      expect(existsSync(path.join(tmpDir, 'written.json'))).toBe(false);
+    });
+  });
+
   describe('findAllSummaries', () => {
     it('createdAt降順でサマリーを返す', async () => {
       await storage.save(makeLog('log-old', '2024-01-01T00:00:00Z'));
@@ -91,7 +108,11 @@ describe('AnalysisLogStorage', () => {
 
     it('壊れたJSONファイルは読み込みをスキップする', async () => {
       const storeDir = path.join(tmpDir, 'analysis-logs');
-      await fs.writeFile(path.join(storeDir, 'broken.json'), 'not-json', 'utf-8');
+      await fs.writeFile(
+        path.join(storeDir, 'broken.json'),
+        'not-json',
+        'utf-8',
+      );
       await storage.save(makeLog('log-valid', '2024-01-01T00:00:00Z'));
 
       const summaries = await storage.findAllSummaries();
@@ -100,5 +121,26 @@ describe('AnalysisLogStorage', () => {
       expect(summaries).toHaveLength(1);
       expect(summaries[0].id).toBe('log-valid');
     });
+  });
+});
+
+describe('SummaryLogStorage', () => {
+  let tmpDir: string;
+  let storage: SummaryLogStorage;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'summary-log-test-'));
+    storage = new SummaryLogStorage({
+      get: (key: string) => (key === 'DATA_DIR' ? tmpDir : undefined),
+    } as unknown as ConfigService);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('findById は保存先の外の .json を読まずに null を返す', async () => {
+    await fs.writeFile(path.join(tmpDir, 'outside.json'), '{"id":"outside"}');
+    await expect(storage.findById('../outside')).resolves.toBeNull();
   });
 });
