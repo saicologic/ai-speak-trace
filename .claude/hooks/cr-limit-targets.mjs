@@ -31,7 +31,7 @@ function resolveDir(base, p) {
 
 const CR_REVIEW = /\/\.claude\/hooks\/cr-review\.sh$/
 
-/** gh pr comment が @coderabbitai を書くか（引数・その部分の heredoc の本文・-F / --body-file のファイル） */
+/** gh pr comment が @coderabbitai を書くか（引数・その部分の heredoc の本文・-F / --body-file のファイル・標準入力） */
 function mentionsCodeRabbit(args, heredoc) {
   if ((heredoc ?? '').includes('@coderabbitai')) return true
   if (args.some((a) => a.includes('@coderabbitai'))) return true
@@ -39,7 +39,15 @@ function mentionsCodeRabbit(args, heredoc) {
     let file = null
     if (args[i] === '-F' || args[i] === '--body-file') file = args[i + 1]
     else if (args[i].startsWith('--body-file=')) file = args[i].slice('--body-file='.length)
-    if (!file || file === '-') continue
+    if (!file) continue
+    if (file === '-') {
+      // 本文を標準入力から読むときは、パイプの前の部分を区別できないため、コマンド全体と < のファイルで見る
+      if (src.includes('@coderabbitai')) return true
+      const k = args.findIndex((a) => a === '<' || (a.startsWith('<') && a.length > 1))
+      if (k < 0) continue
+      file = args[k] === '<' ? args[k + 1] : args[k].slice(1)
+      if (!file) continue
+    }
     const full = resolveDir(dir, file)
     try {
       if (existsSync(full) && readFileSync(full, 'utf-8').includes('@coderabbitai')) return true

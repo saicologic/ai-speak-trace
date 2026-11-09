@@ -34,12 +34,14 @@ while IFS= read -r t; do
   [ -f "$tt/.coderabbit.yaml" ] || continue
   case "$(printf '%s' "$t" | jq -r .check)" in
     cli) check_cli=1 ;;
-    github) check_github=1 ;;
+    github)
+      check_github=1
+      # GitHub の枠は、GitHub のレビューを動かす部分のうち、最初のリポジトリで調べる
+      [ -n "$top" ] || top=$tt
+      ;;
   esac
-  # GitHub の枠は、対象の部分のうち最初のリポジトリで調べる
-  [ -n "$top" ] || top=$tt
 done <<<"$targets"
-[ -n "$top" ] || exit 0
+[ -n "$check_cli$check_github" ] || exit 0
 
 now=$(date +%s)
 until=0
