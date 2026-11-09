@@ -81,11 +81,22 @@ threads=$(gh api graphql -F owner="$owner" -F name="$name" -F number="$number" -
     repository(owner: $owner, name: $name) {
       pullRequest(number: $number) {
         reviewThreads(first: 100) {
+          pageInfo { hasNextPage }
           nodes { isResolved path line originalLine comments(first: 1) { nodes { author { login } body } } }
         }
       }
     }
   }' 2>/dev/null)
+# 調べられなかったとき（gh の失敗・答えの形の違い）は、0 件と区別できるよう unknown と出す
+if ! jq -e '.data.repository.pullRequest.reviewThreads.nodes | type == "array"' <<<"$threads" >/dev/null 2>&1; then
+  echo "CODERABBIT_OPEN_COMMENTS: unknown"
+  echo "CODERABBIT_RESOLVED_COMMENTS: unknown"
+  exit 0
+fi
+# 100 件より多く、全部は読めなかったとき
+if jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == true' <<<"$threads" >/dev/null 2>&1; then
+  echo "CODERABBIT_THREADS_TRUNCATED: true"
+fi
 comments=$(jq -r '.data.repository.pullRequest.reviewThreads.nodes[]
   | select(.comments.nodes[0].author.login == "coderabbitai")
   | (.comments.nodes[0].body | split("\n")) as $lines
@@ -97,5 +108,5 @@ open_count=$(grep -c '^  - ' <<<"$open")
 resolved_count=$(grep -c $'^resolved\t' <<<"$comments")
 echo "CODERABBIT_OPEN_COMMENTS: ${open_count}"
 echo "CODERABBIT_RESOLVED_COMMENTS: ${resolved_count}"
-[ "$open_count" -gt 0 ] && echo "$open"
+if [ "$open_count" -gt 0 ]; then echo "$open"; fi
 exit 0

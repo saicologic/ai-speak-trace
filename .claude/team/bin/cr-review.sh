@@ -80,8 +80,10 @@ git fetch -q origin -- "$base" 2>/dev/null || true
 if git rev-parse -q --verify "origin/$base" >/dev/null; then
   base_commit=$(git merge-base HEAD "origin/$base")
 else
-  base_commit=$(git merge-base HEAD "$base")
+  base_commit=$(git merge-base HEAD "$base" 2>/dev/null)
 fi
+# 比べるコミットが決まらないまま CodeRabbit CLI を呼ばない
+[ -n "$base_commit" ] || { echo "親ブランチ（$base）が手元にも origin にもないため、比べるコミットを決められません" >&2; exit 1; }
 echo "BASE: $base ($base_commit)"
 
 out=$(mktemp)
