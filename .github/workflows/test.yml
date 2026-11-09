@@ -123,5 +123,9 @@ jobs:
         run: cd frontend && npm ci
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm run lint
+      # アプリのビルド（tsc -b）と同じ型の確認。テストのファイルも対象になる。
+      # テストのファイルだけを変えた PR では macOS のビルドを飛ばし、vitest は型を確かめないため、ここで確かめる
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npx tsc -b
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm run test:run

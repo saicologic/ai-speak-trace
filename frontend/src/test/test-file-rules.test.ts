@@ -1,13 +1,10 @@
 // @vitest-environment node
-import path from 'node:path'
 import { ESLint } from 'eslint'
 
 /**
  * テストのファイルで、テストを外す書き方（.skip・.only）を lint で止めることを確かめる
  * （テストを外して通ったことにするのを、CI の lint で止めるため）
  */
-const FRONTEND_DIR = path.resolve(__dirname, '..', '..')
-
 const lines = [
   "it.skip('a', () => {})",
   "it.only('a', () => {})",
@@ -24,9 +21,11 @@ describe('テストのファイルの lint', () => {
   let errors: Map<number, string[]>
 
   beforeAll(async () => {
-    const eslint = new ESLint({ cwd: FRONTEND_DIR })
+    // アプリのビルド（tsc -b）はテストのファイルも型を確かめ、Node の型を読まないため、node:path・__dirname を使わない。
+    // vitest は frontend のフォルダで動くので、eslint.config.js とファイルの場所は、そこから見る
+    const eslint = new ESLint()
     const [result] = await eslint.lintText(lines.join('\n') + '\n', {
-      filePath: path.join(FRONTEND_DIR, 'src/utils/sample.test.ts'),
+      filePath: 'src/utils/sample.test.ts',
     })
     errors = new Map()
     for (const m of result.messages) {
