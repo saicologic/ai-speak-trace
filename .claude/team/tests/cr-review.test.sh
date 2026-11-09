@@ -71,6 +71,9 @@ git -C "$repo" remote set-url origin "$remote"
 rejected "origin が GitHub の URL でない" --base-branch main
 git -C "$repo" remote set-url origin https://github.com/me/repo.git
 
+# 親ブランチが手元にも GitHub にもないときは、比べるコミットが決まらないので、CodeRabbit CLI を呼ばずに終わる
+rejected "親ブランチがない" --base-branch nobranch
+
 # リポジトリの git の設定に、コマンドを動かす設定があれば断る（--base・--accept・レビュー）
 for kv in "core.fsmonitor=touch $tmp/pwned" "core.sshCommand=touch $tmp/pwned" "url.$tmp/x.insteadOf=https://github.com/"; do
   git -C "$repo" config "${kv%%=*}" "${kv#*=}"

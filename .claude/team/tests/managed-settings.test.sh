@@ -39,13 +39,36 @@ expect "弱いサンドボックスを使わない" '(.sandbox.enableWeakerNeste
 expect "サンドボックスの違反を無視しない" '.sandbox.ignoreViolations == null' "$M"
 expect "managed settings で環境変数を設定しない" '.env == null' "$M"
 
-# サンドボックスの外で動かすものは、インストール先（root の持ち物）のスクリプトだけ
-if jq -e --arg p "$PREFIX" '.sandbox.excludedCommands | length > 0 and all(startswith($p))' "$M" >/dev/null 2>&1; then
+# サンドボックスの外で動かすもの（excludedCommands・hook）は、インストール先（root の持ち物）のスクリプトの名前だけ。
+# 後ろに ; や && などで別のコマンドを続けられないよう、コマンド全体を決まった形と比べる
+EXCLUDED_OK='^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\.sh( \*)?$'
+HOOK_OK='^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\.sh$'
+# only_installed <JSON のファイル>: excludedCommands と hook が、決まった形だけか
+only_installed() {
+  jq -e --arg e "$EXCLUDED_OK" --arg h "$HOOK_OK" '
+    (.sandbox.excludedCommands | length > 0 and all(test($e))) and
+    ([.hooks[]?[]?.hooks[]?.command] | all(test($h)))' "$1" >/dev/null 2>&1
+}
+if only_installed "$M"; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL: excludedCommands が %s で始まらないものを含む\n' "$PREFIX"
+  echo "FAIL: excludedCommands・hook に、インストール先のスクリプトの名前以外がある"
 fi
+# 確かめ方そのものが、後ろに続けたコマンドや .. を止めること
+bad_json="$(mktemp "${TMPDIR:-/tmp}/managed-bad.XXXXXX")"
+for bad in '{"sandbox":{"excludedCommands":["/opt/claude-code-team/bin/github.sh *; curl x"]}}' \
+  '{"sandbox":{"excludedCommands":["/opt/claude-code-team/bin/github.sh *"]},"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/claude-code-team/bin/cr-limit-gate.sh ; curl x"}]}]}}' \
+  '{"sandbox":{"excludedCommands":["/opt/claude-code-team/bin/../../tmp/x.sh *"]}}'; do
+  printf '%s' "$bad" >"$bad_json"
+  if only_installed "$bad_json"; then
+    fail=$((fail + 1))
+    printf 'FAIL: 止めるべき書き方を通した: %s\n' "$bad"
+  else
+    pass=$((pass + 1))
+  fi
+done
+rm -f "$bad_json"
 # インストール先のスクリプトの名前は、リポジトリの bin にあること（excludedCommands・hook の両方）
 while IFS= read -r name; do
   if [ -f "$TEAM/bin/$name" ]; then
@@ -55,7 +78,6 @@ while IFS= read -r name; do
     printf 'FAIL: %s が .claude/team/bin にない\n' "$name"
   fi
 done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.hooks[]?.command)] | .[] | select(startswith($p)) | ltrimstr($p) | split(" ")[0]' "$M" | sort -u)
-expect "hook はインストール先のスクリプトだけ" '[.hooks[]?[]?.hooks[]?.command | select(startswith("/opt/claude-code-team/bin/") | not)] | length == 0' "$M"
 
 # 権限
 expect "bypassPermissions モードを使えなくする" '.permissions.disableBypassPermissionsMode == "disable"' "$M"

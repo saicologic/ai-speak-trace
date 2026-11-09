@@ -17,6 +17,7 @@ case "\$1 \$2" in
     if [[ " \$* " == *" --jq "* ]]; then echo "  build: pass"; else echo '[{"name":"build","bucket":"pass"}]'; fi ;;
   "pr view") echo '{"headRefOid":"abc","url":"https://github.com/o/r/pull/1","title":"t","isDraft":true}' ;;
   "api repos/o/r/commits/abc/status") echo "success	Review skipped" ;;
+  "api graphql") cat "$tmp/graphql" 2>/dev/null || echo '{}' ;;
   *) echo '{}' ;;
 esac
 EOF
@@ -51,6 +52,19 @@ out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '^STATUS: DONE' && printf '%s' "$out" | grep -q '^CODERABBIT: skipped' &&
   grep -q '^pr checks 1 -R o/r' "$tmp/gh-called"; then ok; else ng "正しい引数（rc=$rc）: $out"; fi
+# 指摘を調べられなかった（GraphQL の答えが壊れている）ときは、0 件ではなく unknown と出す
+if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: unknown' && printf '%s' "$out" | grep -qx 'CODERABBIT_RESOLVED_COMMENTS: unknown'; then ok; else ng "指摘を調べられないときの件数: $out"; fi
+
+# 指摘を調べられたときは件数を出す。100 件より多く、全部は読めなかったときは、そのことも出す
+cat >"$tmp/graphql" <<'EOF'
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":true},"nodes":[
+  {"isResolved":false,"path":"a.ts","line":3,"originalLine":3,"comments":{"nodes":[{"author":{"login":"coderabbitai"},"body":"_🟠 Major_\n\n**見出し**\n\n本文"}]}},
+  {"isResolved":true,"path":"b.ts","line":1,"originalLine":1,"comments":{"nodes":[{"author":{"login":"coderabbitai"},"body":"_🟡 Minor_\n\n**別の見出し**"}]}}
+]}}}}}
+EOF
+out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
+if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: 1' && printf '%s' "$out" | grep -qx 'CODERABBIT_RESOLVED_COMMENTS: 1' &&
+  printf '%s' "$out" | grep -q '見出し (a.ts:3)' && printf '%s' "$out" | grep -qx 'CODERABBIT_THREADS_TRUNCATED: true'; then ok; else ng "指摘の件数: $out"; fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
