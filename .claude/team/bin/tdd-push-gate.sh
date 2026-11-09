@@ -8,7 +8,7 @@
 #
 # - 宛先は、今のブランチの PR の宛先（gh pr view）。PR がない・調べられないときは止めない（CI で確かめる）
 # - PR に no-tdd のラベルがあるときは止めない（CI と同じ例外）
-# - リポジトリに .github/scripts/check-tdd-order.sh がないブランチ（この確認を入れる前のブランチ）では何もしない
+# - 作業ツリーの .github/scripts の有無は見ない（消して確認を飛ばせないように）。インストール先に ci がなければ何もしない
 # - 急ぎのときは、ユーザーの了承を得て SKIP_TDD_CHECK=1（github.sh では --skip SKIP_TDD_CHECK）を付けると通す
 # - 調べられないとき（jq・gh・node がない、gh の失敗など）は止めずに通す
 # - リポジトリの git の設定に、認めていない項目があれば、git を動かさずに止める（lib/git-safety.sh）
@@ -30,7 +30,6 @@ if [ -n "$cwd" ]; then
   cd "$cwd" 2>/dev/null || exit 0
 fi
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$root/.github/scripts/check-tdd-order.sh" ] || exit 0
 script="$here/ci/check-tdd-order.sh"
 [ -f "$script" ] || exit 0
 

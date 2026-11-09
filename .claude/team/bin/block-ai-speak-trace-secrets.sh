@@ -1,6 +1,7 @@
 #!/bin/bash
 # AI Speak Trace の API キーが Claude Code の会話ログに出力されないよう、
-# キーを含む設定ファイル・API・項目名に触れる Bash コマンドを実行前に拒否する（PreToolUse / Bash）
+# キーを含む設定ファイル・API・項目名に触れる Bash コマンドを実行前に拒否する
+# （managed settings の PreToolUse / Bash の hook。インストール先 /opt/claude-code-team/bin で動く）
 # テスト: bash .claude/team/tests/block-secrets.test.sh
 cmd=$(jq -r '.tool_input.command // empty')
 pattern='api/settings|anthropicApiKey|elevenlabsApiKey|apiKeys|io\.github\.saicologic\.ai-speak-trace/settings\.json|sk-ant-|ANTHROPIC_API_KEY=\$\('

@@ -135,9 +135,16 @@ run_checks() {
   done
 }
 
-# 開いたファイル（ファイル記述子 3）のリンクの数
+# 開いたファイル（ファイル記述子 3）のリンクの数・装置と inode、パスの装置と inode（リンクはたどらない）
 fd3_links() {
   if [ "$(uname -s)" = Darwin ]; then stat -f %l /dev/fd/3; else stat -L -c %h /dev/fd/3; fi
+}
+# macOS の /dev/fd/3 は、装置の番号が実際のファイルと違って見えるため、inode の番号だけで比べる
+fd3_inode() {
+  if [ "$(uname -s)" = Darwin ]; then stat -f %i /dev/fd/3; else stat -L -c %d:%i /dev/fd/3; fi
+}
+path_inode() {
+  if [ "$(uname -s)" = Darwin ]; then stat -f %i "$1"; else stat -c %d:%i "$1"; fi
 }
 
 # read_body <ファイル>: 本文のファイル（リポジトリかスクラッチパッドの中）を開いて確かめ、中身を body に入れる
@@ -153,6 +160,10 @@ read_body() {
   case "$real" in /private/tmp/claude-"$(id -u)"/*/*/scratchpad/*) inside=1 ;; esac
   [ -n "$inside" ] || die "本文のファイルは、リポジトリかスクラッチパッドの中に置いてください: $f"
   exec 3<"$real" || die "本文のファイルを開けません: $f"
+  # 確かめてから開くまでの間に、リンクなどに差し替えられていないか（開いたものが、確かめた場所のファイルそのものか）
+  if [ -L "$real" ] || [ "$(realpath "$f" 2>/dev/null)" != "$real" ] || [ "$(fd3_inode)" != "$(path_inode "$real")" ]; then
+    die "本文のファイルが、確かめた後に差し替えられました: $f"
+  fi
   # ハードリンクは、realpath では外のファイルと見分けられないため断る
   [ "$(fd3_links)" = 1 ] || die "本文のファイルが、ほかのファイルのハードリンクです: $f"
   body=$(cat <&3)
@@ -172,6 +183,7 @@ check_gh_opts() {
   while [ $# -gt 0 ]; do
     a=$1
     shift
+    [ -n "$a" ] || die "空の引数は使えません"
     case "$a" in --*=*) v=${a#*=}; a=${a%%=*}; set -- "$v" "$@" ;; esac
     if [[ "|$with|" == *"|$a|"* ]]; then
       [ $# -gt 0 ] || die "$a に値がありません"

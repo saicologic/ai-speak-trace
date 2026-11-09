@@ -41,7 +41,7 @@ check_git_config() {
   done < <({ git config --local --name-only --list; git config --worktree --name-only --list; } 2>/dev/null | sort -u)
 }
 
-# github_slug <URL>: GitHub の URL から owner/name を取り出す（GitHub 以外・.. を含むものは失敗）
+# github_slug <URL>: GitHub の URL から owner/name を取り出す（GitHub 以外・.. を含むものは失敗。owner/.github などは通す）
 github_slug() {
   local p
   case "$1" in
@@ -53,6 +53,6 @@ github_slug() {
   p=${p%/}
   p=${p%.git}
   [[ "$p" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || return 1
-  [[ "$p" != */.* ]] || return 1
+  [[ "$p" != *..* ]] || return 1
   printf '%s' "$p"
 }

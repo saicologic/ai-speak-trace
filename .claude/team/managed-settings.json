@@ -57,6 +57,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "/opt/claude-code-team/bin/cr-limit-gate.sh",
             "timeout": 20
           }

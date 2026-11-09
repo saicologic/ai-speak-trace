@@ -83,6 +83,10 @@ dir="${dir/#\~/$HOME}"
 dir="${dir%\"}"; dir="${dir#\"}"
 top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -f "$top/.coderabbit.yaml" ] || exit 0
+# サンドボックスの外で git・gh を動かすため、リポジトリの設定を確かめる（認めていない項目があれば、調べずに通す）
+# shellcheck source=lib/git-safety.sh
+. "$(cd "$(dirname "$0")" && pwd -P)/lib/git-safety.sh"
+(cd "$top" && check_git_config) 2>/dev/null || exit 0
 
 now=$(date +%s)
 until=0
