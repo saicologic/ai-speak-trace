@@ -26,8 +26,11 @@ let plain: string;
 let home: string;
 let fakeBin: string;
 
-/** GitHub の CodeRabbit の枠切れのコメントを返す gh を置く（枠が切れていないときは、コメントなし） */
-function fakeGh(limited: boolean): void {
+/**
+ * GitHub の CodeRabbit の枠切れのコメントを返す gh を置く（枠が切れていないときは、コメントなし）。
+ * リポジトリの名前は、gh を実行したフォルダの名前にする。limited にフォルダを渡すと、そのリポジトリの枠だけが切れている
+ */
+function fakeGh(limited: boolean | string): void {
   const comments = limited
     ? [
         {
@@ -42,8 +45,10 @@ function fakeGh(limited: boolean): void {
     [
       '#!/bin/sh',
       'case "$1 $2" in',
-      '  "repo view") echo owner/repo ;;',
-      `  "api "*) echo '${JSON.stringify(comments)}' ;;`,
+      '  "repo view") echo "owner/$(basename "$PWD")" ;;',
+      typeof limited === 'string'
+        ? `  "api "*) case "$*" in *"repos/owner/${path.basename(limited)}/"*) echo '${JSON.stringify(comments)}' ;; *) echo '[]' ;; esac ;;`
+        : `  "api "*) echo '${JSON.stringify(comments)}' ;;`,
       '  *) exit 1 ;;',
       'esac',
       '',
@@ -187,6 +192,9 @@ describe('gh pr comment の本文をファイル・heredoc から読むとき', 
     ['cd sub && gh pr comment 12 --body-file cr.md', true],
     ['gh pr comment 12 --body-file=sub/cr.md', true],
     ["gh pr comment 12 --body-file - <<'EOF'\n@coderabbitai review\nEOF", true],
+    ['echo "@coderabbitai review" | gh pr comment 12 -F -', true],
+    ["cat <<'EOF' | gh pr comment 12 -F -\n@coderabbitai review\nEOF", true],
+    ['gh pr comment 12 -F - < sub/cr.md', true],
     ['cd sub && gh pr comment 12 -F thanks.md', false],
     ['gh pr comment 12 -F sub/none.md', false],
   ])('%s', (command, expected) => {
@@ -232,6 +240,26 @@ describe('リポジトリは、コマンドの中の cd・git -C で決める', 
 });
 
 describe('GitHub と手元の CLI の枠は、分けて見る', () => {
+  let other: string;
+  beforeEach(() => {
+    other = fs.mkdtempSync(path.join(os.tmpdir(), 'cr-limit-gate-other-'));
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: other });
+    fs.writeFileSync(path.join(other, '.coderabbit.yaml'), '');
+    cliLimited(false);
+  });
+  afterEach(() => {
+    fs.rmSync(other, { recursive: true, force: true });
+  });
+
+  it('GitHub の枠は、cr-review.sh を動かすリポジトリではなく、push 先のリポジトリで調べる', () => {
+    fakeGh(other);
+    expect(blocks(`${CR_REVIEW}; git -C ${other} ${PUSH.slice(4)}`)).toBe(true);
+    fakeGh(repo);
+    expect(blocks(`${CR_REVIEW}; git -C ${other} ${PUSH.slice(4)}`)).toBe(
+      false,
+    );
+  });
+
   it('GitHub の枠だけが切れているとき、push は止め、cr-review.sh は止めない', () => {
     cliLimited(false);
     expect(blocks(PUSH)).toBe(true);
@@ -240,6 +268,7 @@ describe('GitHub と手元の CLI の枠は、分けて見る', () => {
 
   it('手元の CLI の枠だけが切れているとき、cr-review.sh は止め、push は止めない', () => {
     fakeGh(false);
+    cliLimited(true);
     expect(blocks(CR_REVIEW)).toBe(true);
     expect(blocks(PUSH)).toBe(false);
   });
