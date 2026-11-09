@@ -255,5 +255,19 @@ run pr close 12 --comment "閉じます"
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr close 12 --comment 閉じます --repo me/repo" ]; then ok; else ng "pr close（rc=$rc）: $(gh_args) $out"; fi
 rejected "pr close --delete-branch" pr close 12 --delete-branch
 
+# --- Issue（読む・コメントする・作る）
+run issue view 7 --comments
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue view 7 --comments" ] && [ ! -e "$tmp/gate-log" ]; then ok; else ng "issue view（rc=$rc）: $(gh_args) $out"; fi
+rejected "issue view --web" issue view 7 --web
+rejected "issue の決めていない操作" issue close 7
+run issue comment 7 --body-file body.md
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue comment 7 --body-file body.md --repo me/repo" ]; then ok; else ng "issue comment（rc=$rc）: $(gh_args) $out"; fi
+rejected "issue comment（本文なし）" issue comment 7
+rejected "issue comment の番号が数字でない" issue comment x --body y
+run issue create --title "t" --body-file body.md --label bug
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue create --title t --body-file body.md --label bug --repo me/repo" ]; then ok; else ng "issue create（rc=$rc）: $(gh_args) $out"; fi
+rejected "issue create（本文のファイルがリポジトリの外）" issue create --title t --body-file "$outside/x"
+rejected "issue create --assignee" issue create --title t --body x --assignee someone
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
