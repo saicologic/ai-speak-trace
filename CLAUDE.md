@@ -136,7 +136,8 @@ ai-speak-trace/
 - **CI の `TDD`**（`.github/workflows/tdd.yml`・`.github/scripts/check-tdd-order.sh`）: `main`・`release/*` 宛ての PR で、コミットを古い順に調べ、実装のファイル（`backend/src` の `.spec.ts` 以外・`frontend/src` の `.test.ts(x)` 以外・`backend/scripts/`）を変えたコミットより前にテストのファイルを変えたコミットがあるか、`test:` 以外のコミットでテストの `expect(` を減らしていないかを確かめる。`refactor:`・`style:` のコミットと、マージで入ったコミットは、順番の確認の対象外。テストを書けない変更だけの PR は、`no-tdd` のラベルを付けて飛ばす
   - その実装を参照している（import している・パスを書いている）テストがすでにあるときは、そのテストのどれかを、実装と同じかそれより前のコミットで変える必要がある（ほかのテストを変えただけでは通らない）。参照しているテストは `.github/scripts/related-tests.mjs` で探す
   - まだテストのない実装は、PR の中でそれより前にどれかのテストを変えていれば通る。テストが実装の動きを確かめているかは、`test-reviewer` とレビューで確かめる
-- **push の前の hook**（`.claude/hooks/tdd-push-gate.sh`）: Claude Code が push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `SKIP_TDD_CHECK=1` を付ける（`github.sh` では `--skip SKIP_TDD_CHECK`）
+- **push の前の確認**（`.claude/team/bin/tdd-push-gate.sh`）: Claude Code が `github.sh` で push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `github.sh` に `--skip SKIP_TDD_CHECK` を付ける
+  - サンドボックスの外で動くため、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使う（作業ツリーのものは動かさない）。`.github/scripts` を変えたら、マージの後に `sudo .claude/team/install.sh` をもう一度実行する
 - **lint**（CI の `backend-test`・`frontend-test` で流す）: テストのファイルで、`.skip`・`.only`・`xit` などのテストを外す書き方を止める。OS などの理由で外すときは、`eslint-disable-next-line` に理由を書く
 
 ## ブランチ管理とリリースポリシー
@@ -202,7 +203,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 ## CodeRabbit の枠切れ（Claude Code）
 
 - CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため
-- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push`（`github.sh` が流すものを含む）と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
+- `.claude/team/bin/cr-limit-gate.sh`（managed settings の hook と、`github.sh` が書き込む前の確認）が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push`（`github.sh` が流すものを含む）と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
 - 戻る時刻は、直近の CodeRabbit のコメント（「Next included review available in N minutes」）と、`cr-review.sh` が記録した時刻から求める。調べられないときは止めない
 - 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける（`github.sh` では `--skip SKIP_CR_LIMIT`）
 
@@ -212,6 +213,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 - Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
   - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
+- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。リポジトリの `.claude/settings.json` の hook から、作業ツリーのファイル（`.github/scripts` など）を動かさない（サンドボックスの中から書き換えられるため）
 - 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く
 
 ## PRの手動確認項目
