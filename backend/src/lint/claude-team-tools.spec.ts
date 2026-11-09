@@ -35,11 +35,9 @@ describe('.claude/team のテスト', () => {
       encoding: 'utf-8',
       timeout: 120_000,
     });
-    // 失敗したときに、どの場面が失敗したかを出す
-    const output = `${result.stdout}\n${result.stderr}`;
-    expect({ status: result.status, output }).toEqual({
-      status: 0,
-      output: expect.stringMatching(/pass=\d+ fail=0/),
-    });
+    // 終了コードと出力を1つの文字列にして比べ、失敗したときに、どの場面が失敗したかを出す
+    expect(
+      `status=${result.status}\n${result.stdout}\n${result.stderr}`,
+    ).toMatch(/^status=0\n[\s\S]*pass=\d+ fail=0/);
   });
 });
