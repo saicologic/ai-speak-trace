@@ -28,15 +28,16 @@ check_cli=""
 check_github=""
 top=""
 while IFS= read -r t; do
+  # .coderabbit.yaml のないリポジトリ（やリポジトリでないフォルダ）で動かす部分は、対象外
+  d=$(printf '%s' "$t" | jq -r '.dir // empty')
+  tt=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null) || continue
+  [ -f "$tt/.coderabbit.yaml" ] || continue
   case "$(printf '%s' "$t" | jq -r .check)" in
     cli) check_cli=1 ;;
     github) check_github=1 ;;
   esac
-  # 対象のリポジトリは、.coderabbit.yaml がある最初のフォルダのリポジトリ
-  if [ -z "$top" ]; then
-    d=$(printf '%s' "$t" | jq -r '.dir // empty')
-    tt=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null) && [ -f "$tt/.coderabbit.yaml" ] && top=$tt
-  fi
+  # GitHub の枠は、対象の部分のうち最初のリポジトリで調べる
+  [ -n "$top" ] || top=$tt
 done <<<"$targets"
 [ -n "$top" ] || exit 0
 

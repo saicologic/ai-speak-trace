@@ -6,7 +6,9 @@
 // - github: gh pr create・gh pr ready（--undo は除く）・@coderabbitai を書く gh pr comment・git push
 //   （ブランチの削除・タグだけの push は除く）
 // - 部分の先頭の代入に SKIP_CR_LIMIT=1 がある部分は出さない
-// - フォルダは、git -C <dir> → それより前の cd <dir> → 引数の cwd の順に決める（相対パスは、その時点のフォルダから見る）
+// - フォルダは、git -C <dir> → それより前の cd <dir> → 引数の cwd の順に決める
+//   - 相対パスは、その時点のフォルダから見る。サブシェル（( … )）の中の cd は、外に効かない
+//   - $( )・$VAR などを含み、決められないパスは、引数の cwd とする（止めるべきものを見落とさないように）
 //
 // 使い方: node cr-limit-targets.mjs <cwd> < コマンド
 import { existsSync, readFileSync } from 'node:fs'
@@ -16,20 +18,23 @@ import { ASSIGNMENT, LEADING_KEYWORDS, segments } from './lib/shell-words.mjs'
 
 const src = readFileSync(0, 'utf-8')
 const home = process.env.HOME || os.homedir()
-let dir = process.argv[2] || process.cwd()
+const startDir = process.argv[2] || process.cwd()
+let dir = startDir
+const dirStack = []
 
-/** ~・$HOME を展開し、base から見たフォルダにする */
+/** ~・$HOME を展開し、base から見たフォルダにする。決められないときは、引数の cwd */
 function resolveDir(base, p) {
-  const expanded = p.replace(/^~(?=\/|$)/, home).replace(/^\$HOME(?=\/|$)/, home).replace(/^\$\{HOME\}(?=\/|$)/, home)
+  const expanded = p.replace(/^(~|\$HOME|\$\{HOME\})(?=\/|$)/, home)
+  if (/[$`]/.test(expanded)) return startDir
   return path.resolve(base, expanded)
 }
 
-const CR_REVIEW = /^(~|\$HOME|\$\{HOME\}|\/[^\s]*)\/\.claude\/hooks\/cr-review\.sh$/
+const CR_REVIEW = /\/\.claude\/hooks\/cr-review\.sh$/
 
-/** gh pr comment が @coderabbitai を書くか（引数・heredoc の本文・-F / --body-file のファイル） */
-function mentionsCodeRabbit(args) {
-  // heredoc の本文は言葉に入らないため、コマンド全体からも探す
-  if (src.includes('@coderabbitai')) return true
+/** gh pr comment が @coderabbitai を書くか（引数・その部分の heredoc の本文・-F / --body-file のファイル） */
+function mentionsCodeRabbit(args, heredoc) {
+  if ((heredoc ?? '').includes('@coderabbitai')) return true
+  if (args.some((a) => a.includes('@coderabbitai'))) return true
   for (let i = 0; i < args.length; i++) {
     let file = null
     if (args[i] === '-F' || args[i] === '--body-file') file = args[i + 1]
@@ -45,12 +50,25 @@ function mentionsCodeRabbit(args) {
   return false
 }
 
+// git push の、値を1つ取るオプション
+const PUSH_VALUE_OPTIONS = new Set(['-o', '--push-option', '--repo', '--receive-pack', '--exec'])
+// リダイレクトだけの言葉（> file のように、後ろの言葉が行き先）
+const REDIRECT_ONLY = /^(\d*|&)(>>?|<)$/
+// リダイレクトの言葉（>/dev/null・2>&1 など）
+const REDIRECT = /^(\d*|&)(>>?|<)/
+
 /** git push の引数が、ふつうのブランチを送るか（削除・タグだけなら false） */
 function pushesBranch(args) {
   let remote = null
   const refspecs = []
   let tags = false
-  for (const a of args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (REDIRECT_ONLY.test(a) || PUSH_VALUE_OPTIONS.has(a)) {
+      i++
+      continue
+    }
+    if (REDIRECT.test(a)) continue
     if (a === '--delete' || a === '-d') return false
     if (a === '--tags') tags = true
     else if (a.startsWith('-')) continue
@@ -63,6 +81,16 @@ function pushesBranch(args) {
 
 const out = []
 for (const words of segments(src)) {
+  // サブシェルの中の cd は、括弧を閉じたら戻す
+  if (words.length === 1 && words[0] === '(') {
+    dirStack.push(dir)
+    continue
+  }
+  if (words.length === 1 && words[0] === ')') {
+    if (dirStack.length > 0) dir = dirStack.pop()
+    continue
+  }
+
   let i = 0
   let skip = false
   while (i < words.length && (LEADING_KEYWORDS.has(words[i]) || ASSIGNMENT.test(words[i]))) {
@@ -71,14 +99,29 @@ for (const words of segments(src)) {
   }
   const argv = words.slice(i)
   if (argv[0] === 'cd') {
-    if (argv[1] !== undefined) dir = resolveDir(dir, argv[1])
+    // cd・cd -P・cd -- <dir>（引数がなければ HOME）
+    let target
+    for (let k = 1; k < argv.length; k++) {
+      if (argv[k] === '--') {
+        target = argv[k + 1]
+        break
+      }
+      if (argv[k].startsWith('-') && argv[k] !== '-') continue
+      target = argv[k]
+      break
+    }
+    dir = target === undefined ? home : resolveDir(dir, target)
     continue
   }
   if (skip || argv.length === 0) continue
 
-  // bash <script> / sh <script> も、そのスクリプトの実行として見る
-  const run = (argv[0] === 'bash' || argv[0] === 'sh') && argv[1] !== undefined ? argv.slice(1) : argv
-  if (CR_REVIEW.test(run[0])) {
+  // bash <script> / sh -x <script> も、そのスクリプトの実行として見る
+  let run = argv
+  if (argv[0] === 'bash' || argv[0] === 'sh') {
+    const k = argv.findIndex((a, n) => n > 0 && !a.startsWith('-'))
+    run = k < 0 ? [] : argv.slice(k)
+  }
+  if (run.length > 0 && run[0].includes('/') && CR_REVIEW.test(resolveDir(dir, run[0]))) {
     if (!run.slice(1).some((a) => a === '--accept' || a === '--base')) out.push({ check: 'cli', dir })
     continue
   }
@@ -87,7 +130,7 @@ for (const words of segments(src)) {
     const args = argv.slice(3)
     if (argv[2] === 'create') out.push({ check: 'github', dir })
     else if (argv[2] === 'ready' && !args.includes('--undo')) out.push({ check: 'github', dir })
-    else if (argv[2] === 'comment' && mentionsCodeRabbit(args)) out.push({ check: 'github', dir })
+    else if (argv[2] === 'comment' && mentionsCodeRabbit(args, words.heredoc)) out.push({ check: 'github', dir })
     continue
   }
 

@@ -3,7 +3,8 @@
 //
 // - 引用符・$( )・バッククォート・heredoc・here-string・コメントの中は区切らない
 // - 引用符は外し、$( )・バッククォートは、そのままの文字で1つの言葉にする
-// - heredoc の本文は、コマンドとして読まない
+// - heredoc の本文は、コマンドとして読まない。本文は、その heredoc を書いた部分の heredoc（文字列）に入れる
+// - サブシェルの括弧は、['('] と [')'] の部分として出す（中の cd が外に効かないことを、使う側で扱えるように）
 
 /** ' から次の ' まで（i は開きの ' の位置）。閉じの ' の次の位置を返す */
 function skipSingle(s, i) {
@@ -60,7 +61,8 @@ function readHeredocStart(s, i) {
 /** 改行（i は改行の位置）の後の heredoc の本文を、区切りの行まで飛ばす */
 function skipHeredocBodies(s, i, pending) {
   let j = i + 1
-  for (const { delim, stripTabs } of pending) {
+  for (const { delim, stripTabs, owner } of pending) {
+    const body = []
     while (j < s.length) {
       const nl = s.indexOf('\n', j)
       const lineEnd = nl < 0 ? s.length : nl
@@ -68,7 +70,9 @@ function skipHeredocBodies(s, i, pending) {
       if (stripTabs) line = line.replace(/^\t+/, '')
       j = lineEnd + 1
       if (line === delim) break
+      body.push(line)
     }
+    if (owner) owner.heredoc = (owner.heredoc ?? '') + body.join('\n') + '\n'
   }
   pending.length = 0
   return j
@@ -163,17 +167,24 @@ export function segments(s) {
     } else if (c === '<' && s[i + 1] === '<') {
       endWord()
       const h = readHeredocStart(s, i)
-      pending.push(h)
+      // 本文は、この部分の言葉の並び（words）に付ける
+      pending.push({ ...h, owner: words })
       i = h.end
     } else if (c === '\n') {
       endSegment()
       i = pending.length > 0 ? skipHeredocBodies(s, i, pending) : i + 1
+    } else if (c === '&' && (s[i + 1] === '>' || (inWord && /[<>]$/.test(word)))) {
+      // リダイレクト（&>・2>&1・<&3）の & は区切りではない
+      word += c
+      inWord = true
+      i++
     } else if (c === ';' || c === '&' || c === '|') {
       endSegment()
       i += s[i + 1] === c ? 2 : 1
     } else if (c === '(' || c === ')') {
-      // サブシェル（( … )）の括弧も区切りにする
+      // サブシェル（( … )）の括弧も区切りにし、括弧だけの部分を出す
       endSegment()
+      segs.push([c])
       i++
     } else if (c === ' ' || c === '\t') {
       endWord()
