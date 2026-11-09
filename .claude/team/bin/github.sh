@@ -15,6 +15,9 @@
 #   github.sh [--skip NAME]... pr edit <番号> [--title T] [--body T | --body-file F] [--add-label L] [--remove-label L] [--base B]
 #   github.sh [--skip NAME]... pr comment <番号> (--body T | --body-file F)
 #   github.sh [--skip NAME]... pr close <番号> [--comment|-c T]
+#   github.sh issue view <番号> [args...]              （読むだけ。--web は除く）
+#   github.sh issue comment <番号> (--body T | --body-file F)
+#   github.sh issue create [--title T] [--body T | --body-file F] [--label L]
 #
 # リダイレクト（> file）・cd・$( ) を含む呼び出しは、サンドボックスの中で動いて GitHub に届かない
 # （sandbox.excludedCommands の決まり）。本文は --body-file で渡し、フォルダは前の呼び出しで移っておく
@@ -28,7 +31,7 @@
 # - サンドボックスの中で書き換えられたリポジトリで、外のコマンドを動かさないように:
 #   - リポジトリの git の設定は、決めた項目だけを認める（lib/git-safety.sh）
 #   - git のフック（.git/hooks）は動かさない（core.hooksPath=/dev/null）
-# - 書き込む操作（push・pr create / edit / comment / close）の前に、次の確認を、同じ操作の git / gh のコマンドとして流し、
+# - 書き込む操作（push・pr create / edit / comment / close・issue comment / create）の前に、次の確認を、同じ操作の git / gh のコマンドとして流し、
 #   止められたら止める
 #   - 同じフォルダの cr-gate-push.sh（手元の CodeRabbit レビュー）
 #   - リポジトリの .claude/settings(.local).json の PreToolUse（matcher が Bash）の hook（TDD・CodeRabbit の枠など）。
@@ -180,8 +183,8 @@ check_body_file() {
   die "本文のファイルは、リポジトリかスクラッチパッドの中に置いてください: $f"
 }
 
-# write_pr <gh の引数...>: origin のリポジトリ（一覧にあるもの）を --repo に付け、確認を流してから実行する
-write_pr() {
+# write_gh <gh の引数...>: origin のリポジトリ（一覧にあるもの）を --repo に付け、確認を流してから実行する（PR・Issue）
+write_gh() {
   [ -n "$top" ] || die "リポジトリの中で実行してください"
   check_remote origin push
   run_checks gh "$@" --repo "$slug"
@@ -281,23 +284,23 @@ case "${1-}" in
       create)
         [[ " ${*:3} " == *" --draft "* ]] || die "PR は --draft で作ってください"
         check_gh_opts "--base|-B|--head|-H|--title|-t|--body|-b|--body-file|-F|--label|-l" "--draft" "${@:3}"
-        write_pr "$@"
+        write_gh "$@"
         ;;
       edit)
         check_pr_number "${3-}"
         check_gh_opts "--title|-t|--body|-b|--body-file|-F|--add-label|--remove-label|--base|-B" "" "${@:4}"
-        write_pr "$@"
+        write_gh "$@"
         ;;
       comment)
         check_pr_number "${3-}"
         [[ " ${*:4} " =~ \ (--body|-b|--body-file|-F)[\ =] ]] || die "本文（--body・--body-file）を指定してください"
         check_gh_opts "--body|-b|--body-file|-F" "" "${@:4}"
-        write_pr "$@"
+        write_gh "$@"
         ;;
       close)
         check_pr_number "${3-}"
         check_gh_opts "--comment|-c" "" "${@:4}"
-        write_pr "$@"
+        write_gh "$@"
         ;;
       *) die "gh pr $sub はできません" ;;
     esac
@@ -311,6 +314,27 @@ case "${1-}" in
         exec gh "$@"
         ;;
       *) die "gh run ${2-} はできません" ;;
+    esac
+    ;;
+  issue)
+    case "${2-}" in
+      view)
+        for a in "${@:3}"; do
+          case "$a" in -w | --web) die "--web は使えません" ;; esac
+        done
+        exec gh "$@"
+        ;;
+      comment)
+        check_pr_number "${3-}"
+        [[ " ${*:4} " =~ \ (--body|-b|--body-file|-F)[\ =] ]] || die "本文（--body・--body-file）を指定してください"
+        check_gh_opts "--body|-b|--body-file|-F" "" "${@:4}"
+        write_gh "$@"
+        ;;
+      create)
+        check_gh_opts "--title|-t|--body|-b|--body-file|-F|--label|-l" "" "${@:3}"
+        write_gh "$@"
+        ;;
+      *) die "gh issue ${2-} はできません" ;;
     esac
     ;;
   api)
