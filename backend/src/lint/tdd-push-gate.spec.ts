@@ -261,9 +261,9 @@ describe('tdd-push-gate.sh', () => {
     expect(fs.existsSync(pwned)).toBe(false);
   });
 
-  it('確認のスクリプトがないブランチでは止めない', () => {
+  it('作業ツリーの確認のスクリプトを消しても、インストール先のもので確かめる', () => {
     fs.rmSync(path.join(repo, '.github'), { recursive: true });
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
-    expect(runHook(PUSH).status).toBe(0);
+    expect(runHook(PUSH).status).toBe(2);
   });
 });

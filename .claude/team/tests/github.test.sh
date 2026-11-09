@@ -212,6 +212,12 @@ if [ "$rc" -eq 0 ] && ! checked && [ ! -e "$tmp/ref-hook-ran" ]; then ok; else n
 rm -f "$repo/.git/hooks/reference-transaction"
 rejected "fetch --upload-pack" fetch --upload-pack=x origin
 rejected "fetch（リモートなし）" fetch
+# . で始まる名前のリポジトリ（owner/.github など）は、GitHub のリポジトリとして使える
+git config --global url."$remote".insteadOf https://github.com/me/.github.git
+git -C "$repo" remote add dotgithub https://github.com/me/.github.git
+run fetch dotgithub
+if [ "$rc" -eq 0 ]; then ok; else ng "fetch（me/.github）（rc=$rc）: $out"; fi
+git -C "$repo" remote remove dotgithub
 
 # サブモジュール（入れ子のリポジトリ）の設定でも、外のコマンドを動かさない
 sub="$tmp/subsrc"
@@ -223,6 +229,10 @@ rejected "サブモジュールの設定がある（submodule.*）" push origin 
 git -C "$repo" config --remove-section submodule.sub 2>/dev/null
 git -C "$repo/sub" config core.fsmonitor "touch $tmp/sub-pwned"
 touch "$repo/sub/dirty"
+# 対照: 守りがなければ、git status でサブモジュールの core.fsmonitor が動く（この準備で確かめられていること）
+( cd "$repo" && git status --porcelain >/dev/null 2>&1 )
+if [ -e "$tmp/sub-pwned" ]; then ok; else ng "対照: 守りがないときに、サブモジュールの core.fsmonitor が動かない（この準備では確かめられない）"; fi
+rm -f "$tmp/sub-pwned"
 ( cd "$repo" && GIT_CONFIG_COUNT=0 bash -c ". '$prefix/bin/lib/git-safety.sh'; git status --porcelain >/dev/null" )
 if [ ! -e "$tmp/sub-pwned" ]; then ok; else ng "git-safety.sh を読んだ後の git status で、サブモジュールの core.fsmonitor が動いた"; fi
 git -C "$repo" rm -q --cached sub
@@ -298,6 +308,25 @@ run pr comment 12 --body-file body.md
 if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "gh pr comment 12 --body body\\ @coderabbitai --repo me/repo" ]; then ok; else ng "pr comment で確認に渡すコマンド（rc=$rc）: $(gate_log) $out"; fi
 rejected "pr comment（本文なし）" pr comment 12
 rejected "pr comment --edit-last" pr comment 12 --edit-last --body x
+rejected "pr comment に空の引数" pr comment 12 --body x ""
+
+# 本文のファイルを、確かめた後・開く前に、外のファイルへのリンクに差し替えても送らない
+# （realpath の代わりに、確かめた直後に差し替えるスクリプトを置いて、差し替えを起こす）
+real_realpath=$(PATH="${PATH#"$tmp/bin:"}" command -v realpath)
+printf 'swap\n' >"$repo/swap.md"
+touch "$tmp/swap-once"
+cat >"$tmp/bin/realpath" <<EOF
+#!/bin/bash
+out=\$("$real_realpath" "\$@") || exit 1
+printf '%s\n' "\$out"
+if [ -e "$tmp/swap-once" ] && [ "\$out" = "$repo/swap.md" ]; then
+  rm -f "$tmp/swap-once" "$repo/swap.md"
+  ln -s "$outside/x" "$repo/swap.md"
+fi
+EOF
+chmod +x "$tmp/bin/realpath"
+rejected "本文のファイルを、確かめた後に外へのリンクに差し替える" pr comment 12 --body-file swap.md
+rm -f "$tmp/bin/realpath" "$repo/swap.md" "$tmp/swap-once"
 run pr close 12 --comment "閉じます"
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr close 12 --comment 閉じます --repo me/repo" ]; then ok; else ng "pr close（rc=$rc）: $(gh_args) $out"; fi
 rejected "pr close --delete-branch" pr close 12 --delete-branch

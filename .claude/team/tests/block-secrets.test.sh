@@ -1,8 +1,8 @@
 #!/bin/bash
-# .claude/hooks/block-ai-speak-trace-secrets.sh（PreToolUse / Bash）のテスト（bash .claude/team/tests/block-secrets.test.sh）
+# block-ai-speak-trace-secrets.sh（managed settings の PreToolUse / Bash の hook）のテスト（bash .claude/team/tests/block-secrets.test.sh）
 # アプリの API キーが会話ログに出るおそれのあるコマンドを止め、ほかのコマンドは通すことを確かめる
 set -u
-HOOK="$(cd "$(dirname "$0")/../../hooks" && pwd)/block-ai-speak-trace-secrets.sh"
+HOOK="$(cd "$(dirname "$0")/../bin" && pwd)/block-ai-speak-trace-secrets.sh"
 
 pass=0
 fail=0

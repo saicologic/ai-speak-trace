@@ -70,10 +70,11 @@ expect "cr-review.sh を許可する" '.permissions.allow | index("Bash(/opt/cla
 expect "wait-pr-checks.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/wait-pr-checks.sh *)") != null' "$P"
 expect "リポジトリの設定にサンドボックスの設定を書かない（managed settings で決める）" '.sandbox == null' "$P"
 expect "リポジトリの設定で環境変数を設定しない（外で動くスクリプトに渡るため）" '.env == null' "$P"
-# サンドボックスの外で動く hook は、作業ツリーのファイルを動かさないもの（API キーを守る hook）だけ。
-# TDD・CodeRabbit の枠の確認は、managed settings からインストール先のものを動かす
-expect "リポジトリの hook は block-ai-speak-trace-secrets.sh だけ" '[.hooks[]?[]?.hooks[]?.command] == ["bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-ai-speak-trace-secrets.sh"]' "$P"
+# hook はサンドボックスの外で動くため、作業ツリーのファイルを動かさない。リポジトリの設定には hook を書かず、
+# managed settings からインストール先のものだけを動かす
+expect "リポジトリの設定に hook を書かない" '.hooks == null' "$P"
 expect "managed settings で、cr-review.sh の前に CodeRabbit の枠を確かめる" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/cr-limit-gate.sh") != null' "$M"
+expect "managed settings で、API キーが会話ログに出るコマンドを止める" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh") != null' "$M"
 expect "リポジトリの設定で git push・gh を直接許可しない" '[.permissions.allow[] | select(test("^Bash\\((git push|git fetch|gh )"))] | length == 0' "$P"
 
 echo "pass=$pass fail=$fail"

@@ -89,6 +89,10 @@ git -C "$repo" add nested 2>/dev/null
 git -C "$repo" commit -q -m "入れ子のリポジトリ"
 git -C "$repo/nested" config core.fsmonitor "touch $tmp/nested-pwned"
 touch "$repo/nested/dirty"
+# 対照: 守りがなければ、git status で入れ子のリポジトリの core.fsmonitor が動く（この準備で確かめられていること）
+( cd "$repo" && git status --porcelain >/dev/null 2>&1 )
+if [ -e "$tmp/nested-pwned" ]; then ok; else ng "対照: 守りがないときに、入れ子のリポジトリの core.fsmonitor が動かない"; fi
+rm -f "$tmp/nested-pwned"
 run --base-branch main
 if [ ! -e "$tmp/nested-pwned" ]; then ok; else ng "入れ子のリポジトリの core.fsmonitor が動いた（rc=$rc）: $out"; fi
 
