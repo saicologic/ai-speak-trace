@@ -20,6 +20,7 @@ describe('.claude/team のテスト', () => {
       expect.arrayContaining([
         'block-secrets.test.sh',
         'cr-gate-push.test.sh',
+        'cr-limit-gate.test.sh',
         'cr-review.test.sh',
         'github.test.sh',
         'managed-settings.test.sh',
