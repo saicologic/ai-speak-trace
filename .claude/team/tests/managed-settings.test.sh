@@ -38,6 +38,8 @@ expect "ポートを開けない" '(.sandbox.network.allowLocalBinding // false)
 expect "弱いサンドボックスを使わない" '(.sandbox.enableWeakerNestedSandbox // false) == false and (.sandbox.enableWeakerNetworkIsolation // false) == false' "$M"
 expect "サンドボックスの違反を無視しない" '.sandbox.ignoreViolations == null' "$M"
 expect "managed settings で環境変数を設定しない" '.env == null' "$M"
+# excludedCommands が、つないだコマンドの全部の一致を求めるのは 2.1.277 から。古い版では起動させない
+expect "Claude Code 2.1.277 より前の版を起動させない" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 277]' "$M"
 
 # サンドボックスの外で動かすもの（excludedCommands・hook）は、インストール先（root の持ち物）のスクリプトの名前だけ。
 # 後ろに ; や && などで別のコマンドを続けられないよう、コマンド全体を決まった形と比べる
