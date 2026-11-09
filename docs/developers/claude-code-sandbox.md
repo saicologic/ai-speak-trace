@@ -30,6 +30,7 @@ hook もサンドボックスの外で動きます。作業ツリーのファイ
 前提:
 
 - macOS
+- Claude Code 2.1.277 以上（それより前の版では、`excludedCommands` に一部が一致しただけで、`;` などでつないだコマンド全体がサンドボックスの外で動くため。managed settings の `requiredMinimumVersion` で、古い版は起動しなくなります。`claude update` で上げます）
 - `jq`（`brew install jq`）
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うため
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
