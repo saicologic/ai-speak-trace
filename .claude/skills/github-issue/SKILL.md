@@ -5,17 +5,18 @@ disable-model-invocation: true
 context: fork
 agent: Explore
 argument-hint: <issue-number>
-allowed-tools: Bash(gh issue view *) Bash(gh issue comment *) Glob Read Grep
+allowed-tools: Bash(/opt/claude-code-team/bin/github.sh issue view *) Bash(/opt/claude-code-team/bin/github.sh issue comment *) Write Glob Read Grep
 ---
 
 # GitHub Issue 分析・提案
 
 Issue #$ARGUMENTS の内容を分析し、修正提案をIssueコメントとして投稿する。
+GitHub には、サンドボックスの外で動く `/opt/claude-code-team/bin/github.sh` からつなぐ（`docs/developers/claude-code-sandbox.md`）。
 
 ## Issue情報
 
-- Issue内容: !`gh issue view $ARGUMENTS`
-- Issueコメント: !`gh issue view $ARGUMENTS --comments 2>/dev/null || echo "コメントなし"`
+- Issue内容: !`/opt/claude-code-team/bin/github.sh issue view $ARGUMENTS`
+- Issueコメント: !`/opt/claude-code-team/bin/github.sh issue view $ARGUMENTS --comments`
 
 ## 手順
 
@@ -24,7 +25,7 @@ Issue #$ARGUMENTS の内容を分析し、修正提案をIssueコメントとし
 3. Read で関連ファイルの実装を確認する
 4. 依存関係やデータフローを追跡し、影響範囲を特定する
 5. 修正提案を以下のテンプレートに従って作成する
-6. `gh issue comment $ARGUMENTS --body "..."` でIssueにコメントとして投稿する
+6. コメントの本文をスクラッチパッドのファイルに Write で書き、`/opt/claude-code-team/bin/github.sh issue comment $ARGUMENTS --body-file <ファイル>` でIssueにコメントとして投稿する
 
 ## コメントテンプレート
 
@@ -59,4 +60,4 @@ Issue #$ARGUMENTS の内容を分析し、修正提案をIssueコメントとし
 
 - コードの変更は一切行わない
 - ブランチの作成やPRの作成は行わない
-- 出力は必ず `gh issue comment` でIssueコメントとして投稿する
+- 出力は必ず `github.sh issue comment` でIssueコメントとして投稿する

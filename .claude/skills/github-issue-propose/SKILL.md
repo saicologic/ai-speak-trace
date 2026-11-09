@@ -3,7 +3,7 @@ name: github-issue-propose
 description: チャットで伝えた困りごとを整理し、確認後にGitHub Issueを新規作成する
 disable-model-invocation: true
 argument-hint: <困りごとの内容>
-allowed-tools: Bash(gh issue create *) Bash(gh label *)
+allowed-tools: Bash(/opt/claude-code-team/bin/github.sh issue create *) Write
 ---
 
 # GitHub Issue 作成
@@ -21,12 +21,12 @@ allowed-tools: Bash(gh issue create *) Bash(gh label *)
    - **問題・要望**: 何に困っているか、何を実現したいか
    - **期待する動作**: どうなれば解決か
 2. 整理した内容をユーザーに提示し「このIssueを作成しますか？」と確認する
-3. OKされたら `gh issue create` でIssueを作成する
+3. OKされたら、本文をスクラッチパッドのファイルに Write で書き、`github.sh issue create` でIssueを作成する
+   （GitHub には、サンドボックスの外で動く `/opt/claude-code-team/bin/github.sh` からつなぐ。`docs/developers/claude-code-sandbox.md`）
 
-## Issue作成コマンド
+## Issueの本文（ファイルに書く）
 
-```bash
-gh issue create --title "タイトル" --body "$(cat <<'EOF'
+```markdown
 ## 問題・要望
 （整理した内容）
 
@@ -35,8 +35,12 @@ gh issue create --title "タイトル" --body "$(cat <<'EOF'
 
 ---
 *このIssueは Claude Code `/github-issue-propose` により作成されました*
-EOF
-)"
+```
+
+## Issue作成コマンド
+
+```bash
+/opt/claude-code-team/bin/github.sh issue create --title "タイトル" --body-file <本文のファイル>
 ```
 
 ## 重要な制約
