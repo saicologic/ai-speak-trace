@@ -202,7 +202,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 ## CodeRabbit の枠切れ（Claude Code）
 
 - CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため
-- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push` と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
+- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push` と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する（実行するコマンドだけを見る。引用符・heredoc・コメントの中の文字は対象外）
 - 戻る時刻は、直近の CodeRabbit のコメント（「Next included review available in N minutes」）と、`cr-review.sh` が記録した時刻から求める。調べられないときは止めない
 - 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける
 

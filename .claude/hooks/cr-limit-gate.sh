@@ -10,7 +10,7 @@
 #
 # GitHub は読むだけで、書き込みはしない。コメントからは時間の数字だけを取り出し、通知の文面には入れない
 # 急ぎのときは、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けると通す
-# 調べられないとき（jq・gh がない、gh の失敗、文面の変更など）は止めずに通す
+# 調べられないとき（jq・gh・node がない、gh の失敗、文面の変更など）は止めずに通す
 command -v jq >/dev/null 2>&1 || exit 0
 input=$(cat)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
@@ -18,66 +18,27 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
 [ -n "$cmd" ] || exit 0
 state_dir="$HOME/.claude/state"
 
-# コマンドを &&・||・;・|・改行で区切り、部分ごとに判定する（ある部分の除外が、ほかの部分に効かないように）
-# gh・git は、その部分の先頭（環境変数の代入の後）で実行するときだけ見る（コミットメッセージなどの文中は対象外）
-lead='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+# レビューを動かす部分を、引用符・$( )・heredoc・コメントを見分ける cr-limit-targets.mjs で探す
+# （コミットメッセージや echo の文中の「git push」などは対象外。node がなければ調べられないので通す）
+command -v node >/dev/null 2>&1 || exit 0
+hook_dir=$(cd "$(dirname "$0")" && pwd)
+targets=$(printf '%s' "$cmd" | node "$hook_dir/cr-limit-targets.mjs" "$cwd") || exit 0
+[ -n "$targets" ] || exit 0
 check_cli=""
 check_github=""
-while IFS= read -r seg; do
-  # SKIP_CR_LIMIT=1 は、その部分の先頭に環境変数として付けたときだけ認める
-  printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
-  # cr-review.sh は、その部分の先頭で実行するときだけ見る（grep などの引数にパスがあるだけなら対象外）
-  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
-    # --accept・--base はレビューを動かさない
-    printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
-  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
-    # 本文の中の ; などで区切られても見落とさないよう、@coderabbitai はコマンド全体から探す
-    printf '%s' "$cmd" | grep -q '@coderabbitai' && check_github=1
-    # 本文をファイルから読む場合（-F・--body-file）は、そのファイルからも探す
-    body_file=$(printf '%s' "$seg" | sed -nE "s/.*(-F|--body-file)(=|[[:space:]]+)(\"[^\"]*\"|'[^']*'|[^[:space:]]+).*/\3/p")
-    body_file="${body_file%[\"\']}"; body_file="${body_file#[\"\']}"
-    body_file="${body_file/#\~/$HOME}"
-    [ -n "$body_file" ] && [ "${body_file#/}" = "$body_file" ] && body_file="$cwd/$body_file"
-    [ -f "$body_file" ] && grep -q '@coderabbitai' "$body_file" 2>/dev/null && check_github=1
-  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
-    check_github=1
-  elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+ready([[:space:]]|$)'; then
-    printf '%s' "$seg" | grep -q -- '--undo' || check_github=1
-  elif printf '%s' "$seg" | grep -Eq "$lead"'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
-    # ブランチの削除・タグだけの push はレビューを動かさない（ふつうのブランチも送る push は対象）
-    push_args=$(printf '%s' "$seg" | sed -E 's/.*(^|[[:space:]])push([[:space:]]|$)//')
-    read -ra push_toks <<<"$push_args"
-    has_delete=""; has_tags=""; remote=""; refspecs=()
-    for tok in "${push_toks[@]}"; do
-      case "$tok" in
-        --delete|-d) has_delete=1 ;;
-        --tags) has_tags=1 ;;
-        -*) ;;
-        *) if [ -z "$remote" ]; then remote=$tok; else refspecs+=("$tok"); fi ;;
-      esac
-    done
-    if [ -n "$has_delete" ]; then
-      :
-    elif [ "${#refspecs[@]}" -gt 0 ]; then
-      # 削除（:branch）以外の refspec が1つでもあれば対象
-      for r in "${refspecs[@]}"; do
-        case "$r" in :*) ;; *) check_github=1 ;; esac
-      done
-    elif [ -z "$has_tags" ]; then
-      check_github=1
-    fi
+top=""
+while IFS= read -r t; do
+  case "$(printf '%s' "$t" | jq -r .check)" in
+    cli) check_cli=1 ;;
+    github) check_github=1 ;;
+  esac
+  # 対象のリポジトリは、.coderabbit.yaml がある最初のフォルダのリポジトリ
+  if [ -z "$top" ]; then
+    d=$(printf '%s' "$t" | jq -r '.dir // empty')
+    tt=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null) && [ -f "$tt/.coderabbit.yaml" ] && top=$tt
   fi
-done < <(printf '%s\n' "$cmd" | awk '{ gsub(/&&|\|\||;|\|/, "\n"); print }')
-[ -n "$check_cli$check_github" ] || exit 0
-
-# 対象のリポジトリ: git -C <dir> → 先頭の cd <dir> → フックの cwd
-dir=$(printf '%s' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+)[[:space:]]+push.*/\1/p')
-[ -n "$dir" ] || dir=$(printf '%s' "$cmd" | sed -nE 's/^[[:space:]]*cd[[:space:]]+([^;&|[:space:]]+).*/\1/p')
-[ -n "$dir" ] || dir=$cwd
-dir="${dir/#\~/$HOME}"
-dir="${dir%\"}"; dir="${dir#\"}"
-top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$top/.coderabbit.yaml" ] || exit 0
+done <<<"$targets"
+[ -n "$top" ] || exit 0
 
 now=$(date +%s)
 until=0
