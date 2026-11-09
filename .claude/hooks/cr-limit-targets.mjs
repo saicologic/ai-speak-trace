@@ -87,71 +87,97 @@ function pushesBranch(args) {
   return !tags
 }
 
-const out = []
-for (const words of segments(src)) {
-  // サブシェルの中の cd は、括弧を閉じたら戻す
-  if (words.length === 1 && words[0] === '(') {
-    dirStack.push(dir)
-    continue
-  }
-  if (words.length === 1 && words[0] === ')') {
-    if (dirStack.length > 0) dir = dirStack.pop()
-    continue
-  }
+// bash・sh の、値を1つ取るオプション
+const SHELL_VALUE_OPTIONS = new Set(['-o', '+o', '-O', '+O', '--rcfile', '--init-file'])
 
-  let i = 0
-  let skip = false
-  while (i < words.length && (LEADING_KEYWORDS.has(words[i]) || ASSIGNMENT.test(words[i]))) {
-    if (words[i] === 'SKIP_CR_LIMIT=1') skip = true
-    i++
-  }
-  const argv = words.slice(i)
-  if (argv[0] === 'cd') {
-    // cd・cd -P・cd -- <dir>（引数がなければ HOME）
-    let target
-    for (let k = 1; k < argv.length; k++) {
-      if (argv[k] === '--') {
-        target = argv[k + 1]
+const out = []
+
+/** 部分の並びを順に調べ、レビューを動かす部分を out に足す */
+function inspect(segs) {
+  for (const words of segs) {
+    // サブシェルの中の cd は、括弧を閉じたら戻す
+    if (words.length === 1 && words[0] === '(') {
+      dirStack.push(dir)
+      continue
+    }
+    if (words.length === 1 && words[0] === ')') {
+      if (dirStack.length > 0) dir = dirStack.pop()
+      continue
+    }
+
+    let i = 0
+    let skip = false
+    while (i < words.length && (LEADING_KEYWORDS.has(words[i]) || ASSIGNMENT.test(words[i]))) {
+      if (words[i] === 'SKIP_CR_LIMIT=1') skip = true
+      i++
+    }
+    const argv = words.slice(i)
+    if (argv[0] === 'cd') {
+      // cd・cd -P・cd -- <dir>（引数がなければ HOME）
+      let target
+      for (let k = 1; k < argv.length; k++) {
+        if (argv[k] === '--') {
+          target = argv[k + 1]
+          break
+        }
+        if (argv[k].startsWith('-') && argv[k] !== '-') continue
+        target = argv[k]
         break
       }
-      if (argv[k].startsWith('-') && argv[k] !== '-') continue
-      target = argv[k]
-      break
+      dir = target === undefined ? home : resolveDir(dir, target)
+      continue
     }
-    dir = target === undefined ? home : resolveDir(dir, target)
-    continue
-  }
-  if (skip || argv.length === 0) continue
+    if (skip || argv.length === 0) continue
 
-  // bash <script> / sh -x <script> も、そのスクリプトの実行として見る
-  let run = argv
-  if (argv[0] === 'bash' || argv[0] === 'sh') {
-    const k = argv.findIndex((a, n) => n > 0 && !a.startsWith('-'))
-    run = k < 0 ? [] : argv.slice(k)
-  }
-  if (run.length > 0 && run[0].includes('/') && CR_REVIEW.test(resolveDir(dir, run[0]))) {
-    if (!run.slice(1).some((a) => a === '--accept' || a === '--base')) out.push({ check: 'cli', dir })
-    continue
-  }
-
-  if (argv[0] === 'gh' && argv[1] === 'pr') {
-    const args = argv.slice(3)
-    if (argv[2] === 'create') out.push({ check: 'github', dir })
-    else if (argv[2] === 'ready' && !args.includes('--undo')) out.push({ check: 'github', dir })
-    else if (argv[2] === 'comment' && mentionsCodeRabbit(args, words.heredoc)) out.push({ check: 'github', dir })
-    continue
-  }
-
-  if (argv[0] === 'git') {
-    let j = 1
-    let gitDir = dir
-    while (j < argv.length && argv[j].startsWith('-')) {
-      // -C <path>・-c <k=v> は値を1つ取る
-      if (argv[j] === '-C' && argv[j + 1] !== undefined) gitDir = resolveDir(gitDir, argv[j + 1])
-      j += argv[j] === '-C' || argv[j] === '-c' ? 2 : 1
+    // bash <script> / sh -x <script> も、そのスクリプトの実行として見る。
+    // bash -c '<コマンド>' は、引数のコマンドを同じように調べる（中の cd は、外に効かない）
+    let run = argv
+    if (argv[0] === 'bash' || argv[0] === 'sh') {
+      let k = 1
+      let inner
+      while (k < argv.length) {
+        const a = argv[k]
+        if (SHELL_VALUE_OPTIONS.has(a)) k += 2
+        else if (/^-[A-Za-z]*c[A-Za-z]*$/.test(a)) {
+          inner = argv[k + 1] ?? ''
+          break
+        } else if (a.startsWith('-') || a.startsWith('+')) k++
+        else break
+      }
+      if (inner !== undefined) {
+        const saved = dir
+        inspect(segments(inner))
+        dir = saved
+        continue
+      }
+      run = argv.slice(k)
     }
-    if (argv[j] === 'push' && pushesBranch(argv.slice(j + 1))) out.push({ check: 'github', dir: gitDir })
+    if (run.length > 0 && run[0].includes('/') && CR_REVIEW.test(resolveDir(dir, run[0]))) {
+      if (!run.slice(1).some((a) => a === '--accept' || a === '--base')) out.push({ check: 'cli', dir })
+      continue
+    }
+
+    if (argv[0] === 'gh' && argv[1] === 'pr') {
+      const args = argv.slice(3)
+      if (argv[2] === 'create') out.push({ check: 'github', dir })
+      else if (argv[2] === 'ready' && !args.includes('--undo')) out.push({ check: 'github', dir })
+      else if (argv[2] === 'comment' && mentionsCodeRabbit(args, words.heredoc)) out.push({ check: 'github', dir })
+      continue
+    }
+
+    if (argv[0] === 'git') {
+      let j = 1
+      let gitDir = dir
+      while (j < argv.length && argv[j].startsWith('-')) {
+        // -C <path>・-c <k=v> は値を1つ取る
+        if (argv[j] === '-C' && argv[j + 1] !== undefined) gitDir = resolveDir(gitDir, argv[j + 1])
+        j += argv[j] === '-C' || argv[j] === '-c' ? 2 : 1
+      }
+      if (argv[j] === 'push' && pushesBranch(argv.slice(j + 1))) out.push({ check: 'github', dir: gitDir })
+    }
   }
 }
+
+inspect(segments(src))
 
 for (const o of out) console.log(JSON.stringify(o))
