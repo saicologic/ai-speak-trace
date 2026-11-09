@@ -4,12 +4,25 @@ import * as os from 'os';
 import * as path from 'path';
 
 /**
- * .claude/hooks/tdd-push-gate.sh（PreToolUse / Bash）が、git push の前に
- * CI の tdd-order と同じ確認（check-tdd-order.sh）を手元で流し、通らなければ止めることのテスト
+ * .claude/team/bin/tdd-push-gate.sh（github.sh が push の前に流す確認）が、
+ * CI の tdd-order と同じ確認（check-tdd-order.sh）を手元で流し、通らなければ止めることのテスト。
+ * サンドボックスの外で動くため、install.sh が入れたもの（<prefix>/bin/ci の check-tdd-order.sh）だけを動かし、
+ * 作業ツリーの .github/scripts は動かさない。テストでは、インストール先と同じ形に一時的に置く
  */
 const ROOT = path.resolve(__dirname, '..', '..', '..');
-const HOOK = path.join(ROOT, '.claude', 'hooks', 'tdd-push-gate.sh');
 const SCRIPTS = path.join(ROOT, '.github', 'scripts');
+const PREFIX = fs.mkdtempSync(path.join(os.tmpdir(), 'tdd-push-gate-prefix-'));
+fs.cpSync(path.join(ROOT, '.claude', 'team', 'bin'), path.join(PREFIX, 'bin'), {
+  recursive: true,
+});
+fs.mkdirSync(path.join(PREFIX, 'bin', 'ci'), { recursive: true });
+for (const f of ['check-tdd-order.sh', 'related-tests.mjs']) {
+  fs.copyFileSync(path.join(SCRIPTS, f), path.join(PREFIX, 'bin', 'ci', f));
+}
+const HOOK = path.join(PREFIX, 'bin', 'tdd-push-gate.sh');
+afterAll(() => {
+  fs.rmSync(PREFIX, { recursive: true, force: true });
+});
 
 const GIT_ENV = {
   ...process.env,
@@ -103,6 +116,8 @@ const BASE_COMMANDS = [
   'bash',
   'sh',
   'dirname',
+  'sort',
+  'basename',
 ];
 
 const IMPL = 'backend/src/foo/foo.ts';
@@ -224,6 +239,26 @@ describe('tdd-push-gate.sh', () => {
     fakeGh(null);
     commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
     expect(runHook(PUSH).status).toBe(0);
+  });
+
+  it('作業ツリーの check-tdd-order.sh を書き換えても動かさず、インストール先のもので確かめる', () => {
+    const pwned = path.join(fakeBin, 'pwned');
+    commit('fix: テストなしで直す', {
+      [IMPL]: 'export const a = 2;\n',
+      '.github/scripts/check-tdd-order.sh': `#!/bin/bash\ntouch '${pwned}'\nexit 0\n`,
+    });
+    expect(runHook(PUSH).status).toBe(2);
+    expect(fs.existsSync(pwned)).toBe(false);
+  });
+
+  it('リポジトリの git の設定に、コマンドを動かす設定があれば、git を動かさずに止める', () => {
+    const pwned = path.join(fakeBin, 'pwned');
+    commit('fix: テストなしで直す', { [IMPL]: 'export const a = 2;\n' });
+    git('config', 'diff.x.textconv', `touch '${pwned}'`);
+    const r = runHook(PUSH);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('diff.x.textconv');
+    expect(fs.existsSync(pwned)).toBe(false);
   });
 
   it('確認のスクリプトがないブランチでは止めない', () => {

@@ -40,54 +40,66 @@ EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 
-# 同じフォルダの cr-gate-push.sh の代わり: 受け取ったコマンドを記録し、DENYME を含めば JSON で止める
-cat >"$prefix/bin/cr-gate-push.sh" <<EOF
+# 同じフォルダの確認（cr-gate-push.sh・tdd-push-gate.sh・cr-limit-gate.sh）の代わり:
+# 受け取ったコマンドと CLAUDE_PROJECT_DIR を記録する。cr-gate-push.sh は DENYME で JSON の deny、
+# tdd-push-gate.sh は TDDDENY で exit 2、cr-limit-gate.sh は LIMITDENY で JSON の deny を返す
+fake_check() { # <名前> <止める文字> <止め方（json / exit2）>
+  cat >"$prefix/bin/$1" <<EOF
 #!/bin/bash
 c=\$(jq -r '.tool_input.command')
-printf '%s\n' "\$c" >>"$tmp/gate-log"
-case "\$c" in *DENYME*) echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"gate-denied"}}' ;; esac
+printf '%s\n' "\$c" >>"$tmp/check-log-$1"
+printf '%s\n' "\$CLAUDE_PROJECT_DIR" >>"$tmp/project-log"
+case "\$c" in
+  *$2*)
+    if [ "$3" = json ]; then
+      echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"$1-denied"}}'
+    else
+      echo '$1-denied' >&2
+      exit 2
+    fi ;;
+esac
 exit 0
 EOF
-# リポジトリの hook: CLAUDE_PROJECT_DIR を記録し、REPODENY を含めば exit 2 で止める
+  chmod +x "$prefix/bin/$1"
+}
+fake_check cr-gate-push.sh DENYME json
+fake_check tdd-push-gate.sh TDDDENY exit2
+fake_check cr-limit-gate.sh LIMITDENY json
+# リポジトリの設定の hook は、信頼したフォルダのものでも流さない（作業ツリーのファイルを外で動かさないため）
 cat >"$tmp/repo-hook.sh" <<EOF
 #!/bin/bash
-c=\$(jq -r '.tool_input.command')
-printf '%s\n' "\$CLAUDE_PROJECT_DIR" >>"$tmp/repo-hook-log"
-case "\$c" in *REPODENY*) echo 'repo-hook-denied' >&2; exit 2 ;; esac
-exit 0
-EOF
-# matcher が * の hook は流さない（通知などの hook のため）
-cat >"$tmp/star-hook.sh" <<EOF
-#!/bin/bash
 cat >/dev/null
-echo ran >>"$tmp/star-hook-log"
+echo ran >>"$tmp/repo-hook-log"
 EOF
-chmod +x "$prefix/bin/cr-gate-push.sh" "$tmp/repo-hook.sh" "$tmp/star-hook.sh"
-jq -n --arg r "$tmp/repo-hook.sh" --arg s "$tmp/star-hook.sh" \
-  '{hooks: {PreToolUse: [
-    {matcher: "Bash", hooks: [{type: "command", command: ("\"$CLAUDE_PROJECT_DIR\"/../" + ($r | split("/") | last))}]},
-    {matcher: "*", hooks: [{type: "command", command: $s}]}]}}' \
+chmod +x "$tmp/repo-hook.sh"
+jq -n --arg r "$tmp/repo-hook.sh" '{hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command", command: $r}]}]}}' \
   >"$repo/.claude/settings.json"
 export CLAUDE_CONFIG_DIR="$tmp/cfg"
-# repo は信頼したフォルダ（Claude Code の .claude.json の hasTrustDialogAccepted）
 jq -n --arg r "$repo" '{projects: {($r): {hasTrustDialogAccepted: true}}}' >"$tmp/cfg/.claude.json"
 
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); }
 ng() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; }
-reset_logs() { rm -f "$tmp/gh-args" "$tmp/gate-log" "$tmp/repo-hook-log" "$tmp/star-hook-log"; }
+reset_logs() { rm -f "$tmp/gh-args" "$tmp"/check-log-* "$tmp/project-log" "$tmp/repo-hook-log"; }
 # run <引数...>: repo で github.sh を実行し、終了コードを rc、出力を out に入れる
 run() { reset_logs; out=$(cd "$repo" && bash "$SCRIPT" "$@" 2>&1); rc=$?; }
-# rejected <説明> <引数...>: 断られ（0 以外）、gh を呼ばず、確認も流さない
+checked() { ls "$tmp"/check-log-* >/dev/null 2>&1; }
+# rejected <説明> <引数...>: github.sh のエラー（1）で断られ、理由を出し、gh を呼ばず、確認も流さない
+# （スクリプトがない・構文エラーなどで失敗したときに通らないよう、終了コードと「github.sh:」で見分ける）
 rejected() {
   local name=$1; shift
   run "$@"
-  if [ "$rc" -ne 0 ] && [ ! -e "$tmp/gh-args" ] && [ ! -e "$tmp/gate-log" ]; then ok; else ng "$name（rc=$rc）: $out"; fi
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '^github.sh: ' && [ ! -e "$tmp/gh-args" ] && ! checked; then ok; else ng "$name（rc=$rc）: $out"; fi
 }
 remote_head() { git -C "$remote" rev-parse --verify -q "refs/heads/$1"; }
 gh_args() { tr '\n' ' ' <"$tmp/gh-args" 2>/dev/null | sed 's/ $//'; }
-gate_log() { cat "$tmp/gate-log" 2>/dev/null; }
+# 確認に渡したコマンド（3つの確認に同じものを渡す）
+gate_log() { cat "$tmp/check-log-cr-gate-push.sh" 2>/dev/null; }
+same_to_all_checks() {
+  [ -n "$(gate_log)" ] && [ "$(cat "$tmp/check-log-tdd-push-gate.sh" 2>/dev/null)" = "$(gate_log)" ] &&
+    [ "$(cat "$tmp/check-log-cr-limit-gate.sh" 2>/dev/null)" = "$(gate_log)" ]
+}
 
 # --- 決めていない操作は断る
 rejected "引数なし"
@@ -99,9 +111,9 @@ rejected "gh の決めていない種類" repo delete x
 # --- push
 run push origin fix/a
 if [ "$rc" -eq 0 ] && [ "$(remote_head fix/a)" = "$(git -C "$repo" rev-parse HEAD)" ]; then ok; else ng "push origin fix/a（rc=$rc）: $out"; fi
-if [ "$(gate_log)" = "git push origin fix/a" ]; then ok; else ng "push で cr-gate-push.sh に渡すコマンド: $(gate_log)"; fi
-if [ "$(cat "$tmp/repo-hook-log" 2>/dev/null)" = "$repo" ]; then ok; else ng "リポジトリの hook の CLAUDE_PROJECT_DIR: $(cat "$tmp/repo-hook-log" 2>/dev/null)"; fi
-if [ ! -e "$tmp/star-hook-log" ]; then ok; else ng "matcher が * の hook を流した"; fi
+if [ "$(gate_log)" = "git push origin fix/a" ] && same_to_all_checks; then ok; else ng "push で3つの確認に渡すコマンド: $(gate_log)"; fi
+if [ "$(sort -u "$tmp/project-log" 2>/dev/null)" = "$repo" ]; then ok; else ng "確認の CLAUDE_PROJECT_DIR: $(cat "$tmp/project-log" 2>/dev/null)"; fi
+if [ ! -e "$tmp/repo-hook-log" ]; then ok; else ng "リポジトリの設定の hook を流した"; fi
 
 run push -u origin HEAD:refs/heads/feature/x
 if [ "$rc" -eq 0 ] && [ -n "$(remote_head feature/x)" ]; then ok; else ng "push -u origin HEAD:refs/heads/feature/x（rc=$rc）: $out"; fi
@@ -144,6 +156,8 @@ rejected "一覧にないリポジトリへの push" push someone fix/a
 rejected "GitHub 以外のリモートからの fetch" fetch evil
 git -C "$repo" config remote.origin.pushurl https://example.com/x.git
 rejected "pushurl が GitHub 以外" push origin fix/a
+git -C "$repo" config remote.origin.pushurl https://github.com/someone/repo.git
+rejected "pushurl が一覧にない GitHub のリポジトリ" push origin fix/a
 git -C "$repo" config --unset remote.origin.pushurl
 mv "$prefix/etc/github-repos" "$prefix/etc/github-repos.bak"
 rejected "一覧のファイルがない" push origin fix/a
@@ -166,55 +180,70 @@ run push origin fix/a
 if [ "$rc" -eq 0 ] && [ ! -e "$tmp/pre-push-ran" ]; then ok; else ng "git のフックが動いた（rc=$rc）: $out"; fi
 rm -f "$repo/.git/hooks/pre-push"
 
-# 確認が止めたら push しない
-git -C "$repo" branch fix/DENYME
-run push origin fix/DENYME
-if [ "$rc" -eq 2 ] && [ -z "$(remote_head fix/DENYME)" ] && printf '%s' "$out" | grep -q 'gate-denied'; then ok; else ng "cr-gate-push.sh（JSON）が止めた push（rc=$rc）: $out"; fi
-git -C "$repo" branch fix/REPODENY
-run push origin fix/REPODENY
-if [ "$rc" -eq 2 ] && [ -z "$(remote_head fix/REPODENY)" ] && printf '%s' "$out" | grep -q 'repo-hook-denied'; then ok; else ng "リポジトリの hook（exit 2）が止めた push（rc=$rc）: $out"; fi
+# 確認が止めたら push しない（JSON の deny・exit 2 のどちらでも）
+for b in DENYME TDDDENY LIMITDENY; do
+  git -C "$repo" branch "fix/$b"
+  run push origin "fix/$b"
+  if [ "$rc" -eq 2 ] && [ -z "$(remote_head "fix/$b")" ] && printf '%s' "$out" | grep -q -- '-denied'; then ok; else ng "確認が止めた push（fix/$b、rc=$rc）: $out"; fi
+done
 
 # --skip は、確認に NAME=1 を付けたコマンドとして渡す
-run --skip SKIP_CR_LOOP push origin fix/a
-if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "SKIP_CR_LOOP=1 git push origin fix/a" ]; then ok; else ng "--skip SKIP_CR_LOOP（rc=$rc）: $(gate_log) $out"; fi
+for s in SKIP_CR_LOOP SKIP_TDD_CHECK SKIP_CR_LIMIT; do
+  run --skip "$s" push origin fix/a
+  if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "$s=1 git push origin fix/a" ] && same_to_all_checks; then ok; else ng "--skip $s（rc=$rc）: $(gate_log) $out"; fi
+done
 rejected "知らない --skip" --skip FOO push origin fix/a
 
-# リポジトリの hook は、信頼したフォルダのものだけ流す。worktree では、メインのフォルダの設定を使う
-untrusted="$tmp/untrusted"
-mkdir -p "$untrusted/.claude"
-git -C "$untrusted" init -q -b main
-git -C "$untrusted" commit -q --allow-empty -m init
-git -C "$untrusted" branch fix/u
-git -C "$untrusted" remote add origin https://github.com/me/repo.git
-cp "$repo/.claude/settings.json" "$untrusted/.claude/settings.json"
-reset_logs
-out=$(cd "$untrusted" && bash "$SCRIPT" push --dry-run origin fix/u 2>&1)
-rc=$?
-if [ ! -e "$tmp/repo-hook-log" ] && [ -e "$tmp/gate-log" ]; then ok; else ng "信頼していないフォルダのリポジトリの hook を流した（rc=$rc）: $out"; fi
+# worktree でも、確認は同じフォルダ（インストール先）のものだけを流し、worktree の設定の hook は流さない
 git -C "$repo" worktree add -q "$tmp/wt" -b fix/wt
 mkdir -p "$tmp/wt/.claude"
-jq -n --arg t "$tmp" '{hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command", command: ("touch " + $t + "/wt-hook-ran")}]}]}}' >"$tmp/wt/.claude/settings.json"
+cp "$repo/.claude/settings.json" "$tmp/wt/.claude/settings.json"
 reset_logs
 out=$(cd "$tmp/wt" && bash "$SCRIPT" push origin fix/wt 2>&1)
 rc=$?
-if [ "$rc" -eq 0 ] && [ ! -e "$tmp/wt-hook-ran" ] && [ "$(cat "$tmp/repo-hook-log" 2>/dev/null)" = "$repo" ]; then ok; else ng "worktree で、メインのフォルダの hook を流す（rc=$rc）: $out / $(cat "$tmp/repo-hook-log" 2>/dev/null)"; fi
+if [ "$rc" -eq 0 ] && [ ! -e "$tmp/repo-hook-log" ] && [ -n "$(gate_log)" ]; then ok; else ng "worktree の push（rc=$rc）: $out"; fi
 
-# --- fetch（読むだけなので確認は流さない）
+# --- fetch（読むだけなので確認は流さない。git のフックも動かさない）
+printf '#!/bin/sh\ntouch %s/ref-hook-ran\n' "$tmp" >"$repo/.git/hooks/reference-transaction"
+chmod +x "$repo/.git/hooks/reference-transaction"
+git -C "$remote" update-ref refs/heads/fix/new "$(git -C "$repo" rev-parse HEAD)"
 run fetch origin
-if [ "$rc" -eq 0 ] && [ ! -e "$tmp/gate-log" ]; then ok; else ng "fetch origin（rc=$rc）: $out"; fi
+if [ "$rc" -eq 0 ] && ! checked && [ ! -e "$tmp/ref-hook-ran" ]; then ok; else ng "fetch origin（rc=$rc）: $out"; fi
+rm -f "$repo/.git/hooks/reference-transaction"
 rejected "fetch --upload-pack" fetch --upload-pack=x origin
 rejected "fetch（リモートなし）" fetch
 
+# サブモジュール（入れ子のリポジトリ）の設定でも、外のコマンドを動かさない
+sub="$tmp/subsrc"
+git init -q -b main "$sub"
+git -C "$sub" commit -q --allow-empty -m sub
+git -C "$repo" -c protocol.file.allow=always submodule --quiet add "$sub" sub 2>/dev/null
+git -C "$repo" commit -q -m "サブモジュール"
+rejected "サブモジュールの設定がある（submodule.*）" push origin fix/a
+git -C "$repo" config --remove-section submodule.sub 2>/dev/null
+git -C "$repo/sub" config core.fsmonitor "touch $tmp/sub-pwned"
+touch "$repo/sub/dirty"
+( cd "$repo" && GIT_CONFIG_COUNT=0 bash -c ". '$prefix/bin/lib/git-safety.sh'; git status --porcelain >/dev/null" )
+if [ ! -e "$tmp/sub-pwned" ]; then ok; else ng "git-safety.sh を読んだ後の git status で、サブモジュールの core.fsmonitor が動いた"; fi
+git -C "$repo" rm -q --cached sub
+rm -rf "$repo/sub" "$repo/.gitmodules"
+git -C "$repo" commit -q -am "サブモジュールを外す"
+
 # --- gh の読むだけの操作は、そのまま渡す（確認は流さない）
 run pr view 12 --json state -q .state
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr view 12 --json state -q .state" ] && [ ! -e "$tmp/gate-log" ]; then ok; else ng "pr view（rc=$rc）: $(gh_args)"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr view 12 --json state -q .state" ] && ! checked; then ok; else ng "pr view（rc=$rc）: $(gh_args)"; fi
 run pr checks 12
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr checks 12" ]; then ok; else ng "pr checks: $(gh_args)"; fi
 run run list --limit 3
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "run list --limit 3" ]; then ok; else ng "run list: $(gh_args)"; fi
 run api repos/o/r/pulls/12/comments --paginate --jq '.[].body'
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "api repos/o/r/pulls/12/comments --paginate --jq .[].body" ]; then ok; else ng "api（GET）: $(gh_args)"; fi
+# ブラウザを開く --web は、どの書き方でも断る
 rejected "pr view --web" pr view 12 --web
+rejected "pr view --web=true" pr view 12 --web=true
+rejected "pr view -w" pr view 12 -w
+rejected "pr view -cw（短いオプションをまとめた形）" pr view 12 -cw
+rejected "run view --web" run view 5 --web
 rejected "api -X" api -X DELETE repos/o/r
 rejected "api --method" api --method=POST repos/o/r
 rejected "api -f" api repos/o/r/issues -f title=x
@@ -223,19 +252,37 @@ rejected "api のパスなし" api --paginate
 rejected "api に URL" api https://example.com/x
 rejected "api の graphql" api graphql
 rejected "api の repos 以外" api user/emails
+rejected "api のパスに .." api repos/../user
 
-# --- PR を作る（Draft だけ）
+# --- PR を作る（Draft だけ）。本文のファイルは、確かめた後に中身を読み、--body で渡す
 printf 'body @coderabbitai\n' >"$repo/body.md"
 run pr create --draft --base main --title "t 1" --body-file body.md
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --base main --title t 1 --body-file body.md --repo me/repo" ]; then ok; else ng "pr create --draft（rc=$rc）: $(gh_args) $out"; fi
-if [ "$(gate_log)" = "gh pr create --draft --base main --title t\\ 1 --body-file body.md --repo me/repo" ]; then ok; else ng "pr create で確認に渡すコマンド: $(gate_log)"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --base main --title t 1 --body body @coderabbitai --repo me/repo" ]; then ok; else ng "pr create --draft（rc=$rc）: $(gh_args) $out"; fi
+if [ "$(gate_log)" = "gh pr create --draft --base main --title t\\ 1 --body body\\ @coderabbitai --repo me/repo" ] && same_to_all_checks; then ok; else ng "pr create で確認に渡すコマンド: $(gate_log)"; fi
+run pr create --draft --title t --body-file=body.md
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --title t --body body @coderabbitai --repo me/repo" ]; then ok; else ng "pr create --body-file=（rc=$rc）: $(gh_args) $out"; fi
 rejected "pr create（--draft なし）" pr create --base main --title t --body x
+rejected "pr create（--draft がタイトルの中だけ）" pr create --title "a --draft b" --body x
+rejected "pr create（--draft がタイトルの値）" pr create --title --draft --body x
 rejected "pr create --web" pr create --draft --web
 rejected "pr create の知らないオプション" pr create --draft --repo o/r
+echo secret >"$outside/x"
 rejected "pr create（本文のファイルがリポジトリの外）" pr create --draft --title t --body-file "$outside/x"
-ln -s /etc/hosts "$repo/link.md"
+ln -s "$outside/x" "$repo/link.md"
 rejected "pr create（本文のファイルが外へのリンク）" pr create --draft --title t --body-file link.md
+ln "$outside/x" "$repo/hard.md"
+rejected "pr create（本文のファイルが外のファイルのハードリンク）" pr create --draft --title t --body-file hard.md
+rm -f "$repo/link.md" "$repo/hard.md"
 rejected "pr create（本文のファイルが標準入力）" pr create --draft --title t --body-file -
+rejected "pr create（本文のファイルがない）" pr create --draft --title t --body-file none.md
+# スクラッチパッドの本文は使える（macOS のスクラッチパッドの場所に作れるときだけ確かめる）
+scratch="/private/tmp/claude-$(id -u)/github-test-$$/s/scratchpad"
+if mkdir -p "$scratch" 2>/dev/null; then
+  printf 'from scratchpad\n' >"$scratch/b.md"
+  run pr create --draft --title t --body-file "$scratch/b.md"
+  if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --title t --body from scratchpad --repo me/repo" ]; then ok; else ng "pr create（スクラッチパッドの本文）（rc=$rc）: $(gh_args) $out"; fi
+  rm -rf "/private/tmp/claude-$(id -u)/github-test-$$"
+fi
 run pr create --draft --title DENYME --body x
 if [ "$rc" -eq 2 ] && [ ! -e "$tmp/gh-args" ]; then ok; else ng "確認が止めた pr create（rc=$rc）: $out"; fi
 git -C "$repo" remote set-url origin https://github.com/someone/repo.git
@@ -244,11 +291,11 @@ git -C "$repo" remote set-url origin https://github.com/me/repo.git
 
 # --- PR の本文・タイトルを変える・コメント・閉じる
 run pr edit 12 --body-file body.md --add-label no-tdd
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr edit 12 --body-file body.md --add-label no-tdd --repo me/repo" ]; then ok; else ng "pr edit（rc=$rc）: $(gh_args) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr edit 12 --body body @coderabbitai --add-label no-tdd --repo me/repo" ]; then ok; else ng "pr edit（rc=$rc）: $(gh_args) $out"; fi
 rejected "pr edit の番号が数字でない" pr edit abc --title t
 rejected "pr edit --add-reviewer" pr edit 12 --add-reviewer someone
 run pr comment 12 --body-file body.md
-if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "gh pr comment 12 --body-file body.md --repo me/repo" ]; then ok; else ng "pr comment で確認に渡すコマンド（rc=$rc）: $(gate_log) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "gh pr comment 12 --body body\\ @coderabbitai --repo me/repo" ]; then ok; else ng "pr comment で確認に渡すコマンド（rc=$rc）: $(gate_log) $out"; fi
 rejected "pr comment（本文なし）" pr comment 12
 rejected "pr comment --edit-last" pr comment 12 --edit-last --body x
 run pr close 12 --comment "閉じます"
@@ -257,15 +304,15 @@ rejected "pr close --delete-branch" pr close 12 --delete-branch
 
 # --- Issue（読む・コメントする・作る）
 run issue view 7 --comments
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue view 7 --comments" ] && [ ! -e "$tmp/gate-log" ]; then ok; else ng "issue view（rc=$rc）: $(gh_args) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue view 7 --comments" ] && ! checked; then ok; else ng "issue view（rc=$rc）: $(gh_args) $out"; fi
 rejected "issue view --web" issue view 7 --web
 rejected "issue の決めていない操作" issue close 7
 run issue comment 7 --body-file body.md
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue comment 7 --body-file body.md --repo me/repo" ]; then ok; else ng "issue comment（rc=$rc）: $(gh_args) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue comment 7 --body body @coderabbitai --repo me/repo" ]; then ok; else ng "issue comment（rc=$rc）: $(gh_args) $out"; fi
 rejected "issue comment（本文なし）" issue comment 7
 rejected "issue comment の番号が数字でない" issue comment x --body y
 run issue create --title "t" --body-file body.md --label bug
-if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue create --title t --body-file body.md --label bug --repo me/repo" ]; then ok; else ng "issue create（rc=$rc）: $(gh_args) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue create --title t --body body @coderabbitai --label bug --repo me/repo" ]; then ok; else ng "issue create（rc=$rc）: $(gh_args) $out"; fi
 rejected "issue create（本文のファイルがリポジトリの外）" issue create --title t --body-file "$outside/x"
 rejected "issue create --assignee" issue create --title t --body x --assignee someone
 

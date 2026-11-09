@@ -29,6 +29,9 @@ check none "$GH push --dry-run origin fix/a"
 check none "$GH pr view 9"
 check none "$GH fetch origin"
 check none "git status"
+# インストール先でない github.sh（リポジトリの中のものなど）の後は、監視しない
+check none ".claude/team/bin/github.sh push origin fix/a"
+check none "/tmp/x/github.sh push origin fix/a"
 
 # 案内する監視のスクリプトは、インストール先のもの
 ctx=$(jq -n --arg c "$GH push origin fix/a" '{tool_input: {command: $c}, cwd: "/", tool_response: {stdout: "https://github.com/o/r/pull/9"}}' |

@@ -38,6 +38,6 @@ describe('.claude/team のテスト', () => {
     // 終了コードと出力を1つの文字列にして比べ、失敗したときに、どの場面が失敗したかを出す
     expect(
       `status=${result.status}\n${result.stdout}\n${result.stderr}`,
-    ).toMatch(/^status=0\n[\s\S]*pass=\d+ fail=0/);
+    ).toMatch(/^status=0\n[\s\S]*pass=[1-9]\d* fail=0/);
   });
 });

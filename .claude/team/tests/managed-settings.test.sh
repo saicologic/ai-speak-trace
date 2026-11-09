@@ -30,6 +30,14 @@ expect "通信先は managed settings の一覧だけ" '.sandbox.network.allowMa
 expect "github.com への通信を断る" '.sandbox.network.deniedDomains | index("github.com") != null' "$M"
 expect "通信先の一覧に * を入れない" '[.sandbox.network.allowedDomains[] | select(test("\\*"))] | length == 0' "$M"
 expect "通信先の一覧に GitHub を入れない" '[.sandbox.network.allowedDomains[] | select(test("github"))] | length == 0' "$M"
+# 書き込める場所・通信の道を広げる設定を書かない（Unix ソケット・自前のプロキシ・弱いサンドボックス・ポート）
+expect "sandbox.filesystem を書かない（書き込める場所・読めない場所は既定のまま）" '.sandbox.filesystem == null' "$M"
+expect "Unix ソケットを許さない" '.sandbox.network.allowUnixSockets == null and .sandbox.network.allowAllUnixSockets == null' "$M"
+expect "自前のプロキシを使わない" '.sandbox.network.httpProxyPort == null and .sandbox.network.socksProxyPort == null' "$M"
+expect "ポートを開けない" '(.sandbox.network.allowLocalBinding // false) == false' "$M"
+expect "弱いサンドボックスを使わない" '(.sandbox.enableWeakerNestedSandbox // false) == false and (.sandbox.enableWeakerNetworkIsolation // false) == false' "$M"
+expect "サンドボックスの違反を無視しない" '.sandbox.ignoreViolations == null' "$M"
+expect "managed settings で環境変数を設定しない" '.env == null' "$M"
 
 # サンドボックスの外で動かすものは、インストール先（root の持ち物）のスクリプトだけ
 if jq -e --arg p "$PREFIX" '.sandbox.excludedCommands | length > 0 and all(startswith($p))' "$M" >/dev/null 2>&1; then
@@ -61,6 +69,11 @@ expect "github.sh を許可する" '.permissions.allow | index("Bash(/opt/claude
 expect "cr-review.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/cr-review.sh *)") != null' "$P"
 expect "wait-pr-checks.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/wait-pr-checks.sh *)") != null' "$P"
 expect "リポジトリの設定にサンドボックスの設定を書かない（managed settings で決める）" '.sandbox == null' "$P"
+expect "リポジトリの設定で環境変数を設定しない（外で動くスクリプトに渡るため）" '.env == null' "$P"
+# サンドボックスの外で動く hook は、作業ツリーのファイルを動かさないもの（API キーを守る hook）だけ。
+# TDD・CodeRabbit の枠の確認は、managed settings からインストール先のものを動かす
+expect "リポジトリの hook は block-ai-speak-trace-secrets.sh だけ" '[.hooks[]?[]?.hooks[]?.command] == ["bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-ai-speak-trace-secrets.sh"]' "$P"
+expect "managed settings で、cr-review.sh の前に CodeRabbit の枠を確かめる" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/cr-limit-gate.sh") != null' "$M"
 expect "リポジトリの設定で git push・gh を直接許可しない" '[.permissions.allow[] | select(test("^Bash\\((git push|git fetch|gh )"))] | length == 0' "$P"
 
 echo "pass=$pass fail=$fail"
