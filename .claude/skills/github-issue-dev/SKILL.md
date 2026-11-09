@@ -28,11 +28,16 @@ Issue #$ARGUMENTS の内容をもとに開発する。
    git fetch origin main
    git checkout -b <ブランチ名> origin/main
    ```
-3. 修正を実施する
-4. 関連するテストを実行して確認する
-   - backend変更: `cd backend && npm test`
-   - frontend変更: `cd frontend && npm run test:run`
-5. コミットメッセージを作成してコミットする
+4. CLAUDE.md の「テスト駆動開発（TDD）」に従って修正する
+   1. Issue から、確かめたい場面（正しい入力・境界・エラー）の一覧を書く
+   2. 一覧から1つ選んでテストを書き、流して、期待どおりの理由で失敗することを確かめる
+      - backend変更: `cd backend && npm test`
+      - frontend変更: `cd frontend && npm run test:run`
+   3. テストを `test:` でコミットする
+   4. テストを変えずに、テストが通る最小限の実装を書き、テストと lint（`cd backend && npm run lint:check`・`cd frontend && npm run lint`）を通して `fix:`・`feat:` でコミットする
+   5. 書き方を整えるときは、テストが通ったまま `refactor:` で別にコミットする
+   6. 一覧が空になるまで 2 に戻る
+5. `test-reviewer` サブエージェントに、変えたファイルと確かめたい場面の一覧を渡して確かめてもらい、正しさにかかわる指摘があれば 4 に戻る
 6. 以下のルールに従ってPRを作成する
 
 ## ブランチ名の決定
@@ -59,6 +64,7 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 ### CI自動チェック（PRのChecksタブで確認）
 - [ ] `backend-test` がパスしていること
 - [ ] `frontend-test` がパスしていること
+- [ ] `tdd-order` がパスしていること
 
 ### 手動確認
 - [ ] （変更内容に応じた確認項目を記載）
@@ -76,6 +82,7 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 ### CI自動チェック（PRのChecksタブで確認）
 - [ ] `backend-test` がパスしていること
 - [ ] `frontend-test` がパスしていること
+- [ ] `tdd-order` がパスしていること
 
 ### 手動確認
 - [ ] `npm run build` でビルドが成功すること
