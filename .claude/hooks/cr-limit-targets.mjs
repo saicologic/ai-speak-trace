@@ -6,6 +6,7 @@
 // - github: gh pr create・gh pr ready（--undo は除く）・@coderabbitai を書く gh pr comment・git push
 //   （ブランチの削除・タグだけの push は除く）
 // - 部分の先頭の代入に SKIP_CR_LIMIT=1 がある部分は出さない
+// - $( )・バッククォート・bash -c の中で実行するコマンドも調べる
 // - フォルダは、git -C <dir> → それより前の cd <dir> → 引数の cwd の順に決める
 //   - 相対パスは、その時点のフォルダから見る。サブシェル（( … )）の中の cd は、外に効かない
 //   - $( )・$VAR などを含み、決められないパスは、引数の cwd とする（止めるべきものを見落とさないように）
@@ -110,6 +111,14 @@ function inspect(segs) {
     while (i < words.length && (LEADING_KEYWORDS.has(words[i]) || ASSIGNMENT.test(words[i]))) {
       if (words[i] === 'SKIP_CR_LIMIT=1') skip = true
       i++
+    }
+    // $( )・バッククォートの中のコマンドも実行されるので、同じように調べる（中の cd は、外に効かない）
+    if (!skip) {
+      for (const inner of words.substs ?? []) {
+        const saved = dir
+        inspect(segments(inner))
+        dir = saved
+      }
     }
     const argv = words.slice(i)
     if (argv[0] === 'cd') {

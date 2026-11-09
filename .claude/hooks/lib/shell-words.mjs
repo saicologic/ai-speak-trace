@@ -4,6 +4,7 @@
 // - 引用符・$( )・バッククォート・heredoc・here-string・コメントの中は区切らない
 // - 引用符は外し、$( )・バッククォートは、そのままの文字で1つの言葉にする
 // - heredoc の本文は、コマンドとして読まない。本文は、その heredoc を書いた部分の heredoc（文字列）に入れる
+// - 引用符の外と "…" の中の $( )・バッククォートの中身は、その部分の substs（文字列の配列）に入れる（'…' の中は入れない）
 // - サブシェルの括弧は、['('] と [')'] の部分として出す（中の cd が外に効かないことを、使う側で扱えるように）
 
 /** ' から次の ' まで（i は開きの ' の位置）。閉じの ' の次の位置を返す */
@@ -12,13 +13,20 @@ function skipSingle(s, i) {
   return j < 0 ? s.length : j + 1
 }
 
-/** " から次の " まで。\ と $( ) とバッククォートを飛ばす */
-function skipDouble(s, i) {
+/** " から次の " まで。\ と $( ) とバッククォートを飛ばす（substs を渡すと、$( )・バッククォートの中身を入れる） */
+function skipDouble(s, i, substs) {
   let j = i + 1
   while (j < s.length) {
     if (s[j] === '\\') j += 2
-    else if (s[j] === '$' && s[j + 1] === '(') j = skipSubst(s, j + 2)
-    else if (s[j] === '`') j = skipBacktick(s, j)
+    else if (s[j] === '$' && s[j + 1] === '(') {
+      const e = skipSubst(s, j + 2)
+      substs?.push(s.slice(j + 2, e - 1))
+      j = e
+    } else if (s[j] === '`') {
+      const e = skipBacktick(s, j)
+      substs?.push(s.slice(j + 1, e - 1))
+      j = e
+    }
     else if (s[j] === '"') return j + 1
     else j++
   }
@@ -109,6 +117,12 @@ function skipSubst(s, i) {
   return s.length
 }
 
+/** その部分の、$( )・バッククォートの中身（実行されるコマンド）を入れる配列 */
+function substsOf(words) {
+  words.substs ??= []
+  return words.substs
+}
+
 /** コマンドを、部分ごとの言葉の並びに分ける */
 export function segments(s) {
   const segs = []
@@ -142,17 +156,19 @@ export function segments(s) {
       inWord = true
       i = e
     } else if (c === '"') {
-      const e = skipDouble(s, i)
+      const e = skipDouble(s, i, substsOf(words))
       word += s.slice(i + 1, e - 1)
       inWord = true
       i = e
     } else if (c === '`') {
       const e = skipBacktick(s, i)
+      substsOf(words).push(s.slice(i + 1, e - 1))
       word += s.slice(i, e)
       inWord = true
       i = e
     } else if (c === '$' && s[i + 1] === '(') {
       const e = skipSubst(s, i + 2)
+      substsOf(words).push(s.slice(i + 2, e - 1))
       word += s.slice(i, e)
       inWord = true
       i = e
