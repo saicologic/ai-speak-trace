@@ -136,6 +136,7 @@ ai-speak-trace/
 - **CI の `TDD`**（`.github/workflows/tdd.yml`・`.github/scripts/check-tdd-order.sh`）: `main`・`release/*` 宛ての PR で、コミットを古い順に調べ、実装のファイル（`backend/src` の `.spec.ts` 以外・`frontend/src` の `.test.ts(x)` 以外・`backend/scripts/`）を変えたコミットより前にテストのファイルを変えたコミットがあるか、`test:` 以外のコミットでテストの `expect(` を減らしていないかを確かめる。`refactor:`・`style:` のコミットと、マージで入ったコミットは、順番の確認の対象外。テストを書けない変更だけの PR は、`no-tdd` のラベルを付けて飛ばす
   - その実装を参照している（import している・パスを書いている）テストがすでにあるときは、そのテストのどれかを、実装と同じかそれより前のコミットで変える必要がある（ほかのテストを変えただけでは通らない）。参照しているテストは `.github/scripts/related-tests.mjs` で探す
   - まだテストのない実装は、PR の中でそれより前にどれかのテストを変えていれば通る。テストが実装の動きを確かめているかは、`test-reviewer` とレビューで確かめる
+- **push の前の hook**（`.claude/hooks/tdd-push-gate.sh`）: Claude Code が push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `SKIP_TDD_CHECK=1` を付ける
 - **lint**（CI の `backend-test`・`frontend-test` で流す）: テストのファイルで、`.skip`・`.only`・`xit` などのテストを外す書き方を止める。OS などの理由で外すときは、`eslint-disable-next-line` に理由を書く
 
 ## ブランチ管理とリリースポリシー
