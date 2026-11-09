@@ -21,6 +21,13 @@ dir=$(sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' <<<"$cmd
 [ -z "$dir" ] && dir="$cwd"
 [ -n "$dir" ] && cd "$dir" 2>/dev/null
 
+# サンドボックスの外で gh（中で git を動かす）を動かすため、リポジトリの設定を確かめる（認めていない項目があれば何もしない）
+# shellcheck source=lib/git-safety.sh
+. "$(cd "$(dirname "$0")" && pwd -P)/lib/git-safety.sh"
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  (check_git_config) 2>/dev/null || exit 0
+fi
+
 # 出力にPRのURL（gh pr create）や owner/repo#番号（gh pr ready）があればそれを使い、なければ今のブランチのPRを調べる
 url=$(grep -Eo 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' <<<"$stdout" | tail -1)
 ref=$(grep -Eo '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+' <<<"$stdout" | tail -1)
