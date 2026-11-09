@@ -34,25 +34,36 @@ hook もサンドボックスの外で動きます。作業ツリーのファイ
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うため
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
 
-リポジトリのフォルダで、`git status` と `git diff` で `.claude/team/install.sh` が手元で変わっていないことを確かめてから、次を実行します（管理者のパスワードを聞かれます。ターミナルで自分で実行し、Claude Code には実行させません）。
+ターミナルで、次を自分で実行します（管理者のパスワードを聞かれます。Claude Code には実行させません）。
 
 ```bash
-sudo .claude/team/install.sh            # GitHub の main から入れる
-sudo .claude/team/install.sh release/vX.Y.Z  # main にまだない版を入れるとき
+# GitHub の main から入れる
+curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/main/.claude/team/install.sh | sudo bash -s --
+
+# main にまだない版を入れるとき（URL の main と、最後のブランチの両方を変える）
+curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/release/vX.Y.Z/.claude/team/install.sh | sudo bash -s -- release/vX.Y.Z
 ```
 
-- 作業ツリーのファイルではなく、GitHub（`saicologic/ai-speak-trace`）のブランチの今のコミットから取り出して入れます。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、レビューしてマージしたものだけを root の持ち物にします。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
+- インストーラー（`install.sh`）も、入れるものも、手元の作業ツリーからは取りません。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、`git status` が空でも、手元のファイルを `sudo` で動かすと、レビューしていないものが root で動くおそれがあります。GitHub でレビューしてマージしたものだけを使います
+- `install.sh` は、ブランチの今のコミットを root だけが読み書きできる一時フォルダに clone し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
+- 中身を確かめてから実行したいときは、GitHub の画面で `.claude/team/install.sh` を読んでから実行します
 - スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
 
-`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、もう一度 `sudo .claude/team/install.sh` を実行します。
+`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。
 
-外すときは、次を実行します。
+外すときは、次を実行します。入れる前の managed settings（`.bak`）があれば、いちばん新しいものを戻し、なければ消します。
 
 ```bash
 sudo rm -rf /opt/claude-code-team
-sudo rm "/Library/Application Support/ClaudeCode/managed-settings.json"
+dir="/Library/Application Support/ClaudeCode"
+latest=$(ls -t "$dir"/managed-settings.json.*.bak 2>/dev/null | head -1)
+if [ -n "$latest" ]; then
+  sudo mv "$latest" "$dir/managed-settings.json"   # 入れる前の managed settings に戻す
+else
+  sudo rm "$dir/managed-settings.json"
+fi
 ```
 
 ## GitHub への操作（github.sh）

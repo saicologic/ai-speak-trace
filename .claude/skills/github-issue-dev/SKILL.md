@@ -50,7 +50,7 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 
 - バグ修正 → `fix/issue-$ARGUMENTS`
 - 新機能 → `feature/issue-$ARGUMENTS`
-- リリース → `release/issue-$ARGUMENTS`
+- リリース → `release/issue-$ARGUMENTS`（`github.sh` では push できないため、ブランチはユーザーに作ってもらう）
 
 ## PRテンプレート
 

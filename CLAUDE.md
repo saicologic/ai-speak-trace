@@ -137,7 +137,7 @@ ai-speak-trace/
   - その実装を参照している（import している・パスを書いている）テストがすでにあるときは、そのテストのどれかを、実装と同じかそれより前のコミットで変える必要がある（ほかのテストを変えただけでは通らない）。参照しているテストは `.github/scripts/related-tests.mjs` で探す
   - まだテストのない実装は、PR の中でそれより前にどれかのテストを変えていれば通る。テストが実装の動きを確かめているかは、`test-reviewer` とレビューで確かめる
 - **push の前の確認**（`.claude/team/bin/tdd-push-gate.sh`）: Claude Code が `github.sh` で push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `github.sh` に `--skip SKIP_TDD_CHECK` を付ける
-  - サンドボックスの外で動くため、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使う（作業ツリーのものは動かさない）。`.github/scripts` を変えたら、マージの後に `sudo .claude/team/install.sh` をもう一度実行する
+  - サンドボックスの外で動くため、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使う（作業ツリーのものは動かさない）。`.github/scripts` を変えたら、マージの後に、`docs/developers/claude-code-sandbox.md` の手順（GitHub から取った `install.sh`）でもう一度入れる
 - **lint**（CI の `backend-test`・`frontend-test` で流す）: テストのファイルで、`.skip`・`.only`・`xit` などのテストを外す書き方を止める。OS などの理由で外すときは、`eslint-disable-next-line` に理由を書く
 
 ## ブランチ管理とリリースポリシー
@@ -209,11 +209,11 @@ Playwright MCP と Claude in Chrome を使い分ける。
 
 ## サンドボックスと GitHub への操作（Claude Code）
 
-- Claude Code の設定は、個人の設定ではなく、チームで共通の managed settings（`.claude/team/managed-settings.json`）と `.claude/settings.json` を使う。各開発者は `sudo .claude/team/install.sh` で入れる（詳細は `docs/developers/claude-code-sandbox.md`）
+- Claude Code の設定は、個人の設定ではなく、チームで共通の managed settings（`.claude/team/managed-settings.json`）と `.claude/settings.json` を使う。各開発者は、`docs/developers/claude-code-sandbox.md` の手順で、GitHub から取った `install.sh` をターミナルで実行して入れる（作業ツリーの `install.sh` を `sudo` で動かさない。Claude Code には実行させない）
 - Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
   - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
-- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、作業ツリーではなく GitHub のブランチのコミットから入れる
+- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、インストーラーそのものと入れるものの両方を、作業ツリーではなく GitHub のブランチのコミットから取る
 - 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く
 
 ## PRの手動確認項目

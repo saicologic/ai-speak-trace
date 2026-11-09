@@ -6,8 +6,8 @@ description: push の前に CodeRabbit CLI で手元のコミットをレビュ�
 # cr-loop: push 前の CodeRabbit レビューループ
 
 `github.sh push`（`/opt/claude-code-team/bin/github.sh`）は、手元レビューを通していない HEAD の push を止める
-（`cr-gate-push.sh`）。push する前にこの手順を回す。スクリプトと設定は `.claude/team/` にあり、`sudo .claude/team/install.sh` で入れる
-（`docs/developers/claude-code-sandbox.md`）。
+（`cr-gate-push.sh`）。push する前にこの手順を回す。スクリプトと設定は `.claude/team/` にあり、開発者が `docs/developers/claude-code-sandbox.md` の手順で
+（GitHub から取った `install.sh` を）入れる。Claude Code は `install.sh` を実行しない。
 
 ## 手順
 
