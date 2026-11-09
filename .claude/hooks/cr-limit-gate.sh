@@ -4,9 +4,11 @@
 # - GitHub 側: gh pr comment ...@coderabbitai / gh pr create / gh pr ready / git push
 #   リポジトリの直近の coderabbitai[bot] のコメントにある「Next included review available in N minutes」から
 #   枠が戻る時刻を求める
-# - 手元の CLI: ~/.claude/hooks/cr-review.sh（メンテナー個人の、push 前に CodeRabbit CLI でレビューするスクリプト）
+# - 手元の CLI: cr-review.sh（push 前に CodeRabbit CLI でレビューするスクリプト。.claude/team/install.sh で入れる
+#   /opt/claude-code-team/bin/cr-review.sh と、前の置き場所の ~/.claude/hooks/cr-review.sh）
 #   cr-review.sh が枠切れで失敗したときに記録する時刻（~/.claude/state/coderabbit-cli-limit-until）を使う
 #   cr-review.sh がない環境では、この部分は何もしない
+#   テスト: bash .claude/team/tests/cr-limit-gate.test.sh
 #
 # GitHub は読むだけで、書き込みはしない。コメントからは時間の数字だけを取り出し、通知の文面には入れない
 # 急ぎのときは、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けると通す
@@ -27,7 +29,7 @@ while IFS= read -r seg; do
   # SKIP_CR_LIMIT=1 は、その部分の先頭に環境変数として付けたときだけ認める
   printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
   # cr-review.sh は、その部分の先頭で実行するときだけ見る（grep などの引数にパスがあるだけなら対象外）
-  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
+  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?((~|\$HOME|/[^[:space:]]*)/\.claude/hooks|/opt/claude-code-team/bin)/cr-review\.sh([[:space:]]|$)'; then
     # --accept・--base はレビューを動かさない
     printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
   elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
@@ -124,5 +126,5 @@ msg="${label}が切れています。あと約${mins}分（${at} ごろ）で戻
 osascript -e "display notification \"$msg\" with title \"CodeRabbit の枠切れ\" sound name \"Basso\"" >/dev/null 2>&1 &
 
 jq -n --arg msg "$msg" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
-  permissionDecisionReason: ($msg + "。この操作は CodeRabbit のレビューを動かしますが、今はレビューされません。戻る時刻まで待ってから実行するか、ユーザーに確認してください。急ぎで通す場合は、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けてください。")}}'
+  permissionDecisionReason: ($msg + "。この操作は CodeRabbit のレビューを動かしますが、今はレビューされません。戻る時刻まで待ってから実行するか、ユーザーに確認してください。急ぎで通す場合は、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けてください（github.sh では --skip SKIP_CR_LIMIT）。")}}'
 exit 0
