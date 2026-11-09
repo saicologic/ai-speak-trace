@@ -109,7 +109,7 @@ ai-speak-trace/
 - コードおよびコメントは日本語で記述する
 - コミットメッセージは日本語で記述する
 - mainブランチはブランチ保護（PR必須）が有効。直接プッシュ不可
-- main以外のブランチ（release/*, fix/* など）は直接プッシュ可能
+- main以外のブランチ（release/*, fix/* など）は直接プッシュ可能。ただし Claude Code が `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ（`release/*` はユーザーが push する）
 - ブランチが保護されていてプッシュできない場合、新しいブランチを作成せず、ユーザーに報告する
 
 ### テスト駆動開発（TDD）
@@ -213,7 +213,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 - Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
   - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
-- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。リポジトリの `.claude/settings.json` の hook から、作業ツリーのファイル（`.github/scripts` など）を動かさない（サンドボックスの中から書き換えられるため）
+- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、作業ツリーではなく GitHub のブランチのコミットから入れる
 - 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く
 
 ## PRの手動確認項目

@@ -17,11 +17,11 @@
 | GitHub の設定 | ブランチ保護・必須チェック（`tdd-order` など） | Claude Code を使うかどうかに関係なく、全員に効く最後の守り |
 | managed settings | `.claude/team/managed-settings.json` → `/Library/Application Support/ClaudeCode/managed-settings.json` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
 | サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`） |
-| リポジトリの設定 | `.claude/settings.json`・`.claude/hooks/` | 許可するコマンド・API キーを守る hook |
+| リポジトリの設定 | `.claude/settings.json` | 許可するコマンド（hook は書かない） |
 
 managed settings でサンドボックスを管理者が決める状態にすると、リポジトリの設定に書いた `sandbox.excludedCommands`（サンドボックスの外で動かすコマンド）と通信先は無視されます（clone したリポジトリが、コマンドをサンドボックスの外に出せないようにするため）。そのため、外で動かすスクリプトは、リポジトリの中のファイルではなく、root の持ち物として `/opt/claude-code-team/bin` に入れたものだけにしています。
 
-hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
+hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts`・`.claude/hooks` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。hook は、リポジトリの設定には書かず、managed settings からインストール先のもの（API キーを守る `block-ai-speak-trace-secrets.sh`・CodeRabbit の枠の `cr-limit-gate.sh`・PR の監視の `watch-pr-checks.sh`）だけを動かします。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
 
 外で git を動かすスクリプトは、リポジトリの git の設定を決めた項目だけ認め、git のフック・fsmonitor・サブモジュールの中・`ext::` のリモートを使いません（`.claude/team/bin/lib/git-safety.sh`）。サンドボックスの中で書き換えたリポジトリの設定から、外のコマンドを動かさないためです。
 
@@ -34,12 +34,14 @@ hook もサンドボックスの外で動きます。作業ツリーのファイ
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うため
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
 
-リポジトリのフォルダで、次を実行します（管理者のパスワードを聞かれます）。
+リポジトリのフォルダで、`git status` と `git diff` で `.claude/team/install.sh` が手元で変わっていないことを確かめてから、次を実行します（管理者のパスワードを聞かれます。ターミナルで自分で実行し、Claude Code には実行させません）。
 
 ```bash
-sudo .claude/team/install.sh
+sudo .claude/team/install.sh            # GitHub の main から入れる
+sudo .claude/team/install.sh release/vX.Y.Z  # main にまだない版を入れるとき
 ```
 
+- 作業ツリーのファイルではなく、GitHub（`saicologic/ai-speak-trace`）のブランチの今のコミットから取り出して入れます。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、レビューしてマージしたものだけを root の持ち物にします。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
 - スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
