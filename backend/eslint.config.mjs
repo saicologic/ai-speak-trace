@@ -42,6 +42,24 @@ export default tseslint.config(
     files: ['**/*.spec.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
+      // テストを外して通ったことにしない（外すときは、理由を書いて eslint-disable する）
+      'no-restricted-properties': [
+        'error',
+        ...['it', 'test', 'describe'].flatMap((object) =>
+          ['skip', 'only'].map((property) => ({
+            object,
+            property,
+            message: 'テストを外さないでください',
+          })),
+        ),
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...['xit', 'xtest', 'xdescribe', 'fit', 'fdescribe'].map((name) => ({
+          name,
+          message: 'テストを外さないでください',
+        })),
+      ],
     },
   },
 );

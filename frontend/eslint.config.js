@@ -21,6 +21,18 @@ export default defineConfig([
     },
   },
   {
+    // テストを外して通ったことにしない（外すときは、理由を書いて eslint-disable する）
+    files: ['src/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        ...['it', 'test', 'describe'].flatMap((object) =>
+          ['skip', 'only'].map((property) => ({ object, property, message: 'テストを外さないでください' })),
+        ),
+      ],
+    },
+  },
+  {
     // sidecar の API はトークンを付ける apiFetch で呼ぶ（fetch を直接使うと、トークンなしで断られる）
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/**/*.test.{ts,tsx}'],

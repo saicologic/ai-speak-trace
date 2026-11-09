@@ -17,6 +17,8 @@ const PROFILE = path.join(BACKEND_DIR, 'scripts/mcp-sandbox.sb');
 const MAIN = path.join(BACKEND_DIR, 'dist/mcp/main.js');
 const NODE = process.execPath;
 
+// sandbox-exec は macOS にしかないため、ほかの OS では外す
+// eslint-disable-next-line no-restricted-properties -- macOS 以外では確かめられないため
 const describeOnMac = process.platform === 'darwin' ? describe : describe.skip;
 
 describeOnMac('MCP サーバーの sandbox', () => {
