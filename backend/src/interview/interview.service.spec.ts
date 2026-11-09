@@ -101,9 +101,14 @@ describe('InterviewService', () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
       claudeService.generateQuestions.mockResolvedValue(['質問1', '質問2']);
 
-      const result = await service.generateQuestions('sample', 'speaker_0', ['キーワード']);
+      const result = await service.generateQuestions('sample', 'speaker_0', [
+        'キーワード',
+      ]);
 
-      expect(claudeService.generateQuestions).toHaveBeenCalledWith(['キーワード'], 'Aさん');
+      expect(claudeService.generateQuestions).toHaveBeenCalledWith(
+        ['キーワード'],
+        'Aさん',
+      );
       expect(result).toEqual(['質問1', '質問2']);
     });
 
@@ -121,17 +126,27 @@ describe('InterviewService', () => {
 
       await service.generateQuestions('sample', 'unknown_speaker', []);
 
-      expect(claudeService.generateQuestions).toHaveBeenCalledWith([], 'unknown_speaker');
+      expect(claudeService.generateQuestions).toHaveBeenCalledWith(
+        [],
+        'unknown_speaker',
+      );
     });
   });
 
   describe('previewPrompts', () => {
     it('質問生成プロンプトと分析プロンプトを返す', async () => {
       store.findForSending.mockResolvedValue(sampleTranscription);
-      claudeService.describeGenerateQuestionsPrompt.mockReturnValue('質問生成プロンプト');
+      claudeService.describeGenerateQuestionsPrompt.mockReturnValue(
+        '質問生成プロンプト',
+      );
       claudeService.buildAnalysisPrompt.mockReturnValue('分析プロンプト1');
 
-      const result = await service.previewPrompts('sample', 'speaker_0', ['kw'], ['q1']);
+      const result = await service.previewPrompts(
+        'sample',
+        'speaker_0',
+        ['kw'],
+        ['q1'],
+      );
 
       expect(result.generateQuestionsPrompt).toBe('質問生成プロンプト');
       expect(result.analyzePrompts).toEqual(['分析プロンプト1']);
@@ -147,7 +162,12 @@ describe('InterviewService', () => {
       });
       analysisLogStorage.save.mockResolvedValue(undefined);
 
-      const result = await service.analyze('sample', 'speaker_0', ['kw'], ['q1']);
+      const result = await service.analyze(
+        'sample',
+        'speaker_0',
+        ['kw'],
+        ['q1'],
+      );
 
       expect(result.model).toBe(CLAUDE_MODEL);
       expect(result.contentWarnings).toEqual([
@@ -163,7 +183,16 @@ describe('InterviewService', () => {
 
   describe('findAnalysisLogs / findAnalysisLogById', () => {
     it('分析ログ一覧を取得する', async () => {
-      const summaries = [{ id: 'log-1', transcriptionId: 'sample', speakerId: 'speaker_0', speakerName: 'Aさん', keywords: [], createdAt: '2024-01-01Z' }];
+      const summaries = [
+        {
+          id: 'log-1',
+          transcriptionId: 'sample',
+          speakerId: 'speaker_0',
+          speakerName: 'Aさん',
+          keywords: [],
+          createdAt: '2024-01-01Z',
+        },
+      ];
       analysisLogStorage.findAllSummaries.mockResolvedValue(summaries);
 
       const result = await service.findAnalysisLogs();
@@ -191,7 +220,9 @@ describe('InterviewService', () => {
     it('存在しない分析ログIDはNotFoundExceptionをスロー', async () => {
       analysisLogStorage.findById.mockResolvedValue(null);
 
-      await expect(service.findAnalysisLogById('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findAnalysisLogById('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -207,8 +238,10 @@ describe('InterviewService', () => {
 
   describe('summarize', () => {
     it('SummaryServiceを呼び出してログを保存し結果を返す', async () => {
-      const summaryService = module.get<jest.Mocked<SummaryService>>(SummaryService);
-      const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
+      const summaryService =
+        module.get<jest.Mocked<SummaryService>>(SummaryService);
+      const summaryLogStorage =
+        module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
       store.findForSending.mockResolvedValue(sampleTranscription);
       summaryService.summarize.mockResolvedValue({
         summary: {
@@ -226,7 +259,11 @@ describe('InterviewService', () => {
       });
       summaryLogStorage.save.mockResolvedValue(undefined);
 
-      const result = await service.summarize('sample', 'claude-sonnet-5-5', 'プロンプト {{fullText}}');
+      const result = await service.summarize(
+        'sample',
+        'claude-sonnet-5-5',
+        'プロンプト {{fullText}}',
+      );
 
       expect(summaryService.summarize).toHaveBeenCalledWith(
         sampleTranscription.fullText,
@@ -243,7 +280,12 @@ describe('InterviewService', () => {
           topic: 'テーマ1',
           summary: '要点1',
           evidence: [
-            { quote: 'こん にちは', utteranceIndex: 0, speakerName: 'Aさん', start: 0 },
+            {
+              quote: 'こん にちは',
+              utteranceIndex: 0,
+              speakerName: 'Aさん',
+              start: 0,
+            },
           ],
         },
       ]);
@@ -254,10 +296,13 @@ describe('InterviewService', () => {
 
   describe('findSummaryLogById', () => {
     it('存在しない要約ログIDはNotFoundExceptionをスロー', async () => {
-      const summaryLogStorage = module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
+      const summaryLogStorage =
+        module.get<jest.Mocked<SummaryLogStorage>>(SummaryLogStorage);
       summaryLogStorage.findById.mockResolvedValue(null);
 
-      await expect(service.findSummaryLogById('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findSummaryLogById('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -310,7 +355,9 @@ describe('InterviewService', () => {
     it('文字起こしが存在しない場合はNotFoundExceptionをスロー', async () => {
       store.findForSending.mockResolvedValue(null);
 
-      await expect(service.analyzeContext('missing', [0])).rejects.toThrow(NotFoundException);
+      await expect(service.analyzeContext('missing', [0])).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

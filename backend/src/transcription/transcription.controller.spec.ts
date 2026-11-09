@@ -106,7 +106,9 @@ describe('TranscriptionController', () => {
     });
 
     it('ファイルが存在しない場合はfalseを返す', async () => {
-      mockTranscriptionService.checkAudioFileExists.mockResolvedValueOnce(false);
+      mockTranscriptionService.checkAudioFileExists.mockResolvedValueOnce(
+        false,
+      );
 
       const result = await controller.checkAudioFileExists('missing.mp3');
 
@@ -205,7 +207,9 @@ describe('TranscriptionController', () => {
   describe('getTranscriptions', () => {
     it('文字起こし一覧を返す', async () => {
       const transcriptions = [{ id: 'tr-001' }, { id: 'tr-002' }];
-      mockTranscriptionService.getTranscriptions.mockResolvedValueOnce(transcriptions);
+      mockTranscriptionService.getTranscriptions.mockResolvedValueOnce(
+        transcriptions,
+      );
 
       const result = await controller.getTranscriptions();
 
@@ -216,7 +220,9 @@ describe('TranscriptionController', () => {
   describe('getTranscription', () => {
     it('指定したIDの文字起こし結果を返す', async () => {
       const transcription = { id: 'tr-001', text: 'テスト' };
-      mockTranscriptionService.getTranscription.mockResolvedValueOnce(transcription);
+      mockTranscriptionService.getTranscription.mockResolvedValueOnce(
+        transcription,
+      );
 
       const result = await controller.getTranscription('tr-001');
 
@@ -228,7 +234,9 @@ describe('TranscriptionController', () => {
     it('ジョブ一覧にisProcessingを付与して返す', async () => {
       const jobs = [{ id: 'job-001' }, { id: 'job-002' }];
       mockTranscriptionService.getResumableJobs.mockResolvedValueOnce(jobs);
-      mockTranscriptionService.isJobProcessing.mockReturnValueOnce(true).mockReturnValueOnce(false);
+      mockTranscriptionService.isJobProcessing
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false);
 
       const result = await controller.getResumableJobs();
 
@@ -240,7 +248,9 @@ describe('TranscriptionController', () => {
 
   describe('deleteJob', () => {
     it('存在するジョブを削除できる', async () => {
-      mockTranscriptionService.getJobDetail.mockResolvedValueOnce({ id: 'job-001' });
+      mockTranscriptionService.getJobDetail.mockResolvedValueOnce({
+        id: 'job-001',
+      });
       mockTranscriptionService.deleteJob.mockResolvedValueOnce(undefined);
 
       const result = await controller.deleteJob('job-001');
@@ -259,7 +269,10 @@ describe('TranscriptionController', () => {
 
   describe('updateSpeakers', () => {
     it('話者名を更新して返す', async () => {
-      const updated = { id: 'tr-001', speakers: [{ id: 'speaker_0', name: 'Aさん', color: '#3B82F6' }] };
+      const updated = {
+        id: 'tr-001',
+        speakers: [{ id: 'speaker_0', name: 'Aさん', color: '#3B82F6' }],
+      };
       mockTranscriptionService.updateSpeakers.mockResolvedValueOnce(updated);
 
       const result = await controller.updateSpeakers('tr-001', {

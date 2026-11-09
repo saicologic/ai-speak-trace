@@ -88,6 +88,9 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - if: needs.changes.outputs.backend == 'true'
         run: cd backend && npm ci
+      # lint は直さずに調べるだけ（lint は --fix 付きのため lint:check を使う）
+      - if: needs.changes.outputs.backend == 'true'
+        run: cd backend && npm run lint:check
       - if: needs.changes.outputs.backend == 'true'
         run: cd backend && npm test
 
@@ -118,5 +121,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm ci
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npm run lint
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm run test:run

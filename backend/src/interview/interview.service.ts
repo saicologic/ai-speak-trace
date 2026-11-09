@@ -46,10 +46,7 @@ export class InterviewService {
     speakerId: string,
     keywords: string[],
   ): Promise<string[]> {
-    const speakerName = await this.getSpeakerName(
-      transcriptionId,
-      speakerId,
-    );
+    const speakerName = await this.getSpeakerName(transcriptionId, speakerId);
 
     return this.analysisService.generateQuestions(keywords, speakerName);
   }
@@ -61,10 +58,7 @@ export class InterviewService {
     keywords: string[],
     questions: string[],
   ): Promise<{ generateQuestionsPrompt: string; analyzePrompts: string[] }> {
-    const speakerName = await this.getSpeakerName(
-      transcriptionId,
-      speakerId,
-    );
+    const speakerName = await this.getSpeakerName(transcriptionId, speakerId);
 
     const generateQuestionsPrompt =
       this.analysisService.describeGenerateQuestionsPrompt(
@@ -86,10 +80,7 @@ export class InterviewService {
     keywords: string[],
     questions: string[],
   ): Promise<InterviewAnalysis> {
-    const speakerName = await this.getSpeakerName(
-      transcriptionId,
-      speakerId,
-    );
+    const speakerName = await this.getSpeakerName(transcriptionId, speakerId);
 
     this.logger.log(
       `分析開始: ${speakerName}, キーワード=${keywords.length}件, 質問=${questions.length}件`,
@@ -152,10 +143,14 @@ export class InterviewService {
   ): Promise<TranscriptionSummaryLog> {
     const transcription = await this.store.findForSending(transcriptionId);
     if (!transcription) {
-      throw new NotFoundException(`文字起こし結果が見つかりません: ${transcriptionId}`);
+      throw new NotFoundException(
+        `文字起こし結果が見つかりません: ${transcriptionId}`,
+      );
     }
 
-    this.logger.log(`要約開始: transcriptionId=${transcriptionId}, model=${model}`);
+    this.logger.log(
+      `要約開始: transcriptionId=${transcriptionId}, model=${model}`,
+    );
     const { summary: result, warnings } = await this.summaryService.summarize(
       transcription.fullText,
       model,
@@ -178,7 +173,6 @@ export class InterviewService {
       droppedEvidenceCount: dropped,
       contentWarnings: warnings,
     };
-
 
     await this.summaryLogStorage.save(summary);
     return summary;
@@ -223,9 +217,9 @@ export class InterviewService {
     // Claude APIで意図・話題を分析
     const { results: llmResults, warnings } =
       await this.analysisService.analyzeContext(
-      allUtterances,
-      utteranceIndices,
-    );
+        allUtterances,
+        utteranceIndices,
+      );
 
     // LLM結果をインデックスでマッピング
     const llmMap = new Map(llmResults.map((r) => [r.index, r]));

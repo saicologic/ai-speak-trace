@@ -8,7 +8,10 @@ import { PrivacyService } from '../privacy/privacy.service';
 import { AUDIO_STORAGE } from '../storage/interfaces/audio-storage.interface';
 
 /** テスト用の文字起こしデータを生成するヘルパー */
-function makeTranscription(id = 'test-audio', audioFileName = 'test-audio.mp3') {
+function makeTranscription(
+  id = 'test-audio',
+  audioFileName = 'test-audio.mp3',
+) {
   return {
     id,
     audioFileName,
@@ -20,8 +23,20 @@ function makeTranscription(id = 'test-audio', audioFileName = 'test-audio.mp3') 
       { id: 'speaker_1', name: 'Bさん', color: '#EF4444' },
     ],
     words: [
-      { text: 'こんにちは', start: 0, end: 1, type: 'word' as const, speakerId: 'speaker_0' },
-      { text: '世界', start: 1, end: 2, type: 'word' as const, speakerId: 'speaker_1' },
+      {
+        text: 'こんにちは',
+        start: 0,
+        end: 1,
+        type: 'word' as const,
+        speakerId: 'speaker_0',
+      },
+      {
+        text: '世界',
+        start: 1,
+        end: 2,
+        type: 'word' as const,
+        speakerId: 'speaker_1',
+      },
     ],
     utterances: [
       {
@@ -30,7 +45,15 @@ function makeTranscription(id = 'test-audio', audioFileName = 'test-audio.mp3') 
         start: 0,
         end: 1,
         text: 'こんにちは',
-        words: [{ text: 'こんにちは', start: 0, end: 1, type: 'word' as const, speakerId: 'speaker_0' }],
+        words: [
+          {
+            text: 'こんにちは',
+            start: 0,
+            end: 1,
+            type: 'word' as const,
+            speakerId: 'speaker_0',
+          },
+        ],
       },
       {
         speakerId: 'speaker_1',
@@ -38,7 +61,15 @@ function makeTranscription(id = 'test-audio', audioFileName = 'test-audio.mp3') 
         start: 1,
         end: 2,
         text: '世界',
-        words: [{ text: '世界', start: 1, end: 2, type: 'word' as const, speakerId: 'speaker_1' }],
+        words: [
+          {
+            text: '世界',
+            start: 1,
+            end: 2,
+            type: 'word' as const,
+            speakerId: 'speaker_1',
+          },
+        ],
       },
     ],
   };
@@ -125,8 +156,16 @@ describe('TranscriptionService', () => {
   describe('getAudioFiles', () => {
     it('最終更新日時の降順で音声ファイル一覧を返す', async () => {
       audioStorage.listFiles.mockResolvedValue([
-        { fileName: 'old.mp3', sizeBytes: 1000, lastModified: '2024-01-01T00:00:00Z' },
-        { fileName: 'new.mp3', sizeBytes: 2000, lastModified: '2024-02-01T00:00:00Z' },
+        {
+          fileName: 'old.mp3',
+          sizeBytes: 1000,
+          lastModified: '2024-01-01T00:00:00Z',
+        },
+        {
+          fileName: 'new.mp3',
+          sizeBytes: 2000,
+          lastModified: '2024-02-01T00:00:00Z',
+        },
       ]);
 
       const result = await service.getAudioFiles();
@@ -157,7 +196,9 @@ describe('TranscriptionService', () => {
     it('ファイルが存在しない場合はNotFoundExceptionをスロー', async () => {
       audioStorage.exists.mockResolvedValue(false);
 
-      await expect(service.getAudioFileUrl('missing.mp3')).rejects.toThrow(NotFoundException);
+      await expect(service.getAudioFileUrl('missing.mp3')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -201,7 +242,9 @@ describe('TranscriptionService', () => {
       await service.deleteAllResourcesByFileName('test.mp3');
 
       expect(audioStorage.deleteFile).toHaveBeenCalledWith('test.mp3');
-      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith('job-1');
+      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith(
+        'job-1',
+      );
       // test.mp3 に紐づく文字起こし（test-audio）だけ削除
       expect(store.delete).toHaveBeenCalledWith('test-audio');
       expect(store.delete).not.toHaveBeenCalledWith('other-audio');
@@ -222,7 +265,9 @@ describe('TranscriptionService', () => {
     it('ファイルが存在しない場合はNotFoundExceptionをスロー', async () => {
       audioStorage.exists.mockResolvedValue(false);
 
-      await expect(service.transcribe('missing.mp3')).rejects.toThrow(NotFoundException);
+      await expect(service.transcribe('missing.mp3')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('10分以下のファイルは一括で文字起こしする', async () => {
@@ -234,11 +279,20 @@ describe('TranscriptionService', () => {
         audioFileName: 'test.mp3',
       } as any);
       chunkedTranscriptionService.isJobProcessing.mockReturnValue(false);
-      chunkedTranscriptionService.needsChunking.mockResolvedValue({ needs: false });
+      chunkedTranscriptionService.needsChunking.mockResolvedValue({
+        needs: false,
+      });
       chunkedTranscriptionService.deleteJob.mockResolvedValue(undefined);
       elevenLabsService.transcribe.mockResolvedValue({
         words: [
-          { text: 'こんにちは', start: 0, end: 1, type: 'word', speaker_id: 'speaker_0', logprob: -0.1 },
+          {
+            text: 'こんにちは',
+            start: 0,
+            end: 1,
+            type: 'word',
+            speaker_id: 'speaker_0',
+            logprob: -0.1,
+          },
         ],
         text: 'こんにちは',
         language_code: 'ja',
@@ -249,7 +303,9 @@ describe('TranscriptionService', () => {
 
       expect(result.audioFileName).toBe('test.mp3');
       expect(result.languageCode).toBe('ja');
-      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith('job-1');
+      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith(
+        'job-1',
+      );
     });
 
     it('完了済みジョブで文字起こし結果がある場合は既存の結果を返す', async () => {
@@ -289,8 +345,14 @@ describe('TranscriptionService', () => {
   describe('getTranscriptions', () => {
     it('createdAtの降順で文字起こし一覧を返す', async () => {
       store.findAll.mockResolvedValue([
-        { ...makeTranscription('old', 'old.mp3'), createdAt: '2024-01-01T00:00:00Z' },
-        { ...makeTranscription('new', 'new.mp3'), createdAt: '2024-02-01T00:00:00Z' },
+        {
+          ...makeTranscription('old', 'old.mp3'),
+          createdAt: '2024-01-01T00:00:00Z',
+        },
+        {
+          ...makeTranscription('new', 'new.mp3'),
+          createdAt: '2024-02-01T00:00:00Z',
+        },
       ]);
 
       const result = await service.getTranscriptions();
@@ -298,7 +360,7 @@ describe('TranscriptionService', () => {
       expect(result[0].id).toBe('new');
       expect(result[1].id).toBe('old');
       // サマリーのみ（speakers・words・utterancesは含まない）
-      expect((result[0] as any).speakers).toBeUndefined();
+      expect((result[0] as Record<string, unknown>).speakers).toBeUndefined();
     });
   });
 
@@ -315,7 +377,9 @@ describe('TranscriptionService', () => {
     it('存在しないIDはNotFoundExceptionをスロー', async () => {
       store.findById.mockResolvedValue(null);
 
-      await expect(service.getTranscription('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.getTranscription('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -342,7 +406,9 @@ describe('TranscriptionService', () => {
       store.findById.mockResolvedValue(null);
 
       await expect(
-        service.updateSpeakers('missing', [{ id: 'speaker_0', name: '田中さん' }]),
+        service.updateSpeakers('missing', [
+          { id: 'speaker_0', name: '田中さん' },
+        ]),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -356,15 +422,23 @@ describe('TranscriptionService', () => {
     });
 
     it('ジョブの進捗を取得する', async () => {
-      const job = { id: 'job-1', status: 'transcribing' } as any;
+      const job = { id: 'job-1', status: 'transcribing' } as NonNullable<
+        Awaited<ReturnType<ChunkedTranscriptionService['getJobStatus']>>
+      >;
       chunkedTranscriptionService.getJobStatus.mockResolvedValue(job);
 
       expect(await service.getChunkedJobStatus('job-1')).toEqual(job);
     });
 
     it('ファイル名でアクティブジョブを検索する', async () => {
-      const job = { id: 'job-1', audioFileName: 'test.mp3' } as any;
-      chunkedTranscriptionService.findActiveJobByFileName.mockResolvedValue(job);
+      const job = { id: 'job-1', audioFileName: 'test.mp3' } as NonNullable<
+        Awaited<
+          ReturnType<ChunkedTranscriptionService['findActiveJobByFileName']>
+        >
+      >;
+      chunkedTranscriptionService.findActiveJobByFileName.mockResolvedValue(
+        job,
+      );
 
       expect(await service.findActiveJob('test.mp3')).toEqual(job);
     });
@@ -382,7 +456,9 @@ describe('TranscriptionService', () => {
       await service.deleteTranscription('t1');
 
       expect(store.delete).toHaveBeenCalledWith('t1');
-      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith('job-1');
+      expect(chunkedTranscriptionService.deleteJob).toHaveBeenCalledWith(
+        'job-1',
+      );
       expect(audioStorage.deleteFile).toHaveBeenCalledWith('a.mp3');
     });
 

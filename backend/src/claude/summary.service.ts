@@ -93,16 +93,22 @@ export class SummaryService {
     const text = extractText(response.content);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      this.logger.error(`要約のJSON抽出に失敗。レスポンス: ${text.slice(0, 200)}`);
+      this.logger.error(
+        `要約のJSON抽出に失敗。レスポンス: ${text.slice(0, 200)}`,
+      );
       throw new Error('要約結果のパースに失敗しました');
     }
 
     let parsed: SummaryOutput;
     try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      this.logger.error(`要約JSONのパースに失敗。stop_reason=${response.stop_reason}、レスポンス末尾: ${text.slice(-200)}`);
-      throw new Error('要約結果のパースに失敗しました。音声が長すぎる可能性があります。');
+      parsed = JSON.parse(jsonMatch[0]) as SummaryOutput;
+    } catch {
+      this.logger.error(
+        `要約JSONのパースに失敗。stop_reason=${response.stop_reason}、レスポンス末尾: ${text.slice(-200)}`,
+      );
+      throw new Error(
+        '要約結果のパースに失敗しました。音声が長すぎる可能性があります。',
+      );
     }
 
     this.logger.log('要約完了');

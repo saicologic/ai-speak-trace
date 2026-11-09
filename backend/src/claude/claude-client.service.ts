@@ -86,11 +86,11 @@ export class ClaudeClientService {
         ? input
         : input instanceof URL
           ? input.toString()
-          : (input as Request).url;
+          : input.url;
     const method = (
       init?.method ??
       (typeof input !== 'string' && !(input instanceof URL)
-        ? (input as Request).method
+        ? input.method
         : undefined) ??
       'GET'
     ).toUpperCase();
@@ -305,7 +305,8 @@ export class ClaudeClientService {
   private getClient(): Anthropic {
     return new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      fetch: this.axiosFetch.bind(this),
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        this.axiosFetch(input, init),
     });
   }
 }
