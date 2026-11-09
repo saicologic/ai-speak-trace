@@ -1,4 +1,4 @@
-name: 依存パッケージ差分チェック
+name: Dependency Diff Check
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: エコシステムを判定
+      - name: Detect ecosystem
         id: changed
         run: |
           BASE=${{ github.event.pull_request.base.sha }}
@@ -33,7 +33,7 @@ jobs:
             echo "ecosystem=unknown" >> $GITHUB_OUTPUT
           fi
 
-      - name: Cargo.lock 差分サマリーを生成
+      - name: Summarize Cargo.lock changes
         id: cargo-diff
         if: steps.changed.outputs.ecosystem == 'cargo'
         run: |
@@ -46,12 +46,12 @@ jobs:
           diff /tmp/Cargo.lock.base /tmp/Cargo.lock.head \
             | grep '^[<>]' \
             | grep 'version = ' \
-            | sed 's/< /削除: /; s/> /追加: /' \
+            | sed 's/< /removed: /; s/> /added: /' \
             | sed 's/version = //' \
             | tr -d '"' \
             | sort > /tmp/cargo-summary.txt || true
 
-      - name: backend ビルド差分チェック
+      - name: Compare backend build output
         if: steps.changed.outputs.ecosystem == 'npm-backend'
         run: |
           BASE=${{ github.event.pull_request.base.sha }}
@@ -71,7 +71,7 @@ jobs:
             echo "true" > /tmp/npm-has-diff.txt
           fi
 
-      - name: frontend ビルド差分チェック
+      - name: Compare frontend build output
         if: steps.changed.outputs.ecosystem == 'npm-frontend'
         run: |
           BASE=${{ github.event.pull_request.base.sha }}
@@ -92,7 +92,7 @@ jobs:
           fi
 
       # PR番号・エコシステム・差分結果をアーティファクトに保存
-      - name: 差分情報をアーティファクトに保存
+      - name: Save diff report as artifact
         run: |
           mkdir -p /tmp/diff-report
           echo "${{ github.event.pull_request.number }}" > /tmp/diff-report/pr-number.txt
