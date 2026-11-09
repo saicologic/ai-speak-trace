@@ -9,7 +9,7 @@ set -u
 
 repo="${1-}"
 number="${2-}"
-if ! [[ "$repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || ! [[ "$number" =~ ^[0-9]+$ ]]; then
+if ! [[ "$repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || [[ "$repo" == */.* ]] || ! [[ "$number" =~ ^[0-9]+$ ]]; then
   echo "使い方: wait-pr-checks.sh <owner/repo> <PR番号>" >&2
   exit 1
 fi

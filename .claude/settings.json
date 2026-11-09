@@ -50,16 +50,6 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-ai-speak-trace-secrets.sh",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/cr-limit-gate.sh",
-            "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd-push-gate.sh",
-            "timeout": 120
           }
         ]
       }

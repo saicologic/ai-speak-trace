@@ -6,7 +6,7 @@
 // - 部分の先頭の環境変数の代入（FOO=1・FOO="a b"）・{・then・! などと、git の -C <path>・-c <k=v> などのオプションは飛ばす
 // - 引数に変数の名前を渡すと（例: SKIP_CR_LOOP）、部分の先頭の代入にその変数=1 がある部分は出さない
 // - $( ) の中のコマンドは調べない（コミットメッセージを作る cat <<'EOF' などのため）
-// cr-gate-push.sh から使う。.claude/hooks/is-git-push.mjs と同じ読み方
+// cr-gate-push.sh から使う。同じフォルダの is-git-push.mjs（tdd-push-gate.sh から使う）と同じ読み方
 import { readFileSync } from 'node:fs'
 
 const src = readFileSync(0, 'utf-8')

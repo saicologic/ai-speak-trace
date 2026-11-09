@@ -29,6 +29,14 @@ check_git_config
 marker="$(git rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"
 head_sha=$(git rev-parse HEAD)
 
+# 親ブランチの名前が、ブランチ名の形か（- で始まるもの・.. などを断る。git fetch のオプションにさせない）
+check_branch_name() {
+  if [[ "$1" == -* ]] || ! git check-ref-format --branch "$1" >/dev/null 2>&1; then
+    echo "親ブランチの名前が正しくありません: $1" >&2
+    exit 1
+  fi
+}
+
 # 親ブランチ: CR_BASE → PR の宛先 → なければ main
 resolve_base() {
   local base="${CR_BASE:-}"
@@ -60,7 +68,14 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 base=$(resolve_base)
-git fetch -q origin "$base" 2>/dev/null || true
+check_branch_name "$base"
+# 親ブランチは GitHub の origin から取る（origin を手元のパスなどに向けて、外で git を動かさせない）
+origin_urls=$(git config --get-all remote.origin.url) || origin_urls=""
+[ -n "$origin_urls" ] || { echo "origin の URL がありません" >&2; exit 1; }
+while IFS= read -r u; do
+  github_slug "$u" >/dev/null || { echo "origin が GitHub の URL ではありません: $u" >&2; exit 1; }
+done <<<"$origin_urls"
+git fetch -q origin -- "$base" 2>/dev/null || true
 # リモートの親ブランチがあればそちらと比べる（ローカルの親が古いと差分が増えるため）
 if git rev-parse -q --verify "origin/$base" >/dev/null; then
   base_commit=$(git merge-base HEAD "origin/$base")

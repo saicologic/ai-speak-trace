@@ -23,23 +23,22 @@
 # （sandbox.excludedCommands の決まり）。本文は --body-file で渡し、フォルダは前の呼び出しで移っておく
 #
 # - 断るもの: force push・削除・タグ・Draft でない PR の作成・gh pr ready（Ready はユーザーが変える）・gh pr merge・
-#   書き込む gh api など、上にない操作とオプション
+#   書き込む gh api・ブラウザを開く --web など、上にない操作とオプション
 # - 送り先:
-#   - push・PR の操作は、<prefix>/etc/github-repos に書いた GitHub のリポジトリだけ。PR の操作は origin のリポジトリを --repo に付ける
+#   - push・PR・Issue への書き込みは、<prefix>/etc/github-repos に書いた GitHub のリポジトリだけ。PR・Issue は origin のリポジトリを --repo に付ける
 #   - push するブランチは fix/*・feature/*・test/* だけ（main・release/* へは PR で入れる）
 #   - fetch は GitHub のリポジトリだけ
-# - サンドボックスの中で書き換えられたリポジトリで、外のコマンドを動かさないように:
-#   - リポジトリの git の設定は、決めた項目だけを認める（lib/git-safety.sh）
-#   - git のフック（.git/hooks）は動かさない（core.hooksPath=/dev/null）
-# - 書き込む操作（push・pr create / edit / comment / close・issue comment / create）の前に、次の確認を、同じ操作の git / gh のコマンドとして流し、
-#   止められたら止める
-#   - 同じフォルダの cr-gate-push.sh（手元の CodeRabbit レビュー）
-#   - リポジトリの .claude/settings(.local).json の PreToolUse（matcher が Bash）の hook（TDD・CodeRabbit の枠など）。
-#     Claude Code で信頼したフォルダ（.claude.json の hasTrustDialogAccepted）のものだけ。worktree では、メインのフォルダ
-#     （.git があるほう）の設定と hook を使う（worktree の中は書き換えられるため）。matcher が * などの hook は流さない
+# - サンドボックスの中で書き換えられたリポジトリで、外のコマンドを動かさないように（lib/git-safety.sh）:
+#   - リポジトリの git の設定は、決めた項目だけを認める
+#   - git のフック・fsmonitor・サブモジュールの中・ext:: のリモートを使わない
+# - 書き込む操作（push・pr create / edit / comment / close・issue comment / create）の前に、同じフォルダ（インストール先）の
+#   確認を、同じ操作の git / gh のコマンドとして流し、止められたら止める（exit 2、または JSON の deny）
+#   - cr-gate-push.sh（手元の CodeRabbit レビュー）・tdd-push-gate.sh（TDD の順番）・cr-limit-gate.sh（CodeRabbit の枠）
+#   - リポジトリの設定（.claude/settings.json）の hook は流さない。作業ツリーのファイルは、サンドボックスの中から書き換えられるため
 # - --skip NAME（SKIP_CR_LOOP・SKIP_TDD_CHECK・SKIP_CR_LIMIT）は、確認に NAME=1 を付けたコマンドとして渡す。
 #   ユーザーの了承を得たときだけ使う
-# - --body-file は、リポジトリの中か、Claude Code のスクラッチパッド（/private/tmp/claude-<uid>/*/*/scratchpad/）の中のファイルだけ
+# - --body-file は、リポジトリの中か、Claude Code のスクラッチパッド（/private/tmp/claude-<uid>/*/*/scratchpad/）の中のファイルだけ。
+#   開いてからリンクの数（ハードリンク）を確かめ、中身を読んで --body で渡す（確かめた後に差し替えられないように）
 #
 # テスト: bash .claude/team/tests/github.test.sh
 
@@ -60,21 +59,6 @@ done
 
 top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
 [ -z "$top" ] || check_git_config
-
-# GitHub の URL から owner/name を取り出す（GitHub 以外なら失敗）
-github_slug() {
-  local p
-  case "$1" in
-    https://github.com/*) p=${1#https://github.com/} ;;
-    git@github.com:*) p=${1#git@github.com:} ;;
-    ssh://git@github.com/*) p=${1#ssh://git@github.com/} ;;
-    *) return 1 ;;
-  esac
-  p=${p%/}
-  p=${p%.git}
-  [[ "$p" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || return 1
-  printf '%s' "$p"
-}
 
 # 送ってよいリポジトリか（<prefix>/etc/github-repos に書いたもの）
 allowed_repo() {
@@ -113,15 +97,6 @@ check_branch() {
   esac
 }
 
-# リポジトリの hook を読むフォルダ（信頼したメインのフォルダ。なければ空）
-trusted_main() {
-  local common main f
-  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
-  case "$common" in */.git) main=${common%/.git} ;; *) return 0 ;; esac
-  if [ -n "${CLAUDE_CONFIG_DIR-}" ]; then f="$CLAUDE_CONFIG_DIR/.claude.json"; else f="$HOME/.claude.json"; fi
-  jq -e --arg d "$main" '.projects[$d].hasTrustDialogAccepted == true' "$f" >/dev/null 2>&1 && printf '%s' "$main"
-}
-
 # 確認に渡すコマンドを作る（--skip の NAME=1 を先頭に付ける）
 synth() {
   local s="" a
@@ -130,57 +105,109 @@ synth() {
   printf '%s' "${s% }"
 }
 
-# run_hook <hook のコマンド> <入力> <CLAUDE_PROJECT_DIR>: hook が止めたら終わる（exit 2、または JSON の deny）
-run_hook() {
-  local h=$1 input=$2 project=$3 out rc errf
+# run_check <確認のスクリプト> <入力>: 止めたら終わる（exit 2、または JSON の deny）
+run_check() {
+  local script=$1 input=$2 out rc errf
   errf=$(mktemp "${TMPDIR:-/tmp}/github-sh.XXXXXX") || die "一時ファイルを作れません"
-  out=$(printf '%s' "$input" | CLAUDE_PROJECT_DIR="$project" bash -c "$h" 2>"$errf")
+  out=$(printf '%s' "$input" | CLAUDE_PROJECT_DIR="${top:-$PWD}" "$script" 2>"$errf")
   rc=$?
   if [ "$rc" -eq 2 ]; then
     cat "$errf" >&2
     rm -f "$errf"
-    printf 'github.sh: 確認が止めました: %s\n' "$h" >&2
+    printf 'github.sh: 確認が止めました: %s\n' "$(basename "$script")" >&2
     exit 2
   fi
   rm -f "$errf"
   if printf '%s' "$out" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1; then
     printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' >&2
-    printf 'github.sh: 確認が止めました: %s\n' "$h" >&2
+    printf 'github.sh: 確認が止めました: %s\n' "$(basename "$script")" >&2
     exit 2
   fi
 }
 
-# run_checks <コマンド...>: cr-gate-push.sh と、信頼したリポジトリの PreToolUse（Bash）の hook を流す
+# run_checks <コマンド...>: 同じフォルダの確認を流す
 run_checks() {
-  local input main f h
+  local input c
   input=$(jq -n --arg c "$(synth "$@")" --arg d "$PWD" \
     '{hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: {command: $c}, cwd: $d}') || die "jq がありません"
-  run_hook "$(printf '%q' "$here/cr-gate-push.sh")" "$input" "${top:-$PWD}"
-  main=$(trusted_main)
-  if [ -z "$main" ]; then
-    [ -z "$top" ] || printf 'github.sh: 信頼したフォルダではないため、リポジトリの hook は流しません\n' >&2
-    return 0
-  fi
-  for f in "$main/.claude/settings.json" "$main/.claude/settings.local.json"; do
-    [ -f "$f" ] || continue
-    while IFS= read -r h; do
-      [ -n "$h" ] || continue
-      run_hook "$h" "$input" "$main"
-    done < <(jq -r '.hooks.PreToolUse[]? | select((.matcher // "") | split("|") | any(. == "Bash")) | .hooks[]? | select(.type == "command") | .command' "$f" 2>/dev/null)
+  for c in cr-gate-push.sh tdd-push-gate.sh cr-limit-gate.sh; do
+    run_check "$here/$c" "$input"
   done
 }
 
-# 本文のファイルが、リポジトリの中かスクラッチパッドの中か
-check_body_file() {
-  local f=$1 real
+# 開いたファイル（ファイル記述子 3）のリンクの数
+fd3_links() {
+  if [ "$(uname -s)" = Darwin ]; then stat -f %l /dev/fd/3; else stat -L -c %h /dev/fd/3; fi
+}
+
+# read_body <ファイル>: 本文のファイル（リポジトリかスクラッチパッドの中）を開いて確かめ、中身を body に入れる
+body=""
+read_body() {
+  local f=$1 real inside=""
   [ "$f" != "-" ] || die "本文を標準入力から読むことはできません"
   real=$(realpath "$f" 2>/dev/null) || die "本文のファイルがありません: $f"
   [ -f "$real" ] || die "本文のファイルがありません: $f"
   if [ -n "$top" ]; then
-    case "$real" in "$(realpath "$top")"/*) return 0 ;; esac
+    case "$real" in "$(realpath "$top")"/*) inside=1 ;; esac
   fi
-  case "$real" in /private/tmp/claude-"$(id -u)"/*/*/scratchpad/*) return 0 ;; esac
-  die "本文のファイルは、リポジトリかスクラッチパッドの中に置いてください: $f"
+  case "$real" in /private/tmp/claude-"$(id -u)"/*/*/scratchpad/*) inside=1 ;; esac
+  [ -n "$inside" ] || die "本文のファイルは、リポジトリかスクラッチパッドの中に置いてください: $f"
+  exec 3<"$real" || die "本文のファイルを開けません: $f"
+  # ハードリンクは、realpath では外のファイルと見分けられないため断る
+  [ "$(fd3_links)" = 1 ] || die "本文のファイルが、ほかのファイルのハードリンクです: $f"
+  body=$(cat <&3)
+  exec 3<&-
+}
+
+# check_gh_opts <値を取るオプション（| 区切り）> <値を取らないオプション（| 区切り）> <引数...>
+# 決めたオプションだけか確かめ、gh に渡す引数を gh_opts に入れる。--body-file / -F は、中身を読んで --body にする。
+# オプションとして書いたもの（値は除く）を seen に入れる（例: |--draft|--body|）
+gh_opts=()
+seen="|"
+check_gh_opts() {
+  local with=$1 without=$2 a v
+  shift 2
+  gh_opts=()
+  seen="|"
+  while [ $# -gt 0 ]; do
+    a=$1
+    shift
+    case "$a" in --*=*) v=${a#*=}; a=${a%%=*}; set -- "$v" "$@" ;; esac
+    if [[ "|$with|" == *"|$a|"* ]]; then
+      [ $# -gt 0 ] || die "$a に値がありません"
+      case "$a" in
+        --body-file | -F)
+          read_body "$1"
+          gh_opts+=(--body "$body")
+          seen="$seen--body|"
+          ;;
+        *)
+          gh_opts+=("$a" "$1")
+          seen="$seen$a|"
+          ;;
+      esac
+      shift
+    elif [[ "|$without|" == *"|$a|"* ]]; then
+      gh_opts+=("$a")
+      seen="$seen$a|"
+    else
+      die "使えないオプション・引数: $a"
+    fi
+  done
+}
+# has_body: --body・-b・--body-file・-F のどれかを、オプションとして書いたか
+has_body() { [[ "$seen" == *"|--body|"* || "$seen" == *"|-b|"* ]]; }
+
+# reject_web <引数...>: ブラウザを開く --web（--web=…・-w・-cw のような短いオプションのまとめ）を断る
+reject_web() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      --web | --web=*) die "--web は使えません" ;;
+      --*) ;;
+      -*w*) die "--web（-w）は使えません: $a" ;;
+    esac
+  done
 }
 
 # write_gh <gh の引数...>: origin のリポジトリ（一覧にあるもの）を --repo に付け、確認を流してから実行する（PR・Issue）
@@ -191,29 +218,8 @@ write_gh() {
   exec gh "$@" --repo "$slug"
 }
 
-check_pr_number() {
-  case "${1-}" in '' | *[!0-9]*) die "PR の番号を数字で指定してください: ${1-}" ;; esac
-}
-
-# check_gh_opts <値を取るオプション（| 区切り）> <値を取らないオプション（| 区切り）> <引数...>
-# 決めたオプションだけか確かめる。--body-file / -F の値は check_body_file で確かめる
-check_gh_opts() {
-  local with=$1 without=$2 a v
-  shift 2
-  while [ $# -gt 0 ]; do
-    a=$1
-    shift
-    case "$a" in --*=*) v=${a#*=}; a=${a%%=*}; set -- "$v" "$@" ;; esac
-    if [[ "|$with|" == *"|$a|"* ]]; then
-      [ $# -gt 0 ] || die "$a に値がありません"
-      case "$a" in --body-file | -F) check_body_file "$1" ;; esac
-      shift
-    elif [[ "|$without|" == *"|$a|"* ]]; then
-      :
-    else
-      die "使えないオプション・引数: $a"
-    fi
-  done
+check_number() {
+  case "${1-}" in '' | *[!0-9]*) die "番号を数字で指定してください: ${1-}" ;; esac
 }
 
 case "${1-}" in
@@ -255,7 +261,7 @@ case "${1-}" in
     [ "${#refs[@]}" -gt 0 ] || die "送るブランチを指定してください"
     check_remote "$remote" push
     run_checks git push "${flags[@]}" "$remote" "${refs[@]}"
-    exec git -c core.hooksPath=/dev/null push "${flags[@]}" "$remote" "${refs[@]}"
+    exec git push "${flags[@]}" "$remote" "${refs[@]}"
     ;;
   fetch)
     shift
@@ -270,47 +276,42 @@ case "${1-}" in
     done
     [ -n "$remote" ] || die "リモートを指定してください"
     check_remote "$remote" fetch
-    exec git -c core.hooksPath=/dev/null fetch "$@"
+    exec git fetch "$@"
     ;;
   pr)
-    sub=${2-}
-    case "$sub" in
+    case "${2-}" in
       view | list | diff | checks)
-        for a in "${@:3}"; do
-          case "$a" in -w | --web) die "--web は使えません" ;; esac
-        done
+        reject_web "${@:3}"
         exec gh "$@"
         ;;
       create)
-        [[ " ${*:3} " == *" --draft "* ]] || die "PR は --draft で作ってください"
         check_gh_opts "--base|-B|--head|-H|--title|-t|--body|-b|--body-file|-F|--label|-l" "--draft" "${@:3}"
-        write_gh "$@"
+        [[ "$seen" == *"|--draft|"* ]] || die "PR は --draft で作ってください"
+        write_gh pr create "${gh_opts[@]}"
         ;;
       edit)
-        check_pr_number "${3-}"
+        check_number "${3-}"
         check_gh_opts "--title|-t|--body|-b|--body-file|-F|--add-label|--remove-label|--base|-B" "" "${@:4}"
-        write_gh "$@"
+        write_gh pr edit "$3" "${gh_opts[@]}"
         ;;
       comment)
-        check_pr_number "${3-}"
-        [[ " ${*:4} " =~ \ (--body|-b|--body-file|-F)[\ =] ]] || die "本文（--body・--body-file）を指定してください"
+        check_number "${3-}"
         check_gh_opts "--body|-b|--body-file|-F" "" "${@:4}"
-        write_gh "$@"
+        has_body || die "本文（--body・--body-file）を指定してください"
+        write_gh pr comment "$3" "${gh_opts[@]}"
         ;;
       close)
-        check_pr_number "${3-}"
+        check_number "${3-}"
         check_gh_opts "--comment|-c" "" "${@:4}"
-        write_gh "$@"
+        write_gh pr close "$3" "${gh_opts[@]}"
         ;;
-      *) die "gh pr $sub はできません" ;;
+      *) die "gh pr ${2-} はできません" ;;
     esac
     ;;
   run)
     case "${2-}" in
       view | list)
-        for a in "${@:3}"; do
-          case "$a" in -w | --web) die "--web は使えません" ;; esac
-        done
+        reject_web "${@:3}"
         exec gh "$@"
         ;;
       *) die "gh run ${2-} はできません" ;;
@@ -319,29 +320,28 @@ case "${1-}" in
   issue)
     case "${2-}" in
       view)
-        for a in "${@:3}"; do
-          case "$a" in -w | --web) die "--web は使えません" ;; esac
-        done
+        reject_web "${@:3}"
         exec gh "$@"
         ;;
       comment)
-        check_pr_number "${3-}"
-        [[ " ${*:4} " =~ \ (--body|-b|--body-file|-F)[\ =] ]] || die "本文（--body・--body-file）を指定してください"
+        check_number "${3-}"
         check_gh_opts "--body|-b|--body-file|-F" "" "${@:4}"
-        write_gh "$@"
+        has_body || die "本文（--body・--body-file）を指定してください"
+        write_gh issue comment "$3" "${gh_opts[@]}"
         ;;
       create)
         check_gh_opts "--title|-t|--body|-b|--body-file|-F|--label|-l" "" "${@:3}"
-        write_gh "$@"
+        write_gh issue create "${gh_opts[@]}"
         ;;
       *) die "gh issue ${2-} はできません" ;;
     esac
     ;;
   api)
-    # リポジトリの API（repos/...）のパスだけ（URL・graphql・ほかの API は断る）
+    # リポジトリの API（repos/...）のパスだけ（URL・graphql・ほかの API・.. は断る）
     [[ "${2-}" =~ ^/?repos/[A-Za-z0-9._/-]+(\?[A-Za-z0-9=\&_.,-]*)?$ ]] || die "api の最初の引数は repos/... のパスにしてください: ${2-}"
+    [[ "${2-}" != *..* ]] || die "api のパスに .. は使えません: ${2-}"
     check_gh_opts "--jq|-q" "--paginate" "${@:3}"
-    exec gh "$@"
+    exec gh api "$2" "${gh_opts[@]}"
     ;;
   *) die "できない操作です: ${1-}" ;;
 esac

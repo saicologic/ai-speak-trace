@@ -1,5 +1,7 @@
 #!/bin/bash
-# CodeRabbit のレビュー枠が切れている間、レビューを動かす操作を止めて通知する（PreToolUse / Bash）
+# CodeRabbit のレビュー枠が切れている間、レビューを動かす操作を止めて通知する
+# （インストール先 /opt/claude-code-team/bin で動く。managed settings の PreToolUse / Bash の hook と、
+#   github.sh が書き込む前に流す確認の両方で使う）
 #
 # - GitHub 側: gh pr comment ...@coderabbitai / gh pr create / gh pr ready / git push
 #   リポジトリの直近の coderabbitai[bot] のコメントにある「Next included review available in N minutes」から
@@ -8,7 +10,7 @@
 #   /opt/claude-code-team/bin/cr-review.sh と、前の置き場所の ~/.claude/hooks/cr-review.sh）
 #   cr-review.sh が枠切れで失敗したときに記録する時刻（~/.claude/state/coderabbit-cli-limit-until）を使う
 #   cr-review.sh がない環境では、この部分は何もしない
-#   テスト: bash .claude/team/tests/cr-limit-gate.test.sh
+#   テスト: bash .claude/team/tests/cr-limit-gate.test.sh（手元の CLI の部分）
 #
 # GitHub は読むだけで、書き込みはしない。コメントからは時間の数字だけを取り出し、通知の文面には入れない
 # 急ぎのときは、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けると通す
@@ -30,8 +32,9 @@ while IFS= read -r seg; do
   printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
   # cr-review.sh は、その部分の先頭で実行するときだけ見る（grep などの引数にパスがあるだけなら対象外）
   if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?((~|\$HOME|/[^[:space:]]*)/\.claude/hooks|/opt/claude-code-team/bin)/cr-review\.sh([[:space:]]|$)'; then
-    # --accept・--base はレビューを動かさない
-    printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
+    # --accept・--base はレビューを動かさない（--base-branch の値は見ない）
+    printf '%s' "$seg" | sed -E 's/[[:space:]]--base-branch([[:space:]]+|=)[^[:space:]]*//' |
+      grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
   elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
     # 本文の中の ; などで区切られても見落とさないよう、@coderabbitai はコマンド全体から探す
     printf '%s' "$cmd" | grep -q '@coderabbitai' && check_github=1
