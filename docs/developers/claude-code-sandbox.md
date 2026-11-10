@@ -62,7 +62,7 @@ rm -f "$installer"
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
 
-`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。
+`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
 
 外すときは、次を実行します。はじめて入れる前の managed settings・MCP サーバーの設定（`*.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
 
