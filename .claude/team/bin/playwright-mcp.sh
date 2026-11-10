@@ -46,8 +46,10 @@ fi
 
 # 決めた環境変数だけで動かす。--isolated: プロフィールをメモリ上に置き、終了後にディスクへ残さない
 # --proxy-server・--proxy-bypass: 127.0.0.1:9 は使っていないポート。localhost・127.0.0.1 以外への通信は、ここで失敗する
+# --config: Chrome の起動引数で、プロキシを通らない WebRTC の UDP を止める（etc/playwright-mcp.json）
 exec /usr/bin/env -i PATH="$PATH" HOME="$home" USER="$user" LOGNAME="$user" npx -y "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" \
   --executable-path "$APP/Contents/MacOS/Google Chrome for Testing" \
   --isolated \
   --proxy-server "http://127.0.0.1:9" \
-  --proxy-bypass "localhost,127.0.0.1"
+  --proxy-bypass "localhost,127.0.0.1" \
+  --config "/opt/claude-code-team/etc/playwright-mcp.json"

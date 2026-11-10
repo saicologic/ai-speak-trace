@@ -14,6 +14,7 @@
 # - スクリプト → /opt/claude-code-team/bin（root の持ち物。サンドボックスの中からも、ほかのリポジトリからも書き換えられない）
 #   TDD の順番の確認に使う CI のスクリプト（.github/scripts）→ /opt/claude-code-team/bin/ci
 # - 送ってよいリポジトリの一覧 → /opt/claude-code-team/etc/github-repos
+# - Playwright MCP の設定（Chrome の起動引数）→ /opt/claude-code-team/etc/playwright-mcp.json
 # - 入れたコミット → /opt/claude-code-team/etc/installed-from
 # - managed settings → /Library/Application Support/ClaudeCode/managed-settings.json（その Mac のすべてのプロジェクトに効く）
 #   入れる前の managed-settings.json があれば、同じフォルダに managed-settings.json.<日時>.bak として残す。
@@ -71,6 +72,7 @@ ci="$work/tree/.github/scripts"
 # 壊れた JSON を入れると、Claude Code が起動しなくなるため、先に確かめる
 jq empty "$src/managed-settings.json"
 jq empty "$src/managed-mcp.json"
+jq empty "$src/etc/playwright-mcp.json"
 
 prefix=/opt/claude-code-team
 managed_dir="/Library/Application Support/ClaudeCode"
@@ -90,6 +92,7 @@ for old in "$prefix"/bin/*.sh "$prefix"/bin/lib/* "$prefix"/bin/ci/*; do
   esac
 done
 install -o root -g wheel -m 644 "$src/etc/github-repos" "$prefix/etc/github-repos"
+install -o root -g wheel -m 644 "$src/etc/playwright-mcp.json" "$prefix/etc/playwright-mcp.json"
 printf '%s %s\n' "$target" "$sha" >"$prefix/etc/installed-from"
 chown root:wheel "$prefix/etc/installed-from"
 chmod 644 "$prefix/etc/installed-from"
