@@ -33,6 +33,16 @@ check none "git status"
 check none ".claude/team/bin/github.sh push origin fix/a"
 check none "/tmp/x/github.sh push origin fix/a"
 
+# 出力の PR の URL から取り出すリポジトリ名は、GitHub の名前に使える文字だけ（; などを案内の文に入れない）
+ctx=$(jq -n --arg c "$GH push origin fix/a" '{tool_input: {command: $c}, cwd: "/", tool_response: {stdout: "https://github.com/o;touch${IFS}x/r/pull/9"}}' |
+  bash "$BIN/watch-pr-checks.sh" | jq -r '.hookSpecificOutput.additionalContext // empty')
+if ! printf '%s' "$ctx" | grep -qF ';touch'; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL: 案内の文に、; を含むリポジトリ名を入れた\n%s\n' "$ctx"
+fi
+
 # 案内する監視のスクリプトは、インストール先のもの
 ctx=$(jq -n --arg c "$GH push origin fix/a" '{tool_input: {command: $c}, cwd: "/", tool_response: {stdout: "https://github.com/o/r/pull/9"}}' |
   bash "$BIN/watch-pr-checks.sh" | jq -r '.hookSpecificOutput.additionalContext // empty')

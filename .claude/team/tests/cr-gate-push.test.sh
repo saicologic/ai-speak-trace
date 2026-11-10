@@ -76,6 +76,11 @@ check deny "SKIP_CR_LOOP=1 をコメントに書いた" "$PUSH # SKIP_CR_LOOP=1"
 check allow "ブランチの削除（--delete）" "$PUSH origin --delete old"
 check allow "ブランチの削除（:ref）" "$PUSH origin :old"
 check allow "タグだけ" "$PUSH --tags"
+check allow "タグだけ（リモートあり）" "$PUSH origin --tags"
+check allow "削除だけ（:ref を2つ）" "$PUSH origin :old :older"
+# ブランチも送る push は、タグ・削除と一緒でも確かめる
+check deny "タグとブランチを一緒に送る" "$PUSH origin main --tags"
+check deny "削除とブランチを一緒に送る" "$PUSH origin :old feature"
 
 # どのリポジトリの push か
 reviewed "$repo"
