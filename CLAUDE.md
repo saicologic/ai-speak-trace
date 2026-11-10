@@ -196,7 +196,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 | ログインが必要なページ、ボット対策があるサイト | Claude in Chrome（`claude --chrome` で起動） |
 | 自動テスト、公開ページの確認 | Playwright MCP |
 
-- Playwright MCP は `.mcp.json` から `/opt/claude-code-team/bin/playwright-mcp.sh`（`.claude/team/bin/playwright-mcp.sh` を `install.sh` で入れたもの）経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
+- Playwright MCP は、managed-mcp.json（`.claude/team/managed-mcp.json` を `install.sh` で入れたもの）から `/opt/claude-code-team/bin/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
 - Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
 - Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
 
@@ -213,6 +213,7 @@ Playwright MCP と Claude in Chrome を使い分ける。
 - Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
   - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
 - Claude Code はサンドボックスの中で、lint・テスト・ビルドを行う。`npm ci`・`npm install` とサーバーの起動（`npm run dev`）は、開発者が自分のターミナルで行う（`docs/developers/claude-code-sandbox.md` の「サンドボックスの中での開発」）。画面の確認は、開発者が起動したサーバーを Playwright MCP で開く
+- 動かす MCP サーバーは managed-mcp.json で Playwright MCP だけに決める（プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタは動かない。Claude in Chrome は使える）
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
 - サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、インストーラーそのものと入れるものの両方を、作業ツリーではなく GitHub のブランチのコミットから取る
 - 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く

@@ -15,7 +15,7 @@
 | 層 | 置き場所 | 役割 |
 |---|---|---|
 | GitHub の設定 | ブランチ保護・必須チェック（`tdd-order` など） | Claude Code を使うかどうかに関係なく、全員に効く最後の守り |
-| managed settings | `.claude/team/managed-settings.json` → `/Library/Application Support/ClaudeCode/managed-settings.json` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
+| managed settings | `.claude/team/managed-settings.json`・`managed-mcp.json` → `/Library/Application Support/ClaudeCode/` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
 | サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`）・Playwright MCP の起動（`playwright-mcp.sh`） |
 | リポジトリの設定 | `.claude/settings.json` | 許可するコマンド（hook は書かない） |
 
@@ -23,7 +23,7 @@ managed settings でサンドボックスを管理者が決める状態にする
 
 hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts`・`.claude/hooks` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。hook は、リポジトリの設定には書かず、managed settings からインストール先のもの（API キーを守る `block-ai-speak-trace-secrets.sh`・CodeRabbit の枠の `cr-limit-gate.sh`・PR の監視の `watch-pr-checks.sh`）だけを動かします。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
 
-MCP サーバーもサンドボックスの外で動きます。手元で動かす MCP サーバー（stdio）は、managed settings の `allowedMcpServers` と `allowManagedMcpServersOnly` で、インストール先の `playwright-mcp.sh` だけを許します（`.mcp.json` もこれを指します）。`.mcp.json` に書いた環境変数は許可の確かめで比べられないため、`playwright-mcp.sh` は受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。リモートの MCP サーバー（`https://`）は、手元でコマンドを動かさないため許しています。
+MCP サーバーもサンドボックスの外で動きます。動かす MCP サーバーは、`.claude/team/managed-mcp.json` → `/Library/Application Support/ClaudeCode/managed-mcp.json`（root の持ち物）で、インストール先の Playwright MCP（`playwright-mcp.sh`）だけに決めます。このファイルがあると、プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・`--mcp-config` で足したサーバーは動きません（[公式のドキュメント](https://code.claude.com/docs/en/managed-mcp)）。**この Mac のほかのプロジェクトでも同じ**です。組み込みの Claude in Chrome は、managed settings の `allowClaudeInChromeWithManagedMcp` で使えるようにしています。念のため、managed settings の `allowedMcpServers`・`allowManagedMcpServersOnly` でも、Playwright MCP だけを許します。`playwright-mcp.sh` は、受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。
 
 外で git を動かすスクリプトは、リポジトリの git の設定を決めた項目だけ認め、git のフック・fsmonitor・サブモジュールの中・`ext::` のリモートを使いません（`.claude/team/bin/lib/git-safety.sh`）。サンドボックスの中で書き換えたリポジトリの設定から、外のコマンドを動かさないためです。
 
@@ -32,7 +32,7 @@ MCP サーバーもサンドボックスの外で動きます。手元で動か�
 前提:
 
 - macOS
-- Claude Code 2.1.277 以上（それより前の版では、`excludedCommands` に一部が一致しただけで、`;` などでつないだコマンド全体がサンドボックスの外で動くため。managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.276 は起動しなくなります。2.1.163 より前の版はこの設定を読まずに起動するため、入れる前に `claude --version` で確かめ、古ければ `claude update` で上げます）
+- Claude Code 2.1.282 以上（2.1.277 より前の版では、`excludedCommands` に一部が一致しただけで、`;` などでつないだコマンド全体がサンドボックスの外で動くため。`managed-mcp.json` と一緒に Claude in Chrome を使う設定は 2.1.282 からのため。managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.281 は起動しなくなります。2.1.163 より前の版はこの設定を読まずに起動するため、入れる前に `claude --version` で確かめ、古ければ `claude update` で上げます）
 - `jq`（`brew install jq`）
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うため
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
@@ -58,22 +58,24 @@ rm -f "$installer"
 - `release/*` などのブランチは直接 push できるため、ブランチの名前では入れません。`main`（ブランチ保護で PR が必須）か、レビューしてマージしたコミットの SHA を指定します。SHA は、`main` か `release/*` の履歴に入っているものだけを受け付けます（GitHub は、どのブランチにも入っていないコミットも SHA で取り出せるため）
 - `install.sh` は、そのコミットを root だけが読み書きできる一時フォルダに取り出し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
 - 中身を確かめてから実行したいときは、GitHub の画面で `.claude/team/install.sh` を読んでから実行します
-- スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します。はじめて入れる前の managed settings は、`managed-settings.json.before-claude-code-team` として別に残します
+- スクリプトを `/opt/claude-code-team/bin` に、managed settings と MCP サーバーの設定を `/Library/Application Support/ClaudeCode/managed-settings.json`・`managed-mcp.json` に入れます。前のものがあれば、同じフォルダに `.bak` として残します。はじめて入れる前のものは、`managed-settings.json.before-claude-code-team`・`managed-mcp.json.before-claude-code-team` として別に残します
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
 
 `.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。
 
-外すときは、次を実行します。はじめて入れる前の managed settings（`managed-settings.json.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
+外すときは、次を実行します。はじめて入れる前の managed settings・MCP サーバーの設定（`*.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
 
 ```bash
 sudo rm -rf /opt/claude-code-team
 dir="/Library/Application Support/ClaudeCode"
-if [ -f "$dir/managed-settings.json.before-claude-code-team" ]; then
-  sudo mv "$dir/managed-settings.json.before-claude-code-team" "$dir/managed-settings.json"   # はじめて入れる前の設定に戻す
-else
-  sudo rm "$dir/managed-settings.json"
-fi
+for name in managed-settings.json managed-mcp.json; do
+  if [ -f "$dir/$name.before-claude-code-team" ]; then
+    sudo mv "$dir/$name.before-claude-code-team" "$dir/$name"   # はじめて入れる前の設定に戻す
+  else
+    sudo rm -f "$dir/$name"
+  fi
+done
 ```
 
 ## GitHub への操作（github.sh）
@@ -135,7 +137,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
 | 開発サーバーを起動できない（`listen EPERM`） | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
 | `npm ci`・`npm install` が断られる | サンドボックスの中では途中で止まって `node_modules` が壊れるため、managed settings で止めています。開発者が自分のターミナルで実行します |
-| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
+| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
 ## 守りの限界
