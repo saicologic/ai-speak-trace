@@ -317,6 +317,17 @@ rejected "pr create（本文のファイルがない）" pr create --draft --tit
 printf 'SECRET=1\n' >"$repo/.env.local"
 rejected "pr create（本文のファイルが .env*）" pr create --draft --title t --body-file .env.local
 rm -f "$repo/.env.local"
+# ホームのフォルダそのものがリポジトリでも、managed settings の Read の deny にある場所（~/.aws など）は本文にしない
+mkdir -p "$repo/.aws" "$repo/.ssh"
+printf 'secret\n' >"$repo/.aws/credentials"
+printf 'secret\n' >"$repo/.ssh/id_ed25519"
+for secret in .aws/credentials .ssh/id_ed25519; do
+  reset_logs
+  out=$(cd "$repo" && HOME="$repo" bash "$SCRIPT" pr comment 12 --body-file "$secret" 2>&1)
+  rc=$?
+  if [ "$rc" -eq 1 ] && [ ! -e "$tmp/gh-args" ] && ! checked; then ok; else ng "ホームがリポジトリのときの本文 $secret（rc=$rc）: $out"; fi
+done
+rm -rf "$repo/.aws" "$repo/.ssh"
 # スクラッチパッドの本文は使える（macOS のスクラッチパッドの場所に作れるときだけ確かめる）
 scratch="/private/tmp/claude-$(id -u)/github-test-$$/s/scratchpad"
 if mkdir -p "$scratch" 2>/dev/null; then
