@@ -4,7 +4,7 @@ description: PRの差分を分析しサマリーを生成。PRレビュー前の
 disable-model-invocation: true
 context: fork
 agent: Explore
-allowed-tools: Bash(/opt/claude-code-team/bin/github.sh pr *)
+allowed-tools: Bash(/opt/claude-code-team/bin/github.sh pr diff) Bash(/opt/claude-code-team/bin/github.sh pr diff *) Bash(/opt/claude-code-team/bin/github.sh pr view *)
 ---
 
 # PRサマリー生成
