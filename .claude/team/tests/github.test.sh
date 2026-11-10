@@ -187,6 +187,16 @@ for b in DENYME TDDDENY LIMITDENY; do
   if [ "$rc" -eq 2 ] && [ -z "$(remote_head "fix/$b")" ] && printf '%s' "$out" | grep -q -- '-denied'; then ok; else ng "確認が止めた push（fix/$b、rc=$rc）: $out"; fi
 done
 
+# 確認のスクリプトが 0・2 以外で終わったとき（落ちた・ない・実行できない）も、push しない
+git -C "$repo" branch fix/broken
+printf '#!/bin/bash\ncat >/dev/null\necho broken >&2\nexit 1\n' >"$prefix/bin/cr-limit-gate.sh"
+run push origin fix/broken
+if [ "$rc" -eq 2 ] && [ -z "$(remote_head fix/broken)" ]; then ok; else ng "確認が 1 で終わった push（rc=$rc）: $out"; fi
+rm -f "$prefix/bin/cr-limit-gate.sh"
+run push origin fix/broken
+if [ "$rc" -eq 2 ] && [ -z "$(remote_head fix/broken)" ]; then ok; else ng "確認のスクリプトがない push（rc=$rc）: $out"; fi
+fake_check cr-limit-gate.sh LIMITDENY json
+
 # --skip は、確認に NAME=1 を付けたコマンドとして渡す
 for s in SKIP_CR_LOOP SKIP_TDD_CHECK SKIP_CR_LIMIT; do
   run --skip "$s" push origin fix/a
@@ -285,6 +295,10 @@ rejected "pr create（本文のファイルが外のファイルのハードリ�
 rm -f "$repo/link.md" "$repo/hard.md"
 rejected "pr create（本文のファイルが標準入力）" pr create --draft --title t --body-file -
 rejected "pr create（本文のファイルがない）" pr create --draft --title t --body-file none.md
+# サンドボックスの中から読めないファイル（managed settings の Read の deny にある .env*）は、リポジトリの中でも本文にしない
+printf 'SECRET=1\n' >"$repo/.env.local"
+rejected "pr create（本文のファイルが .env*）" pr create --draft --title t --body-file .env.local
+rm -f "$repo/.env.local"
 # スクラッチパッドの本文は使える（macOS のスクラッチパッドの場所に作れるときだけ確かめる）
 scratch="/private/tmp/claude-$(id -u)/github-test-$$/s/scratchpad"
 if mkdir -p "$scratch" 2>/dev/null; then

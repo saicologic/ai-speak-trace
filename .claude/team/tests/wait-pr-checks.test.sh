@@ -15,7 +15,7 @@ printf '%s\n' "\$*" >>"$tmp/gh-called"
 case "\$1 \$2" in
   "pr checks")
     if [[ " \$* " == *" --jq "* ]]; then echo "  build: pass"; else echo '[{"name":"build","bucket":"pass"}]'; fi ;;
-  "pr view") echo '{"headRefOid":"abc","url":"https://github.com/o/r/pull/1","title":"t","isDraft":true}' ;;
+  "pr view") if [ -e "${tmp}/prview-fail" ]; then echo '{}'; else echo '{"headRefOid":"abc","url":"https://github.com/o/r/pull/1","title":"t","isDraft":true}'; fi ;;
   "api repos/o/r/commits/abc/status") echo "success	Review skipped" ;;
   "api graphql") cat "$tmp/graphql" 2>/dev/null || echo '{}' ;;
   *) echo '{}' ;;
@@ -64,7 +64,13 @@ cat >"$tmp/graphql" <<'EOF'
 EOF
 out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
 if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: 1' && printf '%s' "$out" | grep -qx 'CODERABBIT_RESOLVED_COMMENTS: 1' &&
-  printf '%s' "$out" | grep -q '見出し (a.ts:3)' && printf '%s' "$out" | grep -qx 'CODERABBIT_THREADS_TRUNCATED: true'; then ok; else ng "指摘の件数: $out"; fi
+  printf '%s' "$out" | grep -qF '[🟠 Major] 見出し (a.ts:3)' && printf '%s' "$out" | grep -qx 'CODERABBIT_THREADS_TRUNCATED: true'; then ok; else ng "指摘の件数: $out"; fi
+
+# PR の情報を取れなかったときは、CodeRabbit の状態を none（レビュー待ち）ではなく unknown と出す
+touch "$tmp/prview-fail"
+out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
+if printf '%s' "$out" | grep -q '^CODERABBIT: unknown'; then ok; else ng "PR の情報を取れないときの CodeRabbit の状態: $out"; fi
+rm -f "$tmp/prview-fail"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

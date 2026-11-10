@@ -82,7 +82,8 @@ while IFS= read -r name; do
 done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.hooks[]?.command)] | .[] | select(startswith($p)) | ltrimstr($p) | split(" ")[0]' "$M" | sort -u)
 
 # 権限
-expect "bypassPermissions モードを使えなくする" '.permissions.disableBypassPermissionsMode == "disable"' "$M"
+expect "確認を飛ばす github.sh --skip は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/github.sh --skip *)") != null' "$M"
+expect "bypassPermissions モードを使えなくする"'.permissions.disableBypassPermissionsMode == "disable"' "$M"
 expect "deny に sudo がある" '.permissions.deny | index("Bash(sudo *)") != null' "$M"
 expect "deny に ~/.ssh の読み取りがある" '.permissions.deny | index("Read(~/.ssh/**)") != null' "$M"
 expect "deny に個人のパス（/Users/）を書かない" '[.permissions.deny[] | select(test("/Users/"))] | length == 0' "$M"
