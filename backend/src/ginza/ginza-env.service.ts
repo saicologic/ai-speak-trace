@@ -6,6 +6,7 @@ import {
   withEgressHosts,
 } from '../security/egress-guard';
 import { execFile } from 'child_process';
+import * as https from 'https';
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
 import * as fs from 'fs/promises';
@@ -305,6 +306,8 @@ export class GinzaEnvService {
         responseType: 'arraybuffer',
         timeout: DOWNLOAD_TIMEOUT_MS,
         validateStatus: () => true,
+        // ダウンロードの後に、範囲の外から残った接続を使い回して GitHub に送らせない
+        httpsAgent: new https.Agent({ keepAlive: false }),
       }),
     );
     if (response.status !== 200) {

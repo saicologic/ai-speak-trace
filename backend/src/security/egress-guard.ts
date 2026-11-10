@@ -52,7 +52,12 @@ export function isEgressAllowed(
 /** 外への接続を断ったときのエラーのコード */
 export const EGRESS_BLOCKED = 'EGRESS_BLOCKED';
 
-type ConnectTarget = { host?: string; port?: number; path?: string };
+type ConnectTarget = {
+  host?: string;
+  port?: number;
+  path?: string;
+  customLookup?: boolean;
+};
 
 /**
  * Socket#connect の引数から宛先を取り出す。
@@ -62,20 +67,28 @@ type ConnectTarget = { host?: string; port?: number; path?: string };
 function connectTarget(args: unknown[]): ConnectTarget {
   const first = Array.isArray(args[0]) ? (args[0] as unknown[])[0] : args[0];
   if (first !== null && typeof first === 'object') {
-    const o = first as { host?: unknown; port?: unknown; path?: unknown };
+    const o = first as {
+      host?: unknown;
+      port?: unknown;
+      path?: unknown;
+      lookup?: unknown;
+    };
+    // Node は path が空でない文字列のときだけ Unix ソケットにする（空なら host・port につなぐ）
+    if (typeof o.path === 'string' && o.path !== '') return { path: o.path };
     return {
       host: typeof o.host === 'string' ? o.host : 'localhost',
       port: Number(o.port),
-      path: typeof o.path === 'string' ? o.path : undefined,
+      customLookup: typeof o.lookup === 'function',
     };
   }
-  if (typeof first === 'number' || /^\d+$/.test(String(first))) {
-    return {
-      port: Number(first),
-      host: typeof args[1] === 'string' ? args[1] : 'localhost',
-    };
+  // Node と同じく、数として読める文字列（'0x1bb'・' 443' など）はポート、そうでない文字列はパスにする
+  if (typeof first === 'string' && !(Number(first) >= 0)) {
+    return { path: first };
   }
-  return { path: String(first) };
+  return {
+    port: Number(first),
+    host: typeof args[1] === 'string' ? args[1] : 'localhost',
+  };
 }
 
 /** 外への接続の記録（パス・ヘッダー・本文は残さない） */
@@ -135,7 +148,12 @@ export function createEgressFileLogger(
  */
 export function installEgressGuard({
   log,
-}: { log?: (entry: EgressLogEntry) => void } = {}): () => void {
+  allowCustomLookup = false,
+}: {
+  log?: (entry: EgressLogEntry) => void;
+  /** lookup の差し替えを許す（テストで DNS を引かないため。アプリでは許さない） */
+  allowCustomLookup?: boolean;
+} = {}): () => void {
   // 記録の処理が失敗しても、接続の確かめは続ける
   const record = (entry: EgressLogEntry) => {
     try {
@@ -155,7 +173,9 @@ export function installEgressGuard({
     }
     const time = new Date().toISOString();
     const { host, port } = target;
-    if (!isEgressAllowed(host, port, extraHostsStore.getStore())) {
+    // lookup を差し替えると、許した名前のまま別の IP につなげるため、既定では断る
+    const lookupOk = allowCustomLookup || !target.customLookup;
+    if (!lookupOk || !isEgressAllowed(host, port, extraHostsStore.getStore())) {
       record({ time, host, port, allowed: false });
       const err = Object.assign(
         new Error(`外への通信を断りました: ${target.host}:${target.port}`),
