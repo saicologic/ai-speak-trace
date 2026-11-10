@@ -85,6 +85,12 @@ check deny "削除とブランチを一緒に送る" "$PUSH origin :old feature"
 # どのリポジトリの push か
 reviewed "$repo"
 check allow "レビュー済みの HEAD" "$PUSH"
+# 作業ツリーの .coderabbit.yaml を消しても（コミットには残っている）、確かめる
+unreviewed "$repo"
+rm "$repo/.coderabbit.yaml"
+check deny "作業ツリーの .coderabbit.yaml を消した" "$PUSH"
+git -C "$repo" checkout -q -- .coderabbit.yaml
+reviewed "$repo"
 check deny "git -C で別のリポジトリ（未レビュー）" "git -C \"$other\" push"
 check deny "先頭の cd で別のリポジトリ（未レビュー）" "cd \"$other\" && $PUSH"
 check allow "cwd が別でも、git -C でレビュー済みのリポジトリ" "git -C \"$repo\" push" "$other"

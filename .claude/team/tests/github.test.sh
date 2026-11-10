@@ -148,6 +148,17 @@ rejected "登録していないリモート" push "$remote" fix/a
 rejected "リモートなし" push
 rejected "ブランチ名の前の -" push origin -- fix/a
 
+# 送り元は今の HEAD と同じコミットだけ（確かめるのは HEAD のため、ほかのコミットを送らせない）
+git -C "$repo" switch -q -c fix/other
+git -C "$repo" commit -q --allow-empty -m "別のコミット"
+other_sha=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" switch -q main
+rejected "HEAD と違うブランチを送る" push origin fix/other
+rejected "HEAD と違うブランチを、送り先を書いて送る" push origin fix/other:refs/heads/fix/other
+rejected "HEAD と違うコミットを SHA で送る" push origin "$other_sha:refs/heads/fix/x"
+rejected "送り元がない" push origin nothing:refs/heads/fix/x
+git -C "$repo" branch -q -D fix/other
+
 # 送り先は、一覧に書いた GitHub のリポジトリだけ
 git -C "$repo" remote add evil https://example.com/x.git
 git -C "$repo" remote add someone https://github.com/someone/repo.git

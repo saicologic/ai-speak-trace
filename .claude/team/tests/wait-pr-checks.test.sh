@@ -16,7 +16,7 @@ case "\$1 \$2" in
   "pr checks")
     if [[ " \$* " == *" --jq "* ]]; then echo "  build: pass"; else echo '[{"name":"build","bucket":"pass"}]'; fi ;;
   "pr view") if [ -e "${tmp}/prview-fail" ]; then echo '{}'; else echo '{"headRefOid":"abc","url":"https://github.com/o/r/pull/1","title":"t","isDraft":true}'; fi ;;
-  "api repos/o/r/commits/abc/status") echo "success	Review skipped" ;;
+  "api repos/o/r/commits/abc/status") if [ -e "${tmp}/status-fail" ]; then exit 1; fi; echo "success	Review skipped" ;;
   "api graphql") cat "$tmp/graphql" 2>/dev/null || echo '{}' ;;
   *) echo '{}' ;;
 esac
@@ -71,6 +71,21 @@ touch "$tmp/prview-fail"
 out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
 if printf '%s' "$out" | grep -q '^CODERABBIT: unknown'; then ok; else ng "PR の情報を取れないときの CodeRabbit の状態: $out"; fi
 rm -f "$tmp/prview-fail"
+
+# CodeRabbit の状態の API が失敗したときも、none（レビュー待ち）ではなく unknown と出す
+touch "$tmp/status-fail"
+out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
+if printf '%s' "$out" | grep -q '^CODERABBIT: unknown'; then ok; else ng "状態の API が失敗したときの CodeRabbit の状態: $out"; fi
+rm -f "$tmp/status-fail"
+
+# 指摘の一覧を作れなかった（jq が失敗した）ときは、0 件ではなく unknown と出す
+cat >"$tmp/graphql" <<'EOF'
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[
+  {"isResolved":false,"path":"a.ts","line":3,"comments":{"nodes":[{"author":{"login":"coderabbitai"},"body":1}]}}
+]}}}}}
+EOF
+out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
+if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: unknown'; then ok; else ng "指摘の一覧を作れないときの件数: $out"; fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
