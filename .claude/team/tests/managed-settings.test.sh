@@ -14,7 +14,7 @@ fail=0
 expect() {
   local desc=$1
   shift
-  local file="${*: -1}" expr="${*: -2:1}"
+  local file="${@: -1}" expr="${@: -2:1}"
   local opts=("${@:1:$#-2}")
   if jq -e ${opts[@]+"${opts[@]}"} "$expr" "$file" >/dev/null 2>&1; then
     pass=$((pass + 1))
