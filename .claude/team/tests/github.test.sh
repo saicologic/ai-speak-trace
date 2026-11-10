@@ -401,5 +401,42 @@ if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue create --title t --body body @code
 rejected "issue create（本文のファイルがリポジトリの外）" issue create --title t --body-file "$outside/x"
 rejected "issue create --assignee" issue create --title t --body x --assignee someone
 
+# --- 秘密の情報（API キー・トークン・秘密鍵）を、公開のリポジトリに書かせない
+# （テストのファイルに、そのままの形を書かないよう、つないで作る）
+k_anthropic="sk-ant""-api03-$(printf 'a%.0s' $(seq 1 40))"
+k_aws="AKIA""ABCDEFGHIJKLMNOP"
+k_github="ghp_""$(printf 'b%.0s' $(seq 1 36))"
+k_eleven="sk_""$(printf 'c%.0s' $(seq 1 48))"
+k_pem="-----BEGIN ""RSA PRIVATE KEY-----"
+# secret_rejected <説明> <引数...>: 断られ、理由に「秘密の情報」があり、gh を呼ばず確認も流さない
+secret_rejected() {
+  local name=$1; shift
+  run "$@"
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '秘密の情報' && [ ! -e "$tmp/gh-args" ] && ! checked; then ok; else ng "$name（rc=$rc）: $out"; fi
+}
+secret_rejected "PR のコメントに Anthropic の API キー" pr comment 12 --body "key: $k_anthropic"
+secret_rejected "Issue のタイトルに GitHub のトークン" issue create --title "t $k_github" --body x
+secret_rejected "PR の本文に ElevenLabs の API キー" pr create --draft --title t --body "x $k_eleven"
+printf 'note\n%s\n' "$k_aws" >"$repo/secret-body.md"
+secret_rejected "本文のファイルに AWS のアクセスキー" issue comment 7 --body-file secret-body.md
+rm -f "$repo/secret-body.md"
+secret_rejected "PR の編集の本文に秘密鍵" pr edit 12 --body "$k_pem"
+# キーの形の説明だけ（短い）は止めない
+run pr comment 12 --body "API キーの形（sk-ant…）は書かないでください"
+if [ "$rc" -eq 0 ]; then ok; else ng "キーの説明だけのコメントを断った（rc=$rc）: $out"; fi
+
+# push: まだ送っていないコミットで足した行に秘密の情報があれば、送らない
+git -C "$repo" switch -q -c fix/secret
+printf 'aws_key = "%s"\n' "$k_aws" >"$repo/config.txt"
+git -C "$repo" add config.txt
+git -C "$repo" commit -q -m "add config"
+secret_rejected "秘密の情報を足したコミットの push" push origin fix/secret
+if [ -z "$(remote_head fix/secret)" ]; then ok; else ng "秘密の情報を足したコミットを送った"; fi
+# 消すコミットを足しても、前のコミットに残るため送らない
+git -C "$repo" rm -q config.txt
+git -C "$repo" commit -q -m "remove config"
+secret_rejected "秘密の情報を足して消した、まだ送っていないコミットの push" push origin fix/secret
+git -C "$repo" switch -q fix/a
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
