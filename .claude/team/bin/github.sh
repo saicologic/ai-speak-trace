@@ -327,8 +327,12 @@ case "${1-}" in
     while read -r sha _; do
       git cat-file -e "$sha^{commit}" 2>/dev/null && not_args+=("^$sha")
     done <<<"$remote_shas"
-    if { GIT_NO_REPLACE_OBJECTS=1 git log --format=%B HEAD ${not_args[@]+"${not_args[@]}"} &&
-      GIT_NO_REPLACE_OBJECTS=1 git log -p --text --diff-merges=first-parent --format= HEAD ${not_args[@]+"${not_args[@]}"} | grep -a '^+'; } | has_secret; then
+    # git log が失敗したときは、確かめられないので送らない（空の出力を「秘密の情報なし」としない）
+    msgs=$(GIT_NO_REPLACE_OBJECTS=1 git log --format=%B HEAD ${not_args[@]+"${not_args[@]}"}) ||
+      die "まだ送っていないコミットのメッセージを調べられませんでした"
+    diffs=$(GIT_NO_REPLACE_OBJECTS=1 git log -p --text --diff-merges=first-parent --format= HEAD ${not_args[@]+"${not_args[@]}"}) ||
+      die "まだ送っていないコミットの変えた中身を調べられませんでした"
+    if { printf '%s\n' "$msgs"; printf '%s\n' "$diffs" | grep -a '^+'; } | has_secret; then
       die "まだ送っていないコミット（変えた中身・メッセージ）に、秘密の情報（API キー・トークン・秘密鍵）の形があります。コミットから消してから、もう一度実行してください"
     fi
     run_checks git push "${flags[@]}" "$remote" "${refs[@]}"
