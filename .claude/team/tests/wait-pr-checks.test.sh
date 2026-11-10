@@ -52,6 +52,9 @@ out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '^STATUS: DONE' && printf '%s' "$out" | grep -q '^CODERABBIT: skipped' &&
   grep -q '^pr checks 1 -R o/r' "$tmp/gh-called"; then ok; else ng "正しい引数（rc=$rc）: $out"; fi
+# 指摘を調べられなかった（GraphQL の答えが壊れている）ときは、0 件ではなく unknown と出す（上の出力で確かめる）
+if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: unknown' && printf '%s' "$out" | grep -qx 'CODERABBIT_RESOLVED_COMMENTS: unknown'; then ok; else ng "指摘を調べられないときの件数: $out"; fi
+
 # 監視していたプロセスが強制終了されて目印（ロック）が残っても、そのプロセスがもういなければ監視する
 lock="$tmp/wait-pr-checks-o_r-1.lock"
 mkdir -p "$lock"
@@ -67,9 +70,6 @@ echo $$ >"$lock/pid"
 out=$(bash "$BIN/wait-pr-checks.sh" o/r 1 2>&1)
 if printf '%s' "$out" | grep -q '^ALREADY_WATCHING'; then ok; else ng "監視しているプロセスがいる PR: $out"; fi
 rm -rf "$lock"
-
-# 指摘を調べられなかった（GraphQL の答えが壊れている）ときは、0 件ではなく unknown と出す
-if printf '%s' "$out" | grep -qx 'CODERABBIT_OPEN_COMMENTS: unknown' && printf '%s' "$out" | grep -qx 'CODERABBIT_RESOLVED_COMMENTS: unknown'; then ok; else ng "指摘を調べられないときの件数: $out"; fi
 
 # 指摘を調べられたときは件数を出す。100 件より多く、全部は読めなかったときは、そのことも出す
 cat >"$tmp/graphql" <<'EOF'
