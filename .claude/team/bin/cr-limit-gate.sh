@@ -1,12 +1,16 @@
 #!/bin/bash
-# CodeRabbit のレビュー枠が切れている間、レビューを動かす操作を止めて通知する（PreToolUse / Bash）
+# CodeRabbit のレビュー枠が切れている間、レビューを動かす操作を止めて通知する
+# （インストール先 /opt/claude-code-team/bin で動く。managed settings の PreToolUse / Bash の hook と、
+#   github.sh が書き込む前に流す確認の両方で使う）
 #
 # - GitHub 側: gh pr comment ...@coderabbitai / gh pr create / gh pr ready / git push
 #   リポジトリの直近の coderabbitai[bot] のコメントにある「Next included review available in N minutes」から
 #   枠が戻る時刻を求める
-# - 手元の CLI: ~/.claude/hooks/cr-review.sh（メンテナー個人の、push 前に CodeRabbit CLI でレビューするスクリプト）
+# - 手元の CLI: cr-review.sh（push 前に CodeRabbit CLI でレビューするスクリプト。.claude/team/install.sh で入れる
+#   /opt/claude-code-team/bin/cr-review.sh と、前の置き場所の ~/.claude/hooks/cr-review.sh）
 #   cr-review.sh が枠切れで失敗したときに記録する時刻（~/.claude/state/coderabbit-cli-limit-until）を使う
 #   cr-review.sh がない環境では、この部分は何もしない
+#   テスト: bash .claude/team/tests/cr-limit-gate.test.sh（手元の CLI の部分）
 #
 # GitHub は読むだけで、書き込みはしない。コメントからは時間の数字だけを取り出し、通知の文面には入れない
 # 急ぎのときは、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けると通す
@@ -27,9 +31,10 @@ while IFS= read -r seg; do
   # SKIP_CR_LIMIT=1 は、その部分の先頭に環境変数として付けたときだけ認める
   printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*SKIP_CR_LIMIT=1[[:space:]]' && continue
   # cr-review.sh は、その部分の先頭で実行するときだけ見る（grep などの引数にパスがあるだけなら対象外）
-  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?(~|\$HOME|/[^[:space:]]*)/\.claude/hooks/cr-review\.sh([[:space:]]|$)'; then
-    # --accept・--base はレビューを動かさない
-    printf '%s' "$seg" | grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
+  if printf '%s' "$seg" | grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bash[[:space:]]+)?((~|\$HOME|/[^[:space:]]*)/\.claude/hooks|/opt/claude-code-team/bin)/cr-review\.sh([[:space:]]|$)'; then
+    # --accept・--base はレビューを動かさない（--base-branch の値は見ない）
+    printf '%s' "$seg" | sed -E 's/[[:space:]]--base-branch([[:space:]]+|=)[^[:space:]]*//' |
+      grep -Eq '[[:space:]](--accept|--base)([[:space:]]|$)' || check_cli=1
   elif printf '%s' "$seg" | grep -Eq "$lead"'gh[[:space:]]+pr[[:space:]]+comment([[:space:]]|$)'; then
     # 本文の中の ; などで区切られても見落とさないよう、@coderabbitai はコマンド全体から探す
     printf '%s' "$cmd" | grep -q '@coderabbitai' && check_github=1
@@ -78,6 +83,10 @@ dir="${dir/#\~/$HOME}"
 dir="${dir%\"}"; dir="${dir#\"}"
 top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -f "$top/.coderabbit.yaml" ] || exit 0
+# サンドボックスの外で git・gh を動かすため、リポジトリの設定を確かめる（認めていない項目があれば、調べずに通す）
+# shellcheck source=lib/git-safety.sh
+. "$(cd "$(dirname "$0")" && pwd -P)/lib/git-safety.sh"
+(cd "$top" && check_git_config) 2>/dev/null || exit 0
 
 now=$(date +%s)
 until=0
@@ -124,5 +133,5 @@ msg="${label}が切れています。あと約${mins}分（${at} ごろ）で戻
 osascript -e "display notification \"$msg\" with title \"CodeRabbit の枠切れ\" sound name \"Basso\"" >/dev/null 2>&1 &
 
 jq -n --arg msg "$msg" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
-  permissionDecisionReason: ($msg + "。この操作は CodeRabbit のレビューを動かしますが、今はレビューされません。戻る時刻まで待ってから実行するか、ユーザーに確認してください。急ぎで通す場合は、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けてください。")}}'
+  permissionDecisionReason: ($msg + "。この操作は CodeRabbit のレビューを動かしますが、今はレビューされません。戻る時刻まで待ってから実行するか、ユーザーに確認してください。急ぎで通す場合は、ユーザーの了承を得てコマンドに SKIP_CR_LIMIT=1 を付けてください（github.sh では --skip SKIP_CR_LIMIT）。")}}'
 exit 0

@@ -3,29 +3,30 @@ name: github-issue-dev
 description: GitHub Issue番号を指定して開発を開始。最新mainからブランチを作成し、修正・テスト・PR作成まで実行
 disable-model-invocation: true
 argument-hint: <issue-number>
-allowed-tools: Bash(git *) Bash(gh *) Bash(cd backend *) Bash(cd frontend *)
+allowed-tools: Bash(git *) Bash(/opt/claude-code-team/bin/github.sh *) Bash(cd backend *) Bash(cd frontend *) Write
 ---
 
 # GitHub Issue 開発
 
 Issue #$ARGUMENTS の内容をもとに開発する。
+GitHub には、サンドボックスの外で動く `/opt/claude-code-team/bin/github.sh` からつなぐ（`docs/developers/claude-code-sandbox.md`）。
 
 ## Issue情報
 
-- Issue内容: !`gh issue view $ARGUMENTS`
-- Issueコメント: !`gh issue view $ARGUMENTS --comments 2>/dev/null || echo "コメントなし"`
-- Issueラベル: !`gh issue view $ARGUMENTS --json labels --jq '.labels[].name' 2>/dev/null || echo "ラベルなし"`
+- Issue内容: !`/opt/claude-code-team/bin/github.sh issue view $ARGUMENTS`
+- Issueコメント: !`/opt/claude-code-team/bin/github.sh issue view $ARGUMENTS --comments`
+- Issueラベル: !`/opt/claude-code-team/bin/github.sh issue view $ARGUMENTS --json labels --jq '.labels[].name'`
 
 ## 手順
 
 1. Issue内容とコメントのやり取りをすべて読み、修正方針を決定する
 2. Issueに開発開始のコメントを投稿する
    ```bash
-   gh issue comment $ARGUMENTS --body "> **Claude Code** が開発を開始します"
+   /opt/claude-code-team/bin/github.sh issue comment $ARGUMENTS --body "> **Claude Code** が開発を開始します"
    ```
 3. 最新のmainブランチを取得してブランチを作成する
    ```bash
-   git fetch origin main
+   /opt/claude-code-team/bin/github.sh fetch origin main
    git checkout -b <ブランチ名> origin/main
    ```
 4. CLAUDE.md の「テスト駆動開発（TDD）」に従って修正する
@@ -39,6 +40,9 @@ Issue #$ARGUMENTS の内容をもとに開発する。
    6. 一覧が空になるまで 2 に戻る
 5. `test-reviewer` サブエージェントに、変えたファイルと確かめたい場面の一覧を渡して確かめてもらい、正しさにかかわる指摘があれば 4 に戻る
 6. 以下のルールに従ってPRを作成する
+   - push は `/opt/claude-code-team/bin/github.sh push -u origin HEAD:refs/heads/<ブランチ名>`（cr-loop Skill の手順で手元レビューを通してから）
+   - PR は、本文をスクラッチパッドのファイルに Write で書き、`/opt/claude-code-team/bin/github.sh pr create --draft --title "<タイトル>" --body-file <ファイル>` で Draft として作る
+   - `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ。`release/*` のブランチが要るときは、ユーザーに作ってもらう
 
 ## ブランチ名の決定
 
@@ -46,7 +50,7 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 
 - バグ修正 → `fix/issue-$ARGUMENTS`
 - 新機能 → `feature/issue-$ARGUMENTS`
-- リリース → `release/issue-$ARGUMENTS`
+- リリース → `release/issue-$ARGUMENTS`（`github.sh` では push できないため、ブランチはユーザーに作ってもらう）
 
 ## PRテンプレート
 

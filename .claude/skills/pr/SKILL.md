@@ -4,16 +4,19 @@ description: PRの差分を分析しサマリーを生成。PRレビュー前の
 disable-model-invocation: true
 context: fork
 agent: Explore
-allowed-tools: Bash(gh *)
+allowed-tools: Bash(/opt/claude-code-team/bin/github.sh pr diff) Bash(/opt/claude-code-team/bin/github.sh pr diff *) Bash(/opt/claude-code-team/bin/github.sh pr view *)
 ---
 
 # PRサマリー生成
 
 ## PR情報
 
-- PR差分: !`gh pr diff 2>/dev/null || echo "PRが見つかりません。先にPRを作成してください"`
-- PRコメント: !`gh pr view --comments 2>/dev/null || echo ""`
-- 変更ファイル: !`gh pr diff --name-only 2>/dev/null || echo ""`
+GitHub には、サンドボックスの外で動く `/opt/claude-code-team/bin/github.sh` からつなぐ（`docs/developers/claude-code-sandbox.md`）。
+PR がまだないときは、下の出力がエラーになる。そのときは、先に PR を作るよう伝える。
+
+- PR差分: !`/opt/claude-code-team/bin/github.sh pr diff`
+- PRコメント: !`/opt/claude-code-team/bin/github.sh pr view --comments`
+- 変更ファイル: !`/opt/claude-code-team/bin/github.sh pr diff --name-only`
 
 ## タスク
 

@@ -1,0 +1,93 @@
+{
+  "requiredMinimumVersion": "2.1.277",
+  "permissions": {
+    "ask": [
+      "Bash(/opt/claude-code-team/bin/github.sh --skip *)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_evaluate"
+    ],
+    "deny": [
+      "Bash(/bin/bash *)",
+      "Bash(/bin/sh *)",
+      "Bash(/usr/bin/git *)",
+      "Bash(bash -c *)",
+      "Bash(bash -lc *)",
+      "Bash(bash)",
+      "Bash(eval *)",
+      "Bash(gh auth token*)",
+      "Bash(gh repo delete *)",
+      "Bash(sh -c *)",
+      "Bash(sh -lc *)",
+      "Bash(sh)",
+      "Bash(sudo *)",
+      "Bash(zsh -c *)",
+      "Read(//**/.env*)",
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)",
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/settings.json)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.git-credentials)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.netrc)",
+      "Read(~/.npmrc)",
+      "Read(~/.ssh/**)",
+      "Read(~/Library/Keychains/**)",
+      "Edit(~/.claude/state/**)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "excludedCommands": [
+      "/opt/claude-code-team/bin/github.sh *",
+      "/opt/claude-code-team/bin/cr-review.sh",
+      "/opt/claude-code-team/bin/cr-review.sh *",
+      "/opt/claude-code-team/bin/wait-pr-checks.sh *"
+    ],
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org"
+      ],
+      "deniedDomains": [
+        "github.com"
+      ],
+      "allowManagedDomainsOnly": true
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/cr-limit-gate.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/watch-pr-checks.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

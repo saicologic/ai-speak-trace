@@ -1,26 +1,42 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm add:*)"
-    ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/cr-limit-gate.sh",
-            "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd-push-gate.sh",
-            "timeout": 120
-          }
-        ]
-      }
+      "Bash(pnpm add:*)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch *)",
+      "Bash(git merge *)",
+      "Bash(git stash list *)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(npx jest *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier *)",
+      "Bash(/opt/claude-code-team/bin/github.sh *)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh *)",
+      "Bash(/opt/claude-code-team/bin/wait-pr-checks.sh *)",
+      "Read(//private/tmp/claude-*/**)",
+      "WebSearch",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:elevenlabs.io)",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:vite.dev)",
+      "WebFetch(domain:developer.chrome.com)",
+      "WebFetch(domain:web.dev)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot"
     ]
   }
 }
