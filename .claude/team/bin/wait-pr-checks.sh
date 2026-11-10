@@ -17,13 +17,23 @@ timeout_sec="${WAIT_PR_CHECKS_TIMEOUT:-3600}"
 interval=60
 settle="${WAIT_PR_CHECKS_SETTLE:-30}"
 
-# 同じPRを二重に監視しない
+# 同じPRを二重に監視しない。目印（ロック）に監視するプロセスの番号を書き、強制終了で目印が残っても、
+# そのプロセスがもういなければ消して監視する
 lock="${TMPDIR:-/tmp}/wait-pr-checks-${repo//\//_}-${number}.lock"
 if ! mkdir "$lock" 2>/dev/null; then
-  echo "ALREADY_WATCHING ${repo}#${number}"
-  exit 0
+  pid=$(cat "$lock/pid" 2>/dev/null)
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    echo "ALREADY_WATCHING ${repo}#${number}"
+    exit 0
+  fi
+  rm -rf "$lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    echo "ALREADY_WATCHING ${repo}#${number}"
+    exit 0
+  fi
 fi
-trap 'rmdir "$lock" 2>/dev/null' EXIT
+echo $$ >"$lock/pid"
+trap 'rm -rf "$lock"' EXIT
 
 # 全チェックが終わっているか（チェックが1つもない場合は終わっていない扱い）
 all_done() {
