@@ -70,7 +70,9 @@ if printf '%s\n' "$code" | grep -E '@playwright/mcp@' | grep -q -- '--isolated';
 # localhost・127.0.0.1 だけをプロキシの例外にする。ページの JavaScript・リダイレクトも含め、外への通信はブラウザの段階で失敗する
 start="$(printf '%s\n' "$code" | grep -E '@playwright/mcp@' || true)"
 if printf '%s\n' "$start" | grep -Eq -- '--proxy-server "?http://127\.0\.0\.1:9"?( |$)'; then ok; else ng "Playwright MCP のブラウザを、つながらないプロキシ（http://127.0.0.1:9）に通していない"; fi
-if printf '%s\n' "$start" | grep -Eq -- '--proxy-bypass "?localhost,127\.0\.0\.1"?( |$)'; then ok; else ng "プロキシの例外が localhost,127.0.0.1 だけになっていない"; fi
+# Chrome は 127.0.0.2 などの自分の Mac の中・リンクローカルの宛先を、暗黙にプロキシの例外にするため、
+# <-loopback> でそれを外してから、localhost・127.0.0.1 だけを例外にする
+if printf '%s\n' "$start" | grep -Eq -- '--proxy-bypass "?<-loopback>,localhost,127\.0\.0\.1"?( |$)'; then ok; else ng "プロキシの例外が <-loopback>,localhost,127.0.0.1 になっていない"; fi
 # 後ろにもう一度書いて値を上書きさせない（どちらも1回だけ）。起動の行の途中にコメントを書かせない（後ろの指定が効かなくなる）
 for opt in --proxy-server --proxy-bypass; do
   n=$(printf '%s\n' "$start" | grep -o -- "$opt" | wc -l | tr -d ' ')

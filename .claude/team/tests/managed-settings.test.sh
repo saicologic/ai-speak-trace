@@ -107,10 +107,16 @@ done
 # （シェルの起動ファイル・ログインのときに動くもの・git の hook と設定・エディタのタスク・Claude Code の個人の設定）
 for rule in "Edit(~/.zshrc)" "Edit(~/.zprofile)" "Edit(~/.zshenv)" "Edit(~/.zlogin)" "Edit(~/.bashrc)" "Edit(~/.bash_profile)" "Edit(~/.profile)" \
   "Edit(~/Library/LaunchAgents/**)" "Edit(~/.ssh/**)" "Edit(~/.gitconfig)" "Edit(~/.config/git/**)" \
-  "Edit(**/.git/hooks/**)" "Edit(**/.git/config)" "Edit(**/.envrc)" "Edit(**/.vscode/**)" \
-  "Edit(~/.claude/settings.json)" "Edit(~/.claude/settings.local.json)" "Edit(**/.claude/settings.local.json)"; do
+  "Edit(//**/.git/hooks/**)" "Edit(//**/.git/config)" "Edit(//**/.envrc)" "Edit(//**/.vscode/**)" \
+  "Edit(~/.claude/settings.json)" "Edit(~/.claude/settings.local.json)" "Edit(//**/.claude/settings.local.json)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
+# どこにでも当たるルールは // から書く（** から書くと、今のフォルダからの相対になり、サブフォルダ・worktree で外れる）
+expect "deny の Edit・Read で、** から書いたもの（今のフォルダからの相対）がない" '[.permissions.deny[] | select(test("^(Edit|Read)\\(\\*\\*"))] | length == 0' "$M"
+# リポジトリの設定（.claude/settings.json）は PR でレビューするが、作業中に書き換えるときは、ユーザーに確かめる
+expect "リポジトリの .claude/settings.json の書き換えは、ユーザーに確かめる（ask）" '.permissions.ask | index("Edit(//**/.claude/settings.json)") != null' "$M"
+# Playwright MCP で、手元のファイルをページに渡す操作（ドラッグ・アンド・ドロップ）も、ユーザーに確かめる
+expect "Playwright MCP の browser_drop は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_drop") != null' "$M"
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
@@ -142,6 +148,9 @@ expect "リポジトリの設定で環境変数を設定しない（外で動く
 expect "リポジトリの設定に hook を書かない" '.hooks == null' "$P"
 expect "managed settings で、cr-review.sh の前に CodeRabbit の枠を確かめる" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/cr-limit-gate.sh") != null' "$M"
 expect "managed settings で、API キーが会話ログに出るコマンドを止める" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh") != null' "$M"
+# github.sh で確認なしに許すのは、読む操作と push・fetch だけ（書く操作は、ask に当たらない書き方でも既定の確認に落ちる）
+expect "リポジトリの設定で github.sh の全部の操作を許可しない" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/github.sh *)") == null' "$P"
+expect "リポジトリの設定で github.sh に許すのは、読む操作と push・fetch だけ" '[.permissions.allow[] | select(startswith("Bash(/opt/claude-code-team/bin/github.sh "))] | length > 0 and all(test("^Bash\\(/opt/claude-code-team/bin/github\\.sh (push|fetch|pr view|pr list|pr diff|pr checks|issue view|run view|run list|api)( \\*)?\\)$"))' "$P"
 expect "リポジトリの設定で git push・gh を直接許可しない" '[.permissions.allow[] | select(test("^Bash\\((git push|git fetch|gh )"))] | length == 0' "$P"
 
 # MCP サーバー: サンドボックスの外で動くため、動かす MCP サーバーは managed-mcp.json（root の持ち物）で決める。
