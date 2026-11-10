@@ -1,7 +1,16 @@
 import axios from 'axios';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import * as net from 'net';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import * as tls from 'tls';
-import { installEgressGuard, isEgressAllowed } from './egress-guard';
+import {
+  createEgressFileLogger,
+  type EgressLogEntry,
+  installEgressGuard,
+  isEgressAllowed,
+  withEgressHosts,
+} from './egress-guard';
 
 describe('isEgressAllowed（外への通信を許すか）', () => {
   it('アプリが使う API の宛先（HTTPS）は許す', () => {
@@ -156,5 +165,129 @@ describe('installEgressGuard（外への接続を確かめる）', () => {
     );
     expect(r).toEqual({ code: 'ENOTFOUND', looked: true });
     uninstall = installEgressGuard();
+  });
+});
+
+/** ENOTFOUND を返すだけの lookup（外に通信しない） */
+const noDns: net.LookupFunction = (_host, _options, callback) => {
+  const err = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+  (callback as (e: Error) => void)(err);
+};
+
+/** 接続を試し、閉じるまで待ってエラーのコードを返す */
+function connectAndClose(host: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    let code: string | undefined;
+    const socket = tls.connect({ host, port: 443, lookup: noDns });
+    socket.on('error', (e: NodeJS.ErrnoException) => {
+      code = e.code;
+    });
+    socket.on('close', () => setImmediate(() => resolve(code)));
+  });
+}
+
+describe('外への接続の記録', () => {
+  let entries: EgressLogEntry[];
+  let uninstall: () => void;
+  beforeEach(() => {
+    entries = [];
+    uninstall = installEgressGuard({ log: (e) => entries.push(e) });
+  });
+  afterEach(() => uninstall());
+
+  it('断った接続を、日時・宛先・ポートとともに記録する', async () => {
+    await connectAndClose('example.com');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      host: 'example.com',
+      port: 443,
+      allowed: false,
+    });
+    expect(Number.isNaN(Date.parse(entries[0].time))).toBe(false);
+  });
+
+  it('通した接続を、閉じたときに送受信のバイト数とともに記録する', async () => {
+    await connectAndClose('api.anthropic.com');
+    expect(entries).toEqual([
+      expect.objectContaining({
+        host: 'api.anthropic.com',
+        port: 443,
+        allowed: true,
+        bytesSent: 0,
+        bytesReceived: 0,
+      }),
+    ]);
+  });
+
+  it('記録には、決めた項目だけを残す（パス・ヘッダー・本文は残さない）', async () => {
+    await connectAndClose('example.com');
+    await connectAndClose('api.anthropic.com');
+    for (const e of entries) {
+      expect(
+        Object.keys(e).every((k) =>
+          [
+            'time',
+            'host',
+            'port',
+            'allowed',
+            'bytesSent',
+            'bytesReceived',
+          ].includes(k),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('記録の処理が失敗しても、接続の確かめは続ける', async () => {
+    uninstall();
+    uninstall = installEgressGuard({
+      log: () => {
+        throw new Error('書けない');
+      },
+    });
+    expect(await connectAndClose('example.com')).toBe('EGRESS_BLOCKED');
+  });
+});
+
+describe('withEgressHosts（その処理の間だけ宛先を足す）', () => {
+  let uninstall: () => void;
+  beforeEach(() => {
+    uninstall = installEgressGuard();
+  });
+  afterEach(() => uninstall());
+
+  it('処理の中では足した宛先に接続でき、外では断る', async () => {
+    const inside = await withEgressHosts(['github.com'], () =>
+      connectAndClose('github.com'),
+    );
+    expect(inside).toBe('ENOTFOUND');
+    expect(await connectAndClose('github.com')).toBe('EGRESS_BLOCKED');
+  });
+
+  it('足した宛先のほかは、処理の中でも断る', async () => {
+    const other = await withEgressHosts(['github.com'], () =>
+      connectAndClose('example.com'),
+    );
+    expect(other).toBe('EGRESS_BLOCKED');
+  });
+});
+
+describe('createEgressFileLogger（記録をファイルに書く）', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'egress-log-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('1件ずつ JSON の行で追記し、フォルダがなければ作る', () => {
+    const file = join(dir, 'logs', 'network.jsonl');
+    const log = createEgressFileLogger(file);
+    log({ time: 't1', host: 'example.com', port: 443, allowed: false });
+    log({ time: 't2', host: 'api.anthropic.com', port: 443, allowed: true });
+    const lines = readFileSync(file, 'utf-8').trim().split('\n');
+    expect(lines.map((l) => JSON.parse(l) as EgressLogEntry)).toEqual([
+      { time: 't1', host: 'example.com', port: 443, allowed: false },
+      { time: 't2', host: 'api.anthropic.com', port: 443, allowed: true },
+    ]);
   });
 });
