@@ -3,7 +3,11 @@
 # キーを含む設定ファイル・API・項目名に触れる Bash コマンドを実行前に拒否する
 # （managed settings の PreToolUse / Bash の hook。インストール先 /opt/claude-code-team/bin で動く）
 # テスト: bash .claude/team/tests/block-secrets.test.sh
-cmd=$(jq -r '.tool_input.command // empty')
+# jq が動かないときは、コマンドを調べられないので止める（API キーを守る hook のため、止める側に倒す）
+cmd=$(jq -r '.tool_input.command // empty') || {
+  echo "jq を実行できないため、コマンドを確かめられず拒否しました（brew install jq）" >&2
+  exit 2
+}
 pattern='api/settings|anthropicApiKey|elevenlabsApiKey|apiKeys|io\.github\.saicologic\.ai-speak-trace/settings\.json|sk-ant-|ANTHROPIC_API_KEY=\$\('
 if printf '%s' "$cmd" | grep -Eq "$pattern"; then
   jq -n '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",

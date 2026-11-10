@@ -9,14 +9,21 @@ cmd=$(printf '%s\n' "$input" | jq -r '.tool_input.command // empty')
 cwd=$(printf '%s\n' "$input" | jq -r '.cwd // empty')
 stdout=$(printf '%s\n' "$input" | jq -r '.tool_response.stdout // empty')
 
+here=$(cd "$(dirname "$0")" && pwd -P)
+
 # git push / gh pr create / gh pr ready（github.sh の push・pr create を含む）以外は何もしない
-if ! printf '%s\n' "$cmd" | grep -Eq '(^|[;&|[:space:](])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push|gh[[:space:]]+pr[[:space:]]+(create|ready)|/opt/claude-code-team/bin/github\.sh([[:space:]]+--skip[[:space:]]+[A-Z_]+)*[[:space:]]+(push|pr[[:space:]]+create))([[:space:]]|$)'; then
+# git push は、引用符・heredoc・コメントの中の文字を除いて調べる（lib/git-push-segments.mjs。node がなければ文字列で探す）
+is_push=""
+if command -v node >/dev/null 2>&1; then
+  [ -n "$(printf '%s' "$cmd" | node "$here/lib/git-push-segments.mjs" 2>/dev/null)" ] && is_push=1
+elif printf '%s\n' "$cmd" | grep -Eq '(^|[;&|[:space:](])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
+  is_push=1
+fi
+if [ -z "$is_push" ] && ! printf '%s\n' "$cmd" | grep -Eq '(^|[;&|[:space:](])(gh[[:space:]]+pr[[:space:]]+(create|ready)|/opt/claude-code-team/bin/github\.sh([[:space:]]+--skip[[:space:]]+[A-Z_]+)*[[:space:]]+(push|pr[[:space:]]+create))([[:space:]]|$)'; then
   exit 0
 fi
 # dry-run・Draftに戻す操作は対象外
 printf '%s\n' "$cmd" | grep -Eq -- '--dry-run|--undo' && exit 0
-
-here=$(cd "$(dirname "$0")" && pwd -P)
 
 # git -C <dir> が指定されていればそのディレクトリでPRを調べる
 dir=$(printf '%s\n' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' | head -1)
