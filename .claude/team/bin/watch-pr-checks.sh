@@ -5,21 +5,21 @@
 set -u
 
 input=$(cat)
-cmd=$(jq -r '.tool_input.command // empty' <<<"$input")
-cwd=$(jq -r '.cwd // empty' <<<"$input")
-stdout=$(jq -r '.tool_response.stdout // empty' <<<"$input")
+cmd=$(printf '%s\n' "$input" | jq -r '.tool_input.command // empty')
+cwd=$(printf '%s\n' "$input" | jq -r '.cwd // empty')
+stdout=$(printf '%s\n' "$input" | jq -r '.tool_response.stdout // empty')
 
 # git push / gh pr create / gh pr ready（github.sh の push・pr create を含む）以外は何もしない
-if ! grep -Eq '(^|[;&|[:space:](])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push|gh[[:space:]]+pr[[:space:]]+(create|ready)|/opt/claude-code-team/bin/github\.sh([[:space:]]+--skip[[:space:]]+[A-Z_]+)*[[:space:]]+(push|pr[[:space:]]+create))([[:space:]]|$)' <<<"$cmd"; then
+if ! printf '%s\n' "$cmd" | grep -Eq '(^|[;&|[:space:](])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push|gh[[:space:]]+pr[[:space:]]+(create|ready)|/opt/claude-code-team/bin/github\.sh([[:space:]]+--skip[[:space:]]+[A-Z_]+)*[[:space:]]+(push|pr[[:space:]]+create))([[:space:]]|$)'; then
   exit 0
 fi
 # dry-run・Draftに戻す操作は対象外
-grep -Eq -- '--dry-run|--undo' <<<"$cmd" && exit 0
+printf '%s\n' "$cmd" | grep -Eq -- '--dry-run|--undo' && exit 0
 
 here=$(cd "$(dirname "$0")" && pwd -P)
 
 # git -C <dir> が指定されていればそのディレクトリでPRを調べる
-dir=$(sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' <<<"$cmd" | head -1)
+dir=$(printf '%s\n' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' | head -1)
 [ -z "$dir" ] && dir="$cwd"
 [ -n "$dir" ] && cd "$dir" 2>/dev/null
 
@@ -31,11 +31,11 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # 出力にPRのURL（gh pr create）や owner/repo#番号（gh pr ready）があればそれを使い、なければ今のブランチのPRを調べる
-url=$(grep -Eo 'https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+' <<<"$stdout" | tail -1)
-ref=$(grep -Eo '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+' <<<"$stdout" | tail -1)
+url=$(printf '%s\n' "$stdout" | grep -Eo 'https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+' | tail -1)
+ref=$(printf '%s\n' "$stdout" | grep -Eo '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+' | tail -1)
 if [ -n "$url" ]; then
-  repo=$(sed -E 's#https://github\.com/([^/]+/[^/]+)/pull/[0-9]+#\1#' <<<"$url")
-  number=$(sed -E 's#.*/pull/([0-9]+)#\1#' <<<"$url")
+  repo=$(printf '%s\n' "$url" | sed -E 's#https://github\.com/([^/]+/[^/]+)/pull/[0-9]+#\1#')
+  number=$(printf '%s\n' "$url" | sed -E 's#.*/pull/([0-9]+)#\1#')
 elif [ -n "$ref" ]; then
   repo="${ref%#*}"
   number="${ref#*#}"
@@ -45,7 +45,7 @@ else
   [ -z "$info" ] && exit 0
   number="${info%% *}"
   url="${info#* }"
-  repo=$(sed -E 's#https://github\.com/([^/]+/[^/]+)/pull/[0-9]+#\1#' <<<"$url")
+  repo=$(printf '%s\n' "$url" | sed -E 's#https://github\.com/([^/]+/[^/]+)/pull/[0-9]+#\1#')
 fi
 
 context="PR #${number}（${url}）が更新されました。次の手順でチェック（CI・CodeRabbit）を監視してください。

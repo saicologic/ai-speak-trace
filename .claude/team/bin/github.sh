@@ -102,10 +102,21 @@ check_branch() {
 }
 
 # 確認に渡すコマンドを作る（--skip の NAME=1 を先頭に付ける）
+# 引数は、そのまま書ける文字だけならそのまま、ほかは一重引用符で囲む（中の ' は '\'' にする）。
+# printf '%q' は改行があると $'...' の形になり、push を見つけるスクリプト（is-git-push.mjs など）が読めないため使わない
+# （置き換える文字は変数に入れる。${var//\'/...} の引用符の読み方は、bash 3.2（macOS の /bin/bash）と新しい版で違うため）
+quote_arg() {
+  local sq="'" esc="'\\''"
+  if [[ "$1" =~ ^[A-Za-z0-9_./:=@%+,-]+$ ]]; then
+    printf '%s' "$1"
+  else
+    printf "'%s'" "${1//$sq/$esc}"
+  fi
+}
 synth() {
   local s="" a
   for a in "${skips[@]}"; do s="$s$a "; done
-  for a in "$@"; do s="$s$(printf '%q' "$a") "; done
+  for a in "$@"; do s="$s$(quote_arg "$a") "; done
   printf '%s' "${s% }"
 }
 
