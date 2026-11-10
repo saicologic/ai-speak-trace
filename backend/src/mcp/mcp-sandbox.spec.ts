@@ -9,7 +9,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 /**
  * MCP サーバーを sandbox（macOS の sandbox-exec）の中で起動する仕組みのテスト
- * sandbox-exec は macOS にしかないため、ほかの OS（CI の ubuntu）では飛ばす
+ * sandbox-exec は macOS にしかないため、ほかの OS（CI の ubuntu）では飛ばす。
+ * Claude Code のサンドボックスの中でも飛ばすため、開発者が自分のターミナルで流して確かめる
  */
 const BACKEND_DIR = path.resolve(__dirname, '../..');
 const SCRIPT = path.join(BACKEND_DIR, 'scripts/mcp-sandbox.sh');
@@ -17,9 +18,23 @@ const PROFILE = path.join(BACKEND_DIR, 'scripts/mcp-sandbox.sb');
 const MAIN = path.join(BACKEND_DIR, 'dist/mcp/main.js');
 const NODE = process.execPath;
 
-// sandbox-exec は macOS にしかないため、ほかの OS では外す
-// eslint-disable-next-line no-restricted-properties -- macOS 以外では確かめられないため
-const describeOnMac = process.platform === 'darwin' ? describe : describe.skip;
+/**
+ * sandbox-exec でサンドボックスを作れるか。
+ * sandbox-exec は macOS にしかない。また、すでにサンドボックスの中（Claude Code の Bash など）では、
+ * もう1つサンドボックスを作れない（sandbox_apply: Operation not permitted）
+ */
+function canUseSandboxExec(): boolean {
+  if (process.platform !== 'darwin') return false;
+  const probe = spawnSync('/usr/bin/sandbox-exec', [
+    '-p',
+    '(version 1)(allow default)',
+    '/usr/bin/true',
+  ]);
+  return probe.status === 0;
+}
+
+// eslint-disable-next-line no-restricted-properties -- macOS 以外と、サンドボックスの中では確かめられないため（開発者のターミナルで流す）
+const describeOnMac = canUseSandboxExec() ? describe : describe.skip;
 
 describeOnMac('MCP サーバーの sandbox', () => {
   /** 仮のホームフォルダ（この中にデータのフォルダと、読まれたくないファイルを置く） */
