@@ -84,7 +84,7 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 | CI | `github.sh run list`・`run view <id>` |
 | API（読むだけ） | `github.sh api repos/<owner>/<repo>/pulls/123/comments --paginate --jq ...` |
 
-- push できるのは、`.claude/team/etc/github-repos` に書いたリポジトリの、`fix/*`・`feature/*`・`test/*` のブランチだけです。`main`・`release/*` へは PR で入れます。force push・ブランチの削除・タグはできません
+- push できるのは、`.claude/team/etc/github-repos` に書いたリポジトリの、`fix/*`・`feature/*`・`test/*` のブランチだけです。`main`・`release/*` へは PR で入れます。force push・ブランチの削除・タグはできません。送り元は今の HEAD と同じコミットだけです（push の前の確認は HEAD を見るため。`github.sh push -u origin HEAD:refs/heads/<ブランチ>` の形で送ります）
 - push と PR・Issue への書き込みの前に、手元の CodeRabbit レビュー（`cr-gate-push.sh`）・TDD の順番（`tdd-push-gate.sh`）・CodeRabbit の枠（`cr-limit-gate.sh`）を流し、通らなければ止めます。急ぎで飛ばすときは、ユーザーの了承を得て `--skip SKIP_CR_LOOP`・`--skip SKIP_TDD_CHECK`・`--skip SKIP_CR_LIMIT` を付けます
 - PR の Ready for review・マージはできません（人が行います）
 - 本文のファイルは、リポジトリの中か、Claude Code のスクラッチパッドの中に置きます。`github.sh` は、ファイルを開いてからほかのファイルのハードリンクでないことを確かめ、中身を読んで `--body` で渡します
