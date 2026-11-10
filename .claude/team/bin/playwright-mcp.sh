@@ -5,7 +5,7 @@
 # stdio の MCP サーバーのため、標準出力には MCP 以外の出力を出さない（ログは標準エラーへ）
 #
 # インストール先（/opt/claude-code-team/bin）から、managed-mcp.json で、これだけを MCP サーバーとして動かす。
-# MCP サーバーはサンドボックスの外で動き、.mcp.json の env は許可の確かめで比べられないため:
+# MCP サーバーはサンドボックスの外で動き、Claude Code の環境変数を引き継ぐため:
 # - 受け取った環境変数は使わない（PATH・HOME は決めた値・アカウントの情報から作り、npx は env -i で動かす）
 # - 受け取った引数は Playwright MCP に渡さない
 # - 作業フォルダの node_modules を使わないよう、/ に移ってから npx を動かす

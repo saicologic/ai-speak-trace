@@ -1,7 +1,7 @@
 #!/bin/bash
-# playwright-mcp.sh（Playwright MCP の起動。managed settings の allowedMcpServers で許す）のテスト
+# playwright-mcp.sh（Playwright MCP の起動。managed-mcp.json で、これだけを動かす）のテスト
 # （bash .claude/team/tests/playwright-mcp.test.sh）
-# MCP サーバーはサンドボックスの外で動き、.mcp.json の env は managed settings の許可の確かめで比べられない。
+# MCP サーバーはサンドボックスの外で動き、Claude Code の環境変数を引き継ぐ。
 # そのため、受け取った環境変数・引数・作業フォルダで、動かすものや動き方を変えられないことを確かめる
 set -u
 S="$(cd "$(dirname "$0")/../bin" && pwd)/playwright-mcp.sh"
