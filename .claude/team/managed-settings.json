@@ -4,7 +4,9 @@
     "ask": [
       "Bash(/opt/claude-code-team/bin/github.sh --skip *)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
-      "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)"
+      "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_evaluate"
     ],
     "deny": [
       "Bash(/bin/bash *)",

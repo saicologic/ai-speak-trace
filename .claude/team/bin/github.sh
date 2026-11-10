@@ -170,8 +170,18 @@ read_body() {
   [ "$f" != "-" ] || die "本文を標準入力から読むことはできません"
   real=$(realpath "$f" 2>/dev/null) || die "本文のファイルがありません: $f"
   [ -f "$real" ] || die "本文のファイルがありません: $f"
-  # サンドボックスの中から読めないファイル（managed settings の Read の deny にある .env*）は送らない
+  # サンドボックスの中から読めないファイル（managed settings の Read の deny にあるもの）は送らない。
+  # ホームのフォルダそのものがリポジトリでも、~/.aws などを「リポジトリの中」として送らないよう、場所でも確かめる
   case "${real##*/}" in .env*) die "本文に使えないファイルです: $f" ;; esac
+  local h
+  h=$(realpath "$HOME" 2>/dev/null) || h=$HOME
+  case "$real" in
+    "$h"/.aws/* | "$h"/.ssh/* | "$h"/.gnupg/* | "$h"/.config/gh/* | "$h"/Library/Keychains/* | \
+      "$h"/.docker/config.json | "$h"/.git-credentials | "$h"/.netrc | "$h"/.npmrc | \
+      "$h"/Library/"Application Support"/io.github.saicologic.ai-speak-trace/*)
+      die "本文に使えないファイルです: $f"
+      ;;
+  esac
   if [ -n "$top" ]; then
     case "$real" in "$(realpath "$top")"/*) inside=1 ;; esac
   fi
