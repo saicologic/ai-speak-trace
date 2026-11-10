@@ -6,6 +6,8 @@ import { join } from 'path';
 import * as tls from 'tls';
 import {
   createEgressFileLogger,
+  egressHostsInScope,
+  GITHUB_RELEASE_HOSTS,
   type EgressLogEntry,
   installEgressGuard,
   isEgressAllowed,
@@ -289,5 +291,29 @@ describe('createEgressFileLogger（記録をファイルに書く）', () => {
       { time: 't1', host: 'example.com', port: 443, allowed: false },
       { time: 't2', host: 'api.anthropic.com', port: 443, allowed: true },
     ]);
+  });
+});
+
+describe('GITHUB_RELEASE_HOSTS（GitHub のリリースからのダウンロード）', () => {
+  it('リリースのファイルの宛先だけを含み、GitHub の API は含まない', () => {
+    expect(isEgressAllowed('github.com', 443, GITHUB_RELEASE_HOSTS)).toBe(true);
+    expect(
+      isEgressAllowed(
+        'release-assets.githubusercontent.com',
+        443,
+        GITHUB_RELEASE_HOSTS,
+      ),
+    ).toBe(true);
+    expect(isEgressAllowed('api.github.com', 443, GITHUB_RELEASE_HOSTS)).toBe(
+      false,
+    );
+  });
+
+  it('egressHostsInScope は、withEgressHosts の中でだけ足した宛先を返す', async () => {
+    expect(egressHostsInScope()).toEqual([]);
+    const inside = await withEgressHosts(['a.example'], () =>
+      Promise.resolve(egressHostsInScope()),
+    );
+    expect(inside).toEqual(['a.example']);
   });
 });
