@@ -42,9 +42,8 @@ expect "ポートを開けない" '(.sandbox.network.allowLocalBinding // false)
 expect "弱いサンドボックスを使わない" '(.sandbox.enableWeakerNestedSandbox // false) == false and (.sandbox.enableWeakerNetworkIsolation // false) == false' "$M"
 expect "サンドボックスの違反を無視しない" '.sandbox.ignoreViolations == null' "$M"
 expect "managed settings で環境変数を設定しない" '.env == null' "$M"
-# excludedCommands が、つないだコマンドの全部の一致を求めるのは 2.1.277 から。
-# managed-mcp.json と一緒に Claude in Chrome を使う allowClaudeInChromeWithManagedMcp は 2.1.282 から。古い版では起動させない
-expect "Claude Code 2.1.282 より前の版を起動させない" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 282]' "$M"
+# excludedCommands が、つないだコマンドの全部の一致を求めるのは 2.1.277 から。古い版では起動させない
+expect "Claude Code 2.1.277 より前の版を起動させない" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 277]' "$M"
 
 # サンドボックスの外で動かすもの（excludedCommands・hook）は、インストール先（root の持ち物）のスクリプトの名前だけ。
 # 後ろに ; や && などで別のコマンドを続けられないよう、コマンド全体を決まった形と比べる
@@ -174,11 +173,12 @@ while IFS= read -r name; do
     printf 'FAIL: MCP サーバーの %s が .claude/team/bin にない\n' "$name"
   fi
 done < <(jq -r --arg p "$PREFIX" '.mcpServers[].command | select(startswith($p)) | ltrimstr($p)' "$MCP" | sort -u)
-# managed-mcp.json があると Claude in Chrome は止まる。ログインが必要なページの確認に使うため、明示して使えるようにする
-expect "managed-mcp.json と一緒に Claude in Chrome を使えるようにする" '.allowClaudeInChromeWithManagedMcp == true' "$M"
-# 念のため、許可の一覧も managed settings の Playwright MCP だけにする（managed-mcp.json が外されたときの守り）
-expect "MCP サーバーの許可の一覧は managed settings のものだけ（allowManagedMcpServersOnly）" '.allowManagedMcpServersOnly == true' "$M"
-expect "MCP サーバーの許可の一覧は、managed-mcp.json と同じコマンドだけ" --slurpfile mcp "$MCP" '[.allowedMcpServers[]] == [$mcp[0].mcpServers[] | {serverCommand: [.command]}]' "$M"
+# managed-mcp.json があると、組み込みの Claude in Chrome も止まる。普段のログイン中の Chrome を操作させないため、使えるようにしない
+# （ブラウザでの確認は、localhost の開発用の画面を Playwright MCP で開くだけにする）
+expect "Claude in Chrome を使えるようにしない" '(.allowClaudeInChromeWithManagedMcp // false) == false' "$M"
+# MCP サーバーは managed-mcp.json だけで決める（許可の一覧を二重に持たない）
+expect "MCP サーバーの許可の一覧を書かない（managed-mcp.json で決める）" '.allowedMcpServers == null and .allowManagedMcpServersOnly == null and .deniedMcpServers == null' "$M"
+expect "リポジトリの設定で Claude in Chrome のツールを許可しない" '[.permissions.allow[] | select(startswith("mcp__claude-in-chrome"))] | length == 0' "$P"
 # リポジトリに .mcp.json を置かない（managed-mcp.json があると使われず、紛らわしいため）
 if git -C "$ROOT" ls-files --error-unmatch .mcp.json >/dev/null 2>&1; then
   fail=$((fail + 1))

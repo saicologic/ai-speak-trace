@@ -54,6 +54,11 @@ has "@playwright/mcp のバージョンを決める" '^PLAYWRIGHT_MCP_VERSION="[
 lacks "latest を使わない" '@latest'
 # Playwright MCP を起動する行に、プロフィールを残さない指定（--isolated）がある
 if printf '%s\n' "$code" | grep -E '@playwright/mcp@' | grep -q -- '--isolated'; then ok; else ng "Playwright MCP の起動に --isolated がない"; fi
+# ブラウザは localhost の開発用の画面だけを開く。つながらないプロキシ（127.0.0.1 の使っていないポート）を通させ、
+# localhost・127.0.0.1 だけをプロキシの例外にする。ページの JavaScript・リダイレクトも含め、外への通信はブラウザの段階で失敗する
+start="$(printf '%s\n' "$code" | grep -E '@playwright/mcp@' || true)"
+if printf '%s\n' "$start" | grep -Eq -- '--proxy-server "?http://127\.0\.0\.1:9"?( |$)'; then ok; else ng "Playwright MCP のブラウザを、つながらないプロキシ（http://127.0.0.1:9）に通していない"; fi
+if printf '%s\n' "$start" | grep -Eq -- '--proxy-bypass "?localhost,127\.0\.0\.1"?( |$)'; then ok; else ng "プロキシの例外が localhost,127.0.0.1 だけになっていない"; fi
 # 手元のファイルを広く読ませる指定を付けない
 lacks "--allow-unrestricted-file-access を付けない" 'allow-unrestricted-file-access'
 
