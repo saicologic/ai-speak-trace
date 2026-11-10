@@ -70,6 +70,18 @@ for opt in --proxy-server --proxy-bypass; do
   if [ "$n" = 1 ]; then ok; else ng "起動の行に $opt が1回だけではない（$n 回）"; fi
 done
 if printf '%s\n' "$start" | grep -q '#'; then ng "起動の行の途中にコメント（#）がある"; else ok; fi
+# WebRTC の UDP は HTTP のプロキシを通らないため、プロキシを通らない UDP を Chrome の起動引数で止める。
+# Playwright MCP には Chrome に引数を渡すオプションがないため、設定ファイル（root の持ち物）の launchOptions.args で渡す
+CONF_PATH=/opt/claude-code-team/etc/playwright-mcp.json
+n=$(printf '%s\n' "$start" | grep -o -- '--config' | wc -l | tr -d ' ')
+if [ "$n" = 1 ] && printf '%s\n' "$start" | grep -Eq -- "--config \"?$CONF_PATH\"?( |$)"; then ok; else ng "起動の行で、--config $CONF_PATH を1回だけ渡していない"; fi
+C="$(cd "$(dirname "$0")/.." && pwd)/etc/playwright-mcp.json"
+if jq -e '.browser.launchOptions.args | index("--force-webrtc-ip-handling-policy=disable_non_proxied_udp") != null' "$C" >/dev/null 2>&1; then ok; else ng "設定ファイルで、プロキシを通らない WebRTC の UDP を止めていない"; fi
+# 設定ファイルには、Chrome の起動引数だけを書く（守りを弱めるほかの設定を書かせない）
+if jq -e '(keys == ["browser"]) and (.browser | keys == ["launchOptions"]) and (.browser.launchOptions | keys == ["args"]) and all(.browser.launchOptions.args[]; . == "--force-webrtc-ip-handling-policy=disable_non_proxied_udp")' "$C" >/dev/null 2>&1; then ok; else ng "設定ファイルに、決めた起動引数のほかのものがある"; fi
+I="$(cd "$(dirname "$0")/.." && pwd)/install.sh"
+if grep -Ev '^[[:space:]]*#' "$I" | grep -Eq 'install -o root -g wheel -m 644 "\$src/etc/playwright-mcp\.json" "\$prefix/etc/playwright-mcp\.json"'; then ok; else ng "install.sh が設定ファイルを /opt/claude-code-team/etc に入れていない"; fi
+if grep -Ev '^[[:space:]]*#' "$I" | grep -Eq '^jq empty "\$src/etc/playwright-mcp\.json"$'; then ok; else ng "install.sh が、入れる前に設定ファイルの JSON を確かめていない"; fi
 # 手元のファイルを広く読ませる指定を付けない
 lacks "--allow-unrestricted-file-access を付けない" 'allow-unrestricted-file-access'
 
