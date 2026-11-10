@@ -481,6 +481,20 @@ git -C "$repo" add merged.txt
 git -C "$repo" commit -q -m "merge side"
 secret_rejected "マージのコミットで秘密の情報を足した push" push origin fix/secret-merge
 
+# 確かめるための git log が失敗したときは、確かめられないので送らない
+real_git=$(command -v git)
+cat >"$tmp/bin/git" <<EOF
+#!/bin/bash
+case " \$* " in *" log "*"--diff-merges"*) echo "fake failure" >&2; exit 128 ;; esac
+exec "$real_git" "\$@"
+EOF
+chmod +x "$tmp/bin/git"
+git -C "$repo" switch -q -c fix/logfail fix/a
+git -C "$repo" commit -q --allow-empty -m "logfail"
+run push origin fix/logfail
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '調べられません' && [ -z "$(remote_head fix/logfail)" ]; then ok; else ng "git log が失敗したのに送った・理由がない（rc=$rc）: $out"; fi
+rm -f "$tmp/bin/git"
+
 # 秘密の情報のない新しいブランチは、止めすぎずに送る
 git -C "$repo" switch -q -c fix/clean fix/a
 printf 'task_id = "abc"\nsk_name = "x"\n' >"$repo/clean.txt"
