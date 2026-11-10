@@ -42,6 +42,11 @@ done
 # PATH・HOME は、決めた値・アカウントの情報から作る
 has "PATH を決めた値にする" '^PATH="?/'
 has "HOME を、アカウントの情報から求める" 'dscl \. -read "?/Users/'
+# ホームのパスに空白があっても、全体を取る（dscl の出力の NFSHomeDirectory: の後ろをすべて取る）
+home_line="$(grep -E '^home=.*dscl' "$S" || true)"
+filter="$(printf '%s' "$home_line" | sed -E 's/.*NFSHomeDirectory \| //; s/\)"$//')"
+got="$(printf 'NFSHomeDirectory: /Users/a b\n' | eval "$filter" 2>/dev/null || true)"
+if [ "$got" = "/Users/a b" ]; then ok; else ng "ホームのパスの空白の後ろが切れる（$got）"; fi
 lacks "PLAYWRIGHT_BROWSERS_PATH で、動かすブラウザを差し替えさせない" 'PLAYWRIGHT_BROWSERS_PATH'
 # 順番: PATH を決め、/ に移ってから npx を動かす（作業フォルダの node_modules を使わない）
 first_npx=$(line_of '(^|[^A-Za-z_])npx( |$)')
