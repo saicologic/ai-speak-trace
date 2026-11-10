@@ -168,11 +168,13 @@ body=""
 read_body() {
   local f=$1 real inside=""
   [ "$f" != "-" ] || die "本文を標準入力から読むことはできません"
+  # .env* の名前のファイル・フォルダの中のファイル（managed settings の Read の deny）は、指定されたパスでも送らない
+  case "/$f" in */.env*) die "本文に使えないファイルです: $f" ;; esac
   real=$(realpath "$f" 2>/dev/null) || die "本文のファイルがありません: $f"
   [ -f "$real" ] || die "本文のファイルがありません: $f"
   # サンドボックスの中から読めないファイル（managed settings の Read の deny にあるもの）は送らない。
   # ホームのフォルダそのものがリポジトリでも、~/.aws などを「リポジトリの中」として送らないよう、場所でも確かめる
-  case "${real##*/}" in .env*) die "本文に使えないファイルです: $f" ;; esac
+  case "$real" in */.env*) die "本文に使えないファイルです: $f" ;; esac
   local h
   h=$(realpath "$HOME" 2>/dev/null) || h=$HOME
   case "$real" in
