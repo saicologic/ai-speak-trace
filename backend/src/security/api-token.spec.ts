@@ -4,8 +4,8 @@ import type { Express } from 'express';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import request from 'supertest';
-import type { App } from 'supertest/types';
+import { IncomingMessage, ServerResponse, type RequestListener } from 'http';
+import { Socket } from 'net';
 import { configureApp } from '../app-setup';
 import { AppModule } from '../app.module';
 import { hasValidToken, resolveApiToken } from './api-token';
@@ -107,10 +107,46 @@ function registeredRoutes(app: INestApplication): [string, string][] {
   return routes;
 }
 
+/**
+ * ポートを開かずに、Express にリクエストを直接流し込み、ステータスコードを返す。
+ * Claude Code のサンドボックスの中では、127.0.0.1 でもポートを開けない（listen EPERM）ため
+ */
+function inject(
+  handler: RequestListener,
+  method: string,
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = new IncomingMessage(new Socket());
+    req.method = method.toUpperCase();
+    req.url = url;
+    req.headers = headers;
+    req.push(null);
+    const res = new ServerResponse(req);
+    // ソケットにつながないため、送り終えた合図（finish）は来ない。end を呼んだ時点で終わりとみなす
+    const end = res.end.bind(res) as (...args: unknown[]) => ServerResponse;
+    res.end = ((...args: unknown[]) => {
+      const r = end(...args);
+      resolve(res.statusCode);
+      return r;
+    }) as typeof res.end;
+    res.on('error', reject);
+    handler(req, res);
+  });
+}
+
 describe('アプリ全体（configureApp）', () => {
   let app: INestApplication;
+  let handler: RequestListener;
   let dataDir: string;
   const saved = { ...process.env };
+
+  const send = (
+    method: string,
+    url: string,
+    headers: Record<string, string> = {},
+  ) => inject(handler, method, url, headers);
 
   beforeAll(async () => {
     dataDir = mkdtempSync(join(tmpdir(), 'api-token-'));
@@ -122,6 +158,7 @@ describe('アプリ全体（configureApp）', () => {
     app = await NestFactory.create(AppModule, { logger: false });
     configureApp(app, TOKEN);
     await app.init();
+    handler = app.getHttpAdapter().getInstance() as RequestListener;
   });
 
   afterAll(async () => {
@@ -133,31 +170,19 @@ describe('アプリ全体（configureApp）', () => {
   it('登録されたすべての API は、トークンがないと 401 を返す', async () => {
     const routes = registeredRoutes(app);
     expect(routes.length).toBeGreaterThan(30);
-    const server = app.getHttpServer() as App;
     for (const [method, path] of routes) {
       const url = path.replace(/:[^/]+/g, 'x');
-      const res = await (
-        request(server) as unknown as Record<
-          string,
-          (url: string) => request.Test
-        >
-      )[method](url);
-      expect([method, path, res.status]).toEqual([method, path, 401]);
+      const status = await send(method, url);
+      expect([method, path, status]).toEqual([method, path, 401]);
     }
   });
 
   it('正しいトークンがあれば、API を呼べる', async () => {
-    const res = await request(app.getHttpServer() as App)
-      .get('/api')
-      .set('x-api-token', TOKEN);
-    expect(res.status).toBe(200);
+    expect(await send('get', '/api', { 'x-api-token': TOKEN })).toBe(200);
   });
 
   it('静的配信の音声も、トークンがないと 401。クエリのトークンなら読める', async () => {
-    const server = app.getHttpServer() as App;
-    expect((await request(server).get('/audio/a.mp3')).status).toBe(401);
-    expect(
-      (await request(server).get(`/audio/a.mp3?token=${TOKEN}`)).status,
-    ).toBe(200);
+    expect(await send('get', '/audio/a.mp3')).toBe(401);
+    expect(await send('get', `/audio/a.mp3?token=${TOKEN}`)).toBe(200);
   });
 });
