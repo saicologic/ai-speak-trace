@@ -11,7 +11,7 @@ PR の「自動テスト項目」に書かれた依頼文を、Claude Code に�
 
 | 確かめる場所 | AI が使うもの | 向いている確認 |
 |---|---|---|
-| 開発用の画面（ブラウザ） | Playwright | 画面の表示・操作、バックエンドの API |
+| 開発用の画面（ブラウザ） | Playwright | 画面の表示・操作、バックエンドの API。Claude Code はサンドボックスの中でサーバーを起動できないため、先に開発者が `npm run dev` で起動しておきます（[サンドボックスの中での開発](claude-code-sandbox.md#サンドボックスの中での開発)） |
 | DMG で入れたアプリ | computer-use（デスクトップの画面操作） | サイドカー・DMG・アプリの再起動が関わる動作 |
 | MCP サーバー（`npm run mcp:inspect` で開く MCP Inspector の画面） | Claude in Chrome | ツールの呼び出しと結果（伏せ字・返さない会話の扱い） |
 

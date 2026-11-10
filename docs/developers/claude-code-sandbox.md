@@ -16,12 +16,14 @@
 |---|---|---|
 | GitHub の設定 | ブランチ保護・必須チェック（`tdd-order` など） | Claude Code を使うかどうかに関係なく、全員に効く最後の守り |
 | managed settings | `.claude/team/managed-settings.json` → `/Library/Application Support/ClaudeCode/managed-settings.json` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
-| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`） |
+| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`）・Playwright MCP の起動（`playwright-mcp.sh`） |
 | リポジトリの設定 | `.claude/settings.json` | 許可するコマンド（hook は書かない） |
 
 managed settings でサンドボックスを管理者が決める状態にすると、リポジトリの設定に書いた `sandbox.excludedCommands`（サンドボックスの外で動かすコマンド）と通信先は無視されます（clone したリポジトリが、コマンドをサンドボックスの外に出せないようにするため）。そのため、外で動かすスクリプトは、リポジトリの中のファイルではなく、root の持ち物として `/opt/claude-code-team/bin` に入れたものだけにしています。
 
 hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts`・`.claude/hooks` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。hook は、リポジトリの設定には書かず、managed settings からインストール先のもの（API キーを守る `block-ai-speak-trace-secrets.sh`・CodeRabbit の枠の `cr-limit-gate.sh`・PR の監視の `watch-pr-checks.sh`）だけを動かします。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
+
+MCP サーバーもサンドボックスの外で動きます。手元で動かす MCP サーバー（stdio）は、managed settings の `allowedMcpServers` と `allowManagedMcpServersOnly` で、インストール先の `playwright-mcp.sh` だけを許します（`.mcp.json` もこれを指します）。`.mcp.json` に書いた環境変数は許可の確かめで比べられないため、`playwright-mcp.sh` は受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。リモートの MCP サーバー（`https://`）は、手元でコマンドを動かさないため許しています。
 
 外で git を動かすスクリプトは、リポジトリの git の設定を決めた項目だけ認め、git のフック・fsmonitor・サブモジュールの中・`ext::` のリモートを使いません（`.claude/team/bin/lib/git-safety.sh`）。サンドボックスの中で書き換えたリポジトリの設定から、外のコマンドを動かさないためです。
 
@@ -98,6 +100,19 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 
 push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook）が、`/opt/claude-code-team/bin/wait-pr-checks.sh` で CI と CodeRabbit を監視するよう Claude Code に伝えます。
 
+## サンドボックスの中での開発
+
+| 作業 | Claude Code（サンドボックスの中） | 開発者（自分のターミナル） |
+|---|---|---|
+| lint・テスト・ビルド | backend・frontend の lint・テスト・ビルドと、`src-tauri` の `cargo check` ができます | `backend/src/mcp/mcp-sandbox.spec.ts` を流します（下の説明） |
+| 依存の入れ直し・追加（`npm ci`・`npm install`） | できません（managed settings の `deny`） | 行います。Rust の新しい crate を足したときの取得（`cargo fetch`）も行います |
+| 画面の確認 | Playwright MCP で `localhost` の画面を確かめます | `npm run dev` でサーバーを起動しておきます |
+| 外部の API（ElevenLabs・Claude・Amazon Bedrock）につなぐ確認 | できません | PR の「## 手動確認項目」で確かめます |
+
+- `mcp-sandbox.spec.ts` は、`sandbox-exec` で MCP サーバーをサンドボックスに入れて確かめるテストです。サンドボックスの中からもう1つサンドボックスは作れない（`sandbox_apply: Operation not permitted`）ため、Claude Code の中では飛ばします。CI（ubuntu）にも `sandbox-exec` がないため飛ばします。MCP サーバーの仕組み（`backend/scripts/mcp-sandbox.*`・`backend/src/mcp/`）を変えたときは、開発者が `cd backend && npx jest src/mcp/mcp-sandbox.spec.ts` を流して確かめます
+- `npm ci`・`npm install` は、サンドボックスの中では npm のキャッシュ（`~/.npm`）に書けず、保護されたファイル（`.vscode/settings.json` など）も消せないため、`node_modules` を消した後に途中で止まり、壊れたまま残ります。依存を足すときも、Claude Code は `package.json` の変更を提案し、開発者が入れます
+- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP の開くページの制限（`--allowed-origins`）は、Playwright の README に「守りにはならない」とあるため使いません
+
 ## 変えたいとき
 
 | 変えたいもの | 変える場所 |
@@ -118,8 +133,9 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | 通信が `host is not on the allow list` で失敗する | 通信先の一覧にないドメインです。必要なら、`allowedDomains` を変える PR を出します |
 | `gh`・`git push` が失敗する | Bash から GitHub には届きません。`github.sh` を使います |
 | `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
-| 開発サーバー・Playwright のポートを開けない | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します |
-| backend のテストのうち `src/security/api-token.spec.ts`・`src/mcp/mcp-sandbox.spec.ts` が失敗する | どちらも、サンドボックスの中では通りません。開発者が自分のターミナルで流すか、CI（`backend-test`）で確かめます。`api-token.spec.ts` は `127.0.0.1` でサーバーを立てるため（`listen EPERM`）、`mcp-sandbox.spec.ts` は `sandbox-exec` でサンドボックスの中にもう1つサンドボックスを作るため（`sandbox_apply: Operation not permitted`）です。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
+| 開発サーバーを起動できない（`listen EPERM`） | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
+| `npm ci`・`npm install` が断られる | サンドボックスの中では途中で止まって `node_modules` が壊れるため、managed settings で止めています。開発者が自分のターミナルで実行します |
+| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
 ## 守りの限界
