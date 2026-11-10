@@ -129,15 +129,43 @@ expect "リポジトリの設定で git push・gh を直接許可しない" '[.p
 # --mcp-config で足したサーバーは動かない（https://code.claude.com/docs/en/managed-mcp）
 MCP="$TEAM/managed-mcp.json"
 SERVER_OK='^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\.sh$'
-expect "managed-mcp.json が JSON として読める" '.' "$MCP"
-expect "managed-mcp.json のサーバーは、インストール先のスクリプトを動かす手元のサーバーだけ" --arg ok "$SERVER_OK" '(.mcpServers | length > 0) and all(.mcpServers[]; (.command | type == "string" and test($ok)) and (.url == null) and ((.type // "stdio") == "stdio"))' "$MCP"
-expect "managed-mcp.json で引数・環境変数を渡さない（外で動くスクリプトの動きを変えさせない）" '[.mcpServers[] | select((.args // []) != [] or .env != null)] | length == 0' "$MCP"
-if grep -q '\${' "$MCP"; then
-  fail=$((fail + 1))
-  echo 'FAIL: managed-mcp.json で ${VAR} の展開を使っている（環境変数で、動かすものを変えられる）'
-else
+# mcp_ok <JSON のファイル>: サーバーは、インストール先のスクリプトを引数・環境変数なしで動かす手元のサーバーだけか
+# （書いてよいキーは command・type だけ。値に ${VAR} の展開を使わない）
+mcp_ok() {
+  jq -e --arg ok "$SERVER_OK" '
+    (.mcpServers | type == "object" and length > 0) and
+    all(.mcpServers[];
+      (keys - ["command", "type"] == []) and
+      (.command | type == "string" and test($ok)) and
+      ((.type // "stdio") == "stdio")) and
+    ([.. | strings | select(contains("${"))] | length == 0)' "$1" >/dev/null 2>&1
+}
+if mcp_ok "$MCP"; then
   pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  echo "FAIL: managed-mcp.json に、インストール先のスクリプトを引数・環境変数なしで動かすもの以外がある"
 fi
+# 確かめ方そのものが、止めるべき書き方を止めること
+bad_mcp="$(mktemp "${TMPDIR:-/tmp}/managed-mcp-bad.XXXXXX")"
+for bad in '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/playwright-mcp.sh","args":["x"]}}}' \
+  '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/playwright-mcp.sh","env":{}}}}' \
+  '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/playwright-mcp.sh","cwd":"/tmp"}}}' \
+  '{"mcpServers":{"p":{"type":"http","url":"https://x"}}}' \
+  '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/playwright-mcp.sh","type":"sse"}}}' \
+  '{"mcpServers":{"p":{"command":"/bin/sh"}}}' \
+  '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/../x.sh"}}}' \
+  '{"mcpServers":{"p":{"command":"${HOME}/x.sh"}}}' \
+  '{"mcpServers":{}}'; do
+  printf '%s' "$bad" >"$bad_mcp"
+  if mcp_ok "$bad_mcp"; then
+    fail=$((fail + 1))
+    printf 'FAIL: managed-mcp.json の止めるべき書き方を通した: %s\n' "$bad"
+  else
+    pass=$((pass + 1))
+  fi
+done
+rm -f "$bad_mcp"
 while IFS= read -r name; do
   if [ -f "$TEAM/bin/$name" ]; then
     pass=$((pass + 1))
@@ -152,17 +180,30 @@ expect "managed-mcp.json と一緒に Claude in Chrome を使えるようにす�
 expect "MCP サーバーの許可の一覧は managed settings のものだけ（allowManagedMcpServersOnly）" '.allowManagedMcpServersOnly == true' "$M"
 expect "MCP サーバーの許可の一覧は、managed-mcp.json と同じコマンドだけ" --slurpfile mcp "$MCP" '[.allowedMcpServers[]] == [$mcp[0].mcpServers[] | {serverCommand: [.command]}]' "$M"
 # リポジトリに .mcp.json を置かない（managed-mcp.json があると使われず、紛らわしいため）
-if [ -e "$ROOT/.mcp.json" ]; then
+if git -C "$ROOT" ls-files --error-unmatch .mcp.json >/dev/null 2>&1; then
   fail=$((fail + 1))
   echo "FAIL: リポジトリに .mcp.json がある"
 else
   pass=$((pass + 1))
 fi
-# install.sh が managed-mcp.json も入れる（壊れた JSON は入れない）
+# install.sh が managed-mcp.json も入れる。壊れた JSON は、何かを入れる前に止める
 I="$TEAM/install.sh"
-for pat in 'jq empty "\$src/managed-mcp.json"' 'managed-mcp.json'; do
-  if grep -Eq -- "$pat" "$I"; then pass=$((pass + 1)); else fail=$((fail + 1)); printf 'FAIL: install.sh に %s がない\n' "$pat"; fi
-done
+icode="$(grep -nEv '^[[:space:]]*#' "$I")"
+if printf '%s\n' "$icode" | grep -Eq '^[0-9]+:for name in managed-settings\.json managed-mcp\.json; do$'; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  echo "FAIL: install.sh が managed-settings.json と managed-mcp.json の両方を入れていない"
+fi
+jq_line=$(printf '%s\n' "$icode" | grep -E '^[0-9]+:jq empty "\$src/managed-mcp\.json"$' | head -n 1 | cut -d: -f1)
+first_install=$(printf '%s\n' "$icode" | grep -E '^[0-9]+:[[:space:]]*install -' | head -n 1 | cut -d: -f1)
+if [ -n "$jq_line" ] && [ -n "$first_install" ] && [ "$jq_line" -lt "$first_install" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  echo "FAIL: install.sh が、何かを入れる前に managed-mcp.json の JSON を確かめていない"
+fi
+if printf '%s\n' "$icode" | grep -Eq '^[0-9]+:set -[a-z]*e'; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: install.sh が、失敗したところで止まらない（set -e がない）"; fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
