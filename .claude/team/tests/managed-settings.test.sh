@@ -133,8 +133,12 @@ while IFS= read -r name; do
     printf 'FAIL: MCP サーバーの %s が .claude/team/bin にない\n' "$name"
   fi
 done < <(jq -r --arg p "$PREFIX" '.allowedMcpServers[]? | .serverCommand[]? | select(startswith($p)) | ltrimstr($p)' "$M" | sort -u)
+# リモートの MCP サーバー（https）は、手元でコマンドを動かさないため許す（claude.ai のコネクタ・プラグインなど）。
+# ただし Claude Code の本体がつなぐため、サンドボックスの通信先の一覧は通らない。広げるときは PR に理由を書く
+expect "リモートの MCP サーバーの許可は https だけ（http を許さない）" '[.allowedMcpServers[] | select(.serverUrl) | .serverUrl] == ["https://*"]' "$M"
 expect ".mcp.json が JSON として読める" '.' "$J"
 expect ".mcp.json の手元の MCP サーバーは、インストール先のスクリプトを引数なしで動かす" '[.mcpServers[] | select(.command)] | length > 0 and all(.command | test("^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\\.sh$"))' "$J"
+expect ".mcp.json にリモートの MCP サーバーを書かない（リポジトリから、つなぐ先を足させない）" '[.mcpServers[] | select(.url)] | length == 0' "$J"
 expect ".mcp.json で引数・環境変数を渡さない（managed settings の許可と同じ形にし、外で動くスクリプトの動きを変えさせない）" '[.mcpServers[] | select(.command) | select((.args // []) != [] or .env != null)] | length == 0' "$J"
 
 echo "pass=$pass fail=$fail"

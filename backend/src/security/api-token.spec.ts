@@ -6,6 +6,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { IncomingMessage, ServerResponse, type RequestListener } from 'http';
 import { Socket } from 'net';
+import { Duplex } from 'stream';
 import { configureApp } from '../app-setup';
 import { AppModule } from '../app.module';
 import { hasValidToken, resolveApiToken } from './api-token';
@@ -109,7 +110,8 @@ function registeredRoutes(app: INestApplication): [string, string][] {
 
 /**
  * ポートを開かずに、Express にリクエストを直接流し込み、ステータスコードを返す。
- * Claude Code のサンドボックスの中では、127.0.0.1 でもポートを開けない（listen EPERM）ため
+ * Claude Code のサンドボックスの中では、127.0.0.1 でもポートを開けない（listen EPERM）ため。
+ * 応答は、書いた中身を捨てるだけのソケットに流す（ソケットがないと、大きな本文で drain を待ったまま止まる）
  */
 function inject(
   handler: RequestListener,
@@ -124,14 +126,27 @@ function inject(
     req.headers = headers;
     req.push(null);
     const res = new ServerResponse(req);
-    // ソケットにつながないため、送り終えた合図（finish）は来ない。end を呼んだ時点で終わりとみなす
-    const end = res.end.bind(res) as (...args: unknown[]) => ServerResponse;
-    res.end = ((...args: unknown[]) => {
-      const r = end(...args);
+    const sink = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+    res.assignSocket(sink as unknown as Socket);
+    // http のサーバーがするように、ソケットが書ける状態に戻ったことを応答に伝える
+    sink.on('drain', () => res.emit('drain'));
+    const timer = setTimeout(
+      () => reject(new Error(`応答が終わらない: ${method} ${url}`)),
+      3000,
+    );
+    res.on('finish', () => {
+      clearTimeout(timer);
       resolve(res.statusCode);
-      return r;
-    }) as typeof res.end;
-    res.on('error', reject);
+    });
+    res.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
     handler(req, res);
   });
 }
@@ -151,7 +166,8 @@ describe('アプリ全体（configureApp）', () => {
   beforeAll(async () => {
     dataDir = mkdtempSync(join(tmpdir(), 'api-token-'));
     mkdirSync(join(dataDir, 'audio'), { recursive: true });
-    writeFileSync(join(dataDir, 'audio', 'a.mp3'), 'x');
+    // 書き込みの上限（highWaterMark）を超える大きさにし、応答を最後まで流せることも確かめる
+    writeFileSync(join(dataDir, 'audio', 'a.mp3'), Buffer.alloc(1024 * 1024));
     process.env.DATA_DIR = dataDir;
     process.env.SETTINGS_FILE = join(dataDir, 'settings.json');
     process.env.SECRET_STORE = 'file';

@@ -21,16 +21,26 @@ const NODE = process.execPath;
 /**
  * sandbox-exec でサンドボックスを作れるか。
  * sandbox-exec は macOS にしかない。また、すでにサンドボックスの中（Claude Code の Bash など）では、
- * もう1つサンドボックスを作れない（sandbox_apply: Operation not permitted）
+ * もう1つサンドボックスを作れない（sandbox_apply: Operation not permitted）。
+ * それ以外の理由で作れないときは、黙って飛ばさずに失敗させる（このテストを流すのは開発者の Mac だけのため）
  */
 function canUseSandboxExec(): boolean {
   if (process.platform !== 'darwin') return false;
-  const probe = spawnSync('/usr/bin/sandbox-exec', [
-    '-p',
-    '(version 1)(allow default)',
-    '/usr/bin/true',
-  ]);
-  return probe.status === 0;
+  const probe = spawnSync(
+    '/usr/bin/sandbox-exec',
+    ['-p', '(version 1)(allow default)', '/usr/bin/true'],
+    { encoding: 'utf-8' },
+  );
+  if (probe.status === 0) return true;
+  if (/sandbox_apply: Operation not permitted/.test(probe.stderr ?? '')) {
+    console.warn(
+      'サンドボックスの中のため、MCP サーバーの sandbox のテストを飛ばします。自分のターミナルで流してください',
+    );
+    return false;
+  }
+  throw new Error(
+    `sandbox-exec を動かせません: ${probe.error?.message ?? probe.stderr}`,
+  );
 }
 
 // eslint-disable-next-line no-restricted-properties -- macOS 以外と、サンドボックスの中では確かめられないため（開発者のターミナルで流す）
