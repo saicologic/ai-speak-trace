@@ -83,6 +83,8 @@ done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.ho
 
 # 権限
 expect "確認を飛ばす github.sh --skip は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/github.sh --skip *)") != null' "$M"
+expect "レビュー済みにする cr-review.sh --accept は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)") != null' "$M"
+expect "レビュー済みにする cr-review.sh --base-branch … --accept も、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)") != null' "$M"
 expect "bypassPermissions モードを使えなくする" '.permissions.disableBypassPermissionsMode == "disable"' "$M"
 expect "deny に sudo がある" '.permissions.deny | index("Bash(sudo *)") != null' "$M"
 expect "deny に ~/.ssh の読み取りがある" '.permissions.deny | index("Read(~/.ssh/**)") != null' "$M"

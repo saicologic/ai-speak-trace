@@ -18,7 +18,15 @@ for d in "$repo" "$other"; do
   git -C "$d" add -A
   git -C "$d" commit -q -m init
 done
-marker() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"; }
+# レビュー済みの記録は、サンドボックスの中から書けない ~/.claude/state の下に、リポジトリ（git-common-dir）ごとに置く
+export HOME="$tmp/home"
+marker() {
+  local common
+  common=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)
+  mkdir -p "$HOME/.claude/state/coderabbit-reviewed"
+  echo "$HOME/.claude/state/coderabbit-reviewed/$(printf '%s' "$common" | git hash-object --stdin)"
+}
+old_marker() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"; }
 reviewed() { git -C "$1" rev-parse HEAD >>"$(marker "$1")"; }
 unreviewed() { : >"$(marker "$1")"; }
 
@@ -85,6 +93,12 @@ check deny "削除とブランチを一緒に送る" "$PUSH origin :old feature"
 # どのリポジトリの push か
 reviewed "$repo"
 check allow "レビュー済みの HEAD" "$PUSH"
+# サンドボックスの中から書ける .git の中に HEAD を書いても、レビュー済みにならない
+unreviewed "$repo"
+git -C "$repo" rev-parse HEAD >>"$(old_marker "$repo")"
+check deny ".git/coderabbit-reviewed に HEAD を書いた" "$PUSH"
+rm -f "$(old_marker "$repo")"
+reviewed "$repo"
 # 作業ツリーの .coderabbit.yaml を消しても（コミットには残っている）、確かめる
 unreviewed "$repo"
 rm "$repo/.coderabbit.yaml"

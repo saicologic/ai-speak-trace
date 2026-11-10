@@ -182,6 +182,13 @@ for kv in "core.sshCommand=touch $tmp/pwned" "core.fsmonitor=touch $tmp/pwned" "
   rejected "リポジトリの設定 ${kv%%=*}（pr view）" pr view 12
   git -C "$repo" config --unset "${kv%%=*}"
 done
+# 作業ツリーのない場所（.git の中）でも、リポジトリの設定を確かめる
+git -C "$repo" config core.fsmonitor "touch $tmp/pwned"
+reset_logs
+out=$(cd "$repo/.git" && bash "$SCRIPT" pr view 12 2>&1)
+rc=$?
+if [ "$rc" -eq 1 ] && [ ! -e "$tmp/gh-args" ]; then ok; else ng ".git の中での pr view（rc=$rc）: $out"; fi
+git -C "$repo" config --unset core.fsmonitor
 if [ ! -e "$tmp/pwned" ]; then ok; else ng "リポジトリの設定のコマンドが動いた"; fi
 
 # git のフック（.git/hooks）は動かさない

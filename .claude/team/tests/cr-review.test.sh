@@ -33,7 +33,10 @@ chmod +x "$HOME/.local/bin/coderabbit"
 # 環境変数で差し替えようとしたプログラム
 printf '#!/bin/bash\ntouch %s/evil-ran\n' "$tmp" >"$tmp/evil"
 chmod +x "$tmp/evil"
-marker="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"
+# レビュー済みの記録は、サンドボックスの中から書けない ~/.claude/state の下に、リポジトリ（git-common-dir）ごとに置く
+common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)"
+marker="$HOME/.claude/state/coderabbit-reviewed/$(printf '%s' "$common" | git hash-object --stdin)"
+old_marker="$common/coderabbit-reviewed"
 
 pass=0
 fail=0
@@ -59,6 +62,7 @@ rc=$?
 if [ "$rc" -eq 0 ] && grep -q -- "--base-commit $(git -C "$repo" rev-parse main)" "$tmp/cr-called" 2>/dev/null &&
   grep -qx "$(git -C "$repo" rev-parse HEAD)" "$marker" 2>/dev/null; then ok; else ng "レビューの正しい流れ（rc=$rc）: $out"; fi
 if [ ! -e "$tmp/evil-ran" ]; then ok; else ng "環境変数で差し替えたプログラムが動いた"; fi
+if [ ! -e "$old_marker" ]; then ok; else ng "レビュー済みの記録を、サンドボックスの中から書ける .git の中に置いた"; fi
 
 # 親ブランチの名前は、ブランチ名の形だけ（git fetch のオプションにさせない）
 rejected "--base-branch に git fetch のオプション" --base-branch "--upload-pack=touch $tmp/pwned"
