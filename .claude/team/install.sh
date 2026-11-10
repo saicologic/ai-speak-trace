@@ -8,7 +8,8 @@
 #
 # - このスクリプトも、入れるものも、手元の作業ツリーからは取らない。作業ツリーは Claude Code のサンドボックスの中から
 #   書き換えられるため、GitHub（https://github.com/saicologic/ai-speak-trace）でレビューしてマージしたものだけを root の持ち物にする。
-#   main（ブランチ保護で PR が必須）か、指定した SHA のコミットを、root だけが読み書きできる一時フォルダに取り出して、そこから入れる。
+#   main（ブランチ保護で PR が必須）か、指定した SHA のコミット（main か release/* の履歴に入っているものだけ）を、
+#   root だけが読み書きできる一時フォルダに取り出して、そこから入れる。
 #   release/* などは直接 push できるため、ブランチの名前では受け付けない
 # - スクリプト → /opt/claude-code-team/bin（root の持ち物。サンドボックスの中からも、ほかのリポジトリからも書き換えられない）
 #   TDD の順番の確認に使う CI のスクリプト（.github/scripts）→ /opt/claude-code-team/bin/ci
@@ -43,9 +44,25 @@ chmod 700 "$work"
 # ユーザー・システムの git の設定を読まず、git のフックを動かさない
 git_root() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c core.hooksPath=/dev/null -C "$work/repo" "$@"; }
 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git init -q --template= "$work/repo"
-git_root fetch --quiet --depth 1 "$REPO_URL" "$ref"
-sha=$(git_root rev-parse "FETCH_HEAD^{commit}")
-[ "$target" = main ] || [ "$sha" = "$target" ] || { echo "取り出したコミットが、指定した SHA と違います: $sha" >&2; exit 1; }
+if [ "$target" = main ]; then
+  git_root fetch --quiet --depth 1 "$REPO_URL" "$ref"
+  sha=$(git_root rev-parse "FETCH_HEAD^{commit}")
+else
+  # GitHub は、どのブランチにも入っていないコミット（PR の途中のものなど）も SHA で取り出せるため、
+  # main か release/* の履歴に入っている（レビューしてマージした）コミットかを確かめる
+  git_root fetch --quiet "$REPO_URL" "$ref" \
+    '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/release/*:refs/remotes/origin/release/*'
+  sha=$(git_root rev-parse "$target^{commit}")
+  [ "$sha" = "$target" ] || { echo "取り出したコミットが、指定した SHA と違います: $sha" >&2; exit 1; }
+  merged=""
+  while IFS= read -r b; do
+    if git_root merge-base --is-ancestor "$sha" "$b"; then
+      merged=$b
+      break
+    fi
+  done < <(git_root for-each-ref --format='%(refname)' refs/remotes/origin)
+  [ -n "$merged" ] || { echo "main・release/* に入っていないコミットです（レビューしてマージしたコミットを指定してください）: $sha" >&2; exit 1; }
+fi
 mkdir "$work/tree"
 git_root archive "$sha" .claude/team .github/scripts | tar -x -C "$work/tree"
 src="$work/tree/.claude/team"

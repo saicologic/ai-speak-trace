@@ -32,7 +32,8 @@
       "Read(~/.netrc)",
       "Read(~/.npmrc)",
       "Read(~/.ssh/**)",
-      "Read(~/Library/Keychains/**)"
+      "Read(~/Library/Keychains/**)",
+      "Edit(~/.claude/state/**)"
     ],
     "disableBypassPermissionsMode": "disable"
   },
