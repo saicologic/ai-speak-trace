@@ -140,7 +140,23 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
+## 外にデータを出させない守り
+
+サンドボックスの外で動くツール（ファイルを読む・書くツール、`github.sh`）を使って、手元の情報を外に出したり、あとから外でコマンドを動かしたりさせないため、次のようにしています。
+
+| 道 | 守り |
+|---|---|
+| 公開のリポジトリの PR・Issue に書く | `github.sh` の PR・Issue への文章の書き込みは、毎回ユーザーに確かめます（managed settings の `ask`）。タイトル・本文に API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます |
+| push するコードに入れる | まだ送っていないコミットで足した行に、API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます（後のコミットで消しても、前のコミットに残るため） |
+| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります） |
+| あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc` など）・`~/Library/LaunchAgents`・git の hook と設定・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
+| 個人・プロジェクトの設定に hook を足す | managed settings の hook だけを動かします（`allowManagedHooksOnly`）。**この Mac のほかのプロジェクトでも、個人の設定の hook は動きません** |
+
+GitHub の secret scanning の push protection（リポジトリの設定）も、あわせて有効にします。開発者が自分のターミナルで push するときも、秘密の情報を止めます。
+
 ## 守りの限界
 
 - サンドボックスと hook は、うっかりや、読み込んだ文書に仕込まれた指示（プロンプトインジェクション）による操作を止めるためのものです。Mac の管理者の権限を持つ開発者は、managed settings を外せます
 - 最後の守りは、GitHub のブランチ保護と必須チェック（`tdd-order`・`backend-test`・`frontend-test`・`build`）です
+- 秘密の情報の形の確かめは、決めた形（Anthropic・AWS のアクセスキー・GitHub・ElevenLabs・Slack のトークン、PEM の秘密鍵）だけを見ます。形を変えたもの（区切る・符号にする）は止められません。PR・Issue への書き込みを毎回確かめるのは、このためです
+- 開発者が自分のターミナルで動かすもの（`npm run dev`・`npm test` など）は、Claude Code が書き換えたコードをサンドボックスの外で動かします。コードの変更は、レビューしてから動かします

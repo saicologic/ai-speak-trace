@@ -208,6 +208,7 @@ ai-speak-trace/
 - Claude Code の設定は、個人の設定ではなく、チームで共通の managed settings（`.claude/team/managed-settings.json`）と `.claude/settings.json` を使う。各開発者は、`docs/developers/claude-code-sandbox.md` の手順で、GitHub から取った `install.sh` をターミナルで実行して入れる（作業ツリーの `install.sh` を `sudo` で動かさない。Claude Code には実行させない）
 - Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
   - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
+  - PR・Issue への文章の書き込みは、毎回ユーザーに確かめる。本文・まだ送っていないコミットに API キー・トークン・秘密鍵の形があれば、`github.sh` が止める
 - Claude Code はサンドボックスの中で、lint・テスト・ビルドを行う。`npm ci`・`npm install` とサーバーの起動（`npm run dev`）は、開発者が自分のターミナルで行う（`docs/developers/claude-code-sandbox.md` の「サンドボックスの中での開発」）。画面の確認は、開発者が起動したサーバーを Playwright MCP で開く
 - 動かす MCP サーバーは managed-mcp.json で Playwright MCP だけに決める（プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・Claude in Chrome は動かない）。開発はターミナルの Claude Code（CLI）で行う（Claude のデスクトップアプリのセッションでは、デスクトップアプリが渡すコネクタが managed-mcp.json で止まらないため、対象外にする）
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
