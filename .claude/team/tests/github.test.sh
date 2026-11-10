@@ -315,8 +315,14 @@ rejected "pr create（本文のファイルが標準入力）" pr create --draft
 rejected "pr create（本文のファイルがない）" pr create --draft --title t --body-file none.md
 # サンドボックスの中から読めないファイル（managed settings の Read の deny にある .env*）は、リポジトリの中でも本文にしない
 printf 'SECRET=1\n' >"$repo/.env.local"
-rejected "pr create（本文のファイルが .env*）" pr create --draft --title t --body-file .env.local
+run pr create --draft --title t --body-file .env.local
+if [ "$rc" -eq 1 ] && printf "%s" "$out" | grep -q "本文に使えないファイル" && [ ! -e "$tmp/gh-args" ]; then ok; else ng "pr create（本文のファイルが .env*）（rc=$rc）: $out"; fi
 rm -f "$repo/.env.local"
+mkdir -p "$repo/.env.private"
+printf 'SECRET=1\n' >"$repo/.env.private/credentials"
+run pr create --draft --title t --body-file .env.private/credentials
+if [ "$rc" -eq 1 ] && printf "%s" "$out" | grep -q "本文に使えないファイル" && [ ! -e "$tmp/gh-args" ]; then ok; else ng "pr create（本文のファイルが .env* のフォルダの中）（rc=$rc）: $out"; fi
+rm -rf "$repo/.env.private"
 # ホームのフォルダそのものがリポジトリでも、managed settings の Read の deny にある場所（~/.aws など）は本文にしない
 mkdir -p "$repo/.aws" "$repo/.ssh"
 printf 'secret\n' >"$repo/.aws/credentials"
