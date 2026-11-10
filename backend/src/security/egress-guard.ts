@@ -1,3 +1,5 @@
+import * as net from 'net';
+
 /**
  * バックエンドから外への通信を、アプリが使う API の宛先だけに絞る。
  * 読み込んだ会話や依存のパッケージに仕込まれたものが、会話のデータを知らないサーバーに送らないようにする
@@ -42,4 +44,66 @@ export function isEgressAllowed(
     ALLOWED_AWS_HOST.test(name) ||
     extraHosts.some((h) => normalizeHost(h) === name)
   );
+}
+
+/** 外への接続を断ったときのエラーのコード */
+export const EGRESS_BLOCKED = 'EGRESS_BLOCKED';
+
+type ConnectTarget = { host?: string; port?: number; path?: string };
+
+/**
+ * Socket#connect の引数から宛先を取り出す。
+ * connect(options) / connect(port, host) / connect(path) と、net.connect が渡す
+ * 整えた引数（[options, callback] の配列）の形がある
+ */
+function connectTarget(args: unknown[]): ConnectTarget {
+  const first = Array.isArray(args[0]) ? (args[0] as unknown[])[0] : args[0];
+  if (first !== null && typeof first === 'object') {
+    const o = first as { host?: unknown; port?: unknown; path?: unknown };
+    return {
+      host: typeof o.host === 'string' ? o.host : 'localhost',
+      port: Number(o.port),
+      path: typeof o.path === 'string' ? o.path : undefined,
+    };
+  }
+  if (typeof first === 'number' || /^\d+$/.test(String(first))) {
+    return {
+      port: Number(first),
+      host: typeof args[1] === 'string' ? args[1] : 'localhost',
+    };
+  }
+  return { path: String(first) };
+}
+
+/**
+ * 外への接続を確かめるようにする（すべての TCP の接続が通る Socket#connect で確かめる）。
+ * 一覧にない宛先は、DNS を引く前に EGRESS_BLOCKED のエラーで断る。
+ * Unix ソケット（パスでつなぐ、Mac の中だけの通信）は断らない。
+ * 戻り値の関数を呼ぶと、もとに戻す
+ */
+export function installEgressGuard(): () => void {
+  const proto = net.Socket.prototype as unknown as {
+    connect: (this: net.Socket, ...args: unknown[]) => net.Socket;
+  };
+  const original = proto.connect;
+  const guarded = function (this: net.Socket, ...args: unknown[]): net.Socket {
+    const target = connectTarget(args);
+    if (
+      target.path === undefined &&
+      !isEgressAllowed(target.host, target.port)
+    ) {
+      const err = Object.assign(
+        new Error(`外への通信を断りました: ${target.host}:${target.port}`),
+        { code: EGRESS_BLOCKED },
+      );
+      process.nextTick(() => this.destroy(err));
+      return this;
+    }
+    const socket: net.Socket = Reflect.apply(original, this, args);
+    return socket;
+  };
+  proto.connect = guarded;
+  return () => {
+    if (proto.connect === guarded) proto.connect = original;
+  };
 }
