@@ -47,7 +47,7 @@ curl -fsSL "https://raw.githubusercontent.com/saicologic/ai-speak-trace/$sha/.cl
 ```
 
 - インストーラー（`install.sh`）も、入れるものも、手元の作業ツリーからは取りません。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、`git status` が空でも、手元のファイルを `sudo` で動かすと、レビューしていないものが root で動くおそれがあります。GitHub でレビューしてマージしたものだけを使います
-- `release/*` などのブランチは直接 push できるため、ブランチの名前では入れません。`main`（ブランチ保護で PR が必須）か、レビューしてマージしたコミットの SHA を指定します
+- `release/*` などのブランチは直接 push できるため、ブランチの名前では入れません。`main`（ブランチ保護で PR が必須）か、レビューしてマージしたコミットの SHA を指定します。SHA は、`main` か `release/*` の履歴に入っているものだけを受け付けます（GitHub は、どのブランチにも入っていないコミットも SHA で取り出せるため）
 - `install.sh` は、そのコミットを root だけが読み書きできる一時フォルダに取り出し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
 - 中身を確かめてから実行したいときは、GitHub の画面で `.claude/team/install.sh` を読んでから実行します
 - スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します。はじめて入れる前の managed settings は、`managed-settings.json.before-claude-code-team` として別に残します
