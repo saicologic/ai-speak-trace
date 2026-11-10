@@ -2,9 +2,9 @@
 # チームで共通に使う Claude Code の managed settings と、サンドボックスの外で動かすスクリプトを、この Mac に入れる
 #
 # 使い方（ターミナルで自分で実行する。Claude Code には実行させない）:
-#   curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/main/.claude/team/install.sh | sudo bash -s --
-#   （main の今のコミットから入れる。main にまだない版は、レビューしてマージしたコミットの SHA を、URL の main と引数の両方に書く:
-#     curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/<SHA>/.claude/team/install.sh | sudo bash -s -- <SHA>）
+#   GitHub からこのファイルをダウンロードし、成功したときだけ sudo bash <ファイル> [<SHA>] で実行する
+#   （手順は docs/developers/claude-code-sandbox.md。引数なしなら main の今のコミットから入れる。main にまだない版は、
+#     レビューしてマージしたコミットの SHA を、ダウンロードの URL と引数の両方に書く）
 #
 # - このスクリプトも、入れるものも、手元の作業ツリーからは取らない。作業ツリーは Claude Code のサンドボックスの中から
 #   書き換えられるため、GitHub（https://github.com/saicologic/ai-speak-trace）でレビューしてマージしたものだけを root の持ち物にする。

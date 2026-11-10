@@ -38,12 +38,18 @@ hook もサンドボックスの外で動きます。作業ツリーのファイ
 ターミナルで、次を自分で実行します（管理者のパスワードを聞かれます。Claude Code には実行させません）。
 
 ```bash
-# GitHub の main から入れる
-curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/main/.claude/team/install.sh | sudo bash -s --
+# GitHub の main から入れる（ダウンロードに成功したときだけ実行する）
+installer=$(mktemp) &&
+  curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/main/.claude/team/install.sh -o "$installer" &&
+  sudo bash "$installer"
+rm -f "$installer"
 
 # main にまだない版を入れるとき（PR でレビューしてマージしたコミットの SHA を、URL と最後の引数の両方に書く）
 sha=<マージしたコミットの SHA（40 文字）>
-curl -fsSL "https://raw.githubusercontent.com/saicologic/ai-speak-trace/$sha/.claude/team/install.sh" | sudo bash -s -- "$sha"
+installer=$(mktemp) &&
+  curl -fsSL "https://raw.githubusercontent.com/saicologic/ai-speak-trace/$sha/.claude/team/install.sh" -o "$installer" &&
+  sudo bash "$installer" "$sha"
+rm -f "$installer"
 ```
 
 - インストーラー（`install.sh`）も、入れるものも、手元の作業ツリーからは取りません。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、`git status` が空でも、手元のファイルを `sudo` で動かすと、レビューしていないものが root で動くおそれがあります。GitHub でレビューしてマージしたものだけを使います
