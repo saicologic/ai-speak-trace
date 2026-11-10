@@ -145,7 +145,7 @@ MCP サーバーは、データのフォルダを読み、監査ログを書く�
 - データは `scripts/mcp-demo-data.js` が一時フォルダに作る架空の会話だけにし、`DATA_DIR` を `env` で MCP サーバーに直接渡す。端末の実データを画面に出さないため
 - 架空の会話は、チェック済み（伏せる名前と連絡先を含む）・未チェック・要確認の3件。伏せ字と、返さない会話の扱いを一度に確かめられる
 - MCP Inspector は公開から2週間以上たった版に固定する
-- AI が確かめるときは、開発者が `npm run mcp:inspect` を起動し、表示された `localhost` の URL を Playwright MCP で開く（Claude in Chrome は使わない）
+- AI が確かめるときは、開発者が `cd backend && npm run mcp:inspect` を実行し、Chrome で開いた `http://127.0.0.1:…` の URL（トークン付き）を AI に渡し、AI が Playwright MCP で開く（Claude in Chrome は使わない）
 
 ## 今後の課題
 
