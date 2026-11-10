@@ -110,7 +110,8 @@ function tryConnect(
 describe('installEgressGuard（外への接続を確かめる）', () => {
   let uninstall: () => void;
   beforeEach(() => {
-    uninstall = installEgressGuard();
+    // テストでは DNS を引かないよう lookup を差し替えるため、差し替えを許す
+    uninstall = installEgressGuard({ allowCustomLookup: true });
   });
   afterEach(() => uninstall());
 
@@ -124,6 +125,27 @@ describe('installEgressGuard（外への接続を確かめる）', () => {
   it('ポートと宛先を引数で渡す形でも断る', async () => {
     const r = await tryConnect(() => net.connect(443, 'example.com'));
     expect(r.code).toBe('EGRESS_BLOCKED');
+    // net.connect を通さず、Socket#connect にそのまま渡す形
+    const direct = await tryConnect(() =>
+      new net.Socket().connect(443, 'example.com'),
+    );
+    expect(direct.code).toBe('EGRESS_BLOCKED');
+  });
+
+  it('ポートを文字列（16進・前後の空白）で渡しても、パスと取り違えずに断る', async () => {
+    for (const port of ['443', '0x1bb', ' 443', '443 ']) {
+      const r = await tryConnect(() =>
+        new net.Socket().connect(port as unknown as number, 'example.com'),
+      );
+      expect([port, r.code]).toEqual([port, 'EGRESS_BLOCKED']);
+    }
+  });
+
+  it('path が空のとき（Unix ソケットにならず、宛先につながる）は断る', async () => {
+    const r = await tryConnect((lookup) =>
+      net.connect({ path: '', host: 'example.com', port: 443, lookup }),
+    );
+    expect(r).toEqual({ code: 'EGRESS_BLOCKED', looked: false });
   });
 
   it('TLS の接続でも断る', async () => {
@@ -166,7 +188,16 @@ describe('installEgressGuard（外への接続を確かめる）', () => {
       net.connect({ host: 'example.com', port: 443, lookup }),
     );
     expect(r).toEqual({ code: 'ENOTFOUND', looked: true });
+    uninstall = installEgressGuard({ allowCustomLookup: true });
+  });
+
+  it('既定では、許した宛先でも lookup を差し替えた接続は断る（名前を引いた先の IP を変えさせない）', async () => {
+    uninstall();
     uninstall = installEgressGuard();
+    const r = await tryConnect((lookup) =>
+      tls.connect({ host: 'api.anthropic.com', port: 443, lookup }),
+    );
+    expect(r).toEqual({ code: 'EGRESS_BLOCKED', looked: false });
   });
 });
 
@@ -193,7 +224,10 @@ describe('外への接続の記録', () => {
   let uninstall: () => void;
   beforeEach(() => {
     entries = [];
-    uninstall = installEgressGuard({ log: (e) => entries.push(e) });
+    uninstall = installEgressGuard({
+      log: (e) => entries.push(e),
+      allowCustomLookup: true,
+    });
   });
   afterEach(() => uninstall());
 
@@ -224,6 +258,7 @@ describe('外への接続の記録', () => {
   it('記録には、決めた項目だけを残す（パス・ヘッダー・本文は残さない）', async () => {
     await connectAndClose('example.com');
     await connectAndClose('api.anthropic.com');
+    expect(entries).toHaveLength(2);
     for (const e of entries) {
       expect(
         Object.keys(e).every((k) =>
@@ -246,6 +281,7 @@ describe('外への接続の記録', () => {
       log: () => {
         throw new Error('書けない');
       },
+      allowCustomLookup: true,
     });
     expect(await connectAndClose('example.com')).toBe('EGRESS_BLOCKED');
   });
@@ -254,7 +290,7 @@ describe('外への接続の記録', () => {
 describe('withEgressHosts（その処理の間だけ宛先を足す）', () => {
   let uninstall: () => void;
   beforeEach(() => {
-    uninstall = installEgressGuard();
+    uninstall = installEgressGuard({ allowCustomLookup: true });
   });
   afterEach(() => uninstall());
 

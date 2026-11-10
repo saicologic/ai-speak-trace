@@ -27,8 +27,12 @@ describe('GinzaEnvService', () => {
 
   it('uv のダウンロードの間だけ、GitHub のリリースの宛先への接続を許す', async () => {
     let hosts: readonly string[] = [];
-    const get = jest.spyOn(axios, 'get').mockImplementation(() => {
+    let keepAlive: boolean | undefined;
+    const get = jest.spyOn(axios, 'get').mockImplementation((_url, config) => {
       hosts = egressHostsInScope();
+      // 範囲の外で、残った接続を使い回して GitHub に送らせないよう、接続を使い回さない
+      keepAlive = (config?.httpsAgent as { keepAlive?: boolean } | undefined)
+        ?.keepAlive;
       return Promise.resolve({ status: 500, data: new ArrayBuffer(0) });
     });
     try {
@@ -43,6 +47,7 @@ describe('GinzaEnvService', () => {
       ]),
     );
     expect(egressHostsInScope()).toEqual([]);
+    expect(keepAlive).toBe(false);
   });
 
   it('対応外の環境では、インストールを始めず、今ある環境も消さない', async () => {
