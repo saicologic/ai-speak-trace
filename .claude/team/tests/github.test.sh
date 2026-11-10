@@ -296,7 +296,7 @@ rejected "api のパスに .." api repos/../user
 printf 'body @coderabbitai\n' >"$repo/body.md"
 run pr create --draft --base main --title "t 1" --body-file body.md
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --base main --title t 1 --body body @coderabbitai --repo me/repo" ]; then ok; else ng "pr create --draft（rc=$rc）: $(gh_args) $out"; fi
-if [ "$(gate_log)" = "gh pr create --draft --base main --title t\\ 1 --body body\\ @coderabbitai --repo me/repo" ] && same_to_all_checks; then ok; else ng "pr create で確認に渡すコマンド: $(gate_log)"; fi
+if [ "$(gate_log)" = "gh pr create --draft --base main --title 't 1' --body 'body @coderabbitai' --repo me/repo" ] && same_to_all_checks; then ok; else ng "pr create で確認に渡すコマンド: $(gate_log)"; fi
 run pr create --draft --title t --body-file=body.md
 if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr create --draft --title t --body body @coderabbitai --repo me/repo" ]; then ok; else ng "pr create --body-file=（rc=$rc）: $(gh_args) $out"; fi
 rejected "pr create（--draft なし）" pr create --base main --title t --body x
@@ -337,10 +337,17 @@ if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "pr edit 12 --body body @coderabbitai --a
 rejected "pr edit の番号が数字でない" pr edit abc --title t
 rejected "pr edit --add-reviewer" pr edit 12 --add-reviewer someone
 run pr comment 12 --body-file body.md
-if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "gh pr comment 12 --body body\\ @coderabbitai --repo me/repo" ]; then ok; else ng "pr comment で確認に渡すコマンド（rc=$rc）: $(gate_log) $out"; fi
+if [ "$rc" -eq 0 ] && [ "$(gate_log)" = "gh pr comment 12 --body 'body @coderabbitai' --repo me/repo" ]; then ok; else ng "pr comment で確認に渡すコマンド（rc=$rc）: $(gate_log) $out"; fi
 rejected "pr comment（本文なし）" pr comment 12
 rejected "pr comment --edit-last" pr comment 12 --edit-last --body x
 rejected "pr comment に空の引数" pr comment 12 --body x ""
+# 本文に改行・' ・「git push」の文字があっても、確認に渡すコマンドを push と読み違えない
+printf "Don't merge yet\n; git push origin x\n(git push) \$(git push)\n" >"$repo/tricky.md"
+run pr comment 12 --body-file tricky.md
+if [ "$rc" -eq 0 ] && [ -n "$(gate_log)" ]; then ok; else ng "改行・' のある本文の pr comment（rc=$rc）: $out"; fi
+if ! gate_log | node "$prefix/bin/lib/is-git-push.mjs"; then ok; else ng "確認に渡すコマンドを push と読んだ（is-git-push.mjs）: $(gate_log)"; fi
+if [ -z "$(gate_log | node "$prefix/bin/lib/git-push-segments.mjs" SKIP_CR_LOOP)" ]; then ok; else ng "確認に渡すコマンドを push と読んだ（git-push-segments.mjs）: $(gate_log)"; fi
+rm -f "$repo/tricky.md"
 
 # 本文のファイルを、確かめた後・開く前に、外のファイルへのリンクに差し替えても送らない
 # （realpath の代わりに、確かめた直後に差し替えるスクリプトを置いて、差し替えを起こす）
