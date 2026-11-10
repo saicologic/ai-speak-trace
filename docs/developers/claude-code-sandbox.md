@@ -111,7 +111,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | `Operation not permitted` | サンドボックスが、作業フォルダ・一時フォルダの外への書き込みを止めています |
 | 通信が `host is not on the allow list` で失敗する | 通信先の一覧にないドメインです。必要なら、`allowedDomains` を変える PR を出します |
 | `gh`・`git push` が失敗する | Bash から GitHub には届きません。`github.sh` を使います |
-| `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します（Claude Code では、コマンドの先頭に `!` を付けると、サンドボックスの外で実行できます） |
+| `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
 | 開発サーバー・Playwright のポートを開けない | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
