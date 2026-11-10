@@ -49,6 +49,12 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 
 die() { printf 'github.sh: %s\n' "$1" >&2; exit 1; }
 
+# 秘密の情報（API キー・トークン・秘密鍵）の形。公開のリポジトリに書かせない
+# （Anthropic・AWS のアクセスキー・GitHub のトークン・ElevenLabs・Slack・PEM の秘密鍵）
+SECRET_RE='sk-ant-[A-Za-z0-9_-]{20,}|(AKIA|ASIA)[0-9A-Z]{16}|(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|sk_[0-9a-f]{48}|-----BEGIN ([A-Z]+ )*PRIVATE KEY-----|xox[abprs]-[A-Za-z0-9-]{10,}'
+# has_secret: 標準入力に秘密の情報の形があるか
+has_secret() { grep -Eq -- "$SECRET_RE"; }
+
 skips=()
 while [ "${1-}" = "--skip" ]; do
   case "${2-}" in
@@ -256,6 +262,10 @@ reject_web() {
 write_gh() {
   [ -n "$top" ] || die "リポジトリの中で実行してください"
   check_remote origin push
+  # タイトル・本文（--body-file は読んだ中身）などに秘密の情報があれば、書かない
+  if printf '%s\n' "$@" | has_secret; then
+    die "書き込む内容に秘密の情報（API キー・トークン・秘密鍵）の形があります。消してから、もう一度実行してください"
+  fi
   run_checks gh "$@" --repo "$slug"
   exec gh "$@" --repo "$slug"
 }
@@ -306,6 +316,11 @@ case "${1-}" in
     [ -n "$remote" ] || die "リモートを指定してください"
     [ "${#refs[@]}" -gt 0 ] || die "送るブランチを指定してください"
     check_remote "$remote" push
+    # まだ送っていないコミット（origin のどのブランチにもないもの）で足した行に、秘密の情報があれば送らない
+    # （後のコミットで消しても、前のコミットに残るため）
+    if git log -p --format= HEAD --not --remotes="$remote" | grep -E '^\+' | has_secret; then
+      die "まだ送っていないコミットに、秘密の情報（API キー・トークン・秘密鍵）の形があります。コミットから消してから、もう一度実行してください"
+    fi
     run_checks git push "${flags[@]}" "$remote" "${refs[@]}"
     exec git push "${flags[@]}" "$remote" "${refs[@]}"
     ;;
