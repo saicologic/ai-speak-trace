@@ -53,7 +53,7 @@ die() { printf 'github.sh: %s\n' "$1" >&2; exit 1; }
 # （Anthropic・AWS のアクセスキー・GitHub のトークン・ElevenLabs・Slack・PEM の秘密鍵）
 SECRET_RE='sk-ant-[A-Za-z0-9_-]{20,}|(AKIA|ASIA)[0-9A-Z]{16}|(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|sk_[0-9a-f]{48}|-----BEGIN ([A-Z]+ )*PRIVATE KEY-----|xox[abprs]-[A-Za-z0-9-]{10,}'
 # has_secret: 標準入力に秘密の情報の形があるか
-has_secret() { grep -Eq -- "$SECRET_RE"; }
+has_secret() { grep -aEq -- "$SECRET_RE"; }
 
 skips=()
 while [ "${1-}" = "--skip" ]; do
@@ -316,10 +316,20 @@ case "${1-}" in
     [ -n "$remote" ] || die "リモートを指定してください"
     [ "${#refs[@]}" -gt 0 ] || die "送るブランチを指定してください"
     check_remote "$remote" push
-    # まだ送っていないコミット（origin のどのブランチにもないもの）で足した行に、秘密の情報があれば送らない
+    # まだ送っていないコミットで足した行と、コミットメッセージに、秘密の情報があれば送らない
     # （後のコミットで消しても、前のコミットに残るため）
-    if git log -p --format= HEAD --not --remotes="$remote" | grep -E '^\+' | has_secret; then
-      die "まだ送っていないコミットに、秘密の情報（API キー・トークン・秘密鍵）の形があります。コミットから消してから、もう一度実行してください"
+    # - 送り済みかどうかは、手元の remote-tracking ref（サンドボックスの中から作れる）ではなく、
+    #   リモートに今あるコミット（ls-remote）で決める
+    # - replace の ref で git log に見せる中身だけを差し替えさせない（push は本当の中身を送る）
+    # - バイナリ扱い（.gitattributes）・NUL のあるファイルの中身と、マージのコミットで足した行も見る
+    remote_shas=$(git ls-remote "$remote") || die "リモートの状態を調べられませんでした: $remote"
+    not_args=()
+    while read -r sha _; do
+      git cat-file -e "$sha^{commit}" 2>/dev/null && not_args+=("^$sha")
+    done <<<"$remote_shas"
+    if { GIT_NO_REPLACE_OBJECTS=1 git log --format=%B HEAD ${not_args[@]+"${not_args[@]}"} &&
+      GIT_NO_REPLACE_OBJECTS=1 git log -p --text --diff-merges=first-parent --format= HEAD ${not_args[@]+"${not_args[@]}"} | grep -a '^+'; } | has_secret; then
+      die "まだ送っていないコミット（変えた中身・メッセージ）に、秘密の情報（API キー・トークン・秘密鍵）の形があります。コミットから消してから、もう一度実行してください"
     fi
     run_checks git push "${flags[@]}" "$remote" "${refs[@]}"
     exec git push "${flags[@]}" "$remote" "${refs[@]}"
