@@ -41,27 +41,28 @@ hook もサンドボックスの外で動きます。作業ツリーのファイ
 # GitHub の main から入れる
 curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/main/.claude/team/install.sh | sudo bash -s --
 
-# main にまだない版を入れるとき（URL の main と、最後のブランチの両方を変える）
-curl -fsSL https://raw.githubusercontent.com/saicologic/ai-speak-trace/release/vX.Y.Z/.claude/team/install.sh | sudo bash -s -- release/vX.Y.Z
+# main にまだない版を入れるとき（PR でレビューしてマージしたコミットの SHA を、URL と最後の引数の両方に書く）
+sha=<マージしたコミットの SHA（40 文字）>
+curl -fsSL "https://raw.githubusercontent.com/saicologic/ai-speak-trace/$sha/.claude/team/install.sh" | sudo bash -s -- "$sha"
 ```
 
 - インストーラー（`install.sh`）も、入れるものも、手元の作業ツリーからは取りません。作業ツリーは Claude Code のサンドボックスの中から書き換えられるため、`git status` が空でも、手元のファイルを `sudo` で動かすと、レビューしていないものが root で動くおそれがあります。GitHub でレビューしてマージしたものだけを使います
-- `install.sh` は、ブランチの今のコミットを root だけが読み書きできる一時フォルダに clone し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
+- `release/*` などのブランチは直接 push できるため、ブランチの名前では入れません。`main`（ブランチ保護で PR が必須）か、レビューしてマージしたコミットの SHA を指定します
+- `install.sh` は、そのコミットを root だけが読み書きできる一時フォルダに取り出し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
 - 中身を確かめてから実行したいときは、GitHub の画面で `.claude/team/install.sh` を読んでから実行します
-- スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します
+- スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します。はじめて入れる前の managed settings は、`managed-settings.json.before-claude-code-team` として別に残します
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
 
 `.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。
 
-外すときは、次を実行します。入れる前の managed settings（`.bak`）があれば、いちばん新しいものを戻し、なければ消します。
+外すときは、次を実行します。はじめて入れる前の managed settings（`managed-settings.json.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
 
 ```bash
 sudo rm -rf /opt/claude-code-team
 dir="/Library/Application Support/ClaudeCode"
-latest=$(ls -t "$dir"/managed-settings.json.*.bak 2>/dev/null | head -1)
-if [ -n "$latest" ]; then
-  sudo mv "$latest" "$dir/managed-settings.json"   # 入れる前の managed settings に戻す
+if [ -f "$dir/managed-settings.json.before-claude-code-team" ]; then
+  sudo mv "$dir/managed-settings.json.before-claude-code-team" "$dir/managed-settings.json"   # はじめて入れる前の設定に戻す
 else
   sudo rm "$dir/managed-settings.json"
 fi
