@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import {
+  GITHUB_RELEASE_HOSTS,
+  withEgressHosts,
+} from '../security/egress-guard';
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
@@ -295,11 +299,14 @@ export class GinzaEnvService {
     const target = UV_TARGET[arch];
     const url = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${target}.tar.gz`;
     // pkg でバイナリにしたバックエンド（--jitless）では fetch が動かないため、axios を使う
-    const response = await axios.get<ArrayBuffer>(url, {
-      responseType: 'arraybuffer',
-      timeout: DOWNLOAD_TIMEOUT_MS,
-      validateStatus: () => true,
-    });
+    // 外への通信は決めた宛先だけ（security/egress-guard.ts）。ダウンロードの間だけ GitHub のリリースを許す
+    const response = await withEgressHosts(GITHUB_RELEASE_HOSTS, () =>
+      axios.get<ArrayBuffer>(url, {
+        responseType: 'arraybuffer',
+        timeout: DOWNLOAD_TIMEOUT_MS,
+        validateStatus: () => true,
+      }),
+    );
     if (response.status !== 200) {
       throw new Error(
         `uv をダウンロードできませんでした（${response.status}）`,

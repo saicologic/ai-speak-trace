@@ -88,8 +88,23 @@ export interface EgressLogEntry {
   bytesReceived?: number;
 }
 
+/**
+ * GitHub のリリースからファイルを取るときの宛先（github.com から release-assets に転送される）。
+ * GitHub の API（api.github.com）は含めない
+ */
+export const GITHUB_RELEASE_HOSTS: readonly string[] = [
+  'github.com',
+  'release-assets.githubusercontent.com',
+  'objects.githubusercontent.com',
+];
+
 /** withEgressHosts で足した宛先（その処理の間だけ） */
 const extraHostsStore = new AsyncLocalStorage<readonly string[]>();
+
+/** 今の処理で withEgressHosts が足した宛先（足していなければ空） */
+export function egressHostsInScope(): readonly string[] {
+  return extraHostsStore.getStore() ?? [];
+}
 
 /**
  * fn の処理の間だけ、hosts の宛先への接続を許す（GitHub からのダウンロードなど）。
