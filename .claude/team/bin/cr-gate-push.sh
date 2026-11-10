@@ -49,7 +49,8 @@ while IFS= read -r dir; do
     *) [ -n "$cwd" ] && dir="$cwd/$dir" ;;
   esac
   top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || continue
-  [ -f "$top/.coderabbit.yaml" ] || continue
+  # 作業ツリーのファイルはサンドボックスの中から消せるため、push するコミット（HEAD）の中を見る
+  git -C "$top" cat-file -e HEAD:.coderabbit.yaml 2>/dev/null || continue
 
   marker="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"
   head_sha=$(git -C "$dir" rev-parse HEAD)

@@ -71,7 +71,9 @@ cr=$(gh api "repos/${repo}/commits/${sha}/status" \
 cr_state="${cr%%$'\t'*}"
 cr_desc="${cr#*$'\t'}"
 case "$cr_state:$cr_desc" in
-  ":"|"null:null") cr_review="none" ;;
+  # API が失敗して何も返らなかったときは、レビュー待ち（none）と取り違えないよう unknown
+  ":") cr_review="unknown" ;;
+  "null:null") cr_review="none" ;;
   pending:*) cr_review="pending" ;;
   *:*[Ss]kipped*) cr_review="skipped" ;;
   success:*) cr_review="completed" ;;
@@ -111,6 +113,12 @@ comments=$(jq -r '.data.repository.pullRequest.reviewThreads.nodes[]
   | (($lines[0] | capture("(?<s>(🔴|🟠|🟡|🔵|⚪)[^*_|]*)").s) // "-") as $sev
   | ([$lines[1:][] | select(test("^\\*\\*.+\\*\\*$"))][0] // $lines[0] | gsub("\\*\\*"; "")) as $title
   | "\(if .isResolved then "resolved" else "open" end)\t  - [\($sev | rtrimstr(" "))] \($title) (\(.path):\(.line // .originalLine))"' <<<"$threads" 2>/dev/null)
+# 一覧を作れなかった（答えの形の違いで jq が失敗した）ときは、0 件と取り違えないよう unknown
+if [ $? -ne 0 ]; then
+  echo "CODERABBIT_OPEN_COMMENTS: unknown"
+  echo "CODERABBIT_RESOLVED_COMMENTS: unknown"
+  exit 0
+fi
 open=$(grep $'^open\t' <<<"$comments" | cut -f2-)
 open_count=$(grep -c '^  - ' <<<"$open")
 resolved_count=$(grep -c $'^resolved\t' <<<"$comments")

@@ -27,6 +27,7 @@
 # - 送り先:
 #   - push・PR・Issue への書き込みは、<prefix>/etc/github-repos に書いた GitHub のリポジトリだけ。PR・Issue は origin のリポジトリを --repo に付ける
 #   - push するブランチは fix/*・feature/*・test/* だけ（main・release/* へは PR で入れる）
+#   - 送り元は、今の HEAD と同じコミットだけ（push の前の確認は HEAD を見るため）
 #   - fetch は GitHub のリポジトリだけ
 # - サンドボックスの中で書き換えられたリポジトリで、外のコマンドを動かさないように（lib/git-safety.sh）:
 #   - リポジトリの git の設定は、決めた項目だけを認める
@@ -254,6 +255,10 @@ case "${1-}" in
             continue
           fi
           case "$a" in +* | :*) die "force push・削除はできません: $a" ;; esac
+          # 確認（cr-gate-push.sh・tdd-push-gate.sh）は HEAD を見るため、送り元は HEAD と同じコミットだけにする
+          src=${a%%:*}
+          src_sha=$(git rev-parse -q --verify "$src^{commit}" 2>/dev/null) || die "送り元のコミットがありません: $src"
+          [ "$src_sha" = "$(git rev-parse HEAD)" ] || die "送り元は今の HEAD と同じコミットだけです（確認は HEAD を見るため）: $a"
           if [[ "$a" == *:* ]]; then
             dst=${a#*:}
             case "$dst" in

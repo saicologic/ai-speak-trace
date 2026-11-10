@@ -57,11 +57,20 @@ jq empty "$src/managed-settings.json"
 prefix=/opt/claude-code-team
 managed_dir="/Library/Application Support/ClaudeCode"
 install -d -o root -g wheel -m 755 "$prefix" "$prefix/bin" "$prefix/bin/lib" "$prefix/bin/ci" "$prefix/etc"
-# 前に入れたスクリプトで、今はないものを残さない
-rm -f "$prefix"/bin/*.sh "$prefix"/bin/lib/* "$prefix"/bin/ci/*
+# 新しいものを先に置き、その後で、前に入れたもので今はないものを消す
+# （途中で失敗しても、managed settings が呼ぶスクリプトがなくならないように）
 install -o root -g wheel -m 755 "$src"/bin/*.sh "$prefix/bin/"
 install -o root -g wheel -m 644 "$src"/bin/lib/* "$prefix/bin/lib/"
 install -o root -g wheel -m 644 "$ci/check-tdd-order.sh" "$ci/related-tests.mjs" "$prefix/bin/ci/"
+for old in "$prefix"/bin/*.sh "$prefix"/bin/lib/* "$prefix"/bin/ci/*; do
+  [ -e "$old" ] || continue
+  rel=${old#"$prefix"/bin/}
+  case "$rel" in
+    ci/check-tdd-order.sh | ci/related-tests.mjs) ;;
+    ci/*) rm -f "$old" ;;
+    *) [ -e "$src/bin/$rel" ] || rm -f "$old" ;;
+  esac
+done
 install -o root -g wheel -m 644 "$src/etc/github-repos" "$prefix/etc/github-repos"
 printf '%s %s\n' "$target" "$sha" >"$prefix/etc/installed-from"
 chown root:wheel "$prefix/etc/installed-from"
