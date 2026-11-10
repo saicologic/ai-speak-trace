@@ -119,6 +119,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | `gh`・`git push` が失敗する | Bash から GitHub には届きません。`github.sh` を使います |
 | `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
 | 開発サーバー・Playwright のポートを開けない | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します |
+| backend のテストのうち `src/security/api-token.spec.ts`・`src/mcp/mcp-sandbox.spec.ts` が失敗する | どちらも、サンドボックスの中では通りません。開発者が自分のターミナルで流すか、CI（`backend-test`）で確かめます。`api-token.spec.ts` は `127.0.0.1` でサーバーを立てるため（`listen EPERM`）、`mcp-sandbox.spec.ts` は `sandbox-exec` でサンドボックスの中にもう1つサンドボックスを作るため（`sandbox_apply: Operation not permitted`）です。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
 ## 守りの限界
