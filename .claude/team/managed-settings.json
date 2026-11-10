@@ -13,7 +13,9 @@
       "Bash(/opt/claude-code-team/bin/github.sh pr comment *)",
       "Bash(/opt/claude-code-team/bin/github.sh pr close *)",
       "Bash(/opt/claude-code-team/bin/github.sh issue create *)",
-      "Bash(/opt/claude-code-team/bin/github.sh issue comment *)"
+      "Bash(/opt/claude-code-team/bin/github.sh issue comment *)",
+      "mcp__playwright__browser_drop",
+      "Edit(//**/.claude/settings.json)"
     ],
     "deny": [
       "Bash(/bin/bash *)",
@@ -71,13 +73,13 @@
       "Edit(~/.ssh/**)",
       "Edit(~/.gitconfig)",
       "Edit(~/.config/git/**)",
-      "Edit(**/.git/hooks/**)",
-      "Edit(**/.git/config)",
-      "Edit(**/.envrc)",
-      "Edit(**/.vscode/**)",
+      "Edit(//**/.git/hooks/**)",
+      "Edit(//**/.git/config)",
+      "Edit(//**/.envrc)",
+      "Edit(//**/.vscode/**)",
       "Edit(~/.claude/settings.json)",
       "Edit(~/.claude/settings.local.json)",
-      "Edit(**/.claude/settings.local.json)",
+      "Edit(//**/.claude/settings.local.json)",
       "mcp__playwright__browser_run_code_unsafe"
     ],
     "disableBypassPermissionsMode": "disable"
