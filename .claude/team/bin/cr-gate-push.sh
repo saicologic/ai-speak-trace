@@ -17,8 +17,12 @@ if command -v node >/dev/null 2>&1; then
   segments=$(printf '%s' "$cmd" | node "$hook_dir/lib/git-push-segments.mjs" SKIP_CR_LOOP) || exit 0
   [ -n "$segments" ] || exit 0
   while IFS= read -r seg; do
-    # ブランチの削除・タグだけの push は対象外
-    if printf '%s' "$seg" | jq -e '.args | any(. == "--delete" or . == "-d" or . == "--tags" or startswith(":"))' >/dev/null; then
+    # ブランチの削除・タグだけの push は対象外（ふつうのブランチも送る refspec が1つでもあれば対象）
+    if printf '%s' "$seg" | jq -e '
+        (.args | any(. == "--delete" or . == "-d")) or
+        ([.args[] | select(startswith("-") | not)][1:] as $refs
+          | if ($refs | length) > 0 then ($refs | all(startswith(":")))
+            else (.args | index("--tags") != null) end)' >/dev/null; then
       continue
     fi
     d=$(printf '%s' "$seg" | jq -r '.dir // empty')
@@ -27,7 +31,8 @@ if command -v node >/dev/null 2>&1; then
 else
   printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' || exit 0
   printf '%s' "$cmd" | grep -q 'SKIP_CR_LOOP=1' && exit 0
-  printf '%s' "$cmd" | grep -Eq 'push[^;&|]*(--delete|--tags|[[:space:]]:[^[:space:]])' && exit 0
+  # node がないときは、ブランチの削除（--delete）だけを対象外にする（タグ・:ref と一緒にブランチを送る push を見落とさないよう、止める側に倒す）
+  printf '%s' "$cmd" | grep -Eq 'push[^;&|]*[[:space:]](--delete|-d)([[:space:]]|$)' && exit 0
   d=$(printf '%s' "$cmd" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+)[[:space:]]+push.*/\1/p')
   [ -n "$d" ] || d=$(printf '%s' "$cmd" | sed -nE 's/^[[:space:]]*cd[[:space:]]+([^;&|[:space:]]+).*/\1/p')
   d="${d%\"}"

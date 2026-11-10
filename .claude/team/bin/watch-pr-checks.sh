@@ -16,6 +16,8 @@ fi
 # dry-run・Draftに戻す操作は対象外
 grep -Eq -- '--dry-run|--undo' <<<"$cmd" && exit 0
 
+here=$(cd "$(dirname "$0")" && pwd -P)
+
 # git -C <dir> が指定されていればそのディレクトリでPRを調べる
 dir=$(sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' <<<"$cmd" | head -1)
 [ -z "$dir" ] && dir="$cwd"
@@ -23,13 +25,13 @@ dir=$(sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' <<<"$cmd
 
 # サンドボックスの外で gh（中で git を動かす）を動かすため、リポジトリの設定を確かめる（認めていない項目があれば何もしない）
 # shellcheck source=lib/git-safety.sh
-. "$(cd "$(dirname "$0")" && pwd -P)/lib/git-safety.sh"
+. "$here/lib/git-safety.sh"
 if git rev-parse --git-dir >/dev/null 2>&1; then
   (check_git_config) 2>/dev/null || exit 0
 fi
 
 # 出力にPRのURL（gh pr create）や owner/repo#番号（gh pr ready）があればそれを使い、なければ今のブランチのPRを調べる
-url=$(grep -Eo 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' <<<"$stdout" | tail -1)
+url=$(grep -Eo 'https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[0-9]+' <<<"$stdout" | tail -1)
 ref=$(grep -Eo '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+' <<<"$stdout" | tail -1)
 if [ -n "$url" ]; then
   repo=$(sed -E 's#https://github\.com/([^/]+/[^/]+)/pull/[0-9]+#\1#' <<<"$url")
