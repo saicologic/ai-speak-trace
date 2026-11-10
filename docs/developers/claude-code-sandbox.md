@@ -23,7 +23,7 @@ managed settings でサンドボックスを管理者が決める状態にする
 
 hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts`・`.claude/hooks` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。hook は、リポジトリの設定には書かず、managed settings からインストール先のもの（API キーを守る `block-ai-speak-trace-secrets.sh`・CodeRabbit の枠の `cr-limit-gate.sh`・PR の監視の `watch-pr-checks.sh`）だけを動かします。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
 
-MCP サーバーもサンドボックスの外で動きます。動かす MCP サーバーは、`.claude/team/managed-mcp.json` → `/Library/Application Support/ClaudeCode/managed-mcp.json`（root の持ち物）で、インストール先の Playwright MCP（`playwright-mcp.sh`）だけに決めます。このファイルがあると、プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・`--mcp-config` で足したサーバーは動きません（[公式のドキュメント](https://code.claude.com/docs/en/managed-mcp)）。**この Mac のほかのプロジェクトでも同じ**です。組み込みの Claude in Chrome は、managed settings の `allowClaudeInChromeWithManagedMcp` で使えるようにしています。念のため、managed settings の `allowedMcpServers`・`allowManagedMcpServersOnly` でも、Playwright MCP だけを許します。`playwright-mcp.sh` は、受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。
+MCP サーバーもサンドボックスの外で動きます。動かす MCP サーバーは、`.claude/team/managed-mcp.json` → `/Library/Application Support/ClaudeCode/managed-mcp.json`（root の持ち物）で、インストール先の Playwright MCP（`playwright-mcp.sh`）だけに決めます。このファイルがあると、プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・`--mcp-config` で足したサーバーは動きません（[公式のドキュメント](https://code.claude.com/docs/en/managed-mcp)）。組み込みの Claude in Chrome も止まります（普段のログイン中の Chrome を操作させないため、使えるようにしていません）。**この Mac のほかのプロジェクトでも同じ**です。`playwright-mcp.sh` は、受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。
 
 外で git を動かすスクリプトは、リポジトリの git の設定を決めた項目だけ認め、git のフック・fsmonitor・サブモジュールの中・`ext::` のリモートを使いません（`.claude/team/bin/lib/git-safety.sh`）。サンドボックスの中で書き換えたリポジトリの設定から、外のコマンドを動かさないためです。
 
@@ -32,7 +32,7 @@ MCP サーバーもサンドボックスの外で動きます。動かす MCP �
 前提:
 
 - macOS
-- Claude Code 2.1.282 以上（2.1.277 より前の版では、`excludedCommands` に一部が一致しただけで、`;` などでつないだコマンド全体がサンドボックスの外で動くため。`managed-mcp.json` と一緒に Claude in Chrome を使う設定は 2.1.282 からのため。managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.281 は起動しなくなります。2.1.163 より前の版はこの設定を読まずに起動するため、入れる前に `claude --version` で確かめ、古ければ `claude update` で上げます）
+- Claude Code 2.1.277 以上（それより前の版では、`excludedCommands` に一部が一致しただけで、`;` などでつないだコマンド全体がサンドボックスの外で動くため。managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.276 は起動しなくなります。2.1.163 より前の版はこの設定を読まずに起動するため、入れる前に `claude --version` で確かめ、古ければ `claude update` で上げます）
 - `jq`（`brew install jq`）
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うため
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
@@ -113,7 +113,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 
 - `mcp-sandbox.spec.ts` は、`sandbox-exec` で MCP サーバーをサンドボックスに入れて確かめるテストです。サンドボックスの中からもう1つサンドボックスは作れない（`sandbox_apply: Operation not permitted`）ため、Claude Code の中では飛ばします。CI（ubuntu）にも `sandbox-exec` がないため飛ばします。MCP サーバーの仕組み（`backend/scripts/mcp-sandbox.*`・`backend/src/mcp/`）を変えたときは、開発者が `cd backend && npx jest src/mcp/mcp-sandbox.spec.ts` を流して確かめます
 - `npm ci`・`npm install` は、サンドボックスの中では npm のキャッシュ（`~/.npm`）に書けず、保護されたファイル（`.vscode/settings.json` など）も消せないため、`node_modules` を消した後に途中で止まり、壊れたまま残ります。依存を足すときも、Claude Code は `package.json` の変更を提案し、開発者が入れます
-- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP の開くページの制限（`--allowed-origins`）は、Playwright の README に「守りにはならない」とあるため使いません
+- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
 
 ## 変えたいとき
 
