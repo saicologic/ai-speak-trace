@@ -145,6 +145,9 @@ else
   fail=$((fail + 1))
   echo "FAIL: managed-mcp.json に、インストール先のスクリプトを引数・環境変数なしで動かすもの以外がある"
 fi
+# managed settings の ask・deny は mcp__playwright__… の名前で書いているため、サーバーの名前を playwright に決める
+# （名前を変えると、ask・deny が当たらなくなる）
+expect "managed-mcp.json のサーバーの名前は playwright だけ（ask・deny の名前と合わせる）" '.mcpServers | keys == ["playwright"]' "$MCP"
 # 確かめ方そのものが、止めるべき書き方を止めること
 bad_mcp="$(mktemp "${TMPDIR:-/tmp}/managed-mcp-bad.XXXXXX")"
 for bad in '{"mcpServers":{"p":{"command":"/opt/claude-code-team/bin/playwright-mcp.sh","args":["x"]}}}' \

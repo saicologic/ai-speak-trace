@@ -29,7 +29,8 @@ function canUseSandboxExec(): boolean {
   const probe = spawnSync(
     '/usr/bin/sandbox-exec',
     ['-p', '(version 1)(allow default)', '/usr/bin/true'],
-    { encoding: 'utf-8' },
+    // 入れ子のサンドボックスで止まったときに、テストがいつまでも待たないようにする
+    { encoding: 'utf-8', timeout: 10_000 },
   );
   if (probe.status === 0) return true;
   if (/sandbox_apply: Operation not permitted/.test(probe.stderr ?? '')) {

@@ -59,6 +59,12 @@ if printf '%s\n' "$code" | grep -E '@playwright/mcp@' | grep -q -- '--isolated';
 start="$(printf '%s\n' "$code" | grep -E '@playwright/mcp@' || true)"
 if printf '%s\n' "$start" | grep -Eq -- '--proxy-server "?http://127\.0\.0\.1:9"?( |$)'; then ok; else ng "Playwright MCP のブラウザを、つながらないプロキシ（http://127.0.0.1:9）に通していない"; fi
 if printf '%s\n' "$start" | grep -Eq -- '--proxy-bypass "?localhost,127\.0\.0\.1"?( |$)'; then ok; else ng "プロキシの例外が localhost,127.0.0.1 だけになっていない"; fi
+# 後ろにもう一度書いて値を上書きさせない（どちらも1回だけ）。起動の行の途中にコメントを書かせない（後ろの指定が効かなくなる）
+for opt in --proxy-server --proxy-bypass; do
+  n=$(printf '%s\n' "$start" | grep -o -- "$opt" | wc -l | tr -d ' ')
+  if [ "$n" = 1 ]; then ok; else ng "起動の行に $opt が1回だけではない（$n 回）"; fi
+done
+if printf '%s\n' "$start" | grep -q '#'; then ng "起動の行の途中にコメント（#）がある"; else ok; fi
 # 手元のファイルを広く読ませる指定を付けない
 lacks "--allow-unrestricted-file-access を付けない" 'allow-unrestricted-file-access'
 
