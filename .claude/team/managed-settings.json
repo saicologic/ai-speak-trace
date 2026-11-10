@@ -36,6 +36,12 @@
       "Read(~/.npmrc)",
       "Read(~/.ssh/**)",
       "Read(~/Library/Keychains/**)",
+      "Bash(npm ci)",
+      "Bash(npm ci *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm i)",
+      "Bash(npm i *)",
       "Edit(~/.claude/state/**)",
       "mcp__playwright__browser_run_code_unsafe"
     ],
