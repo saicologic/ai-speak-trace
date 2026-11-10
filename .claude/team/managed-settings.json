@@ -1,5 +1,5 @@
 {
-  "requiredMinimumVersion": "2.1.282",
+  "requiredMinimumVersion": "2.1.277",
   "permissions": {
     "ask": [
       "Bash(/opt/claude-code-team/bin/github.sh --skip *)",
@@ -97,14 +97,5 @@
         ]
       }
     ]
-  },
-  "allowManagedMcpServersOnly": true,
-  "allowedMcpServers": [
-    {
-      "serverCommand": [
-        "/opt/claude-code-team/bin/playwright-mcp.sh"
-      ]
-    }
-  ],
-  "allowClaudeInChromeWithManagedMcp": true
+  }
 }

@@ -1,9 +1,10 @@
 #!/bin/sh
 # Playwright MCP を「Google Chrome for Testing」で起動する
-# 普段使いの Google Chrome とは別アプリで動かし、Claude in Chrome 拡張機能と干渉しないようにする
+# 普段使いの Google Chrome（ログイン中のサービスがある）とは別アプリで動かす
+# ブラウザは localhost の開発用の画面だけを開く（つながらないプロキシを通し、localhost・127.0.0.1 だけを例外にする）
 # stdio の MCP サーバーのため、標準出力には MCP 以外の出力を出さない（ログは標準エラーへ）
 #
-# インストール先（/opt/claude-code-team/bin）から、managed settings の allowedMcpServers で許して動かす。
+# インストール先（/opt/claude-code-team/bin）から、managed-mcp.json で、これだけを MCP サーバーとして動かす。
 # MCP サーバーはサンドボックスの外で動き、.mcp.json の env は許可の確かめで比べられないため:
 # - 受け取った環境変数は使わない（PATH・HOME は決めた値・アカウントの情報から作り、npx は env -i で動かす）
 # - 受け取った引数は Playwright MCP に渡さない
@@ -44,6 +45,9 @@ if [ -z "$APP" ]; then
 fi
 
 # 決めた環境変数だけで動かす。--isolated: プロフィールをメモリ上に置き、終了後にディスクへ残さない
+# --proxy-server・--proxy-bypass: 127.0.0.1:9 は使っていないポート。localhost・127.0.0.1 以外への通信は、ここで失敗する
 exec /usr/bin/env -i PATH="$PATH" HOME="$home" USER="$user" LOGNAME="$user" npx -y "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" \
   --executable-path "$APP/Contents/MacOS/Google Chrome for Testing" \
-  --isolated
+  --isolated \
+  --proxy-server "http://127.0.0.1:9" \
+  --proxy-bypass "localhost,127.0.0.1"
