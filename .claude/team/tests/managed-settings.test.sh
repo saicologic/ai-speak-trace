@@ -98,6 +98,27 @@ expect "Playwright MCP の browser_run_code_unsafe を使わせない（deny）"
 # ファイルのアップロードは、サンドボックスの外から手元のファイルを読んでページに渡すため、ユーザーに確かめる
 expect "Playwright MCP の browser_file_upload は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_file_upload") != null' "$M"
 expect "リポジトリの設定で browser_run_code_unsafe・browser_file_upload を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_run_code_unsafe" or . == "mcp__playwright__browser_file_upload" or . == "mcp__playwright__*" or . == "mcp__playwright")] | length == 0' "$P"
+# 公開のリポジトリへの文章の書き込み（PR・Issue のタイトル・本文・コメント）は、毎回ユーザーに確かめる
+# （読み込んだ文書に仕込まれた指示で、手元の情報を書かせないため。push は github.sh が秘密の情報の形を確かめる）
+for op in "pr create" "pr edit" "pr comment" "pr close" "issue create" "issue comment"; do
+  expect "github.sh $op は、ユーザーに確かめる（ask）" ".permissions.ask | index(\"Bash(/opt/claude-code-team/bin/github.sh $op *)\") != null" "$M"
+done
+# サンドボックスの外で、あとからコマンドが動く場所を、ファイルを書くツールで書き換えさせない
+# （シェルの起動ファイル・ログインのときに動くもの・git の hook と設定・エディタのタスク・Claude Code の個人の設定）
+for rule in "Edit(~/.zshrc)" "Edit(~/.zprofile)" "Edit(~/.zshenv)" "Edit(~/.zlogin)" "Edit(~/.bashrc)" "Edit(~/.bash_profile)" "Edit(~/.profile)" \
+  "Edit(~/Library/LaunchAgents/**)" "Edit(~/.ssh/**)" "Edit(~/.gitconfig)" "Edit(~/.config/git/**)" \
+  "Edit(**/.git/hooks/**)" "Edit(**/.git/config)" "Edit(**/.envrc)" "Edit(**/.vscode/**)" \
+  "Edit(~/.claude/settings.json)" "Edit(~/.claude/settings.local.json)" "Edit(**/.claude/settings.local.json)"; do
+  expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
+done
+# 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
+for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
+  "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
+  "Read(~/Library/Messages/**)" "Read(~/Library/Mail/**)" "Read(~/.password-store/**)" "Read(~/.config/op/**)"; do
+  expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
+done
+# hook はサンドボックスの外で動くため、managed settings のものだけを動かす（個人・プロジェクトの設定の hook を動かさない）
+expect "hook は managed settings のものだけを動かす（allowManagedHooksOnly）" '.allowManagedHooksOnly == true' "$M"
 expect "bypassPermissions モードを使えなくする" '.permissions.disableBypassPermissionsMode == "disable"' "$M"
 expect "deny に sudo がある" '.permissions.deny | index("Bash(sudo *)") != null' "$M"
 expect "deny に ~/.ssh の読み取りがある" '.permissions.deny | index("Read(~/.ssh/**)") != null' "$M"
