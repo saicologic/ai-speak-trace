@@ -138,7 +138,7 @@ expect "deny に個人のパス（/Users/）を書かない" '[.permissions.deny
 
 # リポジトリの設定: インストール先のスクリプトを許可し、サンドボックスを弱める設定を書かない
 expect ".claude/settings.json が JSON として読める" '.' "$P"
-expect "github.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/github.sh *)") != null' "$P"
+expect "github.sh の push を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/github.sh push *)") != null' "$P"
 expect "cr-review.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/cr-review.sh *)") != null' "$P"
 expect "wait-pr-checks.sh を許可する" '.permissions.allow | index("Bash(/opt/claude-code-team/bin/wait-pr-checks.sh *)") != null' "$P"
 expect "リポジトリの設定にサンドボックスの設定を書かない（managed settings で決める）" '.sandbox == null' "$P"
