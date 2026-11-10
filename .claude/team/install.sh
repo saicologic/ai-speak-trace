@@ -70,6 +70,7 @@ ci="$work/tree/.github/scripts"
 
 # 壊れた JSON を入れると、Claude Code が起動しなくなるため、先に確かめる
 jq empty "$src/managed-settings.json"
+jq empty "$src/managed-mcp.json"
 
 prefix=/opt/claude-code-team
 managed_dir="/Library/Application Support/ClaudeCode"
@@ -94,18 +95,22 @@ chown root:wheel "$prefix/etc/installed-from"
 chmod 644 "$prefix/etc/installed-from"
 
 install -d -o root -g wheel -m 755 "$managed_dir"
-current="$managed_dir/managed-settings.json"
-before="$managed_dir/managed-settings.json.before-claude-code-team"
-if [ -f "$current" ]; then
-  # はじめて入れる前の設定（このチームの設定でないもの）は、外すときに戻せるよう、一度だけ別に残す
-  if [ ! -e "$before" ] && ! grep -q '/opt/claude-code-team/bin/' "$current"; then
-    cp -p "$current" "$before"
+# managed settings と、動かす MCP サーバーを決める managed-mcp.json を入れる
+for name in managed-settings.json managed-mcp.json; do
+  current="$managed_dir/$name"
+  before="$managed_dir/$name.before-claude-code-team"
+  if [ -f "$current" ]; then
+    # はじめて入れる前のもの（このチームのものでないもの）は、外すときに戻せるよう、一度だけ別に残す
+    if [ ! -e "$before" ] && ! grep -q '/opt/claude-code-team/bin/' "$current"; then
+      cp -p "$current" "$before"
+    fi
+    cp -p "$current" "$current.$(date +%Y%m%d%H%M%S).bak"
   fi
-  cp -p "$current" "$current.$(date +%Y%m%d%H%M%S).bak"
-fi
-install -o root -g wheel -m 644 "$src/managed-settings.json" "$current"
+  install -o root -g wheel -m 644 "$src/$name" "$current"
+done
 
 echo "入れました（GitHub の $target: $sha）:"
 echo "  $prefix/bin: $(cd "$prefix/bin" && ls ./*.sh | tr '\n' ' ')"
 echo "  $managed_dir/managed-settings.json"
+echo "  $managed_dir/managed-mcp.json"
 echo "Claude Code を開いている場合は、/status で managed settings が読まれていることを確かめてください"
