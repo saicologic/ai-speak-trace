@@ -57,6 +57,14 @@ echo "DRAFT: $(jq -r '.isDraft' <<<"$pr")"
 echo "CHECKS:"
 gh pr checks "$number" -R "$repo" --json name,bucket --jq '.[] | "  \(.name): \(.bucket)"' 2>/dev/null
 
+# PR の情報を取れなかったときは、CodeRabbit の状態を none（レビュー待ち）と取り違えないよう unknown と出す
+if ! [[ "$sha" =~ ^[0-9a-f]+$ ]]; then
+  echo "CODERABBIT: unknown (PR の情報を取得できませんでした)"
+  echo "CODERABBIT_OPEN_COMMENTS: unknown"
+  echo "CODERABBIT_RESOLVED_COMMENTS: unknown"
+  exit 0
+fi
+
 # CodeRabbitの状態（statusはレビューを省略した場合も指摘がある場合もsuccessになるため、説明文で区別する）
 cr=$(gh api "repos/${repo}/commits/${sha}/status" \
   --jq '[.statuses[] | select(.context == "CodeRabbit")][0] | "\(.state)\t\(.description)"' 2>/dev/null)
@@ -100,7 +108,7 @@ fi
 comments=$(jq -r '.data.repository.pullRequest.reviewThreads.nodes[]
   | select(.comments.nodes[0].author.login == "coderabbitai")
   | (.comments.nodes[0].body | split("\n")) as $lines
-  | (($lines[0] | capture("(?<s>(🔴|🟠|🟡|🔵|⚪)[^*]*)").s) // "-") as $sev
+  | (($lines[0] | capture("(?<s>(🔴|🟠|🟡|🔵|⚪)[^*_|]*)").s) // "-") as $sev
   | ([$lines[1:][] | select(test("^\\*\\*.+\\*\\*$"))][0] // $lines[0] | gsub("\\*\\*"; "")) as $title
   | "\(if .isResolved then "resolved" else "open" end)\t  - [\($sev | rtrimstr(" "))] \($title) (\(.path):\(.line // .originalLine))"' <<<"$threads" 2>/dev/null)
 open=$(grep $'^open\t' <<<"$comments" | cut -f2-)

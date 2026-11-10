@@ -1,6 +1,9 @@
 {
   "requiredMinimumVersion": "2.1.277",
   "permissions": {
+    "ask": [
+      "Bash(/opt/claude-code-team/bin/github.sh --skip *)"
+    ],
     "deny": [
       "Bash(/bin/bash *)",
       "Bash(/bin/sh *)",

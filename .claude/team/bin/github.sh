@@ -111,10 +111,11 @@ run_check() {
   errf=$(mktemp "${TMPDIR:-/tmp}/github-sh.XXXXXX") || die "一時ファイルを作れません"
   out=$(printf '%s' "$input" | CLAUDE_PROJECT_DIR="${top:-$PWD}" "$script" 2>"$errf")
   rc=$?
-  if [ "$rc" -eq 2 ]; then
+  # 2（止める）だけでなく、落ちた・ない・実行できないとき（0 以外）も、確かめられないので止める
+  if [ "$rc" -ne 0 ]; then
     cat "$errf" >&2
     rm -f "$errf"
-    printf 'github.sh: 確認が止めました: %s\n' "$(basename "$script")" >&2
+    printf 'github.sh: 確認が止めました（終了コード %s）: %s\n' "$rc" "$(basename "$script")" >&2
     exit 2
   fi
   rm -f "$errf"
@@ -154,6 +155,8 @@ read_body() {
   [ "$f" != "-" ] || die "本文を標準入力から読むことはできません"
   real=$(realpath "$f" 2>/dev/null) || die "本文のファイルがありません: $f"
   [ -f "$real" ] || die "本文のファイルがありません: $f"
+  # サンドボックスの中から読めないファイル（managed settings の Read の deny にある .env*）は送らない
+  case "${real##*/}" in .env*) die "本文に使えないファイルです: $f" ;; esac
   if [ -n "$top" ]; then
     case "$real" in "$(realpath "$top")"/*) inside=1 ;; esac
   fi
