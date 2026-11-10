@@ -89,6 +89,11 @@ expect "レビュー済みにする cr-review.sh --base-branch … --accept も�
 expect "Playwright MCP の browser_navigate は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_navigate") != null' "$M"
 expect "Playwright MCP の browser_evaluate は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_evaluate") != null' "$M"
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
+# Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）
+expect "Playwright MCP の browser_run_code_unsafe を使わせない（deny）" '.permissions.deny | index("mcp__playwright__browser_run_code_unsafe") != null' "$M"
+# ファイルのアップロードは、サンドボックスの外から手元のファイルを読んでページに渡すため、ユーザーに確かめる
+expect "Playwright MCP の browser_file_upload は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_file_upload") != null' "$M"
+expect "リポジトリの設定で browser_run_code_unsafe・browser_file_upload を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_run_code_unsafe" or . == "mcp__playwright__browser_file_upload" or . == "mcp__playwright__*" or . == "mcp__playwright")] | length == 0' "$P"
 expect "bypassPermissions モードを使えなくする" '.permissions.disableBypassPermissionsMode == "disable"' "$M"
 expect "deny に sudo がある" '.permissions.deny | index("Bash(sudo *)") != null' "$M"
 expect "deny に ~/.ssh の読み取りがある" '.permissions.deny | index("Read(~/.ssh/**)") != null' "$M"
@@ -108,6 +113,24 @@ expect "リポジトリの設定に hook を書かない" '.hooks == null' "$P"
 expect "managed settings で、cr-review.sh の前に CodeRabbit の枠を確かめる" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/cr-limit-gate.sh") != null' "$M"
 expect "managed settings で、API キーが会話ログに出るコマンドを止める" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh") != null' "$M"
 expect "リポジトリの設定で git push・gh を直接許可しない" '[.permissions.allow[] | select(test("^Bash\\((git push|git fetch|gh )"))] | length == 0' "$P"
+
+# MCP サーバー: サンドボックスの外で動くため、手元で動かす MCP サーバー（stdio）は、インストール先のスクリプトだけにする。
+# 作業ツリーの .mcp.json やスクリプトは、サンドボックスの中から書き換えられるため
+J="$ROOT/.mcp.json"
+expect "MCP サーバーの許可の一覧は managed settings のものだけ（allowManagedMcpServersOnly）" '.allowManagedMcpServersOnly == true' "$M"
+expect "手元で動かす MCP サーバーは、インストール先のスクリプトを引数なしで動かすものだけ" '[.allowedMcpServers[] | select(.serverCommand) | .serverCommand] | length > 0 and all(length == 1 and (.[0] | test("^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\\.sh$")))' "$M"
+expect "MCP サーバーの許可の一覧で、名前（serverName）で許さない（名前は守りにならない）" '[.allowedMcpServers[] | select(.serverName)] | length == 0' "$M"
+while IFS= read -r name; do
+  if [ -f "$TEAM/bin/$name" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL: MCP サーバーの %s が .claude/team/bin にない\n' "$name"
+  fi
+done < <(jq -r --arg p "$PREFIX" '.allowedMcpServers[]? | .serverCommand[]? | select(startswith($p)) | ltrimstr($p)' "$M" | sort -u)
+expect ".mcp.json が JSON として読める" '.' "$J"
+expect ".mcp.json の手元の MCP サーバーは、インストール先のスクリプトを引数なしで動かす" '[.mcpServers[] | select(.command)] | length > 0 and all(.command | test("^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\\.sh$"))' "$J"
+expect ".mcp.json で引数・環境変数を渡さない（managed settings の許可と同じ形にし、外で動くスクリプトの動きを変えさせない）" '[.mcpServers[] | select(.command) | select((.args // []) != [] or .env != null)] | length == 0' "$J"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
