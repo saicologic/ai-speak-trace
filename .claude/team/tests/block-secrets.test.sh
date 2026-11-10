@@ -25,5 +25,22 @@ check deny 'echo sk-ant-xxxx'
 check allow 'git status'
 check allow 'npm test'
 
+# jq が動かないときは、調べられないので止める（exit 2）
+tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/block-secrets-test.XXXXXX")" && pwd -P) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/bin"
+for c in grep cat; do ln -s "$(command -v "$c")" "$tmp/bin/$c"; done
+printf '#!/bin/sh\nexit 1\n' >"$tmp/bin/jq"
+chmod +x "$tmp/bin/jq"
+bash_path=$(command -v bash)
+printf '%s' '{"tool_input":{"command":"echo sk-ant-xxxx"}}' | PATH="$tmp/bin" "$bash_path" "$HOOK" >/dev/null 2>&1
+rc=$?
+if [ "$rc" -eq 2 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL: jq が動かないときに止めない（rc=%s）\n' "$rc"
+fi
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

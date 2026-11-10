@@ -29,6 +29,11 @@ check none "$GH push --dry-run origin fix/a"
 check none "$GH pr view 9"
 check none "$GH fetch origin"
 check none "git status"
+# git push は、引用符・heredoc・コメントの中の文字では監視しない
+check watch "git push origin fix/a"
+check none 'git commit -m "直す; git push は後で"'
+check none 'echo "git push"'
+check none 'ls # git push'
 # インストール先でない github.sh（リポジトリの中のものなど）の後は、監視しない
 check none ".claude/team/bin/github.sh push origin fix/a"
 check none "/tmp/x/github.sh push origin fix/a"
