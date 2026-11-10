@@ -98,6 +98,11 @@ expect "bypassPermissions モードを使えなくする" '.permissions.disableB
 expect "deny に sudo がある" '.permissions.deny | index("Bash(sudo *)") != null' "$M"
 expect "deny に ~/.ssh の読み取りがある" '.permissions.deny | index("Read(~/.ssh/**)") != null' "$M"
 expect "レビュー済みの記録・枠切れの記録（~/.claude/state）を、ファイルを書くツールで書き換えさせない" '.permissions.deny | index("Edit(~/.claude/state/**)") != null' "$M"
+# npm ci・npm install は、サンドボックスの中では ~/.npm に書けず、保護されたファイル（.vscode/settings.json など）も
+# 消せないため、node_modules を消した後に途中で止まり、壊れたまま残る。依存の入れ直し・追加は開発者がターミナルで行う
+for rule in "Bash(npm ci)" "Bash(npm ci *)" "Bash(npm install)" "Bash(npm install *)" "Bash(npm i)" "Bash(npm i *)"; do
+  expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
+done
 expect "deny に個人のパス（/Users/）を書かない" '[.permissions.deny[] | select(test("/Users/"))] | length == 0' "$M"
 
 # リポジトリの設定: インストール先のスクリプトを許可し、サンドボックスを弱める設定を書かない
