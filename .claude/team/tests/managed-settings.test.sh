@@ -10,13 +10,17 @@ PREFIX=/opt/claude-code-team/bin/
 
 pass=0
 fail=0
-# expect <説明> <jq の式（true になること）> <ファイル>
+# expect <説明> [jq のオプション...] <jq の式（true になること）> <ファイル>
 expect() {
-  if jq -e "$2" "$3" >/dev/null 2>&1; then
+  local desc=$1
+  shift
+  local file="${*: -1}" expr="${*: -2:1}"
+  local opts=("${@:1:$#-2}")
+  if jq -e ${opts[@]+"${opts[@]}"} "$expr" "$file" >/dev/null 2>&1; then
     pass=$((pass + 1))
   else
     fail=$((fail + 1))
-    printf 'FAIL: %s\n  %s\n' "$1" "$2"
+    printf 'FAIL: %s\n  %s\n' "$desc" "$expr"
   fi
 }
 
@@ -38,8 +42,9 @@ expect "ポートを開けない" '(.sandbox.network.allowLocalBinding // false)
 expect "弱いサンドボックスを使わない" '(.sandbox.enableWeakerNestedSandbox // false) == false and (.sandbox.enableWeakerNetworkIsolation // false) == false' "$M"
 expect "サンドボックスの違反を無視しない" '.sandbox.ignoreViolations == null' "$M"
 expect "managed settings で環境変数を設定しない" '.env == null' "$M"
-# excludedCommands が、つないだコマンドの全部の一致を求めるのは 2.1.277 から。古い版では起動させない
-expect "Claude Code 2.1.277 より前の版を起動させない" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 277]' "$M"
+# excludedCommands が、つないだコマンドの全部の一致を求めるのは 2.1.277 から。
+# managed-mcp.json と一緒に Claude in Chrome を使う allowClaudeInChromeWithManagedMcp は 2.1.282 から。古い版では起動させない
+expect "Claude Code 2.1.282 より前の版を起動させない" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 282]' "$M"
 
 # サンドボックスの外で動かすもの（excludedCommands・hook）は、インストール先（root の持ち物）のスクリプトの名前だけ。
 # 後ろに ; や && などで別のコマンドを続けられないよう、コマンド全体を決まった形と比べる
@@ -119,12 +124,20 @@ expect "managed settings で、cr-review.sh の前に CodeRabbit の枠を確か
 expect "managed settings で、API キーが会話ログに出るコマンドを止める" '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[].command] | index("/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh") != null' "$M"
 expect "リポジトリの設定で git push・gh を直接許可しない" '[.permissions.allow[] | select(test("^Bash\\((git push|git fetch|gh )"))] | length == 0' "$P"
 
-# MCP サーバー: サンドボックスの外で動くため、手元で動かす MCP サーバー（stdio）は、インストール先のスクリプトだけにする。
-# 作業ツリーの .mcp.json やスクリプトは、サンドボックスの中から書き換えられるため
-J="$ROOT/.mcp.json"
-expect "MCP サーバーの許可の一覧は managed settings のものだけ（allowManagedMcpServersOnly）" '.allowManagedMcpServersOnly == true' "$M"
-expect "手元で動かす MCP サーバーは、インストール先のスクリプトを引数なしで動かすものだけ" '[.allowedMcpServers[] | select(.serverCommand) | .serverCommand] | length > 0 and all(length == 1 and (.[0] | test("^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\\.sh$")))' "$M"
-expect "MCP サーバーの許可の一覧で、名前（serverName）で許さない（名前は守りにならない）" '[.allowedMcpServers[] | select(.serverName)] | length == 0' "$M"
+# MCP サーバー: サンドボックスの外で動くため、動かす MCP サーバーは managed-mcp.json（root の持ち物）で決める。
+# managed-mcp.json があると、そこに書いたサーバーだけが動き、プロジェクトの .mcp.json・プラグイン・claude.ai のコネクタ・
+# --mcp-config で足したサーバーは動かない（https://code.claude.com/docs/en/managed-mcp）
+MCP="$TEAM/managed-mcp.json"
+SERVER_OK='^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\.sh$'
+expect "managed-mcp.json が JSON として読める" '.' "$MCP"
+expect "managed-mcp.json のサーバーは、インストール先のスクリプトを動かす手元のサーバーだけ" --arg ok "$SERVER_OK" '(.mcpServers | length > 0) and all(.mcpServers[]; (.command | type == "string" and test($ok)) and (.url == null) and ((.type // "stdio") == "stdio"))' "$MCP"
+expect "managed-mcp.json で引数・環境変数を渡さない（外で動くスクリプトの動きを変えさせない）" '[.mcpServers[] | select((.args // []) != [] or .env != null)] | length == 0' "$MCP"
+if grep -q '\${' "$MCP"; then
+  fail=$((fail + 1))
+  echo 'FAIL: managed-mcp.json で ${VAR} の展開を使っている（環境変数で、動かすものを変えられる）'
+else
+  pass=$((pass + 1))
+fi
 while IFS= read -r name; do
   if [ -f "$TEAM/bin/$name" ]; then
     pass=$((pass + 1))
@@ -132,14 +145,24 @@ while IFS= read -r name; do
     fail=$((fail + 1))
     printf 'FAIL: MCP サーバーの %s が .claude/team/bin にない\n' "$name"
   fi
-done < <(jq -r --arg p "$PREFIX" '.allowedMcpServers[]? | .serverCommand[]? | select(startswith($p)) | ltrimstr($p)' "$M" | sort -u)
-# リモートの MCP サーバー（https）は、手元でコマンドを動かさないため許す（claude.ai のコネクタ・プラグインなど）。
-# ただし Claude Code の本体がつなぐため、サンドボックスの通信先の一覧は通らない。広げるときは PR に理由を書く
-expect "リモートの MCP サーバーの許可は https だけ（http を許さない）" '[.allowedMcpServers[] | select(.serverUrl) | .serverUrl] == ["https://*"]' "$M"
-expect ".mcp.json が JSON として読める" '.' "$J"
-expect ".mcp.json の手元の MCP サーバーは、インストール先のスクリプトを引数なしで動かす" '[.mcpServers[] | select(.command)] | length > 0 and all(.command | test("^/opt/claude-code-team/bin/[A-Za-z0-9_-]+\\.sh$"))' "$J"
-expect ".mcp.json にリモートの MCP サーバーを書かない（リポジトリから、つなぐ先を足させない）" '[.mcpServers[] | select(.url)] | length == 0' "$J"
-expect ".mcp.json で引数・環境変数を渡さない（managed settings の許可と同じ形にし、外で動くスクリプトの動きを変えさせない）" '[.mcpServers[] | select(.command) | select((.args // []) != [] or .env != null)] | length == 0' "$J"
+done < <(jq -r --arg p "$PREFIX" '.mcpServers[].command | select(startswith($p)) | ltrimstr($p)' "$MCP" | sort -u)
+# managed-mcp.json があると Claude in Chrome は止まる。ログインが必要なページの確認に使うため、明示して使えるようにする
+expect "managed-mcp.json と一緒に Claude in Chrome を使えるようにする" '.allowClaudeInChromeWithManagedMcp == true' "$M"
+# 念のため、許可の一覧も managed settings の Playwright MCP だけにする（managed-mcp.json が外されたときの守り）
+expect "MCP サーバーの許可の一覧は managed settings のものだけ（allowManagedMcpServersOnly）" '.allowManagedMcpServersOnly == true' "$M"
+expect "MCP サーバーの許可の一覧は、managed-mcp.json と同じコマンドだけ" --slurpfile mcp "$MCP" '[.allowedMcpServers[]] == [$mcp[0].mcpServers[] | {serverCommand: [.command]}]' "$M"
+# リポジトリに .mcp.json を置かない（managed-mcp.json があると使われず、紛らわしいため）
+if [ -e "$ROOT/.mcp.json" ]; then
+  fail=$((fail + 1))
+  echo "FAIL: リポジトリに .mcp.json がある"
+else
+  pass=$((pass + 1))
+fi
+# install.sh が managed-mcp.json も入れる（壊れた JSON は入れない）
+I="$TEAM/install.sh"
+for pat in 'jq empty "\$src/managed-mcp.json"' 'managed-mcp.json'; do
+  if grep -Eq -- "$pat" "$I"; then pass=$((pass + 1)); else fail=$((fail + 1)); printf 'FAIL: install.sh に %s がない\n' "$pat"; fi
+done
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
