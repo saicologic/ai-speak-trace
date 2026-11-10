@@ -59,7 +59,10 @@ while [ "${1-}" = "--skip" ]; do
 done
 
 top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
-[ -z "$top" ] || check_git_config
+# 作業ツリーのない場所（.git の中など）でも、gh が中で git を動かすため、リポジトリの設定を確かめる
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  check_git_config
+fi
 
 # 送ってよいリポジトリか（<prefix>/etc/github-repos に書いたもの）
 allowed_repo() {

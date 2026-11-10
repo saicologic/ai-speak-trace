@@ -10,6 +10,8 @@ cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
 cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
 [ -n "$cmd" ] || exit 0
 hook_dir=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=lib/git-safety.sh
+. "$hook_dir/lib/git-safety.sh"
 
 # push する部分ごとに、push するフォルダ（1行に1つ）を集める
 dirs=""
@@ -52,7 +54,7 @@ while IFS= read -r dir; do
   # 作業ツリーのファイルはサンドボックスの中から消せるため、push するコミット（HEAD）の中を見る
   git -C "$top" cat-file -e HEAD:.coderabbit.yaml 2>/dev/null || continue
 
-  marker="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"
+  marker=$(review_marker "$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir)")
   head_sha=$(git -C "$dir" rev-parse HEAD)
   grep -qx "$head_sha" "$marker" 2>/dev/null && continue
 

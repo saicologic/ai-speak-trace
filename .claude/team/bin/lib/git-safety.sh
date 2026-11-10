@@ -56,3 +56,9 @@ github_slug() {
   [[ "$p" != *..* ]] || return 1
   printf '%s' "$p"
 }
+
+# review_marker <git-common-dir>: 手元の CodeRabbit レビューを通した HEAD の記録のファイル（cr-review.sh が書き、cr-gate-push.sh が読む）。
+# .git の中はサンドボックスの中から書けるため、書けない ~/.claude/state の下に、リポジトリ（git-common-dir）ごとに置く
+review_marker() {
+  printf '%s/.claude/state/coderabbit-reviewed/%s' "$HOME" "$(printf '%s' "$1" | git hash-object --stdin)"
+}

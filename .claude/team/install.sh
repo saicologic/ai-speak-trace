@@ -42,7 +42,7 @@ trap 'rm -rf "$work"' EXIT
 chmod 700 "$work"
 # ユーザー・システムの git の設定を読まず、git のフックを動かさない
 git_root() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c core.hooksPath=/dev/null -C "$work/repo" "$@"; }
-git init -q "$work/repo"
+GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git init -q --template= "$work/repo"
 git_root fetch --quiet --depth 1 "$REPO_URL" "$ref"
 sha=$(git_root rev-parse "FETCH_HEAD^{commit}")
 [ "$target" = main ] || [ "$sha" = "$target" ] || { echo "取り出したコミットが、指定した SHA と違います: $sha" >&2; exit 1; }

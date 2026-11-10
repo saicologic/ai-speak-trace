@@ -10,7 +10,8 @@
 #                                         先頭に環境変数の代入があるコマンドに一致しないため、引数でも渡せるようにする
 #
 # 終了コード: 0 = 指摘なし（レビュー済みにした） / 2 = minor 以上の指摘あり / それ以外 = エラー
-# レビュー済みの HEAD は <git-common-dir>/coderabbit-reviewed に記録し、cr-gate-push.sh が push 時に確かめる
+# レビュー済みの HEAD は ~/.claude/state/coderabbit-reviewed/<リポジトリごと> に記録し、cr-gate-push.sh が push 時に確かめる
+# （.git の中はサンドボックスの中から書けるため、書けない場所に置く。lib/git-safety.sh の review_marker）
 #
 # インストール先（/opt/claude-code-team/bin）から、managed settings の sandbox.excludedCommands でサンドボックスの外で動かす
 # （CodeRabbit CLI がキーチェーンのログイン情報を使うため）。外で動くため:
@@ -26,7 +27,7 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 CR="$HOME/.local/bin/coderabbit"
 git rev-parse --git-dir >/dev/null 2>&1 || { echo "git リポジトリではありません" >&2; exit 1; }
 check_git_config
-marker="$(git rev-parse --path-format=absolute --git-common-dir)/coderabbit-reviewed"
+marker=$(review_marker "$(git rev-parse --path-format=absolute --git-common-dir)")
 head_sha=$(git rev-parse HEAD)
 
 # 親ブランチの名前が、ブランチ名の形か（- で始まるもの・.. などを断る。git fetch のオプションにさせない）
@@ -47,6 +48,7 @@ resolve_base() {
 }
 
 mark_reviewed() {
+  mkdir -p "$(dirname "$marker")"
   echo "$head_sha" >>"$marker"
   echo "REVIEWED: $head_sha"
 }
