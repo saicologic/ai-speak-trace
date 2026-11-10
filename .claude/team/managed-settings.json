@@ -6,7 +6,8 @@
       "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
       "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_file_upload"
     ],
     "deny": [
       "Bash(/bin/bash *)",
@@ -35,7 +36,8 @@
       "Read(~/.npmrc)",
       "Read(~/.ssh/**)",
       "Read(~/Library/Keychains/**)",
-      "Edit(~/.claude/state/**)"
+      "Edit(~/.claude/state/**)",
+      "mcp__playwright__browser_run_code_unsafe"
     ],
     "disableBypassPermissionsMode": "disable"
   },
@@ -89,5 +91,16 @@
         ]
       }
     ]
-  }
+  },
+  "allowManagedMcpServersOnly": true,
+  "allowedMcpServers": [
+    {
+      "serverCommand": [
+        "/opt/claude-code-team/bin/playwright-mcp.sh"
+      ]
+    },
+    {
+      "serverUrl": "https://*"
+    }
+  ]
 }
