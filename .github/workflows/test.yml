@@ -14,6 +14,7 @@ on:
       - '.nvmrc'
       # backend/src/lint のテストが確かめる、サンドボックスの外で動くスクリプト・設定と、TDD の確認のスクリプト
       - '.claude/team/**'
+      - '.claude/settings.json'
       - '.github/scripts/**'
       - '!**.md'
   pull_request:
@@ -55,7 +56,7 @@ jobs:
               *.md) ;;
               backend/*) backend=true ;;
               # backend/src/lint のテストが確かめる、サンドボックスの外で動くスクリプト・設定と、TDD の確認のスクリプト
-              .claude/team/*|.github/scripts/*) backend=true ;;
+              .claude/team/*|.claude/settings.json|.github/scripts/*) backend=true ;;
               frontend/*) frontend=true ;;
               # テストに使う Node のバージョンが変わるため、両方テストする
               .nvmrc) backend=true; frontend=true ;;
