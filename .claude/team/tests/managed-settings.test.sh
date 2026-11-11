@@ -121,7 +121,17 @@ expect "Playwright MCP の browser_drop は、ユーザーに確かめる（ask�
 # git の hook と設定は、/Users・/Volumes の下（開発するリポジトリ・外付けのディスク）を止める。//**/ から書くと、
 # サンドボックスの書き込みの禁止にも加わり、テストが一時フォルダ（/private/tmp・/private/var/folders）に作る
 # git のリポジトリも git init できなくなるため
-expect "deny の .git/hooks・.git/config は、/Users・/Volumes の下の4つだけ" '[.permissions.deny[] | select(test("\\.git/(hooks|config)"))] | sort == ["Edit(//Users/**/.git/config)", "Edit(//Users/**/.git/hooks/**)", "Edit(//Volumes/**/.git/config)", "Edit(//Volumes/**/.git/hooks/**)"]' "$M"
+expect "deny の .git/hooks・.git の設定は、/Users・/Volumes の下の決めたものだけ" '[.permissions.deny[] | select(test("\\.git/(hooks|config|worktrees)"))] | sort == ["Edit(//Users/**/.git/config)", "Edit(//Users/**/.git/config.worktree)", "Edit(//Users/**/.git/hooks/**)", "Edit(//Users/**/.git/worktrees/*/config.worktree)", "Edit(//Volumes/**/.git/config)", "Edit(//Volumes/**/.git/config.worktree)", "Edit(//Volumes/**/.git/hooks/**)", "Edit(//Volumes/**/.git/worktrees/*/config.worktree)"]' "$M"
+# ほかにも、あとで開発者が自分のターミナルで何かを動かしたときに、サンドボックスの外でコマンドが動く場所
+# （worktree ごとの git の設定・npm と cargo の設定・Python が起動のたびに読むファイル・ほかのシェルの起動ファイル）。
+# /Users・/Volumes の下だけにし、テストの一時フォルダ（/private/tmp など）には当てない
+for rule in "Edit(//Users/**/.git/config.worktree)" "Edit(//Users/**/.git/worktrees/*/config.worktree)" \
+  "Edit(//Volumes/**/.git/config.worktree)" "Edit(//Volumes/**/.git/worktrees/*/config.worktree)" \
+  "Edit(//Users/**/.npmrc)" "Edit(//Volumes/**/.npmrc)" "Edit(//Users/**/.cargo/config*)" "Edit(//Volumes/**/.cargo/config*)" \
+  "Edit(//Users/**/site-packages/*.pth)" "Edit(//Users/**/site-packages/sitecustomize.py)" "Edit(//Users/**/site-packages/usercustomize.py)" \
+  "Edit(~/.bash_login)" "Edit(~/.bash_logout)" "Edit(~/.zlogout)" "Edit(~/.config/fish/**)"; do
+  expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
+done
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
