@@ -149,7 +149,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | 公開のリポジトリの PR・Issue に書く | `github.sh` の PR・Issue への文章の書き込みは、毎回ユーザーに確かめます（managed settings の `ask`）。タイトル・本文に API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます |
 | push するコードに入れる | まだ送っていないコミットで足した行に、API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます（後のコミットで消しても、前のコミットに残るため） |
 | 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります） |
-| あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc` など）・`~/Library/LaunchAgents`・`/Users`・`/Volumes` の下のリポジトリの git の hook と設定（テストが一時フォルダに作るリポジトリは除く）・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
+| あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc`・`~/.config/fish` など）・`~/Library/LaunchAgents`・`/Users`・`/Volumes` の下のリポジトリの git の hook と設定（worktree ごとの設定を含む。テストが一時フォルダに作るリポジトリは除く）・`.npmrc`・`.cargo/config*`・Python が起動のたびに読むファイル（`site-packages` の `*.pth`・`sitecustomize.py`・`usercustomize.py`）・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
 | 個人・プロジェクトの設定に hook を足す | managed settings の hook だけを動かします（`allowManagedHooksOnly`）。**この Mac のほかのプロジェクトでも、個人の設定の hook は動きません** |
 
 GitHub の secret scanning の push protection（リポジトリの設定）も、あわせて有効にします。開発者が自分のターミナルで push するときも、秘密の情報を止めます。
@@ -159,4 +159,4 @@ GitHub の secret scanning の push protection（リポジトリの設定）も�
 - サンドボックスと hook は、うっかりや、読み込んだ文書に仕込まれた指示（プロンプトインジェクション）による操作を止めるためのものです。Mac の管理者の権限を持つ開発者は、managed settings を外せます
 - 最後の守りは、GitHub のブランチ保護と必須チェック（`tdd-order`・`backend-test`・`frontend-test`・`build`）です
 - 秘密の情報の形の確かめは、決めた形（Anthropic・AWS のアクセスキー・GitHub・ElevenLabs・Slack のトークン、PEM の秘密鍵）だけを見ます。形を変えたもの（区切る・符号にする）は止められません。PR・Issue への書き込みを毎回確かめるのは、このためです
-- 開発者が自分のターミナルで動かすもの（`npm run dev`・`npm test` など）は、Claude Code が書き換えたコードをサンドボックスの外で動かします。コードの変更は、レビューしてから動かします
+- 開発者が自分のターミナルで動かすもの（`npm run dev`・`npm test` など）は、Claude Code が書き換えたコードをサンドボックスの外で動かします。コードの変更は、レビューしてから動かします（`package.json` の `scripts`・依存のパッケージなど、書き換えを止めていないものも同じです）
