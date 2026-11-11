@@ -15,13 +15,15 @@
 | 層 | 置き場所 | 役割 |
 |---|---|---|
 | GitHub の設定 | ブランチ保護・必須チェック（`tdd-order` など） | Claude Code を使うかどうかに関係なく、全員に効く最後の守り |
-| managed settings | `.claude/team/managed-settings.json` → `/Library/Application Support/ClaudeCode/managed-settings.json` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
-| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`） |
+| managed settings | `.claude/team/managed-settings.json`・`managed-mcp.json` → `/Library/Application Support/ClaudeCode/` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
+| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`・`watch-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`・`cr-limit-gate.sh`）・Playwright MCP の起動（`playwright-mcp.sh`） |
 | リポジトリの設定 | `.claude/settings.json` | 許可するコマンド（hook は書かない） |
 
 managed settings でサンドボックスを管理者が決める状態にすると、リポジトリの設定に書いた `sandbox.excludedCommands`（サンドボックスの外で動かすコマンド）と通信先は無視されます（clone したリポジトリが、コマンドをサンドボックスの外に出せないようにするため）。そのため、外で動かすスクリプトは、リポジトリの中のファイルではなく、root の持ち物として `/opt/claude-code-team/bin` に入れたものだけにしています。
 
 hook もサンドボックスの外で動きます。作業ツリーのファイル（`.github/scripts`・`.claude/hooks` など）はサンドボックスの中から書き換えられるため、hook や外で動くスクリプトから動かしません。hook は、リポジトリの設定には書かず、managed settings からインストール先のもの（API キーを守る `block-ai-speak-trace-secrets.sh`・CodeRabbit の枠の `cr-limit-gate.sh`・PR の監視の `watch-pr-checks.sh`）だけを動かします。TDD の順番の確認（`tdd-push-gate.sh`）は、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使います。
+
+MCP サーバーもサンドボックスの外で動きます。動かす MCP サーバーは、`.claude/team/managed-mcp.json` → `/Library/Application Support/ClaudeCode/managed-mcp.json`（root の持ち物）で、インストール先の Playwright MCP（`playwright-mcp.sh`）だけに決めます。このファイルがあると、プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・`--mcp-config` で足したサーバーは動きません（[公式のドキュメント](https://code.claude.com/docs/en/managed-mcp)）。組み込みの Claude in Chrome も止まります（普段のログイン中の Chrome を操作させないため、使えるようにしていません）。**この Mac のほかのプロジェクトでも同じ**です。ただし、Claude のデスクトップアプリのセッションに、デスクトップアプリが渡すコネクタは、`managed-mcp.json` では止まりません（claude.ai の組織の設定で管理されます）。このリポジトリの開発は、ターミナルの Claude Code（CLI）で行い、デスクトップアプリのセッションは対象外にします。`playwright-mcp.sh` は、受け取った環境変数・引数を使わず、`/` に移ってから決めた環境変数だけで `npx` を動かします。
 
 外で git を動かすスクリプトは、リポジトリの git の設定を決めた項目だけ認め、git のフック・fsmonitor・サブモジュールの中・`ext::` のリモートを使いません（`.claude/team/bin/lib/git-safety.sh`）。サンドボックスの中で書き換えたリポジトリの設定から、外のコマンドを動かさないためです。
 
@@ -56,22 +58,24 @@ rm -f "$installer"
 - `release/*` などのブランチは直接 push できるため、ブランチの名前では入れません。`main`（ブランチ保護で PR が必須）か、レビューしてマージしたコミットの SHA を指定します。SHA は、`main` か `release/*` の履歴に入っているものだけを受け付けます（GitHub は、どのブランチにも入っていないコミットも SHA で取り出せるため）
 - `install.sh` は、そのコミットを root だけが読み書きできる一時フォルダに取り出し、そこから入れます。入れたコミットは `/opt/claude-code-team/etc/installed-from` に残します
 - 中身を確かめてから実行したいときは、GitHub の画面で `.claude/team/install.sh` を読んでから実行します
-- スクリプトを `/opt/claude-code-team/bin` に、managed settings を `/Library/Application Support/ClaudeCode/managed-settings.json` に入れます。前の managed settings があれば、同じフォルダに `.bak` として残します。はじめて入れる前の managed settings は、`managed-settings.json.before-claude-code-team` として別に残します
+- スクリプトを `/opt/claude-code-team/bin` に、managed settings と MCP サーバーの設定を `/Library/Application Support/ClaudeCode/managed-settings.json`・`managed-mcp.json` に入れます。前のものがあれば、同じフォルダに `.bak` として残します。はじめて入れる前のものは、`managed-settings.json.before-claude-code-team`・`managed-mcp.json.before-claude-code-team` として別に残します
 - managed settings は、**その Mac のすべてのプロジェクト**に効きます。通信先も、ほかのプロジェクトを含めて `managed-settings.json` の一覧だけになります
 - Claude Code の `/status` で、managed settings が読まれていることを確かめます
 
-`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。
+`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
 
-外すときは、次を実行します。はじめて入れる前の managed settings（`managed-settings.json.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
+外すときは、次を実行します。はじめて入れる前の managed settings・MCP サーバーの設定（`*.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
 
 ```bash
 sudo rm -rf /opt/claude-code-team
 dir="/Library/Application Support/ClaudeCode"
-if [ -f "$dir/managed-settings.json.before-claude-code-team" ]; then
-  sudo mv "$dir/managed-settings.json.before-claude-code-team" "$dir/managed-settings.json"   # はじめて入れる前の設定に戻す
-else
-  sudo rm "$dir/managed-settings.json"
-fi
+for name in managed-settings.json managed-mcp.json; do
+  if [ -f "$dir/$name.before-claude-code-team" ]; then
+    sudo mv "$dir/$name.before-claude-code-team" "$dir/$name"   # はじめて入れる前の設定に戻す
+  else
+    sudo rm -f "$dir/$name"
+  fi
+done
 ```
 
 ## GitHub への操作（github.sh）
@@ -98,6 +102,19 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 
 push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook）が、`/opt/claude-code-team/bin/wait-pr-checks.sh` で CI と CodeRabbit を監視するよう Claude Code に伝えます。
 
+## サンドボックスの中での開発
+
+| 作業 | Claude Code（サンドボックスの中） | 開発者（自分のターミナル） |
+|---|---|---|
+| lint・テスト・ビルド | backend・frontend の lint・テスト・ビルドと、`src-tauri` の `cargo check` ができます | `backend/src/mcp/mcp-sandbox.spec.ts` を流します（下の説明） |
+| 依存の入れ直し・追加（`npm ci`・`npm install`） | できません（managed settings の `deny`） | 行います。Rust の新しい crate を足したときの取得（`cargo fetch`）も行います |
+| 画面の確認 | Playwright MCP で `localhost` の画面を確かめます | `npm run dev` でサーバーを起動しておきます |
+| 外部の API（ElevenLabs・Claude・Amazon Bedrock）につなぐ確認 | できません | PR の「## 手動確認項目」で確かめます |
+
+- `mcp-sandbox.spec.ts` は、`sandbox-exec` で MCP サーバーをサンドボックスに入れて確かめるテストです。サンドボックスの中からもう1つサンドボックスは作れない（`sandbox_apply: Operation not permitted`）ため、Claude Code の中では飛ばします。CI（ubuntu）にも `sandbox-exec` がないため飛ばします。MCP サーバーの仕組み（`backend/scripts/mcp-sandbox.*`・`backend/src/mcp/`）を変えたときは、開発者が `cd backend && npx jest src/mcp/mcp-sandbox.spec.ts` を流して確かめます
+- `npm ci`・`npm install` は、サンドボックスの中では npm のキャッシュ（`~/.npm`）に書けず、保護されたファイル（`.vscode/settings.json` など）も消せないため、`node_modules` を消した後に途中で止まり、壊れたまま残ります。依存を足すときも、Claude Code は `package.json` の変更を提案し、開発者が入れます
+- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。プロキシを通らない WebRTC の UDP も、Chrome の起動引数で止めています（`/opt/claude-code-team/etc/playwright-mcp.json`）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
+
 ## 変えたいとき
 
 | 変えたいもの | 変える場所 |
@@ -118,10 +135,28 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 | 通信が `host is not on the allow list` で失敗する | 通信先の一覧にないドメインです。必要なら、`allowedDomains` を変える PR を出します |
 | `gh`・`git push` が失敗する | Bash から GitHub には届きません。`github.sh` を使います |
 | `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
-| 開発サーバー・Playwright のポートを開けない | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します |
+| 開発サーバーを起動できない（`listen EPERM`） | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
+| `npm ci`・`npm install` が断られる | サンドボックスの中では途中で止まって `node_modules` が壊れるため、managed settings で止めています。開発者が自分のターミナルで実行します |
+| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
+
+## 外にデータを出させない守り
+
+サンドボックスの外で動くツール（ファイルを読む・書くツール、`github.sh`）を使って、手元の情報を外に出したり、あとから外でコマンドを動かしたりさせないため、次のようにしています。
+
+| 道 | 守り |
+|---|---|
+| 公開のリポジトリの PR・Issue に書く | `github.sh` の PR・Issue への文章の書き込みは、毎回ユーザーに確かめます（managed settings の `ask`）。タイトル・本文に API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます |
+| push するコードに入れる | まだ送っていないコミットで足した行に、API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます（後のコミットで消しても、前のコミットに残るため） |
+| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります） |
+| あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc` など）・`~/Library/LaunchAgents`・git の hook と設定・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
+| 個人・プロジェクトの設定に hook を足す | managed settings の hook だけを動かします（`allowManagedHooksOnly`）。**この Mac のほかのプロジェクトでも、個人の設定の hook は動きません** |
+
+GitHub の secret scanning の push protection（リポジトリの設定）も、あわせて有効にします。開発者が自分のターミナルで push するときも、秘密の情報を止めます。
 
 ## 守りの限界
 
 - サンドボックスと hook は、うっかりや、読み込んだ文書に仕込まれた指示（プロンプトインジェクション）による操作を止めるためのものです。Mac の管理者の権限を持つ開発者は、managed settings を外せます
 - 最後の守りは、GitHub のブランチ保護と必須チェック（`tdd-order`・`backend-test`・`frontend-test`・`build`）です
+- 秘密の情報の形の確かめは、決めた形（Anthropic・AWS のアクセスキー・GitHub・ElevenLabs・Slack のトークン、PEM の秘密鍵）だけを見ます。形を変えたもの（区切る・符号にする）は止められません。PR・Issue への書き込みを毎回確かめるのは、このためです
+- 開発者が自分のターミナルで動かすもの（`npm run dev`・`npm test` など）は、Claude Code が書き換えたコードをサンドボックスの外で動かします。コードの変更は、レビューしてから動かします
