@@ -64,6 +64,22 @@ rm -f "$installer"
 
 `.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
 
+入れた後（入れ直した後も）は、次の手順で Claude Code を起動し直します。managed settings はファイルを変えるとその場で読み直されますが、MCP サーバー（Playwright MCP）は、起動したときのプロセスが動き続けるため、起動し直すまで前の起動の仕方（前の守り）のままです。ほかのセッション（Orca のほかのタブなど）が動かしているものや、終わったセッションに残ったものもあります。
+
+1. 開いている Claude Code のセッションを、すべて終了します（`/exit`）
+2. 残っている Playwright MCP を止め、何も残っていないことを確かめます
+
+   ```bash
+   pkill -f "npm exec @playwright/mcp@"
+   ps -axo pid,lstart,command | grep -E "playwright/mcp" | grep -v grep
+   ```
+
+3. Claude Code を起動し、Playwright MCP を一度使ってから、新しい起動の仕方で動いていることを確かめます。行に `--proxy-server http://127.0.0.1:9`・`--proxy-bypass <-loopback>,localhost,127.0.0.1`・`--config /opt/claude-code-team/etc/playwright-mcp.json` があれば、入れたものが動いています
+
+   ```bash
+   ps -axo pid,lstart,command | grep -E "playwright/mcp" | grep -v grep
+   ```
+
 外すときは、次を実行します。はじめて入れる前の managed settings・MCP サーバーの設定（`*.before-claude-code-team`）があれば戻し、なければ消します（`.bak` は、入れ直す前のチームの設定のこともあるため戻しません）。
 
 ```bash
