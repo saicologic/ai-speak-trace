@@ -139,7 +139,8 @@ expect "レビュー済みの記録・枠切れの記録（~/.claude/state）を
 for rule in "Bash(npm ci)" "Bash(npm ci *)" "Bash(npm install)" "Bash(npm install *)" "Bash(npm i)" "Bash(npm i *)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
-expect "deny に個人のパス（/Users/）を書かない" '[.permissions.deny[] | select(test("/Users/"))] | length == 0' "$M"
+# 決まったユーザー名（/Users/<名前>/）を書かない。/Users/** のように、すべてのユーザーに当たる書き方はよい
+expect "deny に個人のパス（/Users/<名前>/）を書かない" '[.permissions.deny[] | select(test("/Users/[^*/]"))] | length == 0' "$M"
 
 # リポジトリの設定: インストール先のスクリプトを許可し、サンドボックスを弱める設定を書かない
 expect ".claude/settings.json が JSON として読める" '.' "$P"
