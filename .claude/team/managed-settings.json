@@ -6,7 +6,16 @@
       "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
       "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_file_upload",
+      "Bash(/opt/claude-code-team/bin/github.sh pr create *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr edit *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr comment *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr close *)",
+      "Bash(/opt/claude-code-team/bin/github.sh issue create *)",
+      "Bash(/opt/claude-code-team/bin/github.sh issue comment *)",
+      "mcp__playwright__browser_drop",
+      "Edit(//**/.claude/settings.json)"
     ],
     "deny": [
       "Bash(/bin/bash *)",
@@ -35,7 +44,43 @@
       "Read(~/.npmrc)",
       "Read(~/.ssh/**)",
       "Read(~/Library/Keychains/**)",
-      "Edit(~/.claude/state/**)"
+      "Bash(npm ci)",
+      "Bash(npm ci *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm i)",
+      "Bash(npm i *)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.azure/**)",
+      "Read(~/Library/Cookies/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Firefox/**)",
+      "Read(~/Library/Safari/**)",
+      "Read(~/Library/Messages/**)",
+      "Read(~/Library/Mail/**)",
+      "Read(~/.password-store/**)",
+      "Read(~/.config/op/**)",
+      "Edit(~/.claude/state/**)",
+      "Edit(~/.zshrc)",
+      "Edit(~/.zprofile)",
+      "Edit(~/.zshenv)",
+      "Edit(~/.zlogin)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.bash_profile)",
+      "Edit(~/.profile)",
+      "Edit(~/Library/LaunchAgents/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.gitconfig)",
+      "Edit(~/.config/git/**)",
+      "Edit(//**/.git/hooks/**)",
+      "Edit(//**/.git/config)",
+      "Edit(//**/.envrc)",
+      "Edit(//**/.vscode/**)",
+      "Edit(~/.claude/settings.json)",
+      "Edit(~/.claude/settings.local.json)",
+      "Edit(//**/.claude/settings.local.json)",
+      "mcp__playwright__browser_run_code_unsafe"
     ],
     "disableBypassPermissionsMode": "disable"
   },
@@ -89,5 +134,6 @@
         ]
       }
     ]
-  }
+  },
+  "allowManagedHooksOnly": true
 }

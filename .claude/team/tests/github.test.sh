@@ -401,5 +401,108 @@ if [ "$rc" -eq 0 ] && [ "$(gh_args)" = "issue create --title t --body body @code
 rejected "issue create（本文のファイルがリポジトリの外）" issue create --title t --body-file "$outside/x"
 rejected "issue create --assignee" issue create --title t --body x --assignee someone
 
+# --- 秘密の情報（API キー・トークン・秘密鍵）を、公開のリポジトリに書かせない
+# （テストのファイルに、そのままの形を書かないよう、つないで作る）
+k_anthropic="sk-ant""-api03-$(printf 'a%.0s' $(seq 1 40))"
+k_aws="AKIA""ABCDEFGHIJKLMNOP"
+k_github="ghp_""$(printf 'b%.0s' $(seq 1 36))"
+k_eleven="sk_""$(printf 'c%.0s' $(seq 1 48))"
+k_pem="-----BEGIN ""RSA PRIVATE KEY-----"
+# secret_rejected <説明> <引数...>: 断られ、理由に「秘密の情報」があり、gh を呼ばず確認も流さない
+secret_rejected() {
+  local name=$1; shift
+  run "$@"
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '秘密の情報' && [ ! -e "$tmp/gh-args" ] && ! checked; then ok; else ng "$name（rc=$rc）: $out"; fi
+}
+secret_rejected "PR のコメントに Anthropic の API キー" pr comment 12 --body "key: $k_anthropic"
+secret_rejected "Issue のタイトルに GitHub のトークン" issue create --title "t $k_github" --body x
+secret_rejected "PR の本文に ElevenLabs の API キー" pr create --draft --title t --body "x $k_eleven"
+printf 'note\n%s\n' "$k_aws" >"$repo/secret-body.md"
+secret_rejected "本文のファイルに AWS のアクセスキー" issue comment 7 --body-file secret-body.md
+rm -f "$repo/secret-body.md"
+secret_rejected "PR の編集の本文に秘密鍵" pr edit 12 --body "$k_pem"
+# キーの形の説明だけ（短い）は止めない
+run pr comment 12 --body "API キーの形（sk-ant…）は書かないでください"
+if [ "$rc" -eq 0 ]; then ok; else ng "キーの説明だけのコメントを断った（rc=$rc）: $out"; fi
+
+# push: まだ送っていないコミットで足した行に秘密の情報があれば、送らない
+# （fetch のテストで insteadOf を .github.git 向けに上書きしたため、origin を手元の bare リポジトリに向け直す）
+git config --global --add url."$remote".insteadOf https://github.com/me/repo.git
+git -C "$repo" switch -q -c fix/secret
+printf 'aws_key = "%s"\n' "$k_aws" >"$repo/config.txt"
+git -C "$repo" add config.txt
+git -C "$repo" commit -q -m "add config"
+secret_rejected "秘密の情報を足したコミットの push" push origin fix/secret
+if [ -z "$(remote_head fix/secret)" ]; then ok; else ng "秘密の情報を足したコミットを送った"; fi
+# 消すコミットを足しても、前のコミットに残るため送らない
+git -C "$repo" rm -q config.txt
+git -C "$repo" commit -q -m "remove config"
+secret_rejected "秘密の情報を足して消した、まだ送っていないコミットの push" push origin fix/secret
+# 手元の remote-tracking ref（サンドボックスの中から作れる）を偽って、送り済みに見せても送らない
+git -C "$repo" update-ref refs/remotes/origin/fake fix/secret
+secret_rejected "偽の remote-tracking ref で送り済みに見せたコミットの push" push origin fix/secret
+git -C "$repo" update-ref -d refs/remotes/origin/fake
+# replace の ref で、git log に見せる中身だけを差し替えても送らない
+clean=$(git -C "$repo" rev-parse fix/a)
+bad=$(git -C "$repo" rev-parse fix/secret~1)
+git -C "$repo" replace "$bad" "$clean"
+secret_rejected "replace の ref で中身を隠したコミットの push" push origin fix/secret
+git -C "$repo" replace -d "$bad" >/dev/null
+git -C "$repo" switch -q fix/a
+
+# .gitattributes でバイナリ扱いにしたファイル・後ろに NUL のあるファイルの中身も確かめる
+git -C "$repo" switch -q -c fix/secret-bin fix/a
+printf 'data.bin -diff\n' >"$repo/.gitattributes"
+printf 'x %s\n' "$k_aws" >"$repo/data.bin"
+git -C "$repo" add .gitattributes data.bin
+git -C "$repo" commit -q -m "add data"
+secret_rejected "バイナリ扱いのファイルに秘密の情報があるコミットの push" push origin fix/secret-bin
+git -C "$repo" switch -q -c fix/secret-nul fix/a
+{ printf 'x %s\n' "$k_aws"; printf 'tail\0\n'; } >"$repo/nul.txt"
+git -C "$repo" add nul.txt
+git -C "$repo" commit -q -m "add nul"
+secret_rejected "後ろに NUL があるファイルに秘密の情報があるコミットの push" push origin fix/secret-nul
+
+# コミットメッセージに秘密の情報があれば送らない
+git -C "$repo" switch -q -c fix/secret-msg fix/a
+git -C "$repo" commit -q --allow-empty -m "token $k_github"
+secret_rejected "コミットメッセージに秘密の情報があるコミットの push" push origin fix/secret-msg
+
+# マージのコミットで足した行（衝突の解消などで、どちらの親にもない行）も確かめる
+git -C "$repo" switch -q -c fix/secret-merge fix/a
+git -C "$repo" switch -q -c fix/side fix/a
+printf 'side\n' >"$repo/side.txt"
+git -C "$repo" add side.txt
+git -C "$repo" commit -q -m side
+git -C "$repo" switch -q fix/secret-merge
+git -C "$repo" merge -q --no-ff --no-commit fix/side >/dev/null 2>&1
+printf 'k = "%s"\n' "$k_aws" >"$repo/merged.txt"
+git -C "$repo" add merged.txt
+git -C "$repo" commit -q -m "merge side"
+secret_rejected "マージのコミットで秘密の情報を足した push" push origin fix/secret-merge
+
+# 確かめるための git log が失敗したときは、確かめられないので送らない
+real_git=$(command -v git)
+cat >"$tmp/bin/git" <<EOF
+#!/bin/bash
+case " \$* " in *" log "*"--diff-merges"*) echo "fake failure" >&2; exit 128 ;; esac
+exec "$real_git" "\$@"
+EOF
+chmod +x "$tmp/bin/git"
+git -C "$repo" switch -q -c fix/logfail fix/a
+git -C "$repo" commit -q --allow-empty -m "logfail"
+run push origin fix/logfail
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '調べられません' && [ -z "$(remote_head fix/logfail)" ]; then ok; else ng "git log が失敗したのに送った・理由がない（rc=$rc）: $out"; fi
+rm -f "$tmp/bin/git"
+
+# 秘密の情報のない新しいブランチは、止めすぎずに送る
+git -C "$repo" switch -q -c fix/clean fix/a
+printf 'task_id = "abc"\nsk_name = "x"\n' >"$repo/clean.txt"
+git -C "$repo" add clean.txt
+git -C "$repo" commit -q -m "add clean"
+run push origin fix/clean
+if [ "$rc" -eq 0 ] && [ -n "$(remote_head fix/clean)" ]; then ok; else ng "秘密の情報のない新しいブランチの push を止めた（rc=$rc）: $out"; fi
+git -C "$repo" switch -q fix/a
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

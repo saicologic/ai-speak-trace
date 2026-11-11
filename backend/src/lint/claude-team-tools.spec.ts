@@ -24,6 +24,7 @@ describe('.claude/team のテスト', () => {
         'cr-review.test.sh',
         'github.test.sh',
         'managed-settings.test.sh',
+        'playwright-mcp.test.sh',
         'wait-pr-checks.test.sh',
         'watch-pr-checks.test.sh',
       ]),
