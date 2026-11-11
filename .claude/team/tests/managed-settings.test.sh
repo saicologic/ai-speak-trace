@@ -121,7 +121,7 @@ expect "Playwright MCP の browser_drop は、ユーザーに確かめる（ask�
 # git の hook と設定は、/Users・/Volumes の下（開発するリポジトリ・外付けのディスク）を止める。//**/ から書くと、
 # サンドボックスの書き込みの禁止にも加わり、テストが一時フォルダ（/private/tmp・/private/var/folders）に作る
 # git のリポジトリも git init できなくなるため
-expect "deny の .git/hooks・.git/config は、/Users・/Volumes の下だけ（//**/ から書かない）" '[.permissions.deny[] | select(test("^Edit\\(//\\*\\*/.*\\.git/(hooks|config)"))] | length == 0' "$M"
+expect "deny の .git/hooks・.git/config は、/Users・/Volumes の下の4つだけ" '[.permissions.deny[] | select(test("\\.git/(hooks|config)"))] | sort == ["Edit(//Users/**/.git/config)", "Edit(//Users/**/.git/hooks/**)", "Edit(//Volumes/**/.git/config)", "Edit(//Volumes/**/.git/hooks/**)"]' "$M"
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
