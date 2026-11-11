@@ -107,7 +107,7 @@ done
 # （シェルの起動ファイル・ログインのときに動くもの・git の hook と設定・エディタのタスク・Claude Code の個人の設定）
 for rule in "Edit(~/.zshrc)" "Edit(~/.zprofile)" "Edit(~/.zshenv)" "Edit(~/.zlogin)" "Edit(~/.bashrc)" "Edit(~/.bash_profile)" "Edit(~/.profile)" \
   "Edit(~/Library/LaunchAgents/**)" "Edit(~/.ssh/**)" "Edit(~/.gitconfig)" "Edit(~/.config/git/**)" \
-  "Edit(//**/.git/hooks/**)" "Edit(//**/.git/config)" "Edit(//**/.envrc)" "Edit(//**/.vscode/**)" \
+  "Edit(~/**/.git/hooks/**)" "Edit(~/**/.git/config)" "Edit(//**/.envrc)" "Edit(//**/.vscode/**)" \
   "Edit(~/.claude/settings.json)" "Edit(~/.claude/settings.local.json)" "Edit(//**/.claude/settings.local.json)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
@@ -117,6 +117,9 @@ expect "deny の Edit・Read で、** から書いたもの（今のフォルダ
 expect "リポジトリの .claude/settings.json の書き換えは、ユーザーに確かめる（ask）" '.permissions.ask | index("Edit(//**/.claude/settings.json)") != null' "$M"
 # Playwright MCP で、手元のファイルをページに渡す操作（ドラッグ・アンド・ドロップ）も、ユーザーに確かめる
 expect "Playwright MCP の browser_drop は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_drop") != null' "$M"
+# git の hook と設定は、ホームの下（開発するリポジトリ）だけを止める。// から書くと、サンドボックスの書き込みの禁止にも
+# 加わり、テストが一時フォルダ（/private/tmp）に作る git のリポジトリも git init できなくなるため
+expect "deny の .git/hooks・.git/config は、ホームの下だけ（// から書かない）" '[.permissions.deny[] | select(test("^Edit\\(//.*\\.git/(hooks|config)"))] | length == 0' "$M"
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
