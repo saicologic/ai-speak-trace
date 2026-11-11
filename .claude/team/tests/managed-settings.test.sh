@@ -129,9 +129,12 @@ for rule in "Edit(//Users/**/.git/config.worktree)" "Edit(//Users/**/.git/worktr
   "Edit(//Volumes/**/.git/config.worktree)" "Edit(//Volumes/**/.git/worktrees/*/config.worktree)" \
   "Edit(//Users/**/.npmrc)" "Edit(//Volumes/**/.npmrc)" "Edit(//Users/**/.cargo/config*)" "Edit(//Volumes/**/.cargo/config*)" \
   "Edit(//Users/**/site-packages/*.pth)" "Edit(//Users/**/site-packages/sitecustomize.py)" "Edit(//Users/**/site-packages/usercustomize.py)" \
+  "Edit(//Volumes/**/site-packages/*.pth)" "Edit(//Volumes/**/site-packages/sitecustomize.py)" "Edit(//Volumes/**/site-packages/usercustomize.py)" \
   "Edit(~/.bash_login)" "Edit(~/.bash_logout)" "Edit(~/.zlogout)" "Edit(~/.config/fish/**)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
+# /Users の下に当てたルールは、/Volumes（外付けのディスク）の下にも同じものを置く
+expect "deny の //Users/** の Edit のルールには、同じ //Volumes/** のルールがある" '[.permissions.deny[] | select(startswith("Edit(//Users/**/"))] as $u | [.permissions.deny[] | select(startswith("Edit(//Volumes/**/"))] as $v | ($u | map(sub("^Edit\\(//Users/"; "Edit(//Volumes/")) | sort) == ($v | sort)' "$M"
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
