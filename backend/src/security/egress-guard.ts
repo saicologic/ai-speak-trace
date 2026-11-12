@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { appendFileSync, mkdirSync } from 'fs';
+import { appendFile, mkdir, rename, stat } from 'fs/promises';
 import * as net from 'net';
 import { dirname } from 'path';
 
@@ -91,6 +91,71 @@ function connectTarget(args: unknown[]): ConnectTarget {
   };
 }
 
+/** プロキシの設定を読む環境変数（axios などが使う） */
+const PROXY_ENV_NAMES = [
+  'HTTPS_PROXY',
+  'https_proxy',
+  'HTTP_PROXY',
+  'http_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+];
+
+/** プロキシの URL にポートがないときの、方式ごとのポート */
+const PROXY_DEFAULT_PORTS: Record<string, number> = {
+  'http:': 80,
+  'https:': 443,
+  'socks:': 1080,
+  'socks4:': 1080,
+  'socks4a:': 1080,
+  'socks5:': 1080,
+  'socks5h:': 1080,
+};
+
+/** 環境変数に設定されたプロキシの宛先（host:port。読めない設定は除く） */
+function proxyEndpoints(env: NodeJS.ProcessEnv): string[] {
+  const endpoints: string[] = [];
+  for (const name of PROXY_ENV_NAMES) {
+    const value = env[name];
+    if (!value) continue;
+    try {
+      // 方式を書かない設定（proxy.example:3128 など）は、axios などと同じく http として読む
+      const url = new URL(value.includes('://') ? value : `http://${value}`);
+      const port = url.port
+        ? Number(url.port)
+        : PROXY_DEFAULT_PORTS[url.protocol];
+      // IPv6 は [::1] の形で入るため、角かっこを外して宛先と比べる
+      const hostname = url.hostname.replace(/^\[(.*)\]$/, '$1');
+      if (hostname && port) {
+        endpoints.push(`${normalizeHost(hostname)}:${port}`);
+      }
+    } catch {
+      // URL として読めない設定は、プロキシとして扱わない
+    }
+  }
+  return endpoints;
+}
+
+/**
+ * 断ったときのエラーの文
+ * 宛先がプロキシの設定と同じときは、プロキシを使う環境ではつなげないことを示す
+ * （アプリは宛先の名前で確かめるため、プロキシを通す通信は通せない）
+ */
+function blockedMessage(
+  host: string | undefined,
+  port: number | undefined,
+  env: NodeJS.ProcessEnv,
+): string {
+  const target = `${host}:${port}`;
+  if (
+    typeof host === 'string' &&
+    proxyEndpoints(env).includes(`${normalizeHost(host)}:${port}`)
+  ) {
+    return `プロキシを使う環境では、外部の API につなげません（プロキシ: ${target}）。HTTPS_PROXY などのプロキシの設定を外してから、アプリを起動し直してください（プロキシを通さないとつながらないネットワークでは使えません）`;
+  }
+  return `外への通信を断りました: ${target}`;
+}
+
 /** 外への接続の記録（パス・ヘッダー・本文は残さない） */
 export interface EgressLogEntry {
   time: string;
@@ -130,14 +195,69 @@ export function withEgressHosts<T>(
   return extraHostsStore.run(hosts, fn);
 }
 
-/** 記録をファイルに1件ずつ JSON の行で追記する関数を返す（フォルダがなければ作る） */
+/** 記録のファイルの大きさの上限の既定（超えるときは .1 に移す） */
+export const EGRESS_LOG_MAX_BYTES = 5 * 1024 * 1024;
+
+/** まだ書いていない記録の大きさの上限の既定（書き込みが遅いときに、メモリに溜め続けない） */
+export const EGRESS_LOG_MAX_PENDING_BYTES = 1024 * 1024;
+
+/** 記録をファイルに書く関数（flush で、それまでに渡した記録を書き終えるまで待てる） */
+export type EgressFileLogger = ((entry: EgressLogEntry) => void) & {
+  flush: () => Promise<void>;
+};
+
+/**
+ * 記録をファイルに1件ずつ JSON の行で追記する関数を返す（フォルダがなければ作る）
+ * - 接続の処理を止めないよう、書き込みを待たずに戻り、順番に書く
+ * - 書くと maxBytes を超えるときは、今のファイルを <file>.1 に移してから書く（古いものは1世代だけ残す）
+ * - 書き込みに失敗した記録は捨て、後の記録は書き続ける
+ * - まだ書いていない記録が maxPendingBytes を超えるときは、その記録を捨てる（接続は待たせない）
+ */
 export function createEgressFileLogger(
   file: string,
-): (entry: EgressLogEntry) => void {
-  return (entry) => {
-    mkdirSync(dirname(file), { recursive: true });
-    appendFileSync(file, JSON.stringify(entry) + '\n');
+  {
+    maxBytes = EGRESS_LOG_MAX_BYTES,
+    maxPendingBytes = EGRESS_LOG_MAX_PENDING_BYTES,
+  }: { maxBytes?: number; maxPendingBytes?: number } = {},
+): EgressFileLogger {
+  let queue: Promise<void> = Promise.resolve();
+  /** まだ書いていない記録の大きさ */
+  let pendingBytes = 0;
+  /** 今のファイルの大きさ（初めて書くときと、失敗した後に読み直す） */
+  let size: number | undefined;
+  const write = async (line: string) => {
+    try {
+      if (size === undefined) {
+        await mkdir(dirname(file), { recursive: true });
+        size = await stat(file).then(
+          (s) => s.size,
+          () => 0,
+        );
+      }
+      const bytes = Buffer.byteLength(line);
+      if (size > 0 && size + bytes > maxBytes) {
+        await rename(file, `${file}.1`);
+        size = 0;
+      }
+      await appendFile(file, line);
+      size += bytes;
+    } catch {
+      // 記録できなくても、通信の確かめには影響させない（次に書くときに大きさを読み直す）
+      size = undefined;
+    }
   };
+  const log = (entry: EgressLogEntry) => {
+    const line = JSON.stringify(entry) + '\n';
+    const bytes = Buffer.byteLength(line);
+    if (pendingBytes + bytes > maxPendingBytes) return;
+    pendingBytes += bytes;
+    queue = queue.then(() =>
+      write(line).finally(() => {
+        pendingBytes -= bytes;
+      }),
+    );
+  };
+  return Object.assign(log, { flush: () => queue });
 }
 
 /**
@@ -149,10 +269,13 @@ export function createEgressFileLogger(
 export function installEgressGuard({
   log,
   allowCustomLookup = false,
+  env = process.env,
 }: {
   log?: (entry: EgressLogEntry) => void;
   /** lookup の差し替えを許す（テストで DNS を引かないため。アプリでは許さない） */
   allowCustomLookup?: boolean;
+  /** プロキシの設定を読む環境変数（断ったときの文に使う。既定は process.env） */
+  env?: NodeJS.ProcessEnv;
 } = {}): () => void {
   // 記録の処理が失敗しても、接続の確かめは続ける
   const record = (entry: EgressLogEntry) => {
@@ -177,10 +300,9 @@ export function installEgressGuard({
     const lookupOk = allowCustomLookup || !target.customLookup;
     if (!lookupOk || !isEgressAllowed(host, port, extraHostsStore.getStore())) {
       record({ time, host, port, allowed: false });
-      const err = Object.assign(
-        new Error(`外への通信を断りました: ${target.host}:${target.port}`),
-        { code: EGRESS_BLOCKED },
-      );
+      const err = Object.assign(new Error(blockedMessage(host, port, env)), {
+        code: EGRESS_BLOCKED,
+      });
       process.nextTick(() => this.destroy(err));
       return this;
     }

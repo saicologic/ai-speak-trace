@@ -1,5 +1,11 @@
 import axios from 'axios';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'fs';
 import * as net from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -287,6 +293,107 @@ describe('外への接続の記録', () => {
   });
 });
 
+/** 接続を試し、最初に起きたエラーのコードと文を返す（DNS は引かずに、名前が見つからないことにする） */
+function connectError(
+  host: string,
+  port: number,
+): Promise<{ code: string | undefined; message: string }> {
+  return new Promise((resolve) => {
+    const lookup: net.LookupFunction = (_host, _options, callback) => {
+      const err = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+      (callback as (e: Error) => void)(err);
+    };
+    const socket = net.connect({ host, port, lookup });
+    socket.on('error', (e: NodeJS.ErrnoException) => {
+      socket.destroy();
+      resolve({ code: e.code, message: e.message });
+    });
+  });
+}
+
+describe('プロキシを使う環境', () => {
+  let uninstall: (() => void) | undefined;
+  const install = (env: NodeJS.ProcessEnv) => {
+    uninstall = installEgressGuard({ allowCustomLookup: true, env });
+  };
+  afterEach(() => uninstall?.());
+
+  const PROXY_MESSAGE = 'プロキシを使う環境では、外部の API につなげません';
+
+  it('プロキシの宛先への接続は、プロキシを使う環境ではつなげないと分かる文で断る', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('proxy.example', 8080);
+    expect(r.code).toBe('EGRESS_BLOCKED');
+    expect(r.message).toContain(PROXY_MESSAGE);
+    expect(r.message).toContain('proxy.example:8080');
+    // 設定が残っていると、ネットワークを変えても同じプロキシにつなぐため、設定を外して起動し直すよう案内する
+    expect(r.message).toContain(
+      'HTTPS_PROXY などのプロキシの設定を外してから、アプリを起動し直してください',
+    );
+  });
+
+  it.each([
+    [{ https_proxy: 'http://proxy.example:3128' }, 3128],
+    [{ HTTP_PROXY: 'http://proxy.example:8080' }, 8080],
+    [{ http_proxy: 'http://proxy.example' }, 80],
+    [{ ALL_PROXY: 'socks5://proxy.example:1080' }, 1080],
+    [{ all_proxy: 'https://PROXY.example.' }, 443],
+    [{ ALL_PROXY: 'socks5h://proxy.example' }, 1080],
+    [{ ALL_PROXY: 'socks4a://proxy.example' }, 1080],
+    // 方式を書かない設定（axios などは http として扱う）
+    [{ HTTPS_PROXY: 'proxy.example:3128' }, 3128],
+    [{ HTTP_PROXY: 'proxy.example' }, 80],
+  ])(
+    'プロキシの設定 %j（ポート %d）も、プロキシの文で断る',
+    async (env, port) => {
+      install(env);
+      const r = await connectError('proxy.example', port);
+      expect(r.code).toBe('EGRESS_BLOCKED');
+      expect(r.message).toContain(PROXY_MESSAGE);
+    },
+  );
+
+  it('宛先の大文字・末尾のドットも、プロキシと同じ名前として扱う', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('PROXY.Example.', 8080);
+    expect(r.message).toContain(PROXY_MESSAGE);
+  });
+
+  it('IPv6 で書いたプロキシも、同じ宛先として扱う', async () => {
+    install({ HTTPS_PROXY: 'http://[::1]:8080' });
+    const r = await connectError('::1', 8080);
+    expect(r.code).toBe('EGRESS_BLOCKED');
+    expect(r.message).toContain(PROXY_MESSAGE);
+  });
+
+  it('プロキシと関係のない宛先は、これまでの文で断る', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    for (const [host, port] of [
+      ['example.com', 443],
+      ['proxy.example', 3128],
+      // ポートが同じでも、名前が違えばプロキシではない
+      ['other.example', 8080],
+    ] as const) {
+      const r = await connectError(host, port);
+      expect(r.code).toBe('EGRESS_BLOCKED');
+      expect(r.message).toContain('外への通信を断りました');
+      expect(r.message).not.toContain(PROXY_MESSAGE);
+    }
+  });
+
+  it('読めないプロキシの設定は無視し、これまでの文で断る', async () => {
+    install({ HTTPS_PROXY: 'not a url', HTTP_PROXY: '' });
+    const r = await connectError('example.com', 443);
+    expect(r.message).toContain('外への通信を断りました');
+  });
+
+  it('許した宛先には、プロキシの設定があってもそのままつなぐ', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('api.anthropic.com', 443);
+    expect(r.code).toBe('ENOTFOUND');
+  });
+});
+
 describe('withEgressHosts（その処理の間だけ宛先を足す）', () => {
   let uninstall: () => void;
   beforeEach(() => {
@@ -317,16 +424,108 @@ describe('createEgressFileLogger（記録をファイルに書く）', () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('1件ずつ JSON の行で追記し、フォルダがなければ作る', () => {
+  /** 記録のファイルの行（ファイルがなければ空） */
+  const linesOf = (file: string) =>
+    existsSync(file)
+      ? readFileSync(file, 'utf-8')
+          .trim()
+          .split('\n')
+          .map((l) => (JSON.parse(l) as EgressLogEntry).time)
+      : [];
+  const entry = (time: string): EgressLogEntry => ({
+    time,
+    host: 'example.com',
+    port: 443,
+    allowed: false,
+  });
+
+  it('1件ずつ JSON の行で追記し、フォルダがなければ作る', async () => {
     const file = join(dir, 'logs', 'network.jsonl');
     const log = createEgressFileLogger(file);
     log({ time: 't1', host: 'example.com', port: 443, allowed: false });
     log({ time: 't2', host: 'api.anthropic.com', port: 443, allowed: true });
+    await log.flush();
     const lines = readFileSync(file, 'utf-8').trim().split('\n');
     expect(lines.map((l) => JSON.parse(l) as EgressLogEntry)).toEqual([
       { time: 't1', host: 'example.com', port: 443, allowed: false },
       { time: 't2', host: 'api.anthropic.com', port: 443, allowed: true },
     ]);
+  });
+
+  it('書き込みを待たずに戻る（接続の処理を止めない）', async () => {
+    const file = join(dir, 'logs', 'network.jsonl');
+    const log = createEgressFileLogger(file);
+    log(entry('t1'));
+    // 呼んだ時点ではまだ書いていない
+    expect(existsSync(file)).toBe(false);
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1']);
+  });
+
+  it('決めた大きさを超えるときは、今のファイルを .1 に移し、古いものは1世代だけ残す', async () => {
+    const file = join(dir, 'network.jsonl');
+    // 1行は 62 バイト（2行で 124 バイト、3行で 186 バイト）
+    const log = createEgressFileLogger(file, { maxBytes: 150 });
+    for (const t of ['t1', 't2', 't3', 't4', 't5']) log(entry(t));
+    await log.flush();
+    expect(linesOf(`${file}.1`)).toEqual(['t3', 't4']);
+    expect(linesOf(file)).toEqual(['t5']);
+    expect(existsSync(`${file}.2`)).toBe(false);
+  });
+
+  it('書いた後の大きさがちょうど上限なら、移さない', async () => {
+    const file = join(dir, 'network.jsonl');
+    const log = createEgressFileLogger(file, { maxBytes: 124 });
+    log(entry('t1'));
+    log(entry('t2'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2']);
+    expect(existsSync(`${file}.1`)).toBe(false);
+  });
+
+  it('1行が上限より大きくても、ファイルが空なら、移さずに書く', async () => {
+    const file = join(dir, 'network.jsonl');
+    const log = createEgressFileLogger(file, { maxBytes: 10 });
+    log(entry('t1'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1']);
+    expect(existsSync(`${file}.1`)).toBe(false);
+  });
+
+  it('まだ書いていない記録が上限を超えるときは、その記録を捨て、書き終えた後はまた受け付ける', async () => {
+    const file = join(dir, 'network.jsonl');
+    // 1行は 62 バイトのため、まだ書いていない記録は2行まで
+    const log = createEgressFileLogger(file, { maxPendingBytes: 124 });
+    for (const t of ['t1', 't2', 't3']) log(entry(t));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2']);
+    log(entry('t4'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2', 't4']);
+  });
+
+  it('前からあるファイルの大きさも数える', async () => {
+    const file = join(dir, 'network.jsonl');
+    writeFileSync(file, JSON.stringify(entry('t0')) + '\n' + 'x'.repeat(80));
+    const log = createEgressFileLogger(file, { maxBytes: 150 });
+    log(entry('t1'));
+    await log.flush();
+    expect(readFileSync(`${file}.1`, 'utf-8')).toContain('"t0"');
+    expect(linesOf(file)).toEqual(['t1']);
+  });
+
+  it('書き込みに失敗しても、例外を出さず、後の記録を止めない', async () => {
+    // フォルダの場所にファイルがあり、書けない
+    const blocker = join(dir, 'logs');
+    writeFileSync(blocker, '');
+    const log = createEgressFileLogger(join(blocker, 'network.jsonl'));
+    log(entry('t1'));
+    await expect(log.flush()).resolves.toBeUndefined();
+    // 書けるようになれば、後の記録は書く
+    rmSync(blocker);
+    log(entry('t2'));
+    await log.flush();
+    expect(linesOf(join(blocker, 'network.jsonl'))).toEqual(['t2']);
   });
 });
 
