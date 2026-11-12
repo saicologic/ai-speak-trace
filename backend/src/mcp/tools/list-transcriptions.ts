@@ -22,7 +22,7 @@ export function registerListTranscriptions(
       title: '会話の一覧',
       description:
         'AI Speak Trace で文字起こしした会話の一覧を新しい順に返します。最初にこれを呼び、ほかのツールに渡す id を確かめてください。' +
-        'id はサーバーを起動するたびに変わります。各会話の privacy が checked のものだけ、ほかのツールで読めます。それ以外（unchecked・stale・needs_review・error）は reason に読めない理由と、アプリでの対処を示します。' +
+        'id はサーバーを起動するたびに変わります。各会話の privacy が checked のものだけ、ほかのツールで読めます。それ以外（unchecked・stale・needs_review・error）は reason に読めない理由と、アプリでの対処を示します。checked でも notice があれば、そのままでは返していないもの（話者名など）を示します。' +
         '結果が多い場合は nextCursor を cursor に渡すと続きを返します。' +
         UNTRUSTED_NOTE,
       inputSchema: {
@@ -46,6 +46,7 @@ export function registerListTranscriptions(
                 speakers: t.speakers.map((s) => ({ id: s.id, name: s.name })),
                 utteranceCount: t.utterances.length,
                 privacy: e.privacy,
+                ...(e.notice && { notice: e.notice }),
               }
             : {
                 id: e.id,
