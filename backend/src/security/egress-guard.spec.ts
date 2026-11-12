@@ -334,6 +334,11 @@ describe('プロキシを使う環境', () => {
     [{ http_proxy: 'http://proxy.example' }, 80],
     [{ ALL_PROXY: 'socks5://proxy.example:1080' }, 1080],
     [{ all_proxy: 'https://PROXY.example.' }, 443],
+    [{ ALL_PROXY: 'socks5h://proxy.example' }, 1080],
+    [{ ALL_PROXY: 'socks4a://proxy.example' }, 1080],
+    // 方式を書かない設定（axios などは http として扱う）
+    [{ HTTPS_PROXY: 'proxy.example:3128' }, 3128],
+    [{ HTTP_PROXY: 'proxy.example' }, 80],
   ])(
     'プロキシの設定 %j（ポート %d）も、プロキシの文で断る',
     async (env, port) => {
@@ -344,11 +349,26 @@ describe('プロキシを使う環境', () => {
     },
   );
 
+  it('宛先の大文字・末尾のドットも、プロキシと同じ名前として扱う', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('PROXY.Example.', 8080);
+    expect(r.message).toContain(PROXY_MESSAGE);
+  });
+
+  it('IPv6 で書いたプロキシも、同じ宛先として扱う', async () => {
+    install({ HTTPS_PROXY: 'http://[::1]:8080' });
+    const r = await connectError('::1', 8080);
+    expect(r.code).toBe('EGRESS_BLOCKED');
+    expect(r.message).toContain(PROXY_MESSAGE);
+  });
+
   it('プロキシと関係のない宛先は、これまでの文で断る', async () => {
     install({ HTTPS_PROXY: 'http://proxy.example:8080' });
     for (const [host, port] of [
       ['example.com', 443],
       ['proxy.example', 3128],
+      // ポートが同じでも、名前が違えばプロキシではない
+      ['other.example', 8080],
     ] as const) {
       const r = await connectError(host, port);
       expect(r.code).toBe('EGRESS_BLOCKED');
@@ -447,6 +467,25 @@ describe('createEgressFileLogger（記録をファイルに書く）', () => {
     expect(linesOf(`${file}.1`)).toEqual(['t3', 't4']);
     expect(linesOf(file)).toEqual(['t5']);
     expect(existsSync(`${file}.2`)).toBe(false);
+  });
+
+  it('書いた後の大きさがちょうど上限なら、移さない', async () => {
+    const file = join(dir, 'network.jsonl');
+    const log = createEgressFileLogger(file, { maxBytes: 124 });
+    log(entry('t1'));
+    log(entry('t2'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2']);
+    expect(existsSync(`${file}.1`)).toBe(false);
+  });
+
+  it('1行が上限より大きくても、ファイルが空なら、移さずに書く', async () => {
+    const file = join(dir, 'network.jsonl');
+    const log = createEgressFileLogger(file, { maxBytes: 10 });
+    log(entry('t1'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1']);
+    expect(existsSync(`${file}.1`)).toBe(false);
   });
 
   it('前からあるファイルの大きさも数える', async () => {
