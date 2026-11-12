@@ -294,4 +294,42 @@ describe('PrivacyService', () => {
     const updated = await service.updateMasks('t1', []);
     expect(updated.bodyHash).toBe(hashTranscriptionBody(original));
   });
+
+  it('同じ id で文字起こしし直した会話には、前の文字起こしで選んだ「伏せる／伏せない」を引き継がない', async () => {
+    const previousFinding = {
+      type: 'NAME',
+      label: '氏名',
+      text: '加賀谷',
+      count: 1,
+      mask: false,
+      needsReview: false,
+    };
+    const previous = (transcriptionCreatedAt?: string): PrivacyScan => ({
+      transcriptionId: 't1',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      guardrailId: 'gr-1',
+      guardrailVersion: 'DRAFT',
+      findings: [previousFinding],
+      ...(transcriptionCreatedAt && { transcriptionCreatedAt }),
+    });
+    const choiceOf = (scan: PrivacyScan) =>
+      scan.findings
+        .filter((f) => f.text === '加賀谷')
+        .map((f) => [f.mask, f.needsReview]);
+
+    // 別の回の文字起こしで選んだものは、新しく見つかったものとして扱う（氏名は伏せずに要確認）
+    const redone = await setup(
+      true,
+      previous('2025-12-01T00:00:00.000Z'),
+    ).service.scan(transcription);
+    expect(choiceOf(redone)).toEqual([[false, true]]);
+
+    // 同じ回の文字起こしと、記録のない以前の結果は、選んだものを引き継ぐ
+    for (const createdAt of [transcription.createdAt, undefined]) {
+      const same = await setup(true, previous(createdAt)).service.scan(
+        transcription,
+      );
+      expect(choiceOf(same)).toEqual([[false, false]]);
+    }
+  });
 });
