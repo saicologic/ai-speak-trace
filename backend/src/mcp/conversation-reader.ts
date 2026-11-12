@@ -255,13 +255,11 @@ export class ConversationReader {
     } else {
       // 記録を足す前に保存した結果は、ファイルの更新時刻で比べる
       const scannedAt = Date.parse(scan.scannedAt);
-      // ファイルの更新時刻はミリ秒より細かく、チェックの時刻はミリ秒までのため、ミリ秒にそろえて比べる
-      if (Number.isNaN(scannedAt) || Math.floor(modifiedAt) > scannedAt) {
+      // チェックの時刻はミリ秒までのため、同じミリ秒の中では、チェックの前後どちらで保存したか分からない。
+      // 本文・話者名の記録もないため、同じミリ秒の中も古いとし、チェックし直しを求める（チェックし直すと記録の付いた結果になる）
+      if (Number.isNaN(scannedAt) || modifiedAt >= scannedAt) {
         return reject(id, 'stale', known);
       }
-      // 同じミリ秒の中では、チェックの後に話者名を変えたのか分からないため、話者名は返さない
-      // （本文は作るときにしか書かれない。話者名を変えると、記録の付いた形でチェックし直される）
-      speakerNamesChecked = modifiedAt <= scannedAt;
     }
     // アプリの画面に出さない検出（国名だけの住所・会社名や製品名だけの氏名など）は、利用者が選べないため要確認として扱わない
     if (withoutIgnoredPii(scan.findings).some((f) => f.needsReview)) {
