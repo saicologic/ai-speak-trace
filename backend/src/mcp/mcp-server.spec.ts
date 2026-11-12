@@ -382,8 +382,9 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(entry)).not.toContain('Aさん');
     });
 
-    it('文字起こしの保存と同じミリ秒の中でチェックした会話は、古い（stale）としない', async () => {
+    it('記録のない以前の結果で、文字起こしの保存と同じミリ秒の中でチェックした会話は、古い（stale）とせず話者名だけを置き換える', async () => {
       // ファイルの更新時刻はミリ秒より細かく、チェックの時刻はミリ秒までのため、同じミリ秒の中では後に見える
+      // （チェックの後に話者名を変えたのか、変えた後にチェックしたのか分からないため、話者名は返さない）
       const at = Date.parse('2026-10-01T00:00:00.000Z');
       const file = path.join(
         data.dir,
@@ -399,7 +400,29 @@ describe('MCP サーバー', () => {
         new Date(at).toISOString(),
       );
       const same = await call('list_transcriptions');
-      expect(same.json.transcriptions[0].privacy).toBe('checked');
+      expect(same.json.transcriptions[0]).toMatchObject({
+        privacy: 'checked',
+        speakers: [
+          { id: 'speaker_0', name: '話者1' },
+          { id: 'speaker_1', name: '話者2' },
+        ],
+      });
+      expect(same.json.transcriptions[0].notice).toContain(
+        '話者名を変えた後の個人情報チェックが終わっていません',
+      );
+      expect(same.text).not.toContain('Bさん');
+
+      // チェックより前に保存していれば、話者名も返す
+      await fs.utimes(file, (at - 2) / 1000, (at - 2) / 1000);
+      const before = await call('list_transcriptions');
+      expect(before.json.transcriptions[0]).toMatchObject({
+        privacy: 'checked',
+        speakers: [
+          { id: 'speaker_0', name: '[氏名]' },
+          { id: 'speaker_1', name: 'Bさん' },
+        ],
+      });
+      expect(before.json.transcriptions[0].notice).toBeUndefined();
 
       // ミリ秒が変わる後に保存していれば、古い（stale）とする
       // （秒の小数で渡すと、丸めで 1 ミリ秒に届かないことがあるため、2 ミリ秒後にする）
