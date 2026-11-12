@@ -326,6 +326,10 @@ describe('プロキシを使う環境', () => {
     expect(r.code).toBe('EGRESS_BLOCKED');
     expect(r.message).toContain(PROXY_MESSAGE);
     expect(r.message).toContain('proxy.example:8080');
+    // 設定が残っていると、ネットワークを変えても同じプロキシにつなぐため、設定を外して起動し直すよう案内する
+    expect(r.message).toContain(
+      'HTTPS_PROXY などのプロキシの設定を外してから、アプリを起動し直してください',
+    );
   });
 
   it.each([
