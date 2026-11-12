@@ -6,7 +6,7 @@ import { withUntrustedSource } from './untrusted-source';
 
 /** プロンプトの {{fullText}} の代わりに書く、会話の全文の在りか（会話の全文は tool_result で渡す） */
 export const FULL_TEXT_REFERENCE =
-  '（会話の全文は、読み込んだ分析の対象の data.conversation にあります）';
+  '（会話の全文は、読み込んだ分析の対象の conversation にあります）';
 
 /** Claude が返す要約の形 */
 export interface SummaryOutput {
