@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { appendFileSync, mkdirSync } from 'fs';
+import { appendFile, mkdir, rename, stat } from 'fs/promises';
 import * as net from 'net';
 import { dirname } from 'path';
 
@@ -190,14 +190,53 @@ export function withEgressHosts<T>(
   return extraHostsStore.run(hosts, fn);
 }
 
-/** 記録をファイルに1件ずつ JSON の行で追記する関数を返す（フォルダがなければ作る） */
+/** 記録のファイルの大きさの上限の既定（超えるときは .1 に移す） */
+export const EGRESS_LOG_MAX_BYTES = 5 * 1024 * 1024;
+
+/** 記録をファイルに書く関数（flush で、それまでに渡した記録を書き終えるまで待てる） */
+export type EgressFileLogger = ((entry: EgressLogEntry) => void) & {
+  flush: () => Promise<void>;
+};
+
+/**
+ * 記録をファイルに1件ずつ JSON の行で追記する関数を返す（フォルダがなければ作る）
+ * - 接続の処理を止めないよう、書き込みを待たずに戻り、順番に書く
+ * - 書くと maxBytes を超えるときは、今のファイルを <file>.1 に移してから書く（古いものは1世代だけ残す）
+ * - 書き込みに失敗した記録は捨て、後の記録は書き続ける
+ */
 export function createEgressFileLogger(
   file: string,
-): (entry: EgressLogEntry) => void {
-  return (entry) => {
-    mkdirSync(dirname(file), { recursive: true });
-    appendFileSync(file, JSON.stringify(entry) + '\n');
+  { maxBytes = EGRESS_LOG_MAX_BYTES }: { maxBytes?: number } = {},
+): EgressFileLogger {
+  let queue: Promise<void> = Promise.resolve();
+  /** 今のファイルの大きさ（初めて書くときと、失敗した後に読み直す） */
+  let size: number | undefined;
+  const write = async (line: string) => {
+    try {
+      if (size === undefined) {
+        await mkdir(dirname(file), { recursive: true });
+        size = await stat(file).then(
+          (s) => s.size,
+          () => 0,
+        );
+      }
+      const bytes = Buffer.byteLength(line);
+      if (size > 0 && size + bytes > maxBytes) {
+        await rename(file, `${file}.1`);
+        size = 0;
+      }
+      await appendFile(file, line);
+      size += bytes;
+    } catch {
+      // 記録できなくても、通信の確かめには影響させない（次に書くときに大きさを読み直す）
+      size = undefined;
+    }
   };
+  const log = (entry: EgressLogEntry) => {
+    const line = JSON.stringify(entry) + '\n';
+    queue = queue.then(() => write(line));
+  };
+  return Object.assign(log, { flush: () => queue });
 }
 
 /**
