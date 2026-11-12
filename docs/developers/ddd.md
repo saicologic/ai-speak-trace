@@ -1,6 +1,8 @@
 # ドメイン駆動設計（DDD）の設計
 
 > **状態: 議論中**　この設計を中心に、今後の改善を話し合う。決めたことは「[8. 決めたことの記録](#8-決めたことの記録)」に足し、まだ決めていないことは「[7. 論点](#7-論点)」に番号を付けて書く。
+>
+> 各項目は、**修正前**（今のコード）と **修正後**（この設計）に分けて書く。
 
 ## 0. この設計の目的
 
@@ -9,7 +11,10 @@
 - **伏せた会話だけを外に出す**: Claude・MCP には、個人情報チェックで伏せると選んだ文字列を置き換えた会話だけを渡す
 - **根拠のない文を出さない**: ディープサーチ・要約で、会話や公式の出典で確かめられなかった文を出さない
 
-今は、この約束が `*.service.ts` と `*.utils.ts` に散らばった処理と、呼ぶ側の注意で守られている。DDD の形にして、約束を **型・集約・lint で守る** ことを目的にする。
+| | 約束をどう守っているか |
+|---|---|
+| 修正前 | `*.service.ts` と `*.utils.ts` に散らばった処理と、呼ぶ側の注意（`findById` ではなく `findForSending` を呼ぶ、など）で守っている |
+| 修正後 | 約束を **型・集約・lint で守る**。守らないコードは、コンパイル・lint・テストのどれかで止まる |
 
 対象はシステム全体（バックエンド・フロントエンド・MCP）とする。Tauri（Rust）は sidecar を起動・管理するだけのため、対象にしない。
 
@@ -19,26 +24,46 @@
 
 ### 1-1. 境界づけられたコンテキスト
 
-| コンテキスト | 何を扱うか | 区分 | 今のモジュール |
-|---|---|---|---|
-| **文字起こし** | 音声・話者・発話・単語、分割して文字起こしするジョブ | 中核 | `transcription`・`podcast` |
-| **個人情報** | 個人情報の検出、伏せる／伏せないの選択、送れる会話 | 中核 | `privacy` |
-| **ディープサーチ** | 調査のジョブ、キーワード・公式の出典・Web 調査、根拠の確認 | 中核 | `research` |
-| **会話の分析** | 要約、Web 検索付きの分析、発言の文脈、要約の根拠 | 支援 | `interview`・`claude/summary`・`claude/analysis` |
-| **キーワード** | 専門用語・固有名詞の抽出、話者ごとのキーワード | 支援 | `ginza` |
-| **会話の公開（MCP）** | 外のエージェントに、送れる会話だけを読ませる | 支援 | `mcp` |
-| **AI への送受信** | Claude への送受信の確認・監査・送信先の制限 | 汎用 | `claude/claude-client`・`claude-guard`・`security` |
-| **設定** | API キー・Guardrail ID・AI 分析のオン／オフ | 汎用 | `settings` |
-| **フィードバック** | 利用者の感想の保存 | 汎用 | `feedback` |
+| コンテキスト | 何を扱うか | 区分 | 修正前（今のモジュール） | 修正後 |
+|---|---|---|---|---|
+| **文字起こし** | 音声・話者・発話・単語、分割して文字起こしするジョブ | 中核 | `transcription`・`podcast` | `transcription` |
+| **個人情報** | 個人情報の検出、伏せる／伏せないの選択、送れる会話 | 中核 | `privacy` | `privacy` |
+| **ディープサーチ** | 調査のジョブ、キーワード・公式の出典・Web 調査、根拠の確認 | 中核 | `research` | `research` |
+| **会話の分析** | 要約、Web 検索付きの分析、発言の文脈、要約の根拠 | 支援 | `interview`・`claude/summary`・`claude/analysis` に分かれている | `insight` |
+| **キーワード** | 専門用語・固有名詞の抽出、話者ごとのキーワード | 支援 | `ginza`・`transcription/ginza-keyword-store` | `keywords` |
+| **会話の公開（MCP）** | 外のエージェントに、送れる会話だけを読ませる | 支援 | `mcp` | `mcp` |
+| **AI への送受信** | Claude への送受信の確認・監査・送信先の制限 | 汎用 | `claude/claude-client`・`claude-guard`・`claude-audit`・`security` | `ai-gateway` |
+| **設定** | API キー・Guardrail ID・AI 分析のオン／オフ | 汎用 | `settings` | `settings` |
+| **フィードバック** | 利用者の感想の保存 | 汎用 | `feedback` | `feedback` |
 
-中核の3つは、「0. この設計の目的」の約束を守る所で、DDD の型を一番しっかり作る。汎用のものは薄くする。
+中核の3つは「0. この設計の目的」の約束を守る所で、DDD の型を一番しっかり作る。汎用のものは薄くする。
 
 ### 1-2. コンテキストマップ
+
+#### 修正前
+
+```text
+ transcription ──直接呼ぶ──▶ privacy（PrivacyService.rescanIfChecked・maskForSending）
+       │
+       ├──直接呼ぶ──▶ DerivedLogCleaner・UtteranceEmbeddingStore・GinzaKeywordStore（削除のとき）
+       │
+       └── findForSending ／ findById ──▶ interview・research・ginza（どちらを呼ぶかは呼ぶ側しだい）
+
+ claude/summary・claude/analysis・research-claude ── string を受け取って Claude に送る
+ mcp ── 文字起こしと個人情報チェックのファイルを読み、チェックが古いかを自分で判定する
+ frontend ── types/ にバックエンドの型を手で写している
+```
+
+- 伏せる前の `Transcription` と伏せた後の `Transcription` が同じ型で、Claude 側は `string` を受け取る
+- 文字起こしの削除が、ほかのコンテキストのデータの削除を直接呼んでいる
+- 「チェックが古いか」の判定が、`privacy/privacy.service.ts` と `mcp/conversation-reader.ts` の2か所にある
+
+#### 修正後
 
 ```text
  ElevenLabs ──[腐敗防止層]──▶ 文字起こし ◀──[腐敗防止層]── Podcast のキャッシュ
                                │  ▲
-            話者名を変えた・消した │  │ 文字起こしを読む
+     イベント: 話者名を変えた・消した │  │ 文字起こしを読む（public.ts）
                                ▼  │
  Bedrock ───[腐敗防止層]──▶   個人情報
  Guardrails                    │
@@ -56,31 +81,56 @@
 
 - **個人情報は「送れる会話」を公開する言葉として出す**。下流のディープサーチ・会話の分析・MCP は、伏せる前の `Transcription` を受け取れない
 - 外部 API（ElevenLabs・Bedrock・Claude・Podcast のキャッシュ）は、どれも腐敗防止層の中に閉じ込め、`speaker_id` のような外の形をドメインに持ち込まない
-- 文字起こしから個人情報などへの知らせ（話者名を変えた・文字起こしを消した）は、ドメインイベントで送る（[3-3](#3-3-ドメインイベント)）
+- 文字起こしから個人情報などへの知らせは、ドメインイベントで送る（[3-3](#3-3-ドメインイベント)）
 
 ### 1-3. ユビキタス言語
 
-| 用語 | 意味 | コード |
-|---|---|---|
-| 文字起こし | 1つの音声の話者・発話・単語 | `Transcription` |
-| 話者／話者名 | 「Aさん」など。後から変えられる | `Speaker`・`SpeakerName` |
-| 発話 | 同じ話者が続けて話した区切り | `Utterance` |
-| 分割ジョブ | 長い音声を区切って文字起こしする処理 | `ChunkedTranscriptionJob` |
-| 個人情報チェック | 検出した結果と、伏せる／伏せないの選択 | `PrivacyScan` |
-| 検出 | 種類と文字列ごとにまとめた個人情報 | `PiiFinding` |
-| **送れる会話**／送れる文字列 | 伏せる処理を通した会話・文字列。外に出してよいのはこれだけ | `SendableConversation`・`SendableText` |
-| チェックが古い | チェックの後に、話者名・本文が変わったか、文字起こしし直した | `PrivacyScan.isStaleFor()` |
-| 調査 | ディープサーチの1回分 | `ResearchJob` |
-| 引用 | 会話の中にあると確かめた文字列 | `Quote` |
-| 公式の出典 | 確定した公式サイトの情報源 | `WebSource`（`official`） |
-| 根拠つきの文 | 出典を確かめられた、レポートの文 | `ReportSegment`・`ClaimCheck` |
-| 要点の根拠 | 要約の要点を裏付ける、会話の中の引用 | `SummaryEvidence` |
+| 用語 | 意味 | 修正前のコード | 修正後のコード |
+|---|---|---|---|
+| 文字起こし | 1つの音声の話者・発話・単語 | `Transcription`（interface） | `Transcription`（集約） |
+| 話者／話者名 | 「Aさん」など。後から変えられる | `Speaker`・`string` | `Speaker`・`SpeakerName` |
+| 発話 | 同じ話者が続けて話した区切り | `Utterance` | `Utterance` |
+| 分割ジョブ | 長い音声を区切って文字起こしする処理 | `ChunkedTranscriptionJob`（interface） | `ChunkedTranscriptionJob`（集約） |
+| 個人情報チェック | 検出した結果と、伏せる／伏せないの選択 | `PrivacyScan`（interface） | `PrivacyScan`（集約） |
+| 検出 | 種類と文字列ごとにまとめた個人情報 | `PiiFinding` | `PiiFinding` |
+| **送れる会話**／送れる文字列 | 伏せる処理を通した会話・文字列。外に出してよいのはこれだけ | なし（「送る用の文字起こし」と呼び、型は `Transcription`） | `SendableConversation`・`SendableText` |
+| チェックが古い | チェックの後に、話者名・本文が変わったか、文字起こしし直した | 2か所のハッシュの比較 | `PrivacyScan.isStaleFor()` |
+| 調査 | ディープサーチの1回分 | `ResearchJob`（interface） | `ResearchJob`（集約） |
+| 引用 | 会話の中にあると確かめた文字列 | `TranscriptQuote` | `Quote` |
+| 公式の出典 | 確定した公式サイトの情報源 | `WebSource`（`official`） | `WebSource`（`official`） |
+| 根拠つきの文 | 出典を確かめられた、レポートの文 | `ReportSegment`・`ClaimCheck` | `ReportSegment`・`ClaimCheck` |
+| 要点の根拠 | 要約の要点を裏付ける、会話の中の引用 | `SummaryEvidence` | `SummaryEvidence` |
 
 新しい用語を足すときは、この表に足してから、コードの名前を決める。
 
 ## 2. 層とディレクトリ
 
 ### 2-1. バックエンド
+
+#### 修正前
+
+```text
+backend/src/
+├── transcription/
+│   ├── transcription.controller.ts
+│   ├── transcription.service.ts           話者名の変更・保存・個人情報チェックのやり直しの呼び出しが一緒
+│   ├── transcription-store.service.ts     保存の窓口。削除のとき、ほかのコンテキストのデータも消す
+│   ├── transcription.utils.ts             ElevenLabs の結果から発話を作る
+│   ├── elevenlabs.service.ts・audio-splitter.service.ts・chunked-*.ts
+│   ├── derived-log-cleaner.service.ts・utterance-embedding-store.service.ts・ginza-keyword-store.service.ts
+│   └── types/                             interface だけ（ルールを持たない）
+├── privacy/        guardrail.service.ts・privacy.service.ts・privacy.utils.ts・privacy-scan.store.ts・privacy.types.ts
+├── research/       research.service.ts（約 850 行）・research.utils.ts・research-claude.service.ts・…
+├── interview/      要約・分析のログと、Claude を呼ぶ流れ
+├── claude/         Claude クライアントと、要約・分析のプロンプト
+├── ginza/・mcp/・settings/・feedback/・podcast/
+└── storage/・aws/・security/・common/
+```
+
+- ルールは `*.service.ts`（処理の流れと一緒）と `*.utils.ts`（関数）にあり、データは interface で、どこからでも書き換えられる
+- 層の分け方がなく、`*.service.ts` が NestJS・ファイル・外部 API・ルールをまとめて持っている
+
+#### 修正後
 
 コンテキストごとに4つの層を持つ。NestJS のモジュールは、コンテキストと1対1にする。
 
@@ -116,6 +166,19 @@ presentation ──▶ application ──▶ domain ◀── infrastructure
 
 ### 2-2. フロントエンド
 
+#### 修正前
+
+```text
+frontend/src/
+├── api/client.ts          すべての API の呼び出し（約 940 行・50 の関数）
+├── components/            画面と部品が一緒に並ぶ（ResearchPage.tsx は約 1400 行）
+├── hooks/                 useKeywordSource・usePrivacyStatuses
+├── types/                 index.ts・research.ts（バックエンドの型を手で写したもの）
+└── utils/                 researchReport・keywords・transcription・speakerKeywords など
+```
+
+#### 修正後
+
 フロントエンドには業務のルールが少ないため、エンティティは作らない。コンテキストごとに機能を分け、API の形を画面の形に変える所（腐敗防止層）を1か所に集める。
 
 ```text
@@ -137,110 +200,143 @@ frontend/src/
 
 ### 2-3. API の契約（フロントエンドとバックエンドの間）
 
-今の `frontend/src/types/research.ts` は、バックエンドの型を手で写したものになっている。これを、両方から import する `contracts/`（DTO の型だけを置く場所）にする。
-
-- バックエンドの `presentation/` の DTO は、`contracts/` の型を満たすように書く
-- ドメインの型は `contracts/` に出さない（ドメインを変えても、API の形が勝手に変わらないようにするため）
+| | |
+|---|---|
+| 修正前 | `frontend/src/types/research.ts` などに、バックエンドの型を手で写している。片方だけ変えても、コンパイルでは気づけない |
+| 修正後 | 両方から import する `contracts/`（DTO の型だけを置く場所）を作る。バックエンドの `presentation/` の DTO は `contracts/` の型を満たすように書く。ドメインの型は `contracts/` に出さない（ドメインを変えても、API の形が勝手に変わらないようにするため） |
 
 ### 2-4. MCP
 
-MCP は、外のエージェント向けのプレゼンテーション層とする。今 `mcp/conversation-reader.ts` の中にある「チェックが古いか」の判定と伏せる処理は、個人情報のドメイン（`PrivacyScan.isStaleFor()`・`toSendableConversation()`）を使う形にし、アプリと MCP で判定を1か所にする。
+| | |
+|---|---|
+| 修正前 | `mcp/conversation-reader.ts` が、文字起こしと個人情報チェックのファイルを読み、チェックが古いかの判定（3つの記録の比較）と伏せる処理を自分で行う。アプリ側の `PrivacyService` と判定が2か所に分かれている |
+| 修正後 | MCP は、外のエージェント向けのプレゼンテーション層にする。判定と伏せる処理は、個人情報のドメイン（`PrivacyScan.isStaleFor()`・`toSendableConversation()`）を使い、アプリと MCP で1か所にする |
 
 ## 3. 戦術的設計
 
 ### 3-1. 文字起こし
 
-| 種類 | 名前 | ルール |
-|---|---|---|
-| 集約ルート | `Transcription` | 話者・発話・単語は一緒に変わる。`create()`（文字起こしの直後）／`reconstruct()`（保存したものから） |
-| メソッド | `renameSpeakers()` | 知らない話者 ID は無視する。変わったときだけ `SpeakerRenamed` を出す |
-| 値オブジェクト | `SpeakerName` | 前後の空白を除き、空にしない |
-| 値オブジェクト | `TimeRange` | 開始 ≦ 終了 |
-| 集約ルート | `ChunkedTranscriptionJob` | `initializing → splitting → transcribing → merging → completed／failed` の順にしか進まない。再開できるのは途中で止まったものだけ |
-| リポジトリ | `TranscriptionRepository`・`ChunkedJobRepository` | |
-| イベント | `TranscriptionCompleted`・`SpeakerRenamed`・`TranscriptionDeleted` | |
-| 腐敗防止層 | `ElevenLabsAdapter` | `speaker_id`・snake_case をドメインの形に変える。話者名の初期値（Aさん・Bさん）はドメインで決める |
+| 名前（修正後） | 種類 | ルール | 修正前にあった場所 |
+|---|---|---|---|
+| `Transcription` | 集約ルート | 話者・発話・単語は一緒に変わる。`create()`（文字起こしの直後）／`reconstruct()`（保存したものから） | `types/transcription.types.ts` の interface。どこからでも書き換えられる |
+| `renameSpeakers()` | メソッド | 知らない話者 ID は無視する。変わったときだけ `SpeakerRenamed` を出す | `TranscriptionService.updateSpeakers()` の2つのループ。名前が変わらなくても、個人情報チェックをやり直す |
+| `SpeakerName` | 値オブジェクト | 前後の空白を除き、空にしない | `string` |
+| `TimeRange` | 値オブジェクト | 開始 ≦ 終了 | `start`・`end` の数値 |
+| `ChunkedTranscriptionJob` | 集約ルート | `initializing → splitting → transcribing → merging → completed／failed` の順にしか進まない。再開できるのは途中で止まったものだけ | `chunked-job.types.ts` の interface と、`chunked-transcription.service.ts` の中の `status` の書き換え |
+| `TranscriptionRepository`・`ChunkedJobRepository` | リポジトリ | | `storage/interfaces/transcription-storage.interface.ts`・`chunked-job-store.service.ts` |
+| `TranscriptionCompleted`・`SpeakerRenamed`・`TranscriptionDeleted` | イベント | | なし（直接呼んでいる） |
+| `ElevenLabsAdapter` | 腐敗防止層 | `speaker_id`・snake_case をドメインの形に変える。話者名の初期値（Aさん・Bさん）はドメインで決める | `elevenlabs.service.ts`・`transcription.utils.ts` |
 
-v0.9.1 の課題（話者名を発話から外す）は、`Transcription` の中で `speakerNameOf()` を使う形にし、`toJSON()`／`reconstruct()` の中だけで片付ける。
+話者名は、修正前は `speakers` と、発話ごとの `speakerName` の両方に複製して持っている。修正後は v0.9.1 の課題（話者名を発話から外す）として、`Transcription` の中で `speakerNameOf()` を使う形にし、`toJSON()`／`reconstruct()` の中だけで片付ける。
 
 ### 3-2. 個人情報
 
-| 種類 | 名前 | ルール |
-|---|---|---|
-| 集約ルート | `PrivacyScan` | 検出・選択・チェックした時点の記録（話者名・本文のハッシュ、作成日時）を持つ |
-| メソッド | `chooseMasks()` | 選んだものは確認済みにする |
-| メソッド | `isStaleFor(t)` | 話者名・本文・文字起こしし直しのどれかがあれば古い |
-| メソッド | `applyTo(t)` | 伏せると選んだ文字列を置き換えて、`SendableConversation` にする |
-| エンティティ | `PiiFinding` | 種類と文字列で見分ける。誤検出の多い種類は要確認で始まる |
-| 値オブジェクト | `SendableText`・`SendableConversation` | brand 型。`privacy/domain` の外では作れない |
-| ドメインサービス | `PiiPolicy` | 個人情報として扱わないもの（国名だけの住所・製品名だけの氏名など）の判断 |
-| リポジトリ | `PrivacyScanRepository` | |
-| 腐敗防止層 | `GuardrailAdapter` | Bedrock の結果を `PiiFinding` に変える |
-| イベントを受ける | `SpeakerRenamed` → チェックし直し、`TranscriptionDeleted` → 結果を消す | |
+| 名前（修正後） | 種類 | ルール | 修正前にあった場所 |
+|---|---|---|---|
+| `PrivacyScan` | 集約ルート | 検出・選択・チェックした時点の記録（話者名・本文のハッシュ、作成日時）を持つ | `privacy.types.ts` の interface |
+| `chooseMasks()` | メソッド | 選んだものは確認済みにする | `PrivacyService.updateMasks()` |
+| `isStaleFor(t)` | メソッド | 話者名・本文・文字起こしし直しのどれかがあれば古い | `PrivacyService.runScan()` と `mcp/conversation-reader.ts` の2か所 |
+| `applyTo(t)` | メソッド | 伏せると選んだ文字列を置き換えて、`SendableConversation` にする | `PrivacyService.maskForSending()`（`Transcription` を返す） |
+| `PiiFinding` | エンティティ | 種類と文字列で見分ける。誤検出の多い種類は要確認で始まる | `privacy.utils.ts` の `toFindings` |
+| `SendableText`・`SendableConversation` | 値オブジェクト | brand 型。`privacy/domain` の外では作れない | なし |
+| `PiiPolicy` | ドメインサービス | 個人情報として扱わないもの（国名だけの住所・製品名だけの氏名など）の判断 | `privacy.utils.ts` の `isIgnoredPii`・`withoutIgnoredPii` |
+| `PrivacyScanRepository` | リポジトリ | | `privacy-scan.store.ts` |
+| `GuardrailAdapter` | 腐敗防止層 | Bedrock の結果を `PiiFinding` に変える | `guardrail.service.ts` |
+| イベントを受ける | | `SpeakerRenamed` → チェックし直し、`TranscriptionDeleted` → 結果を消す | `TranscriptionService` から `rescanIfChecked()` を直接呼ぶ |
 
-チェック中かどうか・やり直しの順番待ち（今の `PrivacyService` の `running`・`pending`）は処理の都合のため、アプリケーション層に置く。
+チェック中かどうか・やり直しの順番待ち（`PrivacyService` の `running`・`pending`）は処理の都合のため、修正後もアプリケーション層に置く。
+
+#### 送れる会話の型
+
+修正前:
+
+```ts
+// privacy/privacy.service.ts — 伏せる前も後も同じ型
+async maskForSending(transcription: Transcription): Promise<Transcription>
+
+// claude/summary.service.ts — どんな文字列でも受け取る
+async summarize(fullText: string, ...)
+```
+
+修正後:
+
+```ts
+// privacy/domain/sendable.ts
+export type SendableText = string & { readonly [sendableBrand]: true };
+export function toSendableConversation(
+  transcription: Transcription,
+  findings: PiiFinding[],
+): SendableConversation
+
+// Claude 側は、送れる文字列しか受け取らない
+async summarize(fullText: SendableText, ...)
+```
+
+修正後は、`findById` の結果（伏せる前）を `summarize()` に渡すと、コンパイルで止まる。
 
 ### 3-3. ドメインイベント
 
-今の `TranscriptionStoreService.delete()` は、発話ベクトル・GiNZA のキャッシュ・分析のログを自分で消していて、文字起こしのコンテキストがほかのコンテキストを知っている。
+| | 文字起こしを消すとき | 話者名を変えたとき |
+|---|---|---|
+| 修正前 | `TranscriptionStoreService.delete()` が、分析のログ・発話ベクトル・GiNZA のキャッシュを順に消してから、文字起こしを消す（ほかのコンテキストを直接知っている） | `TranscriptionService.updateSpeakers()` が、保存の後に `PrivacyService.rescanIfChecked()` を直接呼ぶ |
+| 修正後 | 集約が `TranscriptionDeleted` をため、アプリケーション層が保存の前に受け手（個人情報・キーワード・会話の分析・ディープサーチ）に順に渡す。それぞれが自分のデータを消す | 集約が `SpeakerRenamed` をため、保存の後に個人情報が受け取ってチェックし直す |
 
-- 集約は、起きたことをイベントとしてためる（`pullEvents()`）
-- アプリケーション層が、保存した後に、同じプロセスの中で受け手に順番に渡す
-- 受け手: `TranscriptionDeleted` → 個人情報・キーワード・会話の分析・ディープサーチが、それぞれ自分のデータを消す。`SpeakerRenamed` → 個人情報がチェックし直す
-
-外部のメッセージの仕組みは入れない。今の「先に派生データを消し、失敗したら文字起こしを残す」順番は、受け手が失敗したら止める形で守る（[D-2](#7-論点)）。
+- イベントは、集約がためて（`pullEvents()`）、アプリケーション層が同じプロセスの中で受け手に渡す。外部のメッセージの仕組みは入れない
+- 修正前の「先に派生データを消し、失敗したら文字起こしを残す」順番は、受け手が失敗したら止める形で守る（[D-2](#7-論点)）
 
 ### 3-4. ディープサーチ
 
-| 種類 | 名前 | ルール |
-|---|---|---|
-| 集約ルート | `ResearchJob` | `proposing → awaiting_confirmation → researching → analyzing → evaluating → completed`。どの段階からも `failed` になれる。`resume()` は終わっていない最初の段階から（今の `resumeStage`） |
-| 値オブジェクト | `ResearchTitle` | 前後の空白と改行を除き、60 文字で切る（今の `normalizeTitle`） |
-| 値オブジェクト | `Keyword`・`Quote`・`OfficialDomain`・`WebSource` | `Quote` は、会話の中にあると確かめたものだけ作れる |
-| 値オブジェクト | `ReportSegment`・`ClaimCheck`・`ResearchEvaluation` | |
-| ドメインサービス | `QuoteVerifier` | 引用が送れる会話にあるか（今の `verifyQuotes`） |
-| ドメインサービス | `OfficialSourcePolicy` | 公式の出典か（今の `isOfficial`・`normalizeDomain`） |
-| ドメインサービス | `GroundingEvaluator` | 根拠を確かめられなかった文を除く（今の `evaluate`・`toReportSegments`・`mergeIntoSentences`） |
-| ドメインサービス | `PreSendCheck` | 送る前の確認の記録（今の `sendableWords`・`checkPersonalData`） |
-| 受け取るもの | `SendableConversation` だけ | |
+| 名前（修正後） | 種類 | ルール | 修正前にあった場所 |
+|---|---|---|---|
+| `ResearchJob` | 集約ルート | `proposing → awaiting_confirmation → researching → analyzing → evaluating → completed`。どの段階からも `failed` になれる。`resume()` は終わっていない最初の段階から | `research.types.ts` の interface と、`research.service.ts` の中の `status` の書き換え・`resumeStage` |
+| `ResearchTitle` | 値オブジェクト | 前後の空白と改行を除き、60 文字で切る | `research.service.ts` の `normalizeTitle` |
+| `Keyword`・`Quote`・`OfficialDomain`・`WebSource` | 値オブジェクト | `Quote` は、会話の中にあると確かめたものだけ作れる | `string`・`TranscriptQuote` など |
+| `ReportSegment`・`ClaimCheck`・`ResearchEvaluation` | 値オブジェクト | | `research.types.ts` の interface |
+| `QuoteVerifier` | ドメインサービス | 引用が送れる会話にあるか | `research.utils.ts` の `verifyQuotes` |
+| `OfficialSourcePolicy` | ドメインサービス | 公式の出典か | `research.utils.ts` の `isOfficial`・`normalizeDomain` |
+| `GroundingEvaluator` | ドメインサービス | 根拠を確かめられなかった文を除く | `research.service.ts` の `evaluate`、`research.utils.ts` の `toReportSegments`・`mergeIntoSentences` |
+| `PreSendCheck` | ドメインサービス | 送る前の確認の記録 | `research.service.ts` の `sendableWords`、`research.utils.ts` の `checkPersonalData` |
+| 受け取るもの | | `SendableConversation` だけ | `findForSending` の結果（型は `Transcription`） |
 
 根拠の確認の決まりそのものは [ディープサーチ](deep-search.md) に書いてある。この設計では、その決まりをどこに置くかだけを決める。
 
 ### 3-5. 会話の分析
 
-| 種類 | 名前 | ルール |
-|---|---|---|
-| 集約ルート | `SummaryLog` | 要点と要点の根拠。根拠は会話にある引用だけ（今の `verifySummaryEvidence`） |
-| 集約ルート | `InterviewAnalysis` | 話者・キーワード・質問・結果 |
-| 値オブジェクト | `SummaryPrompt` | `{{fullText}}` を含む指示 |
-| 受け取るもの | `SendableConversation` だけ | |
+| 名前（修正後） | 種類 | ルール | 修正前にあった場所 |
+|---|---|---|---|
+| `SummaryLog` | 集約ルート | 要点と要点の根拠。根拠は会話にある引用だけ | `interview.types.ts` の interface と、`interview.utils.ts` の `verifySummaryEvidence` |
+| `InterviewAnalysis` | 集約ルート | 話者・キーワード・質問・結果 | `interview.types.ts` の interface |
+| `SummaryPrompt` | 値オブジェクト | `{{fullText}}` を含む指示 | `string` |
+| 受け取るもの | | `SendableConversation` だけ | `findForSending` の結果（型は `Transcription`）。Claude 側は `string` |
 
 ### 3-6. キーワード・設定・フィードバック・AI への送受信
 
-- **キーワード**: `SpeakerKeywords`（値オブジェクト）と、一般的な語を除くルール（`general-words.ts`）をドメインに置く。GiNZA の Python はインフラのアダプターにする
-- **設定**: `AiAnalysisMode`・`GuardrailConfig` を値オブジェクトにする。キーチェーンへの保存はインフラに置く
-- **フィードバック**: `Feedback` のエンティティだけを作る（ほぼ保存するだけのため薄くする）
-- **AI への送受信**: ドメインモデルは作らない。Claude への腐敗防止層として、「外から来た内容は指示と分けて渡す」「送受信を監査する」を1か所に集め、受け取る型は `SendableText` にする
+| コンテキスト | 修正前 | 修正後 |
+|---|---|---|
+| キーワード | `ginza/` の service・utils と、`transcription/ginza-keyword-store.service.ts` に分かれている | `SpeakerKeywords`（値オブジェクト）と、一般的な語を除くルール（`general-words.ts`）をドメインに置く。GiNZA の Python はインフラのアダプターにする |
+| 設定 | `settings.service.ts` に、検証・保存・Guardrail の確かめがまとまっている | `AiAnalysisMode`・`GuardrailConfig` を値オブジェクトにする。キーチェーンへの保存はインフラに置く |
+| フィードバック | service と store | `Feedback` のエンティティだけを作る（ほぼ保存するだけのため薄くする） |
+| AI への送受信 | `claude/` に、クライアント・確認・監査と、要約・分析のプロンプトが一緒にある。受け取る型は `string` | ドメインモデルは作らない。Claude への腐敗防止層として、「外から来た内容は指示と分けて渡す」「送受信を監査する」を1か所に集め、受け取る型は `SendableText` にする。要約・分析のプロンプトは会話の分析に移す |
 
 ## 4. 守るための仕組み
 
-| 仕組み | 内容 |
-|---|---|
-| 型 | `SendableText` の brand 型。伏せる前の会話を Claude・MCP に渡すと、コンパイルで止まる |
-| テストの型の確認 | jest でテストのファイルの型も確かめる。`backend/tsconfig.json` は `isolatedModules: true` のため、今の `ts-jest` は型を確かめず、`tsconfig.build.json` もテストを除いている。このままでは `@ts-expect-error` を使った型のテストが CI で効かない |
-| ESLint | ①`domain/` から NestJS・`fs`・SDK を import しない ②ほかのコンテキストは `public.ts` からだけ ③`privacy/domain` の外で `as SendableText` と書かない（テストを除く）④フロントエンドの `features/*` は、ほかの `features/*` の中を import しない |
-| lint のテスト | 上のルールが効くことを、`backend/src/lint` のテストで確かめる |
+| 仕組み | 修正前 | 修正後 |
+|---|---|---|
+| 型 | 伏せる前と後が同じ `Transcription`・`string` | `SendableText` の brand 型。伏せる前の会話を Claude・MCP に渡すと、コンパイルで止まる |
+| テストの型の確認 | `backend/tsconfig.json` が `isolatedModules: true` のため、`ts-jest` は型を確かめず、`tsconfig.build.json` もテストを除いている。`@ts-expect-error` を使った型のテストが CI で効かない。今のテストのファイルには型のエラーがある | jest でテストのファイルの型も確かめる（[D-5](#7-論点)） |
+| ESLint | 層・コンテキストの境界のルールはない | ①`domain/` から NestJS・`fs`・SDK を import しない ②ほかのコンテキストは `public.ts` からだけ ③`privacy/domain` の外で `as SendableText` と書かない（テストを除く）④フロントエンドの `features/*` は、ほかの `features/*` の中を import しない |
+| lint のテスト | テストのファイルの書き方（`.skip`・`.only` など）だけ | 上のルールが効くことも、`backend/src/lint` のテストで確かめる |
 
 ## 5. テストの方針
 
 [テスト駆動開発](../../CLAUDE.md)の決まりに従う。
 
-| 層 | テスト |
-|---|---|
-| domain | 純粋な単体テスト。モックを使わない |
-| application | インメモリのリポジトリと、偽の腐敗防止層を使う |
-| infrastructure | 一時ディレクトリ・外部 API の偽物を使う |
-| presentation | 今の controller・MCP のテスト |
+| 層 | 修正前 | 修正後 |
+|---|---|---|
+| domain | なし（ルールは service・utils のテストで確かめている） | 純粋な単体テスト。モックを使わない |
+| application | service のテスト。保存先・ほかの service をモックにする | インメモリのリポジトリと、偽の腐敗防止層を使う |
+| infrastructure | store のテスト（一時ディレクトリ） | 一時ディレクトリ・外部 API の偽物を使う |
+| presentation | controller・MCP のテスト | 同じ |
 
 - ファイルを移す・層を分けるなど動きを変えない書き換えは、今あるテストがその動きを確かめているかを先に見て、足りなければ特性テストを先に足す
 - 特性テストは、実装を一時的に壊して（例: 伏せずに渡す）失敗することを確かめてから使う
@@ -268,7 +364,10 @@ v0.9.1 の課題（話者名を発話から外す）は、`Transcription` の中
 
 DDD の作業とは別に、`fix/*` で直すもの:
 
-- ディープサーチで、音声ファイル名が伏せる処理を通らずに Claude に送られている（`research/research-claude.service.ts` の文書の題名）。MCP（`mcp/conversation-reader.ts`）はファイル名を空にしていて、扱いが揃っていない。それまでは `SendableConversation.audioFileName` を、伏せていない `string` のままにする（[D-4](#7-論点)）
+| | 音声ファイル名の扱い |
+|---|---|
+| 修正前 | ディープサーチでは、音声ファイル名が伏せる処理を通らずに Claude に送られている（`research/research-claude.service.ts` の文書の題名）。MCP（`mcp/conversation-reader.ts`）はファイル名を空にしていて、扱いが揃っていない |
+| 修正後 | [D-4](#7-論点) で決める。それまでは `SendableConversation.audioFileName` を、伏せていない `string` のままにする |
 
 ## 7. 論点
 
@@ -292,3 +391,4 @@ DDD の作業とは別に、`fix/*` で直すもの:
 | 2026-11-13 | 最初は「送れる会話」の型から始める | 「伏せた会話だけを外に出す」約束に一番効くため |
 | 2026-11-13 | すべて `release/v0.9.1` に入れる | |
 | 2026-11-13 | 音声ファイル名の問題は、DDD の作業の後に `fix/*` で直す | DDD の作業（動きを変えない書き換え）と、動きを変える修正を混ぜないため |
+| 2026-11-13 | 設計のドキュメントは、各項目を修正前（今のコード）と修正後（設計）に分けて書く | 今のコードとの違いを見ながら話し合うため |
