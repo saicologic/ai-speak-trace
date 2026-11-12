@@ -1,6 +1,8 @@
 import { Transcription } from '../transcription/types/transcription.types';
 import { PiiFinding } from './privacy.types';
 import {
+  hashSpeakerNames,
+  hashTranscriptionBody,
   isIgnoredPii,
   maskText,
   maskTranscription,
@@ -376,5 +378,85 @@ describe('ユーザー名の初期状態', () => {
   it('形の崩れた検出は、そのまま返す', () => {
     const broken = [null, 'x'] as unknown as PiiFinding[];
     expect(withCurrentDefaults(broken)).toEqual([null, 'x']);
+  });
+});
+
+describe('hashSpeakerNames', () => {
+  const renamedSpeaker = (name: string): Transcription => ({
+    ...transcription,
+    speakers: [{ ...transcription.speakers[0], name }],
+  });
+  const renamedUtterance = (name: string): Transcription => ({
+    ...transcription,
+    utterances: [{ ...transcription.utterances[0], speakerName: name }],
+  });
+
+  it('話者名が同じなら同じ値になる', () => {
+    expect(hashSpeakerNames(structuredClone(transcription))).toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者の一覧の名前が変わると、違う値になる', () => {
+    expect(hashSpeakerNames(renamedSpeaker('Aさん'))).not.toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('発話の話者名が変わると、違う値になる', () => {
+    expect(hashSpeakerNames(renamedUtterance('Aさん'))).not.toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者名ではない本文・時刻は、値に含めない', () => {
+    const other: Transcription = {
+      ...transcription,
+      fullText: '別の本文',
+      utterances: [
+        { ...transcription.utterances[0], text: '別の本文', end: 5 },
+      ],
+    };
+    expect(hashSpeakerNames(other)).toBe(hashSpeakerNames(transcription));
+  });
+});
+
+describe('hashTranscriptionBody', () => {
+  it('本文が同じなら、話者名が変わっても同じ値になる', () => {
+    const renamed: Transcription = {
+      ...transcription,
+      speakers: [{ ...transcription.speakers[0], name: 'Aさん' }],
+      utterances: [{ ...transcription.utterances[0], speakerName: 'Aさん' }],
+    };
+    expect(hashTranscriptionBody(renamed)).toBe(
+      hashTranscriptionBody(structuredClone(transcription)),
+    );
+  });
+
+  it('発話の本文・時刻・話者・単語、全文、話者の一覧の id、単語が変わると、違う値になる', () => {
+    const u = transcription.utterances[0];
+    const changed: Transcription[] = [
+      { ...transcription, utterances: [{ ...u, text: '別の本文' }] },
+      { ...transcription, utterances: [{ ...u, end: 5 }] },
+      { ...transcription, utterances: [{ ...u, speakerId: 's1' }] },
+      {
+        ...transcription,
+        utterances: [{ ...u, words: [{ ...transcription.words[0] }] }],
+      },
+      { ...transcription, fullText: '別の本文' },
+      {
+        ...transcription,
+        speakers: [{ ...transcription.speakers[0], id: 's1' }],
+      },
+      {
+        ...transcription,
+        words: [{ ...transcription.words[0], text: '別の語' }],
+      },
+    ];
+    for (const t of changed) {
+      expect(hashTranscriptionBody(t)).not.toBe(
+        hashTranscriptionBody(transcription),
+      );
+    }
   });
 });

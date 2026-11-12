@@ -12,6 +12,8 @@ import {
 } from '../privacy/privacy-scan.store';
 import { PiiFinding, PrivacyScan } from '../privacy/privacy.types';
 import {
+  hashSpeakerNames,
+  hashTranscriptionBody,
   maskText,
   maskTranscription,
   withoutIgnoredPii,
@@ -24,7 +26,7 @@ import { stripInvisible } from './invisible-chars';
  * 個人情報チェックの状態
  * - checked: チェック済みで、要確認も残っていない（返す）
  * - unchecked: チェックしていない
- * - stale: チェックの後に文字起こしが変わった
+ * - stale: チェックの後に文字起こしが変わった（同じ id で文字起こしし直した・本文が書き換わった。記録のない以前の結果は、ファイルの更新時刻で判断する）
  * - needs_review: 「要確認」の検出が残っている
  * - error: 文字起こしやチェックの結果を読めない（書き込み途中など）
  */
@@ -34,6 +36,10 @@ export type PrivacyState =
   | 'stale'
   | 'needs_review'
   | 'error';
+
+/** 話者名を置き換えて返すときの知らせ（MCP クライアントにそのまま見せる） */
+export const SPEAKER_NAMES_HIDDEN_NOTICE =
+  '話者名を変えた後の個人情報チェックが終わっていません。話者名は「話者1」などに置き換えています（アプリでチェックが終わると、話者名も返します）';
 
 /** 返さない理由（MCP クライアントにそのまま見せる） */
 export const PRIVACY_REASONS: Record<
@@ -79,6 +85,8 @@ export interface ConversationEntry {
   conversation?: MaskedConversation;
   /** 返さない理由（checked 以外） */
   reason?: string;
+  /** checked でも、そのままでは返さないものがあるときの知らせ（話者名を置き換えたときなど） */
+  notice?: string;
   /** 返さない会話でも示す項目（名前などを含まないもの）。読めなかった場合はない */
   createdAt?: string;
   utteranceCount?: number;
@@ -229,9 +237,29 @@ export class ConversationReader {
     if (!scan) return reject(id, 'unchecked', known);
     if (!isFindings(scan.findings)) return reject(id, 'error');
 
-    const scannedAt = Date.parse(scan.scannedAt);
-    if (Number.isNaN(scannedAt) || modifiedAt > scannedAt) {
-      return reject(id, 'stale', known);
+    const recorded = checkedRecord(scan);
+    if (recorded === 'invalid') return reject(id, 'error');
+    let speakerNamesChecked = true;
+    if (recorded) {
+      // 文字起こしを作った後に変わるのは話者名だけのため、どの回の文字起こしをチェックしたかと、話者名を比べる
+      // （同じ音声ファイル名で文字起こしし直すと、同じ id の別の文字起こしになる）
+      // アプリは作った後に本文を書き換えないが、手で書き換えた場合に、古い検出で伏せたまま返さないよう本文も比べる
+      if (
+        recorded.transcriptionCreatedAt !== transcription.createdAt ||
+        recorded.bodyHash !== hashTranscriptionBody(transcription)
+      ) {
+        return reject(id, 'stale', known);
+      }
+      speakerNamesChecked =
+        recorded.speakerNamesHash === hashSpeakerNames(transcription);
+    } else {
+      // 記録を足す前に保存した結果は、ファイルの更新時刻で比べる
+      const scannedAt = Date.parse(scan.scannedAt);
+      // チェックの時刻はミリ秒までのため、同じミリ秒の中では、チェックの前後どちらで保存したか分からない。
+      // 本文・話者名の記録もないため、同じミリ秒の中も古いとし、チェックし直しを求める（チェックし直すと記録の付いた結果になる）
+      if (Number.isNaN(scannedAt) || modifiedAt >= scannedAt) {
+        return reject(id, 'stale', known);
+      }
     }
     // アプリの画面に出さない検出（国名だけの住所・会社名や製品名だけの氏名など）は、利用者が選べないため要確認として扱わない
     if (withoutIgnoredPii(scan.findings).some((f) => f.needsReview)) {
@@ -241,13 +269,41 @@ export class ConversationReader {
       return {
         id,
         privacy: 'checked',
-        conversation: mask(id, sourceId, transcription, scan.findings),
+        conversation: mask(
+          id,
+          sourceId,
+          transcription,
+          scan.findings,
+          !speakerNamesChecked,
+        ),
+        ...(!speakerNamesChecked && { notice: SPEAKER_NAMES_HIDDEN_NOTICE }),
       };
     } catch {
       // 形を確かめた後でも伏せ字にできない会話は、この1件だけを除く
       return reject(id, 'error');
     }
   }
+}
+
+/** チェックした話者名・文字起こしの記録の項目 */
+const RECORD_KEYS = [
+  'speakerNamesHash',
+  'transcriptionCreatedAt',
+  'bodyHash',
+] as const;
+type CheckedRecord = Record<(typeof RECORD_KEYS)[number], string>;
+
+/**
+ * チェックした話者名・文字起こしの記録
+ * 記録を足す前に保存した結果（どれもない）は null、一部だけ・文字列でないものは invalid
+ */
+function checkedRecord(scan: PrivacyScan): CheckedRecord | null | 'invalid' {
+  const values = scan as Partial<Record<keyof CheckedRecord, unknown>>;
+  if (RECORD_KEYS.every((k) => values[k] === undefined)) return null;
+  if (!RECORD_KEYS.every((k) => typeof values[k] === 'string')) {
+    return 'invalid';
+  }
+  return values as CheckedRecord;
 }
 
 function reject(
@@ -262,14 +318,19 @@ function reject(
  * アプリが Claude に送るときと同じ方法（PrivacyService.maskForSending）で伏せ字にし、
  * さらに連絡先など（Guardrails を呼ばない代わりに、この Mac の中の正規表現で検出したもの）を伏せる。
  * 見えない文字は、伏せる文字列で伏せた後、連絡先を伏せる前に取り除く（伏せる文字列は元の本文から検出したもの）
+ * hideSpeakerNames: 話者名がまだチェックされていないときは、話者名を「話者1」などに置き換える
  */
 function mask(
   id: string,
   sourceId: string,
   transcription: Transcription,
   findings: PiiFinding[],
+  hideSpeakerNames = false,
 ): MaskedConversation {
-  const masked = maskTranscription(transcription, findings);
+  const masked = maskTranscription(
+    hideSpeakerNames ? withNeutralSpeakerNames(transcription) : transcription,
+    findings,
+  );
   return {
     id,
     sourceId,
@@ -291,6 +352,24 @@ function mask(
     },
     maskedTexts: findings.filter((f) => f.mask && f.text).map((f) => f.text),
     sourceHash: hashTranscription(transcription),
+  };
+}
+
+/** 話者名を、話者の一覧の順に「話者1」「話者2」…に置き換える（一覧にない話者の発話は「話者」） */
+function withNeutralSpeakerNames(transcription: Transcription): Transcription {
+  const labels = new Map(
+    transcription.speakers.map((s, i) => [s.id, `話者${i + 1}`]),
+  );
+  return {
+    ...transcription,
+    speakers: transcription.speakers.map((s) => ({
+      ...s,
+      name: labels.get(s.id) ?? '話者',
+    })),
+    utterances: transcription.utterances.map((u) => ({
+      ...u,
+      speakerName: labels.get(u.speakerId) ?? '話者',
+    })),
   };
 }
 
