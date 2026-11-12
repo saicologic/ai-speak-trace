@@ -629,7 +629,10 @@ export function resumeStage(job: ResearchJob): ResearchResume | null {
   if (job.status !== 'failed') return null;
   const info = job.errorInfo ?? describeResearchError(job.error ?? '');
   if (!info.retryable) return null;
-  if (!job.proposal) return { from: 'proposing' };
+  if (!job.proposal) {
+    // 提案に使うよく出る語は画面で作って送るため、保存していない以前の調査（v0.8.x）は作り直せない
+    return job.proposalInput ? { from: 'proposing' } : null;
+  }
   // 確定と③の開始は同時に保存するため、確定していない失敗した調査はない
   if (!job.confirmed) return null;
   if (job.report) return { from: 'evaluating' };
@@ -648,12 +651,21 @@ export function resumeStage(job: ResearchJob): ResearchResume | null {
 function withResume(job: ResearchJob): ResearchJob {
   if (job.status !== 'failed') return job;
   const resume = resumeStage(job);
+  const info = job.errorInfo ?? describeResearchError(job.error ?? '');
   return {
     ...job,
-    errorInfo: job.errorInfo ?? describeResearchError(job.error ?? ''),
+    // 再開できる失敗でも、提案の前に止まった以前の調査は再開できないため、説明を合わせる
+    errorInfo:
+      info.retryable && !resume && !job.proposal && !job.proposalInput
+        ? { ...info, hint: LEGACY_PROPOSAL_HINT, retryable: false }
+        : info,
     ...(resume && { resume }),
   };
 }
+
+/** 提案の前に止まった以前の調査（v0.8.x）の、画面に出す説明 */
+const LEGACY_PROPOSAL_HINT =
+  '以前のバージョンで、キーワードの提案の前に止まった調査は、続きから再開できません。新しく調査を始めてください';
 
 /** 提案された公式サイトを正規化し、重複を除く */
 function uniqueDomains(domains: DomainProposal[]): DomainProposal[] {

@@ -4,6 +4,10 @@ import { ResearchErrorInfo } from './types/research.types';
 export const INTERRUPTED_MESSAGE =
   'アプリの再起動で中断しました。途中から再開できます';
 
+/** v0.8.x までの、アプリの再起動で中断した調査のエラー（保存した調査に残っている） */
+const LEGACY_INTERRUPTED_MESSAGE =
+  'アプリの再起動で中断しました。もう一度調査を開始してください';
+
 /** Anthropic API のエラー（SDK のエラー文「{HTTP ステータス} {エラーの JSON}」）から取り出す */
 const ANTHROPIC_ERROR = /(\d{3}) \{"type":"error","error":\{"type":"([a-z_]+)"/;
 
@@ -97,7 +101,12 @@ export function describeResearchError(error: unknown): ResearchErrorInfo {
 function classify(error: unknown): ResearchErrorInfo['kind'] {
   const message = error instanceof Error ? error.message : String(error);
   const name = (error as { name?: unknown } | null)?.name;
-  if (message === INTERRUPTED_MESSAGE) return 'interrupted';
+  if (
+    message === INTERRUPTED_MESSAGE ||
+    message === LEGACY_INTERRUPTED_MESSAGE
+  ) {
+    return 'interrupted';
+  }
   if (/credit balance/i.test(message)) return 'credit';
 
   const api = message.match(ANTHROPIC_ERROR);
