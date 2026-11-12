@@ -107,7 +107,9 @@ const PROXY_DEFAULT_PORTS: Record<string, number> = {
   'https:': 443,
   'socks:': 1080,
   'socks4:': 1080,
+  'socks4a:': 1080,
   'socks5:': 1080,
+  'socks5h:': 1080,
 };
 
 /** 環境変数に設定されたプロキシの宛先（host:port。読めない設定は除く） */
@@ -117,12 +119,15 @@ function proxyEndpoints(env: NodeJS.ProcessEnv): string[] {
     const value = env[name];
     if (!value) continue;
     try {
-      const url = new URL(value);
+      // 方式を書かない設定（proxy.example:3128 など）は、axios などと同じく http として読む
+      const url = new URL(value.includes('://') ? value : `http://${value}`);
       const port = url.port
         ? Number(url.port)
         : PROXY_DEFAULT_PORTS[url.protocol];
-      if (url.hostname && port) {
-        endpoints.push(`${normalizeHost(url.hostname)}:${port}`);
+      // IPv6 は [::1] の形で入るため、角かっこを外して宛先と比べる
+      const hostname = url.hostname.replace(/^\[(.*)\]$/, '$1');
+      if (hostname && port) {
+        endpoints.push(`${normalizeHost(hostname)}:${port}`);
       }
     } catch {
       // URL として読めない設定は、プロキシとして扱わない
