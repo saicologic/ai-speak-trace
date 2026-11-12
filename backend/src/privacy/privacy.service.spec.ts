@@ -231,13 +231,19 @@ describe('PrivacyService', () => {
     expect(hashSpeakerNames(renamed)).not.toBe(hashSpeakerNames(transcription));
   });
 
-  it('伏せるかどうかを選んでも、チェックした話者名のハッシュは変えない', async () => {
-    const { service } = setup();
+  it('伏せるかどうかを選んでも、チェックした話者名・文字起こしの記録は変えない', async () => {
+    const { service, store } = setup();
     await service.scan(transcription);
     const updated = await service.updateMasks('t1', [
       { type: 'NAME', text: '山田太郎', mask: true },
     ]);
-    expect(updated.speakerNamesHash).toBe(hashSpeakerNames(transcription));
+    const recorded = {
+      speakerNamesHash: hashSpeakerNames(transcription),
+      transcriptionCreatedAt: transcription.createdAt,
+    };
+    expect(updated).toMatchObject(recorded);
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save.mock.calls[1][0]).toMatchObject(recorded);
   });
 
   it('チェックした文字起こしの作成日時を、結果に記録する（同じ id で作り直した文字起こしと見分ける）', async () => {

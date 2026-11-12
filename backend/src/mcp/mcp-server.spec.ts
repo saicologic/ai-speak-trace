@@ -529,6 +529,34 @@ describe('MCP サーバー', () => {
         speakerName: NEW_NAME,
       });
       expect(search.json.total).toBe(0);
+      // 変える前の名前でも絞り込めない（発話の話者名も置き換えている）
+      const before = await call('search_utterances', {
+        query: 'TypeScript',
+        speakerName: 'Bさん',
+      });
+      expect(before.json.total).toBe(0);
+      // 置き換えた名前で絞り込める
+      const neutral = await call('search_utterances', {
+        query: 'TypeScript',
+        speakerName: '話者2',
+      });
+      expect(neutral.json.utterances.map((u) => u.index)).toEqual([1, 3]);
+      expect(neutral.json.utterances.map((u) => u.speakerName)).toEqual([
+        '話者2',
+        '話者2',
+      ]);
+
+      const context = await call('get_context', {
+        transcriptionId: h('checked-talk'),
+        index: 1,
+        before: 1,
+        after: 1,
+      });
+      expect(context.json.utterances.map((u) => u.speakerName)).toEqual([
+        '話者1',
+        '話者2',
+        '話者1',
+      ]);
 
       const keywords = await call('get_keywords', {
         transcriptionId: h('checked-talk'),
@@ -536,10 +564,40 @@ describe('MCP サーバー', () => {
       });
       expect(keywords.json.speakerName).toBe('話者2');
 
-      for (const result of [list, utterances, search, keywords]) {
+      for (const result of [
+        list,
+        utterances,
+        search,
+        before,
+        neutral,
+        context,
+        keywords,
+      ]) {
         expect(result.text).not.toContain(NEW_NAME);
         expect(result.text).not.toContain(HIDDEN_NAME);
       }
+    });
+
+    it('話者の一覧にない話者の発話は「話者」にし、記録した話者名のハッシュが空でも話者名を返さない', async () => {
+      const orphan = makeTranscription('orphan-talk', [
+        ['speaker_0', 'こんにちは'],
+        ['speaker_9', 'はじめまして'],
+      ]);
+      orphan.utterances[1].speakerName = NEW_NAME;
+      await data.writeTranscription(orphan);
+      await data.writeScan('orphan-talk', [], undefined, {
+        speakerNamesHash: '',
+        transcriptionCreatedAt: orphan.createdAt,
+      });
+      const { json, text } = await call('get_utterances', {
+        transcriptionId: h('orphan-talk'),
+        from: 0,
+      });
+      expect(json.utterances.map((u) => u.speakerName)).toEqual([
+        '話者1',
+        '話者',
+      ]);
+      expect(text).not.toContain(NEW_NAME);
     });
 
     it('同じ id で文字起こしし直した会話は、話者名が同じでも古い（stale）とする', async () => {
