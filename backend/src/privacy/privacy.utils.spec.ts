@@ -433,7 +433,7 @@ describe('hashTranscriptionBody', () => {
     );
   });
 
-  it('発話の本文・時刻・話者・単語、全文、単語が変わると、違う値になる', () => {
+  it('発話の本文・時刻・話者・単語、全文、話者の一覧の id、単語が変わると、違う値になる', () => {
     const u = transcription.utterances[0];
     const changed: Transcription[] = [
       { ...transcription, utterances: [{ ...u, text: '別の本文' }] },
@@ -444,6 +444,10 @@ describe('hashTranscriptionBody', () => {
         utterances: [{ ...u, words: [{ ...transcription.words[0] }] }],
       },
       { ...transcription, fullText: '別の本文' },
+      {
+        ...transcription,
+        speakers: [{ ...transcription.speakers[0], id: 's1' }],
+      },
       {
         ...transcription,
         words: [{ ...transcription.words[0], text: '別の語' }],

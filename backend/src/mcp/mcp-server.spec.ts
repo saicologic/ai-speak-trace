@@ -627,6 +627,16 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
     });
 
+    it('チェックの後に話者の一覧の id が書き換わった会話は、古い（stale）とする', async () => {
+      await writeRecordedScan({}, new Date(Date.now() + 60_000).toISOString());
+      const edited = structuredClone(checked);
+      edited.speakers[1].id = NEW_NAME;
+      await data.writeTranscription(edited);
+      const { json, text } = await call('list_transcriptions');
+      expect(json.transcriptions[0].privacy).toBe('stale');
+      expect(text).not.toContain(NEW_NAME);
+    });
+
     it('記録の形が崩れていれば、読めない（error）とする', async () => {
       for (const extra of [
         { speakerNamesHash: 1 },
