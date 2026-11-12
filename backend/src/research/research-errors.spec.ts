@@ -27,6 +27,11 @@ describe('describeResearchError', () => {
     [apiError(500, 'api_error'), 'server'],
     [new Error('Connection error.'), 'network'],
     [new Error(INTERRUPTED_MESSAGE), 'interrupted'],
+    // v0.8.x までのエラー文
+    [
+      new Error('アプリの再起動で中断しました。もう一度調査を開始してください'),
+      'interrupted',
+    ],
     [
       new Error(
         'AWS の認証情報（プロファイル: default）が無効なため、Guardrails で確認できませんでした',

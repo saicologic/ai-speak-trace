@@ -382,8 +382,13 @@ describe('resumeStage', () => {
     excerpts: ['抜粋'],
   };
 
+  /** 提案に使う入力（v0.9.0 から、調査を始めるときに保存する） */
+  const proposalInput = { words: [], droppedFrequentWords: 0 };
+
   it('保存した結果から、終わっていない最初の段階を返す', () => {
-    expect(resumeStage(failed)).toEqual({ from: 'proposing' });
+    expect(resumeStage({ ...failed, proposalInput })).toEqual({
+      from: 'proposing',
+    });
     expect(resumeStage({ ...failed, proposal, confirmed })).toEqual({
       from: 'researching',
     });
@@ -414,6 +419,11 @@ describe('resumeStage', () => {
         ],
       }),
     ).toEqual({ from: 'researching', retryKeywords: ['ハーネス'] });
+  });
+
+  it('提案の前に止まった以前の調査（提案に使う入力を保存していない）は再開しない', () => {
+    // 提案に使うよく出る語は画面で作って送るため、保存していなければ作り直せない
+    expect(resumeStage(failed)).toBeNull();
   });
 
   it('失敗していない調査と、再開しても同じ理由で失敗する調査は再開しない', () => {
@@ -609,6 +619,35 @@ describe('ResearchService（失敗した調査の再開）', () => {
     expect(job.resume).toEqual({ from: 'analyzing' });
     // 再開する段階は保存しない
     expect(jobStore.save.mock.calls.at(-1)![0].resume).toBeUndefined();
+  });
+
+  it('v0.8.x でアプリの再起動で中断した調査も、中断として扱い、続きから再開できる', async () => {
+    const { service } = setup({
+      ...confirmedJob,
+      error: 'アプリの再起動で中断しました。もう一度調査を開始してください',
+    });
+    const job = await service.findById('job-1');
+    expect(job.errorInfo?.kind).toBe('interrupted');
+    expect(job.errorInfo?.retryable).toBe(true);
+    expect(job.resume).toEqual({ from: 'researching' });
+  });
+
+  it('提案の前に止まった以前の調査は、再開できないと示し、再開を拒否する', async () => {
+    const legacy: ResearchJob = {
+      ...confirmedJob,
+      error: 'アプリの再起動で中断しました。もう一度調査を開始してください',
+      proposal: undefined,
+      confirmed: undefined,
+    };
+    const job = await setup(legacy).service.findById('job-1');
+    expect(job.resume).toBeUndefined();
+    expect(job.errorInfo?.kind).toBe('interrupted');
+    expect(job.errorInfo?.retryable).toBe(false);
+    expect(job.errorInfo?.hint).toContain('新しく調査を始めてください');
+    expect(job.errorInfo?.hint).not.toContain('続きから再開できます');
+    await expect(setup(legacy).service.resume('job-1')).rejects.toThrow(
+      '新しく調査を始めてください',
+    );
   });
 
   it('以前の失敗した調査にも、エラー文から失敗の説明を付ける', async () => {
