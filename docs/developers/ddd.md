@@ -87,7 +87,7 @@
 
 | 用語 | 意味 | 修正前のコード | 修正後のコード |
 |---|---|---|---|
-| 文字起こし | 1つの音声の話者・発話・単語 | `Transcription`（interface） | `Transcription`（集約） |
+| 文字起こし | 1つの音声の話者・発話・単語 | `Transcription`（データだけの interface。どこからでも書き換えられる） | `Transcription`（集約の class。変えるときは `renameSpeakers()` などのメソッドを通す。[3-1](#3-1-文字起こし)） |
 | 話者／話者名 | 「Aさん」など。後から変えられる | `Speaker`・`string` | `Speaker`・`SpeakerName` |
 | 発話 | 同じ話者が続けて話した区切り | `Utterance` | `Utterance` |
 | 分割ジョブ | 長い音声を区切って文字起こしする処理 | `ChunkedTranscriptionJob`（interface） | `ChunkedTranscriptionJob`（集約） |
@@ -227,7 +227,82 @@ frontend/src/
 | `TranscriptionCompleted`・`SpeakerRenamed`・`TranscriptionDeleted` | イベント | | なし（直接呼んでいる） |
 | `ElevenLabsAdapter` | 腐敗防止層 | `speaker_id`・snake_case をドメインの形に変える。話者名の初期値（Aさん・Bさん）はドメインで決める | `elevenlabs.service.ts`・`transcription.utils.ts` |
 
-話者名は、修正前は `speakers` と、発話ごとの `speakerName` の両方に複製して持っている。修正後は v0.9.1 の課題（話者名を発話から外す）として、`Transcription` の中で `speakerNameOf()` を使う形にし、`toJSON()`／`reconstruct()` の中だけで片付ける。
+#### 話者名を変えるときのコード
+
+修正前: `Transcription` はデータだけの interface で、話者名を変えるルールはアプリケーションの service に書いてある。
+
+```ts
+// transcription/types/transcription.types.ts
+export interface Transcription {
+  id: string;
+  speakers: Speaker[];          // 話者名はここと、
+  utterances: Utterance[];      // 発話ごとの speakerName の両方にある
+  // ...
+}
+
+// transcription/transcription.service.ts
+async updateSpeakers(id: string, speakers: { id: string; name: string }[]) {
+  const transcription = await this.getTranscription(id);
+  for (const update of speakers) {
+    const speaker = transcription.speakers.find((s) => s.id === update.id);
+    if (speaker) speaker.name = update.name;          // 直接書き換える
+  }
+  for (const utterance of transcription.utterances) { // 発話の複製も、忘れずに写す必要がある
+    const speaker = transcription.speakers.find((s) => s.id === utterance.speakerId);
+    if (speaker) utterance.speakerName = speaker.name;
+  }
+  await this.store.save(transcription);
+  this.privacyService.rescanIfChecked(transcription); // 名前が変わらなくても呼ぶ。個人情報を直接知っている
+  return transcription;
+}
+```
+
+- どこからでも `speaker.name = ...` と書けるため、発話の `speakerName` を写し忘れると、話者の一覧と発話で名前が食い違う
+- 空の名前・前後の空白は、この service では確かめていない
+- 名前が変わったかどうかに関係なく、個人情報チェックをやり直す
+
+修正後: ルールは `Transcription` の中にあり、外からは変えられない。
+
+```ts
+// transcription/domain/transcription.ts
+export class Transcription {
+  private events: TranscriptionEvent[] = [];
+  private constructor(private props: TranscriptionProps) {}
+
+  static create(input: TranscribedAudio): Transcription      // 文字起こしの直後（話者名は Aさん・Bさん）
+  static reconstruct(json: TranscriptionJson): Transcription // 保存したものから
+
+  /** 知らない話者 ID は無視する。変わったときだけ SpeakerRenamed をためる */
+  renameSpeakers(updates: { id: SpeakerId; name: SpeakerName }[]): void
+
+  /** 発話の話者名は、話者の一覧から読む（複製しない） */
+  speakerNameOf(speakerId: SpeakerId): SpeakerName
+
+  pullEvents(): TranscriptionEvent[]
+  toJSON(): TranscriptionJson
+}
+
+// transcription/application/rename-speakers.ts
+async execute(id: string, updates: { id: string; name: string }[]) {
+  const transcription = await this.repository.findById(id);
+  transcription.renameSpeakers(
+    updates.map((u) => ({ id: SpeakerId.of(u.id), name: SpeakerName.of(u.name) })), // 空の名前はここで止まる
+  );
+  await this.repository.save(transcription);
+  await this.events.publish(transcription.pullEvents()); // 個人情報は SpeakerRenamed を受けてチェックし直す
+}
+```
+
+- 話者名は話者の一覧だけに持つため、写し忘れが起きない
+- 空の名前・前後の空白は `SpeakerName` が受け付けない
+- 文字起こしは個人情報のことを知らない。名前が変わらなかったときは、イベントが出ないのでチェックもやり直さない
+
+#### 保存するデータ
+
+| | `transcription.json` の話者名 |
+|---|---|
+| 修正前 | `speakers[].name` と `utterances[].speakerName` の両方に書く |
+| 修正後 | `speakers[].name` だけに書く（v0.9.1 の課題）。`toJSON()`／`reconstruct()` の中だけで片付くため、ほかのコードは変えない。v0.9.0 のファイルにある `utterances[].speakerName` は、読むときに無視する |
 
 ### 3-2. 個人情報
 
