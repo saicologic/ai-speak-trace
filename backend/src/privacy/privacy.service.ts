@@ -158,6 +158,8 @@ export class PrivacyService {
         findings: toFindings(detected.pii, text, previous?.findings),
         // 検出に使った話者名（MCP で、チェックの後に話者名が変わっていないか確かめる）
         speakerNamesHash: hashSpeakerNames(transcription),
+        // チェックした回の文字起こし（同じ id で文字起こしし直したものと見分ける）
+        transcriptionCreatedAt: transcription.createdAt,
       };
       if (!(await this.store.save(scan))) {
         this.logger.log(
