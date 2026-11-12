@@ -230,7 +230,8 @@ export class ConversationReader {
     if (!isFindings(scan.findings)) return reject(id, 'error');
 
     const scannedAt = Date.parse(scan.scannedAt);
-    if (Number.isNaN(scannedAt) || modifiedAt > scannedAt) {
+    // ファイルの更新時刻はミリ秒より細かく、チェックの時刻はミリ秒までのため、ミリ秒にそろえて比べる
+    if (Number.isNaN(scannedAt) || Math.floor(modifiedAt) > scannedAt) {
       return reject(id, 'stale', known);
     }
     // アプリの画面に出さない検出（国名だけの住所・会社名や製品名だけの氏名など）は、利用者が選べないため要確認として扱わない

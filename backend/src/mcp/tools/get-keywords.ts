@@ -147,6 +147,7 @@ function containsMasked(keyword: string, hidden: string[]): boolean {
   if (!k) return false;
   return hidden.some((h) => {
     const t = h.replace(/ /g, '');
-    return t.includes(k) || k.includes(t);
+    // 空白だけの伏せ字は比べない（空の文字列はどのキーワードにも含まれるため）
+    return t !== '' && (t.includes(k) || k.includes(t));
   });
 }
