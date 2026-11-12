@@ -7,6 +7,7 @@
 | 開発に参加・コントリビュートしたい | このガイドの手順に従って `npm run dev` で開発環境を構築してください |
 | 個人・社内向けにカスタマイズして使いたい | [リポジトリをフォーク](https://github.com/saicologic/ai-speak-trace/fork)して、自分のApple Developer証明書とGitHub Secretsを設定してください（[コード署名の設定手順](code-signing.md)を参照） |
 | MCP サーバーの設計を知りたい | [MCP サーバーの設計](mcp-server.md)を参照してください |
+| ドメイン駆動設計（DDD）の設計と、改善の論点を知りたい | [ドメイン駆動設計（DDD）の設計](ddd.md)を参照してください |
 | バックエンドの外への通信の制限を知りたい | [バックエンドの外への通信の制限と記録](network-egress.md)を参照してください |
 | Claude Code で開発したい | 最初に [Claude Code のサンドボックスと GitHub への操作](claude-code-sandbox.md)の手順で、チーム共通の設定を入れてください |
 
