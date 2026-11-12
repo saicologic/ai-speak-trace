@@ -45,7 +45,7 @@ export class AnalysisService {
 
   /** 質問生成プロンプトを構築（話者名とキーワードは tool_result で渡す） */
   buildGenerateQuestionsPrompt(): string {
-    return `読み込んだ分析の対象の data.speakerName が話題にした、data.keywords の各キーワードについて、調査質問を生成してください。
+    return `読み込んだ分析の対象の speakerName が話題にした、keywords の各キーワードについて、調査質問を生成してください。
 
 ## 指示
 - 各キーワードについて1〜2件の質問を生成してください
@@ -87,7 +87,7 @@ ${question}
   buildContextAnalysisPrompt(targetIndices: number[]): string {
     const targetList = targetIndices.join(', ');
 
-    return `読み込んだ分析の対象の data.utterances（会話の文字起こし。index は発話番号）から、指定された発話の文脈を分析してください。
+    return `読み込んだ分析の対象の utterances（会話の文字起こし。index は発話番号）から、指定された発話の文脈を分析してください。
 
 ## 分析対象の発話番号
 ${targetList}

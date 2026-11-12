@@ -24,6 +24,21 @@ export interface PrivacyScan {
   guardrailId: string;
   guardrailVersion: string;
   findings: PiiFinding[];
+  /**
+   * チェックした話者名のハッシュ（hashSpeakerNames）
+   * MCP で、チェックの後に話者名が変わっていないか確かめる。この項目を足す前に保存した結果にはない
+   */
+  speakerNamesHash?: string;
+  /**
+   * チェックした文字起こしの作成日時（Transcription.createdAt）
+   * 同じ音声ファイル名で文字起こしし直すと、同じ id で別の文字起こしになるため、作成日時で見分ける。この項目を足す前に保存した結果にはない
+   */
+  transcriptionCreatedAt?: string;
+  /**
+   * チェックした本文（話者名を除く）のハッシュ（hashTranscriptionBody）
+   * MCP で、チェックの後に本文が変わっていないか確かめる。この項目を足す前に保存した結果にはない
+   */
+  bodyHash?: string;
 }
 
 /** 個人情報チェックの状態（画面表示用） */

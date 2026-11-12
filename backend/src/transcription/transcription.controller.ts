@@ -74,7 +74,8 @@ export class TranscriptionController {
   /** 音声ファイルの存在確認: GET /api/audio-files/exists/:fileName */
   @Get('audio-files/exists/:fileName')
   async checkAudioFileExists(@Param('fileName') fileName: string) {
-    const exists = await this.transcriptionService.checkAudioFileExists(fileName);
+    const exists =
+      await this.transcriptionService.checkAudioFileExists(fileName);
     return { exists };
   }
 
@@ -91,7 +92,10 @@ export class TranscriptionController {
   @Post('audio-files')
   @UseInterceptors(FileInterceptor('file'))
   async uploadAudioFile(@UploadedFile() file: Express.Multer.File) {
-    console.log('[upload] リクエスト受信', file ? `size=${file.size}, name=${file.originalname}` : 'file=null');
+    console.log(
+      '[upload] リクエスト受信',
+      file ? `size=${file.size}, name=${file.originalname}` : 'file=null',
+    );
     if (!file) {
       throw new BadRequestException('ファイルが指定されていません');
     }
@@ -138,7 +142,10 @@ export class TranscriptionController {
         );
       }
       // タイムアウトエラー
-      if (error instanceof Error && error.name === 'TranscriptionTimeoutError') {
+      if (
+        error instanceof Error &&
+        error.name === 'TranscriptionTimeoutError'
+      ) {
         throw new HttpException(
           { code: 'TRANSCRIPTION_TIMEOUT', message: error.message },
           HttpStatus.REQUEST_TIMEOUT,
@@ -166,7 +173,8 @@ export class TranscriptionController {
         throw new HttpException(
           {
             code: 'FFMPEG_MISSING',
-            message: 'ffmpegが見つかりません。アプリを再インストールしてください。',
+            message:
+              'ffmpegが見つかりません。アプリを再インストールしてください。',
           },
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
@@ -279,14 +287,20 @@ export class TranscriptionController {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       const errName = error instanceof Error ? error.name : 'Unknown';
-      console.error('[transcribe/resume] エラー:', { name: errName, message: errMsg });
+      console.error('[transcribe/resume] エラー:', {
+        name: errName,
+        message: errMsg,
+      });
       if (error instanceof Error && error.name === 'QuotaExceededError') {
         throw new HttpException(
           { code: 'QUOTA_EXCEEDED', message: error.message },
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
-      if (error instanceof Error && error.name === 'TranscriptionTimeoutError') {
+      if (
+        error instanceof Error &&
+        error.name === 'TranscriptionTimeoutError'
+      ) {
         throw new HttpException(
           { code: 'TRANSCRIPTION_TIMEOUT', message: error.message },
           HttpStatus.REQUEST_TIMEOUT,
@@ -310,12 +324,19 @@ export class TranscriptionController {
     try {
       const transcriptions =
         await this.transcriptionService.getTranscriptions();
-      console.log('[transcriptions] 一覧取得完了:', transcriptions.length, '件');
+      console.log(
+        '[transcriptions] 一覧取得完了:',
+        transcriptions.length,
+        '件',
+      );
       return { transcriptions };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       const errStack = error instanceof Error ? error.stack : '';
-      console.error('[transcriptions] 一覧取得エラー:', { message: errMsg, stack: errStack });
+      console.error('[transcriptions] 一覧取得エラー:', {
+        message: errMsg,
+        stack: errStack,
+      });
       throw error;
     }
   }
@@ -332,7 +353,11 @@ export class TranscriptionController {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       const errStack = error instanceof Error ? error.stack : '';
-      console.error('[transcriptions] 個別取得エラー:', { id, message: errMsg, stack: errStack });
+      console.error('[transcriptions] 個別取得エラー:', {
+        id,
+        message: errMsg,
+        stack: errStack,
+      });
       throw error;
     }
   }
@@ -410,9 +435,15 @@ export class TranscriptionController {
   /** 同名ファイルの未完了ジョブ検索: GET /api/chunked-jobs/check/:fileName */
   @Get('chunked-jobs/check/:fileName')
   async checkExistingJob(@Param('fileName') fileName: string) {
-    console.log('[chunked-jobs/check] ファイル名で未完了ジョブを検索:', fileName);
+    console.log(
+      '[chunked-jobs/check] ファイル名で未完了ジョブを検索:',
+      fileName,
+    );
     const job = await this.transcriptionService.findActiveJob(fileName);
-    console.log('[chunked-jobs/check] 検索結果:', job ? `jobId=${job.id}` : 'なし');
+    console.log(
+      '[chunked-jobs/check] 検索結果:',
+      job ? `jobId=${job.id}` : 'なし',
+    );
     return { job };
   }
 }

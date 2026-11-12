@@ -109,7 +109,7 @@ ai-speak-trace/
 - コードおよびコメントは日本語で記述する
 - コミットメッセージは日本語で記述する
 - mainブランチはブランチ保護（PR必須）が有効。直接プッシュ不可
-- main以外のブランチ（release/*, fix/* など）は直接プッシュ可能
+- main以外のブランチ（release/*, fix/* など）は直接プッシュ可能。ただし Claude Code が `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ（`release/*` はユーザーが push する）
 - ブランチが保護されていてプッシュできない場合、新しいブランチを作成せず、ユーザーに報告する
 
 ### テスト駆動開発（TDD）
@@ -120,10 +120,25 @@ ai-speak-trace/
 2. **Green**: テストが通る最小限の実装を書き、流して通ることを確かめる
 3. **Refactor**: テストが通ったまま、書き方を整える
 
+- 始める前に、確かめたい場面（正しい入力・境界・エラー）の一覧を書き、1つずつテストにする（全部のテストを先にまとめて書かない）
 - テストを先にコミットし、実装を後からコミットする（PR の履歴で、テストが先だったことが分かるようにする）
+- コミットメッセージの頭で、コミットの種類を分ける: テストは `test:`、動きを変える実装は `fix:`・`feat:`、動きを変えない書き換えは `refactor:`・`style:`。動きを変える変更と変えない変更を、同じコミットに混ぜない
+- Green では、テストを変えない。テストを直す必要が出たら、`test:` のコミットで直す（アサーションを消して通したり、実際に出た値を期待する値に貼り付けたりしない）
+- テストのファイルの移動・分割も、`test:` のコミットでする（CI の `TDD` は、`test:` 以外のコミットで、テストのファイルごとに `expect(` が減っていないかを確かめるため）
+- 動きを変えない書き換え（名前の変更・関数の切り出しなど）は、新しいテストを先に書かなくてよい。今あるテストが書き換えの前後で通ることを確かめ、報告に載せる。今あるテストがその動きを確かめていないときは、先にテストを足してから書き換える
 - バグの修正では、まずバグを再現して失敗するテストを書く
+- 実装のコミットの後、push する前に、`test-reviewer` サブエージェント（`.claude/agents/test-reviewer.md`）に、変えたファイルと確かめたい場面の一覧を渡して確かめてもらう
 - 画面の見た目・CSP・外部 API につないだときの動きなど、自動テストで確かめにくいものは、実装の前に何を確かめるかを書き出し、PR の「## 手動確認項目」（または「## 自動テスト項目」）に入れる
 - ドキュメント・設定だけの変更など、確かめる動きがないものは対象外
+
+次の仕組みで、この決まりを確かめる。
+
+- **CI の `TDD`**（`.github/workflows/tdd.yml`・`.github/scripts/check-tdd-order.sh`）: `main`・`release/*` 宛ての PR で、コミットを古い順に調べ、実装のファイル（`backend/src` の `.spec.ts` 以外・`frontend/src` の `.test.ts(x)` 以外・`backend/scripts/`）を変えたコミットより前にテストのファイルを変えたコミットがあるか、`test:` 以外のコミットでテストの `expect(` を減らしていないかを確かめる。`refactor:`・`style:` のコミットと、マージで入ったコミットは、順番の確認の対象外。テストを書けない変更だけの PR は、`no-tdd` のラベルを付けて飛ばす
+  - その実装を参照している（import している・パスを書いている）テストがすでにあるときは、そのテストのどれかを、実装と同じかそれより前のコミットで変える必要がある（ほかのテストを変えただけでは通らない）。参照しているテストは `.github/scripts/related-tests.mjs` で探す
+  - まだテストのない実装は、PR の中でそれより前にどれかのテストを変えていれば通る。テストが実装の動きを確かめているかは、`test-reviewer` とレビューで確かめる
+- **push の前の確認**（`.claude/team/bin/tdd-push-gate.sh`）: Claude Code が `github.sh` で push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `github.sh` に `--skip SKIP_TDD_CHECK` を付ける
+  - サンドボックスの外で動くため、`install.sh` が `/opt/claude-code-team/bin/ci` に入れた `.github/scripts` を使う（作業ツリーのものは動かさない）。`.github/scripts` を変えたら、マージの後に、`docs/developers/claude-code-sandbox.md` の手順（GitHub から取った `install.sh`）でもう一度入れる
+- **lint**（CI の `backend-test`・`frontend-test` で流す）: テストのファイルで、`.skip`・`.only`・`xit` などのテストを外す書き方を止める。OS などの理由で外すときは、`eslint-disable-next-line` に理由を書く
 
 ## ブランチ管理とリリースポリシー
 
@@ -164,37 +179,45 @@ ai-speak-trace/
 
 ### ビルド対象ファイルの管理
 
-`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。`release/*` 宛ての PR では、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc` を変えた push のときに動く。
+`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。`release/*` 宛ての PR では、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。
 
-- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/` 等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
-- **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc` 以外のファイルと、Markdownファイル
+- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
+- **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` 以外のファイルと、Markdownファイル（`.claude/team/`・`.claude/settings.json`・`.github/scripts/` は `backend/src/lint` のテストが確かめるため、`backend-test` を動かす）
 - 一覧にないファイルはビルドする。ビルド不要なファイルを新しく足す場合だけ、`changes` ジョブの一覧に足す
 
 必須チェックのワークフローに `paths` を付けない。`paths` で飛ばすと、必須チェックが pending のままになり PR がマージできなくなる。
 
 ## ブラウザ操作（Claude Code）
 
-Playwright MCP と Claude in Chrome を使い分ける。
+ブラウザでの確認は、新しく足した機能を localhost の開発用の画面で見ることだけにし、Playwright MCP で行う。Claude in Chrome（普段のログイン中の Chrome を操作する）は使わない（managed-mcp.json で止まる）。
 
-| 用途 | 使うもの |
-|------|---------|
-| ログインが必要なページ、ボット対策があるサイト | Claude in Chrome（`claude --chrome` で起動） |
-| 自動テスト、公開ページの確認 | Playwright MCP |
-
-- Playwright MCP は `.mcp.json` から `.claude/scripts/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う。同じ Google Chrome を2つ同時に起動すると Claude in Chrome 拡張機能が使えなくなることがあるため
+- Playwright MCP は、managed-mcp.json（`.claude/team/managed-mcp.json` を `install.sh` で入れたもの）から `/opt/claude-code-team/bin/playwright-mcp.sh` 経由で起動し、普段使いの Google Chrome とは別アプリの「Google Chrome for Testing」を使う
+- Playwright MCP のブラウザは、localhost・127.0.0.1 にしかつながらない（つながらないプロキシを通し、localhost・127.0.0.1 だけを例外にしている）。外のサイト・公開ページは開けない。サーバーは開発者が `npm run dev` で起動しておく
 - Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
 - Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
 
 ## CodeRabbit の枠切れ（Claude Code）
 
 - CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため
-- `.claude/hooks/cr-limit-gate.sh` が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push` と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
+- `.claude/team/bin/cr-limit-gate.sh`（managed settings の hook と、`github.sh` が書き込む前の確認）が、`gh pr comment`（`@coderabbitai`）・`gh pr create`・`gh pr ready`・`git push`（`github.sh` が流すものを含む）と手元レビューの `cr-review.sh` を、枠が戻る時刻まで止めて通知する
 - 戻る時刻は、直近の CodeRabbit のコメント（「Next included review available in N minutes」）と、`cr-review.sh` が記録した時刻から求める。調べられないときは止めない
-- 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける
+- 急ぎで通すときは、ユーザーの了承を得てコマンドに `SKIP_CR_LIMIT=1` を付ける（`github.sh` では `--skip SKIP_CR_LIMIT`）
+
+## サンドボックスと GitHub への操作（Claude Code）
+
+- Claude Code の設定は、個人の設定ではなく、チームで共通の managed settings（`.claude/team/managed-settings.json`）と `.claude/settings.json` を使う。各開発者は、`docs/developers/claude-code-sandbox.md` の手順で、GitHub から取った `install.sh` をターミナルで実行して入れる（作業ツリーの `install.sh` を `sudo` で動かさない。Claude Code には実行させない）
+- Bash はサンドボックスの中で動き、GitHub には届かない。push・PR・Issue の操作は、`/opt/claude-code-team/bin/github.sh` で行う。先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けない（付けるとサンドボックスの中で動く）
+  - push できるのは `fix/*`・`feature/*`・`test/*` だけ。PR は `--draft` だけ。本文は `--body-file` で渡す
+  - PR・Issue への文章の書き込みは、毎回ユーザーに確かめる。本文・まだ送っていないコミットに API キー・トークン・秘密鍵の形があれば、`github.sh` が止める
+- Claude Code はサンドボックスの中で、lint・テスト・ビルドを行う。`npm ci`・`npm install` とサーバーの起動（`npm run dev`）は、開発者が自分のターミナルで行う（`docs/developers/claude-code-sandbox.md` の「サンドボックスの中での開発」）。画面の確認は、開発者が起動したサーバーを Playwright MCP で開く
+- 動かす MCP サーバーは managed-mcp.json で Playwright MCP だけに決める（プロジェクトの `.mcp.json`・プラグイン・claude.ai のコネクタ・Claude in Chrome は動かない）。開発はターミナルの Claude Code（CLI）で行う（Claude のデスクトップアプリのセッションでは、デスクトップアプリが渡すコネクタが managed-mcp.json で止まらないため、対象外にする）
+- 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
+- サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、インストーラーそのものと入れるものの両方を、作業ツリーではなく GitHub のブランチのコミットから取る
+- 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く
 
 ## PRの手動確認項目
 
-CIの結果（`build`・`backend-test`・`frontend-test`）はPRのチェック欄と必須チェックで確認するため、PR本文には書かない。コードレビューはCodeRabbitが行う。
+CIの結果（`build`・`backend-test`・`frontend-test`・`tdd-order`）はPRのチェック欄と必須チェックで確認するため、PR本文には書かない。コードレビューはCodeRabbitが行う。
 
 PR本文には、CIとコードレビューでは確認できない動作がある場合のみ「## 手動確認項目」を書く。例：
 

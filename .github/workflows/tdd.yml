@@ -1,0 +1,35 @@
+name: TDD
+
+# PR のコミットの並びから、テストが実装より先か・テストの expect を減らしていないかを確かめる
+# （中身は .github/scripts/check-tdd-order.sh。テストは backend/src/lint/check-tdd-order.spec.ts）
+# テストを書けない変更だけの PR は、no-tdd のラベルを付けると飛ばす
+# fix/* などは release/* 宛てに PR を作るため、main と release/* の両方で動かす
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  tdd-order:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: no-tdd のラベルがあれば飛ばす
+        if: contains(github.event.pull_request.labels.*.name, 'no-tdd')
+        run: echo "no-tdd のラベルがあるため、TDD の順番の確認を飛ばします"
+
+      - if: "!contains(github.event.pull_request.labels.*.name, 'no-tdd')"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: テストが実装より先か確かめる
+        if: "!contains(github.event.pull_request.labels.*.name, 'no-tdd')"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/check-tdd-order.sh "$BASE_SHA" "$HEAD_SHA"

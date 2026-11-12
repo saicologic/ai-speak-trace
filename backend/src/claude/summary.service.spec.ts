@@ -59,7 +59,10 @@ describe('SummaryService', () => {
     });
 
     it('応答が拒否された場合は例外を投げる', async () => {
-      mockMessagesCreate.mockResolvedValue({ content: [], stop_reason: 'refusal' });
+      mockMessagesCreate.mockResolvedValue({
+        content: [],
+        stop_reason: 'refusal',
+      });
 
       await expect(service.summarize('会話')).rejects.toThrow('拒否');
     });
@@ -76,7 +79,9 @@ describe('SummaryService', () => {
       const { summary } = await service.summarize('会話テキスト');
 
       expect(summary.overview).toBe('概要');
-      expect(summary.key_points).toEqual([{ topic: 'テーマ', summary: '要点' }]);
+      expect(summary.key_points).toEqual([
+        { topic: 'テーマ', summary: '要点' },
+      ]);
       expect(summary.decisions).toEqual(['決定1']);
     });
 
@@ -126,9 +131,9 @@ describe('SummaryService', () => {
           (b) => b.type === 'tool_result',
         ) as Anthropic.ToolResultBlockParam;
       const parsed = JSON.parse(block.content as string) as {
-        data: { conversation: unknown };
+        conversation: unknown;
       };
-      return parsed.data.conversation;
+      return parsed.conversation;
     };
     /** 最後の user の指示 */
     const sentInstructions = () => {
@@ -137,19 +142,34 @@ describe('SummaryService', () => {
     };
 
     it('会話の全文は指示と分けて tool_result で渡し、{{fullText}} はその在りかの文に置き換える', async () => {
-      mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要', key_points: [], decisions: [] }));
+      mockMessagesCreate.mockResolvedValue(
+        makeResponse({ overview: '概要', key_points: [], decisions: [] }),
+      );
 
-      await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約してください: {{fullText}}');
+      await service.summarize(
+        '実際の会話内容',
+        'claude-sonnet-5-5',
+        '要約してください: {{fullText}}',
+      );
 
       expect(sentConversation()).toBe('実際の会話内容');
-      expect(sentInstructions()).toBe(`要約してください: ${FULL_TEXT_REFERENCE}`);
+      // 在りかの文は、tool_result の JSON にある鍵を指す（data で包まない）
+      expect(FULL_TEXT_REFERENCE).toContain('conversation');
+      expect(FULL_TEXT_REFERENCE).not.toContain('data.');
+      expect(sentInstructions()).toBe(
+        `要約してください: ${FULL_TEXT_REFERENCE}`,
+      );
       expect(sentParams().tool_choice).toEqual({ type: 'none' });
     });
 
     it('プロンプト攻撃は tool_result で渡した会話だけで確認させる', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
 
-      await service.summarize('実際の会話内容', 'claude-sonnet-5-5', '要約: {{fullText}}');
+      await service.summarize(
+        '実際の会話内容',
+        'claude-sonnet-5-5',
+        '要約: {{fullText}}',
+      );
 
       expect(mockCreateMessageWithReport).toHaveBeenCalledWith(
         expect.anything(),
@@ -160,7 +180,11 @@ describe('SummaryService', () => {
     it('会話に $& などの置換パターンが含まれていても、そのまま渡す', async () => {
       mockMessagesCreate.mockResolvedValue(makeResponse({ overview: '概要' }));
 
-      await service.summarize('価格は $& です', 'claude-sonnet-5-5', '要約: {{fullText}}');
+      await service.summarize(
+        '価格は $& です',
+        'claude-sonnet-5-5',
+        '要約: {{fullText}}',
+      );
 
       expect(sentConversation()).toBe('価格は $& です');
     });

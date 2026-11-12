@@ -1,5 +1,5 @@
 import { GuardrailFindings } from '../privacy/guardrail.service';
-import { isReviewType, piiLabel } from '../privacy/privacy.utils';
+import { isUncertainType, piiLabel } from '../privacy/privacy.utils';
 import { EthicsCheck, ReportSegment } from './types/research.types';
 
 /**
@@ -66,11 +66,11 @@ export function toOutputChecks(
   const contact = [
     ...new Set(
       findings.pii
-        .filter((p) => !isReviewType(p.type))
+        .filter((p) => !isUncertainType(p.type))
         .map((p) => piiLabel(p.type)),
     ),
   ];
-  const candidates = findings.pii.filter((p) => isReviewType(p.type)).length;
+  const candidates = findings.pii.filter((p) => isUncertainType(p.type)).length;
   const content = findings.content.filter(
     (c) => c.confidence === 'MEDIUM' || c.confidence === 'HIGH',
   );

@@ -36,12 +36,20 @@ import {
   ResearchEvaluation,
   ResearchJob,
   ResearchJobSummary,
+  ResearchResume,
+  ResearchStage,
   ResearchTarget,
 } from './types/research.types';
+import {
+  describeResearchError,
+  INTERRUPTED_MESSAGE,
+  stopsWebResearch,
+} from './research-errors';
 import {
   checkPersonalData,
   countOccurrences,
   findMentions,
+  mergeWebSources,
   normalizeDomain,
   toTranscriptDocument,
   toTranscriptUtterances,
@@ -52,7 +60,7 @@ import {
 export const MAX_TRANSCRIPT_CHARS = 300_000;
 
 /** 実行中の状態（アプリの再起動で中断された調査の判定に使う） */
-const RUNNING_STATUSES = [
+const RUNNING_STATUSES: string[] = [
   'proposing',
   'researching',
   'analyzing',
@@ -64,12 +72,13 @@ const RUNNING_STATUSES = [
  *
  * 開始すると ①会話の読み込み・②提案 を行い、ユーザーの確定を待つ。
  * 確定後に ③Web調査 → ④統合分析 → ⑤評価 を行う。各段階の結果は ResearchJobStore に保存する。
+ * 途中で失敗した調査は、保存した結果を使い、終わっていない段階から再開できる（resume）。
  */
 @Injectable()
 export class ResearchService implements OnModuleInit {
   private readonly logger = new Logger(ResearchService.name);
-  /** 確定の処理中の調査ID（同じ調査を二重に開始しないため） */
-  private readonly confirming = new Set<string>();
+  /** 確定・再開の処理中の調査ID（同じ調査を二重に開始しないため） */
+  private readonly starting = new Set<string>();
 
   constructor(
     private readonly transcriptionStore: TranscriptionStoreService,
@@ -79,7 +88,7 @@ export class ResearchService implements OnModuleInit {
     private readonly privacy: PrivacyService,
   ) {}
 
-  /** アプリの再起動で中断された調査を、失敗として記録する */
+  /** アプリの再起動で中断された調査を、失敗として記録する（中断した段階から再開できる） */
   async onModuleInit(): Promise<void> {
     for (const summary of await this.jobStore.findAllSummaries()) {
       if (!RUNNING_STATUSES.includes(summary.status)) continue;
@@ -87,7 +96,9 @@ export class ResearchService implements OnModuleInit {
       if (job) {
         await this.update(job, {
           status: 'failed',
-          error: 'アプリの再起動で中断しました。もう一度調査を開始してください',
+          error: INTERRUPTED_MESSAGE,
+          errorInfo: describeResearchError(INTERRUPTED_MESSAGE),
+          failedStage: summary.status as ResearchStage,
         });
       }
     }
@@ -97,7 +108,12 @@ export class ResearchService implements OnModuleInit {
     return this.jobStore.findAllSummaries();
   }
 
+  /** 調査を取得する（失敗した調査には、失敗の説明と再開する段階を付ける） */
   async findById(id: string): Promise<ResearchJob> {
+    return withResume(await this.load(id));
+  }
+
+  private async load(id: string): Promise<ResearchJob> {
     const job = await this.jobStore.findById(id);
     if (!job) throw new NotFoundException('調査が見つかりません');
     return job;
@@ -122,6 +138,7 @@ export class ResearchService implements OnModuleInit {
     // 会話を読み込む前の時刻を作成時刻にする（読み込み後に会話が削除された場合に、保存しないため）
     const now = new Date().toISOString();
     const transcriptions = await this.loadTranscriptions(transcriptionIds);
+    const words = sendableWords(transcriptions, frequentWords);
     const totalChars = transcriptions.reduce(
       (sum, t) => sum + toTranscriptDocument(t).length,
       0,
@@ -143,30 +160,88 @@ export class ResearchService implements OnModuleInit {
       ),
       models: { analysis: CLAUDE_MODEL },
       preSendChecks: await this.privacyChecks(transcriptionIds),
+      proposalInput: {
+        words,
+        droppedFrequentWords: frequentWords.length - words.length,
+      },
     };
     await this.jobStore.save(job);
-    void this.runProposal(job, transcriptions, frequentWords);
+    void this.runProposal(job, transcriptions);
     return job;
   }
 
   /** ② ユーザーが確定したキーワードと公式サイトで、③④⑤ を実行する（バックグラウンド） */
   async confirm(id: string, targets: ResearchTarget[]): Promise<ResearchJob> {
-    if (this.confirming.has(id)) {
+    if (this.starting.has(id)) {
       throw new BadRequestException('この調査はすでに確定の処理中です');
     }
-    this.confirming.add(id);
+    this.starting.add(id);
     try {
       return await this.confirmJob(id, targets);
     } finally {
-      this.confirming.delete(id);
+      this.starting.delete(id);
     }
+  }
+
+  /**
+   * 失敗した調査を、終わっていない段階から再開する（バックグラウンド）
+   * 終わっている段階の結果（提案・Web調査の情報源・統合分析）はそのまま使う。
+   * 会話をもう一度 Claude に送るため、送る前の確認（個人情報チェック）はやり直して記録し直す
+   */
+  async resume(id: string): Promise<ResearchJob> {
+    if (this.starting.has(id)) {
+      throw new BadRequestException('この調査はすでに再開の処理中です');
+    }
+    this.starting.add(id);
+    try {
+      return await this.resumeJob(id);
+    } finally {
+      this.starting.delete(id);
+    }
+  }
+
+  private async resumeJob(id: string): Promise<ResearchJob> {
+    const job = await this.load(id);
+    if (job.status !== 'failed') {
+      throw new BadRequestException('この調査は再開できる状態ではありません');
+    }
+    const resume = resumeStage(job);
+    if (!resume) {
+      throw new BadRequestException(
+        'この調査は再開できません。新しく調査を始めてください',
+      );
+    }
+    if (!this.guardrail.isConfigured()) {
+      throw new BadRequestException(
+        'Claude に送る前のチェックのため、設定画面で Guardrail ID を設定してください',
+      );
+    }
+    await this.scanUnchecked(job.transcriptionIds);
+    const transcriptions = await this.loadTranscriptions(job.transcriptionIds);
+    const updated = await this.update(job, {
+      status: resume.from,
+      error: undefined,
+      errorInfo: undefined,
+      failedStage: undefined,
+      preSendChecks: {
+        ...job.preSendChecks,
+        ...(await this.privacyChecks(job.transcriptionIds)),
+      },
+    });
+    this.logger.log(`調査を再開します: ${id}（${resume.from}）`);
+    if (resume.from === 'proposing') {
+      void this.runProposal(updated, transcriptions);
+    } else {
+      void this.runResearch(updated, resume);
+    }
+    return updated;
   }
 
   private async confirmJob(
     id: string,
     targets: ResearchTarget[],
   ): Promise<ResearchJob> {
-    const job = await this.findById(id);
+    const job = await this.load(id);
     if (job.status !== 'awaiting_confirmation') {
       throw new BadRequestException('この調査は確定できる状態ではありません');
     }
@@ -201,10 +276,15 @@ export class ResearchService implements OnModuleInit {
   private async runProposal(
     job: ResearchJob,
     transcriptions: Transcription[],
-    frequentWords: { word: string; count: number }[],
   ): Promise<void> {
     try {
-      const words = sendableWords(transcriptions, frequentWords);
+      // 再開した場合は、個人情報チェックで伏せる文字列が変わっていることがあるため、数え直す
+      const input = job.proposalInput?.words ?? [];
+      const words = sendableWords(transcriptions, input);
+      const droppedFrequentWords =
+        (job.proposalInput?.droppedFrequentWords ?? 0) +
+        input.length -
+        words.length;
       const raw = await this.claude.proposeKeywords(
         this.toDocuments(transcriptions),
         words.slice(0, 30),
@@ -228,7 +308,7 @@ export class ResearchService implements OnModuleInit {
         proposal: { keywords, domains },
         preSendChecks: {
           ...(job.preSendChecks ?? { privacyConfigured: false, privacy: [] }),
-          droppedFrequentWords: frequentWords.length - words.length,
+          droppedFrequentWords,
           droppedKeywords: checked
             .filter((k) => k.keyword && k.frequency === 0)
             .map((k) => k.keyword),
@@ -275,7 +355,11 @@ export class ResearchService implements OnModuleInit {
     return { privacyConfigured, privacy };
   }
 
-  private async runResearch(job: ResearchJob): Promise<void> {
+  /** ③④⑤ を実行する（resume を指定した場合は、その段階から始める） */
+  private async runResearch(
+    job: ResearchJob,
+    resume: ResearchResume = { from: 'researching' },
+  ): Promise<void> {
     try {
       const { keywords, domains, targets } = job.confirmed!;
       const transcriptions = await this.loadTranscriptions(
@@ -283,23 +367,25 @@ export class ResearchService implements OnModuleInit {
       );
 
       // ③ Web調査
-      // 以前の形式（キーワードごとの公式サイトがない）は、すべてのキーワードで同じ公式サイトを調べる
-      const { sources: webSources, failures } = await this.claude.researchWeb(
-        targets ?? keywords.map((keyword) => ({ keyword, domains })),
-      );
-      job = await this.update(job, {
-        status: 'analyzing',
-        webSources,
-        ...(failures.length > 0 && { webResearchFailures: failures }),
-      });
+      if (resume.from === 'researching') {
+        // 以前の形式（キーワードごとの公式サイトがない）は、すべてのキーワードで同じ公式サイトを調べる
+        job = await this.runWebResearch(
+          job,
+          targets ?? keywords.map((keyword) => ({ keyword, domains })),
+          resume.retryKeywords,
+        );
+      }
 
       // ④ 統合分析
-      const report = await this.claude.analyze(
-        this.toDocuments(transcriptions),
-        webSources,
-        keywords,
-      );
-      job = await this.update(job, { status: 'evaluating', report });
+      let report = job.report!;
+      if (resume.from !== 'evaluating') {
+        report = await this.claude.analyze(
+          this.toDocuments(transcriptions),
+          job.webSources ?? [],
+          keywords,
+        );
+        job = await this.update(job, { status: 'evaluating', report });
+      }
 
       // ⑤ 評価（根拠のない主張は表示から除く）
       const judgement = await this.claude.judge(report, keywords);
@@ -328,6 +414,48 @@ export class ResearchService implements OnModuleInit {
     } catch (error) {
       await this.fail(job, error);
     }
+  }
+
+  /**
+   * ③ Web調査を行い、情報源を保存する
+   * retryKeywords を指定した場合は、そのキーワードだけを調べ直し、前の情報源とまとめる。
+   * 待てば直る失敗（クレジット不足・混雑など）のキーワードがあれば、④に進まずに止める
+   * （④ も同じ理由で失敗するうえ、キーワードが抜けたレポートになるため）。
+   * 成功したキーワードの情報源は保存するため、再開すると失敗したキーワードだけを調べ直せる
+   */
+  private async runWebResearch(
+    job: ResearchJob,
+    targets: ResearchTarget[],
+    retryKeywords?: string[],
+  ): Promise<ResearchJob> {
+    const retrying = !!retryKeywords && retryKeywords.length > 0;
+    const { sources, failures } = await this.claude.researchWeb(
+      retrying
+        ? targets.filter((t) => retryKeywords.includes(t.keyword))
+        : targets,
+    );
+    // 調べ直さなかったキーワードの失敗（待っても直らない失敗）は残す
+    const kept = retrying
+      ? (job.webResearchFailures ?? []).filter(
+          (f) => !retryKeywords.includes(f.keyword),
+        )
+      : [];
+    const allFailures = [...kept, ...failures];
+    job = await this.update(job, {
+      webSources: retrying
+        ? mergeWebSources([...(job.webSources ?? []), ...sources])
+        : sources,
+      webResearchFailures: allFailures.length > 0 ? allFailures : undefined,
+    });
+    const stopped = failures.filter((f) => stopsWebResearch(f.error));
+    if (stopped.length > 0) {
+      throw new Error(
+        `${stopped.length}個のキーワード（${stopped
+          .map((f) => f.keyword)
+          .join('、')}）の Web調査に失敗しました: ${stopped[0].error}`,
+      );
+    }
+    return this.update(job, { status: 'analyzing' });
   }
 
   /**
@@ -439,8 +567,8 @@ export class ResearchService implements OnModuleInit {
     if (!normalized) {
       throw new BadRequestException('タイトルを入力してください');
     }
-    const job = await this.findById(id);
-    return this.update(job, { title: normalized });
+    const job = await this.load(id);
+    return withResume(await this.update(job, { title: normalized }));
   }
 
   private async update(
@@ -461,6 +589,8 @@ export class ResearchService implements OnModuleInit {
       updatedAt: new Date().toISOString(),
     };
     if (!updated.title) delete updated.title;
+    // 再開する段階は、取得したときに保存した結果から決めるため、保存しない
+    delete updated.resume;
     await this.jobStore.save(updated);
     return updated;
   }
@@ -479,12 +609,50 @@ export class ResearchService implements OnModuleInit {
       await this.update(latest, {
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),
+        errorInfo: describeResearchError(error),
+        ...(RUNNING_STATUSES.includes(latest.status) && {
+          failedStage: latest.status as ResearchStage,
+        }),
       });
     } catch (saveError) {
       if (saveError instanceof ResearchJobDeletedError) return;
       this.logger.error(`調査の失敗を記録できません: ${job.id}`, saveError);
     }
   }
+}
+
+/**
+ * 失敗した調査を、どの段階から再開するか（保存した結果から決める。以前の調査にも使える）
+ * 再開しても同じ理由で失敗する場合（Guardrails が止めた場合など）と、失敗していない調査は null
+ */
+export function resumeStage(job: ResearchJob): ResearchResume | null {
+  if (job.status !== 'failed') return null;
+  const info = job.errorInfo ?? describeResearchError(job.error ?? '');
+  if (!info.retryable) return null;
+  if (!job.proposal) return { from: 'proposing' };
+  // 確定と③の開始は同時に保存するため、確定していない失敗した調査はない
+  if (!job.confirmed) return null;
+  if (job.report) return { from: 'evaluating' };
+  if (job.webSources) {
+    const retryKeywords = (job.webResearchFailures ?? [])
+      .filter((f) => stopsWebResearch(f.error))
+      .map((f) => f.keyword);
+    return retryKeywords.length > 0
+      ? { from: 'researching', retryKeywords }
+      : { from: 'analyzing' };
+  }
+  return { from: 'researching' };
+}
+
+/** 失敗した調査に、失敗の説明（以前の調査にはないため、エラー文から作る）と再開する段階を付ける */
+function withResume(job: ResearchJob): ResearchJob {
+  if (job.status !== 'failed') return job;
+  const resume = resumeStage(job);
+  return {
+    ...job,
+    errorInfo: job.errorInfo ?? describeResearchError(job.error ?? ''),
+    ...(resume && { resume }),
+  };
 }
 
 /** 提案された公式サイトを正規化し、重複を除く */

@@ -72,8 +72,9 @@ export class PodcastController {
       await this.audioStorage.saveFile(body.fileName, buffer);
 
       // 3. 既存の文字起こしフローで処理
-      const transcription =
-        await this.transcriptionService.transcribe(body.fileName);
+      const transcription = await this.transcriptionService.transcribe(
+        body.fileName,
+      );
       return { transcription };
     } catch (error) {
       if (error instanceof Error && error.name === 'QuotaExceededError') {

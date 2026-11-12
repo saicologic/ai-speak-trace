@@ -1,6 +1,6 @@
 name: Test
 
-# PRでは毎回実行し、backend・frontend のコード（Markdown 以外）か .nvmrc が変わったときだけテストする。
+# PRでは毎回実行し、backend・frontend のコード（Markdown 以外）か .nvmrc・.claude/team・.github/scripts が変わったときだけテストする。
 # ブランチ保護の必須チェック「backend-test」「frontend-test」は、paths で飛ばすと pending のまま残るため、
 # いつも動かし、テストが不要な場合は手順を飛ばして成功にする。
 # push ではテスト対象のファイルが変わったときだけ実行する（必須チェックではないため paths で絞る）。
@@ -12,6 +12,10 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - '.nvmrc'
+      # backend/src/lint のテストが確かめる、サンドボックスの外で動くスクリプト・設定と、TDD の確認のスクリプト
+      - '.claude/team/**'
+      - '.claude/settings.json'
+      - '.github/scripts/**'
       - '!**.md'
   pull_request:
     branches: [main]
@@ -51,6 +55,8 @@ jobs:
             case "$f" in
               *.md) ;;
               backend/*) backend=true ;;
+              # backend/src/lint のテストが確かめる、サンドボックスの外で動くスクリプト・設定と、TDD の確認のスクリプト
+              .claude/team/*|.claude/settings.json|.github/scripts/*) backend=true ;;
               frontend/*) frontend=true ;;
               # テストに使う Node のバージョンが変わるため、両方テストする
               .nvmrc) backend=true; frontend=true ;;
@@ -88,6 +94,9 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - if: needs.changes.outputs.backend == 'true'
         run: cd backend && npm ci
+      # lint は直さずに調べるだけ（lint は --fix 付きのため lint:check を使う）
+      - if: needs.changes.outputs.backend == 'true'
+        run: cd backend && npm run lint:check
       - if: needs.changes.outputs.backend == 'true'
         run: cd backend && npm test
 
@@ -118,5 +127,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm ci
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npm run lint
+      # アプリのビルド（tsc -b）と同じ型の確認。テストのファイルも対象になる。
+      # テストのファイルだけを変えた PR では macOS のビルドを飛ばし、vitest は型を確かめないため、ここで確かめる
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npx tsc -b
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm run test:run

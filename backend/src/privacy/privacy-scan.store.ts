@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { wasDeletedSince } from '../transcription/derived-log-cleaner.service';
 import { PrivacyScan } from './privacy.types';
+import { withCurrentDefaults } from './privacy.utils';
 
 /** 個人情報チェックの結果の保存先（DATA_DIR 配下） */
 export const PRIVACY_SCANS_DIR = 'privacy-scans';
@@ -20,8 +21,7 @@ export class PrivacyScanStore {
   }
 
   private getFilePath(transcriptionId: string): string {
-    // パストラバーサル対策: ファイル名部分のみを使う
-    return path.join(this.storeDir, `${path.basename(transcriptionId)}.json`);
+    return privacyScanPath(this.storeDir, transcriptionId);
   }
 
   /**
@@ -49,13 +49,33 @@ export class PrivacyScanStore {
   }
 
   async find(transcriptionId: string): Promise<PrivacyScan | null> {
-    try {
-      return JSON.parse(
-        await fs.readFile(this.getFilePath(transcriptionId), 'utf-8'),
-      ) as PrivacyScan;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw error;
-    }
+    return readPrivacyScan(this.storeDir, transcriptionId);
+  }
+}
+
+/** 個人情報チェックの結果のファイルのパス（パストラバーサル対策: ファイル名部分のみを使う） */
+function privacyScanPath(dir: string, transcriptionId: string): string {
+  return path.join(dir, `${path.basename(transcriptionId)}.json`);
+}
+
+/**
+ * 個人情報チェックの結果を読み込む（dir は privacy-scans/ のフォルダ）
+ * チェックしていなければ null。JSON として読めない場合は例外を投げる
+ */
+export async function readPrivacyScan(
+  dir: string,
+  transcriptionId: string,
+): Promise<PrivacyScan | null> {
+  try {
+    const scan = JSON.parse(
+      await fs.readFile(privacyScanPath(dir, transcriptionId), 'utf-8'),
+    ) as PrivacyScan;
+    // 以前のバージョンで保存した結果も、今の初期状態（ユーザー名は伏せる）にそろえる
+    return Array.isArray(scan?.findings)
+      ? { ...scan, findings: withCurrentDefaults(scan.findings) }
+      : scan;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
   }
 }

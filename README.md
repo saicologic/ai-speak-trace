@@ -16,6 +16,7 @@
 - ディープサーチ：会話に出てきた用語を、Web の公式情報で調べて解説（根拠を確認できなかった文は表示しません）
 - 個人情報チェック：Claude に送る前に、会話の個人情報を伏せる（Amazon Bedrock Guardrails）
 - 誤りを報告：AI の結果に誤りがあれば、この Mac にメモを残せます（外部には送りません）
+- MCP サーバー：個人情報チェック済みの会話を、Claude Desktop・Claude Code から読み取り専用で検索・参照する（ソースコードからビルドして使う。[使い方](docs/users/usage.md#11-mcp-サーバーclaude-desktopclaude-code-から会話を読む)）
 
 ## 動作環境
 

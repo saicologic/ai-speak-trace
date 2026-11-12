@@ -86,6 +86,98 @@ Amazon Bedrock Guardrails で会話に含まれる個人情報を検出し、Cla
 - 初めて「GiNZA」を選んだときに「GiNZA を入れる」を押すと、Python 3.12 と GiNZA（約 500MB）をダウンロードして `~/Library/Application Support/io.github.saicologic.ai-speak-trace/ginza/` に入れます（1分ほどかかります）。DMG には含まれません
 - 解析はこの Mac の中で行い、会話を外部に送りません。macOS（Apple シリコン）で動作確認しています
 
+## 11. MCP サーバー（Claude Desktop・Claude Code から会話を読む）
+
+文字起こしした会話を、[MCP](https://modelcontextprotocol.io/)（Model Context Protocol）で Claude Desktop や Claude Code から読み取り専用で検索・参照できます。できること・質問の例・動作確認する場所は、[MCP サーバーで会話を聞く](mcp.md) を確認してください。
+
+- 読めるのは、アプリのディープサーチで**個人情報チェックを済ませた会話だけ**です。「伏せる」を選んだ文字列と、電話番号・メールアドレスなどの連絡先は `[氏名]`・`[電話番号]` のように置き換えて返します。音声ファイル名は返さず、会話の ID もファイル名を含まない値（`t_` で始まる。サーバーを起動するたびに変わる）にします。チェックしていない会話・チェックの後に変わった会話・「要確認」が残っている会話は返しません（一覧には理由を表示します）
+- 連絡先は、形の決まったもの（国内の電話番号・メールアドレス・カード番号・マイナンバー・IP アドレス）を正規表現で見つけて伏せます。すべての形を見つけられるわけではありません（海外の電話番号など）。個人情報チェックでも見つからなかった連絡先は、伏せずに返ることがあります。残したくない連絡先は、個人情報チェックで「伏せる」を選んでください
+- 会話を書き換えるツールはありません。呼び出しの記録を `data/mcp-audit-logs/` に残します（発話の本文は残しません）
+- 会話の内容は、登録した MCP クライアント（Claude Desktop・Claude Code）を通じて Anthropic に送られます。詳しくは [PRIVACY.md](../../PRIVACY.md) の「MCP サーバー」を確認してください
+- DMG には含まれていません。ソースコードからビルドして使います（アプリを起動していなくても使えます）
+
+| ツール | 内容 |
+|---|---|
+| `list_transcriptions` | 会話の一覧（ID・作成日時・話者名・発話数・個人情報チェックの状態） |
+| `search_utterances` | 発話を語で検索する（空白区切りで AND） |
+| `get_utterances` | 1つの会話の発話を順に読む（1回に100件まで） |
+| `get_context` | 1つの発話の前後を読む（前後10件まで） |
+| `get_keywords` | GiNZA のキーワード抽出（ベータ機能）で抽出したキーワード |
+
+**ビルド**
+
+```bash
+cd backend
+npm ci              # package-lock.json のとおりに入れる（知らないうちに依存の版が変わらないようにする）
+npm run mcp:build   # backend/dist/mcp/main.js ができる
+```
+
+`git pull` で更新したときは、もう一度ビルドします。ツールの定義（名前・説明）が変わることがあるため、更新した後は、Claude Desktop・Claude Code に表示されるツールが5つのままで、説明が想定どおりかを確かめてください。
+
+**Claude Desktop に登録する**
+
+MCP サーバーは、`backend/scripts/mcp-sandbox.sh` で sandbox（macOS の `sandbox-exec`）の中で起動します。sandbox の中では、MCP サーバーから直接外部へ通信できず、ホームフォルダの中で読めるのはデータのフォルダ・`backend/`・node だけ、書けるのは監査ログのフォルダ（`mcp-audit-logs/`）だけです。MCP サーバーが使う部品（MCP の SDK など）が乗っ取られても、MCP サーバーから直接会話を外に送ったり、ほかのファイル（`~/.aws/credentials` など）を読んだりできないようにするためです。MCP サーバーが返した内容は、これまでどおりクライアント（とその先のモデル）に送られます。
+
+`~/Library/Application Support/Claude/claude_desktop_config.json` に追加し、Claude Desktop を再起動します。`command` にはクローンしたフォルダの `backend/scripts/mcp-sandbox.sh` の絶対パスを、`args` には `which node` で表示される node の絶対パスを書きます（Claude Desktop はシェルの `PATH` を使わないため）。
+
+```json
+{
+  "mcpServers": {
+    "ai-speak-trace": {
+      "command": "/Users/you/ai-speak-trace/backend/scripts/mcp-sandbox.sh",
+      "args": ["/opt/homebrew/bin/node"]
+    }
+  }
+}
+```
+
+**Claude Code に登録する**
+
+```bash
+claude mcp add --scope user ai-speak-trace -- /Users/you/ai-speak-trace/backend/scripts/mcp-sandbox.sh "$(which node)"
+```
+
+Claude Code では、データのフォルダを直接読めると、MCP サーバーを通さずに伏せ字にしていない会話やファイル名が Claude に送られます。`~/.claude/settings.json` で、直接読むのを2つの設定で禁止しておきます（MCP サーバーは Claude Code が別に起動するプロセスなので、どちらの設定の影響も受けません）。
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "~/Library/Application Support/io.github.saicologic.ai-speak-trace/data"
+      ]
+    }
+  }
+}
+```
+
+- `permissions.deny` の `Read(...)` は、Claude Code のファイルを読むツールと、`cat`・`head` などのファイル名を書いて読むコマンドを止めます。ただし、ファイル名を書かずに読むコマンド（そのフォルダで実行する `grep -r` など）や、スクリプトが自分でファイルを開く場合は止められません。また、`grep`・`cat` などの読むだけのコマンドは、確認を求めずに実行されます（[権限の設定](https://code.claude.com/docs/en/permissions)）
+- `sandbox.filesystem.denyRead` は、Claude Code が実行するコマンドと、そのコマンドが起動したプロセスから、そのフォルダを読めないようにします（macOS の機能で止めます）。ファイルを読むツールは止めないため、`Read(...)` の拒否と一緒に使います（[サンドボックス](https://code.claude.com/docs/en/sandboxing)）
+- 既定では、サンドボックスが動かないときはサンドボックスなしでコマンドを実行し、サンドボックスに止められたコマンドをサンドボックスの外で動かし直すこともあります。`failIfUnavailable: true` でサンドボックスが動かないときは Claude Code を起動させず、`allowUnsandboxedCommands: false` でサンドボックスの外で動かし直さないようにします
+
+`~/` はホームフォルダを表すので、ユーザー名に合わせて書き換える必要はありません。下の `DATA_DIR` でデータの場所を変えた場合は、拒否するパスもその場所に変えてください。
+
+データの場所は、既定でアプリと同じ `~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` です。開発用のデータ（`backend/data/` など）を読む場合は、環境変数 `DATA_DIR` で指定します（Claude Desktop は `"env": { "DATA_DIR": "..." }`、Claude Code は `claude mcp add -e DATA_DIR=... ...`）。
+
+**ブラウザで確かめる（MCP Inspector）**
+
+```bash
+cd backend
+npm run mcp:inspect
+```
+
+架空の会話3件（チェック済み・未チェック・要確認）で MCP サーバーを起動し、[MCP Inspector](https://github.com/modelcontextprotocol/inspector) の画面を Chrome で開きます。画面からツールを呼んで、結果を確かめられます。端末の実データは読みません。Ctrl+C で止めると、架空のデータも消します。
+
+設計の理由は [MCP サーバーの設計](../developers/mcp-server.md) を確認してください。
+
 ## データの保存先
 
 文字起こし結果や音声ファイルは、`~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/` に保存します（設定画面の「データ保存先」の「フォルダを表示」で開けます）。フォルダごとの内容と削除方法は、[PRIVACY.md](../../PRIVACY.md) の「端末に保存するデータ」と「データの削除」を確認してください。

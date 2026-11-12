@@ -1,0 +1,159 @@
+{
+  "requiredMinimumVersion": "2.1.277",
+  "permissions": {
+    "ask": [
+      "Bash(/opt/claude-code-team/bin/github.sh --skip *)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
+      "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_file_upload",
+      "Bash(/opt/claude-code-team/bin/github.sh pr create *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr edit *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr comment *)",
+      "Bash(/opt/claude-code-team/bin/github.sh pr close *)",
+      "Bash(/opt/claude-code-team/bin/github.sh issue create *)",
+      "Bash(/opt/claude-code-team/bin/github.sh issue comment *)",
+      "mcp__playwright__browser_drop",
+      "Edit(//**/.claude/settings.json)"
+    ],
+    "deny": [
+      "Bash(/bin/bash *)",
+      "Bash(/bin/sh *)",
+      "Bash(/usr/bin/git *)",
+      "Bash(bash -c *)",
+      "Bash(bash -lc *)",
+      "Bash(bash)",
+      "Bash(eval *)",
+      "Bash(gh auth token*)",
+      "Bash(gh repo delete *)",
+      "Bash(sh -c *)",
+      "Bash(sh -lc *)",
+      "Bash(sh)",
+      "Bash(sudo *)",
+      "Bash(zsh -c *)",
+      "Read(//**/.env*)",
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/data/**)",
+      "Read(~/Library/Application Support/io.github.saicologic.ai-speak-trace/settings.json)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.git-credentials)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.netrc)",
+      "Read(~/.npmrc)",
+      "Read(~/.ssh/**)",
+      "Read(~/Library/Keychains/**)",
+      "Bash(npm ci)",
+      "Bash(npm ci *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm i)",
+      "Bash(npm i *)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.azure/**)",
+      "Read(~/Library/Cookies/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Firefox/**)",
+      "Read(~/Library/Safari/**)",
+      "Read(~/Library/Messages/**)",
+      "Read(~/Library/Mail/**)",
+      "Read(~/.password-store/**)",
+      "Read(~/.config/op/**)",
+      "Edit(~/.claude/state/**)",
+      "Edit(~/.zshrc)",
+      "Edit(~/.zprofile)",
+      "Edit(~/.zshenv)",
+      "Edit(~/.zlogin)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.bash_profile)",
+      "Edit(~/.profile)",
+      "Edit(~/.bash_login)",
+      "Edit(~/.bash_logout)",
+      "Edit(~/.zlogout)",
+      "Edit(~/.config/fish/**)",
+      "Edit(~/Library/LaunchAgents/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.gitconfig)",
+      "Edit(~/.config/git/**)",
+      "Edit(//Users/**/.git/hooks/**)",
+      "Edit(//Users/**/.git/config)",
+      "Edit(//Volumes/**/.git/hooks/**)",
+      "Edit(//Volumes/**/.git/config)",
+      "Edit(//Users/**/.git/config.worktree)",
+      "Edit(//Users/**/.git/worktrees/*/config.worktree)",
+      "Edit(//Volumes/**/.git/config.worktree)",
+      "Edit(//Volumes/**/.git/worktrees/*/config.worktree)",
+      "Edit(//Users/**/.npmrc)",
+      "Edit(//Volumes/**/.npmrc)",
+      "Edit(//Users/**/.cargo/config*)",
+      "Edit(//Volumes/**/.cargo/config*)",
+      "Edit(//Users/**/site-packages/*.pth)",
+      "Edit(//Users/**/site-packages/sitecustomize.py)",
+      "Edit(//Users/**/site-packages/usercustomize.py)",
+      "Edit(//Volumes/**/site-packages/*.pth)",
+      "Edit(//Volumes/**/site-packages/sitecustomize.py)",
+      "Edit(//Volumes/**/site-packages/usercustomize.py)",
+      "Edit(//**/.envrc)",
+      "Edit(//**/.vscode/**)",
+      "Edit(~/.claude/settings.json)",
+      "Edit(~/.claude/settings.local.json)",
+      "Edit(//**/.claude/settings.local.json)",
+      "mcp__playwright__browser_run_code_unsafe"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "excludedCommands": [
+      "/opt/claude-code-team/bin/github.sh *",
+      "/opt/claude-code-team/bin/cr-review.sh",
+      "/opt/claude-code-team/bin/cr-review.sh *",
+      "/opt/claude-code-team/bin/wait-pr-checks.sh *"
+    ],
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org"
+      ],
+      "deniedDomains": [
+        "github.com"
+      ],
+      "allowManagedDomainsOnly": true
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/block-ai-speak-trace-secrets.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/cr-limit-gate.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/watch-pr-checks.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "allowManagedHooksOnly": true
+}

@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "/opt/claude-code-team/bin/playwright-mcp.sh"
+    }
+  }
+}

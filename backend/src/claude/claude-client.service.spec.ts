@@ -6,6 +6,7 @@ import {
   withEthicsSystem,
 } from './claude-client.service';
 import { ClaudeAuditRecord, ClaudeAuditStore } from './claude-audit.store';
+import { SOURCE_LOADED_TEXT, withUntrustedSource } from './untrusted-source';
 import {
   GuardrailFindings,
   GuardrailService,
@@ -42,12 +43,11 @@ describe('ClaudeClientService.createMessage', () => {
     guardrailId: string;
     guardrailVersion: string;
   };
-  let auditStore: { append: jest.Mock };
+  let auditStore: { append: jest.Mock<Promise<void>, [ClaudeAuditRecord]> };
   let service: ClaudeClientService;
 
   /** 最後に記録した呼び出し */
-  const lastAudit = () =>
-    auditStore.append.mock.calls.at(-1)?.[0] as ClaudeAuditRecord;
+  const lastAudit = () => auditStore.append.mock.calls.at(-1)?.[0];
 
   beforeEach(() => {
     mockCreate.mockReset();
@@ -57,7 +57,11 @@ describe('ClaudeClientService.createMessage', () => {
       guardrailId: 'gr-1',
       guardrailVersion: '2',
     };
-    auditStore = { append: jest.fn().mockResolvedValue(undefined) };
+    auditStore = {
+      append: jest
+        .fn<Promise<void>, [ClaudeAuditRecord]>()
+        .mockResolvedValue(undefined),
+    };
     service = new ClaudeClientService(
       guardrail as unknown as GuardrailService,
       auditStore as unknown as ClaudeAuditStore,
@@ -95,6 +99,59 @@ describe('ClaudeClientService.createMessage', () => {
       'プロンプト攻撃',
     );
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  describe('外から来た内容を tool_result で渡したとき', () => {
+    const data = { speakerName: 'Aさん', keywords: ['AI'] };
+    const sourceParams: Anthropic.MessageCreateParamsNonStreaming = {
+      model: 'claude-sonnet-5-5',
+      max_tokens: 100,
+      ...withUntrustedSource(
+        { description: '会話の話者名とキーワード', data },
+        '質問を作ってください',
+      ),
+    };
+    const promptAttack = (): GuardrailFindings => ({
+      ...noFindings(),
+      content: [{ type: 'PROMPT_ATTACK', confidence: 'MEDIUM' }],
+    });
+    /** 外からの内容として確かめた文（アプリの指示の確認の後に呼ぶ） */
+    const untrustedCall = () =>
+      (guardrail.inspect.mock.calls as [string][]).find(
+        ([text]) => !text.includes('質問を作ってください'),
+      )?.[0];
+
+    it('外からの内容としては、データだけを確かめる（アプリが書いた説明の文・間の文はアプリの指示として確かめる）', async () => {
+      mockCreate.mockResolvedValue(textResponse('質問'));
+      await service.createMessage(sourceParams, { untrusted: [] });
+      expect(untrustedCall()).toBe(`{}\n${JSON.stringify(data)}`);
+      const trustedCall = (guardrail.inspect.mock.calls as [string][]).find(
+        ([text]) => text.includes('質問を作ってください'),
+      )?.[0];
+      expect(trustedCall).toContain(SOURCE_LOADED_TEXT);
+    });
+
+    it('アプリの指示の側のプロンプト攻撃の検出では止めず、データの側の検出では止める', async () => {
+      mockCreate.mockResolvedValue(textResponse('質問'));
+      guardrail.inspect.mockImplementation((text: string) =>
+        Promise.resolve(
+          text.includes(SOURCE_LOADED_TEXT) ? promptAttack() : noFindings(),
+        ),
+      );
+      await service.createMessage(sourceParams, { untrusted: [] });
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      mockCreate.mockClear();
+      guardrail.inspect.mockImplementation((text: string) =>
+        Promise.resolve(
+          text.includes(JSON.stringify(data)) ? promptAttack() : noFindings(),
+        ),
+      );
+      await expect(
+        service.createMessage(sourceParams, { untrusted: [] }),
+      ).rejects.toThrow('プロンプト攻撃');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
   });
 
   it('Guardrails のチェックに失敗したら Claude に送らない', async () => {
@@ -242,7 +299,7 @@ describe('ClaudeClientService.createMessage', () => {
       { type: 'text', text: ETHICS_SYSTEM_PROMPT },
       { type: 'text', text: 'あなたは要約係です' },
     ]);
-    expect(guardrail.inspect.mock.calls[0][0]).not.toContain(
+    expect((guardrail.inspect.mock.calls[0] as [string])[0]).not.toContain(
       ETHICS_SYSTEM_PROMPT,
     );
   });

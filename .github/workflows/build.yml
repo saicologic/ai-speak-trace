@@ -35,10 +35,17 @@ jobs:
           build=false
           while IFS= read -r -d '' f; do
             case "$f" in
-              # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）
-              *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json) ;;
+              # ビルド不要なファイル（ドキュメント・CI・開発ツールの設定）は、何もしない
+              *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json)
+                ;;
+              # テストのファイル（backend は tsconfig.build.json で、frontend は画面から import しないため、アプリに入らない。frontend の型の確認は test.yml の frontend-test でする）も、何もしない
+              backend/src/*.spec.ts|frontend/src/*.test.ts|frontend/src/*.test.tsx)
+                ;;
+              # それ以外はビルドする
               *)
-                echo "ビルドが必要なファイル: $f"
+                # ファイル名は PR を作った人が決められるため、%q で改行などを見える形にして出す
+                # （改行の後の「::」で始まる行が、GitHub Actions の命令として読まれないように）
+                printf 'ビルドが必要なファイル: %q\n' "$f"
                 build=true
                 ;;
             esac

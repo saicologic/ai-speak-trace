@@ -4,6 +4,8 @@ import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PiiFinding, PrivacyScan, PrivacyStatus } from './privacy.types';
 import {
+  hashSpeakerNames,
+  hashTranscriptionBody,
   maskTranscription,
   toFindings,
   toScanText,
@@ -45,7 +47,7 @@ export class PrivacyService {
       ...(this.errors.has(transcriptionId) && {
         error: this.errors.get(transcriptionId),
       }),
-      // 以前のチェックで保存した、個人情報として扱わない検出（ユーザー名・国名だけの住所）は表示しない
+      // 以前のチェックで保存した、個人情報として扱わない検出（国名だけの住所・会社名や製品名だけの氏名など）は表示しない
       scan: scan && { ...scan, findings: withoutIgnoredPii(scan.findings) },
     };
   }
@@ -146,6 +148,10 @@ export class PrivacyService {
     this.errors.delete(transcription.id);
     try {
       const text = toScanText(transcription);
+      // 検出に使う本文と同じ時点の話者名・作成日時・本文のハッシュを記録する（応答を待つ間に呼び出し元が書き換えても、検出した内容と食い違わない）
+      const speakerNamesHash = hashSpeakerNames(transcription);
+      const transcriptionCreatedAt = transcription.createdAt;
+      const bodyHash = hashTranscriptionBody(transcription);
       const detected = await this.guardrail.inspect(text, 'INPUT');
       const previous = await this.store.find(transcription.id);
       const scan: PrivacyScan = {
@@ -154,7 +160,23 @@ export class PrivacyService {
         scannedAt,
         guardrailId: this.guardrail.guardrailId,
         guardrailVersion: this.guardrail.guardrailVersion,
-        findings: toFindings(detected.pii, text, previous?.findings),
+        findings: toFindings(
+          detected.pii,
+          text,
+          // 同じ id で文字起こしし直した会話（別の回の文字起こし）には、前の選択を引き継がない
+          // （記録のない以前の結果は、同じ回か分からないため、これまでどおり引き継ぐ）
+          previous &&
+            (previous.transcriptionCreatedAt === undefined ||
+              previous.transcriptionCreatedAt === transcriptionCreatedAt)
+            ? previous.findings
+            : [],
+        ),
+        // 検出に使った話者名（MCP で、チェックの後に話者名が変わっていないか確かめる）
+        speakerNamesHash,
+        // チェックした回の文字起こし（同じ id で文字起こしし直したものと見分ける）
+        transcriptionCreatedAt,
+        // 検出した本文（MCP で、チェックの後に本文が変わっていないか確かめる）
+        bodyHash,
       };
       if (!(await this.store.save(scan))) {
         this.logger.log(

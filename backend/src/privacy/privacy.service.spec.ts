@@ -4,6 +4,7 @@ import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PrivacyService } from './privacy.service';
 import { PrivacyScan } from './privacy.types';
+import { hashSpeakerNames, hashTranscriptionBody } from './privacy.utils';
 
 const transcription: Transcription = {
   id: 't1',
@@ -199,5 +200,136 @@ describe('PrivacyService', () => {
   it('チェック前の文字起こしは、そのまま送る', async () => {
     const { service } = setup();
     expect(await service.maskForSending(transcription)).toBe(transcription);
+  });
+
+  it('チェックした話者名のハッシュを、結果に記録する', async () => {
+    const { service, store } = setup();
+    const scan = await service.scan(transcription);
+    expect(scan.speakerNamesHash).toBe(hashSpeakerNames(transcription));
+    expect(store.save.mock.calls[0][0].speakerNamesHash).toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者名を変えて検出し直したときは、変えた後の話者名のハッシュを記録する', async () => {
+    const { service, store } = setup();
+    const renamed: Transcription = {
+      ...transcription,
+      speakers: [{ ...transcription.speakers[0], name: '山田さん' }],
+      utterances: [{ ...transcription.utterances[0], speakerName: '山田さん' }],
+    };
+    const first = service.scan(transcription);
+    service.scanInBackground(renamed);
+    await first;
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save.mock.calls[1][0].speakerNamesHash).toBe(
+      hashSpeakerNames(renamed),
+    );
+    expect(hashSpeakerNames(renamed)).not.toBe(hashSpeakerNames(transcription));
+  });
+
+  it('伏せるかどうかを選んでも、チェックした話者名・文字起こしの記録は変えない', async () => {
+    const { service, store } = setup();
+    await service.scan(transcription);
+    const updated = await service.updateMasks('t1', [
+      { type: 'NAME', text: '山田太郎', mask: true },
+    ]);
+    const recorded = {
+      speakerNamesHash: hashSpeakerNames(transcription),
+      transcriptionCreatedAt: transcription.createdAt,
+    };
+    expect(updated).toMatchObject(recorded);
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save.mock.calls[1][0]).toMatchObject(recorded);
+  });
+
+  it('チェックした文字起こしの作成日時を、結果に記録する（同じ id で作り直した文字起こしと見分ける）', async () => {
+    const { service, store } = setup();
+    await service.scan(transcription);
+    const redone: Transcription = {
+      ...transcription,
+      createdAt: '2026-02-01T00:00:00.000Z',
+    };
+    await service.scan(redone);
+    expect(
+      store.save.mock.calls.map(([scan]) => scan.transcriptionCreatedAt),
+    ).toEqual(['2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z']);
+  });
+
+  it('検出の途中で渡した文字起こしが書き換わっても、検出した時点の話者名・作成日時を記録する', async () => {
+    const { service, guardrail, store } = setup();
+    const shared = structuredClone(transcription);
+    const original = structuredClone(transcription);
+    guardrail.inspect.mockImplementationOnce(() => {
+      // Guardrails の応答を待つ間に、呼び出し元が同じオブジェクトを書き換える
+      shared.speakers[0].name = '山田さん';
+      shared.utterances[0].speakerName = '山田さん';
+      shared.createdAt = '2026-02-01T00:00:00.000Z';
+      return Promise.resolve({ pii: [], words: [], content: [] });
+    });
+    await service.scan(shared);
+    expect(store.save.mock.calls[0][0]).toMatchObject({
+      speakerNamesHash: hashSpeakerNames(original),
+      transcriptionCreatedAt: original.createdAt,
+    });
+  });
+
+  it('チェックした本文のハッシュを記録し、検出の途中で書き換わっても検出した時点の値にする', async () => {
+    const { service, guardrail, store } = setup();
+    const shared = structuredClone(transcription);
+    const original = structuredClone(transcription);
+    guardrail.inspect.mockImplementationOnce(() => {
+      shared.utterances[0].text = '書き換えた本文';
+      return Promise.resolve({ pii: [], words: [], content: [] });
+    });
+    const scan = await service.scan(shared);
+    expect(scan.bodyHash).toBe(hashTranscriptionBody(original));
+    expect(store.save.mock.calls[0][0].bodyHash).toBe(
+      hashTranscriptionBody(original),
+    );
+    // 伏せるかどうかを選んでも変えない
+    const updated = await service.updateMasks('t1', []);
+    expect(updated.bodyHash).toBe(hashTranscriptionBody(original));
+  });
+
+  it('同じ id で文字起こしし直した会話には、前の文字起こしで選んだ「伏せる／伏せない」を引き継がない', async () => {
+    const previousFinding = {
+      type: 'NAME',
+      label: '氏名',
+      text: '加賀谷',
+      count: 1,
+      mask: false,
+      needsReview: false,
+    };
+    const previous = (transcriptionCreatedAt?: string): PrivacyScan => ({
+      transcriptionId: 't1',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      guardrailId: 'gr-1',
+      guardrailVersion: 'DRAFT',
+      findings: [previousFinding],
+      ...(transcriptionCreatedAt && { transcriptionCreatedAt }),
+    });
+    const choiceOf = (scan: PrivacyScan) =>
+      scan.findings
+        .filter((f) => f.text === '加賀谷')
+        .map((f) => [f.mask, f.needsReview]);
+
+    // 別の回の文字起こしで選んだものは、新しく見つかったものとして扱う（氏名は伏せずに要確認）
+    const redone = await setup(
+      true,
+      previous('2025-12-01T00:00:00.000Z'),
+    ).service.scan(transcription);
+    expect(choiceOf(redone)).toEqual([[false, true]]);
+
+    // 同じ回の文字起こしと、記録のない以前の結果は、選んだものを引き継ぐ
+    for (const createdAt of [transcription.createdAt, undefined]) {
+      const same = await setup(true, previous(createdAt)).service.scan(
+        transcription,
+      );
+      expect(choiceOf(same)).toEqual([[false, false]]);
+    }
   });
 });

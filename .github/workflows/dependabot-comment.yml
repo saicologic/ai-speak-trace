@@ -1,8 +1,9 @@
-name: Dependabot PRコメント投稿
+name: Dependency Diff Comment
 
 on:
   workflow_run:
-    workflows: ['Dependabot 差分チェック']
+    # Dependency Diff Check（dependabot-diff.yml）の name と同じにする（違うと動かない）
+    workflows: ['Dependency Diff Check']
     types: [completed]
 
 # workflow_runトリガーはベースブランチのコードで動作するため、
@@ -15,7 +16,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: アーティファクトをダウンロード
+      - name: Download diff report
         uses: actions/download-artifact@v4
         with:
           name: diff-report
@@ -23,7 +24,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           path: /tmp/diff-report
 
-      - name: PRにコメントを投稿
+      - name: Post comment to PR
         uses: actions/github-script@v7
         with:
           script: |
@@ -34,40 +35,40 @@ jobs:
             const cargoSummary = fs.readFileSync('/tmp/diff-report/cargo-summary.txt', 'utf8').trim();
             const npmHasDiff = fs.readFileSync('/tmp/diff-report/npm-has-diff.txt', 'utf8').trim();
 
-            let body = '## Dependabot 差分レポート\n\n';
+            let body = '## Dependency Diff Report\n\n';
 
             if (ecosystem === 'cargo') {
-              body += '**エコシステム**: Rust (Cargo)\n\n';
-              body += '### 更新されたクレート\n\n';
+              body += '**Ecosystem**: Rust (Cargo)\n\n';
+              body += '### Updated crates\n\n';
               if (cargoSummary) {
                 body += '```\n' + cargoSummary + '\n```\n\n';
               } else {
-                body += '差分情報を取得できませんでした。\n\n';
+                body += 'Could not get the diff.\n\n';
               }
-              body += '> Rustのビルド確認は `npm run build` で手動実施してください。\n';
+              body += '> Check the Rust build manually with `npm run build`.\n';
 
             } else if (ecosystem === 'npm-backend') {
-              body += '**エコシステム**: npm (backend)\n\n';
+              body += '**Ecosystem**: npm (backend)\n\n';
               if (npmHasDiff === 'false') {
-                body += '✅ **ビルド差分なし** — 動作への影響はありません。安全にマージできます。\n';
+                body += '✅ **No build output changes** — the app behavior is not affected. Safe to merge.\n';
               } else if (npmHasDiff === 'true') {
-                body += '⚠️ **ビルド差分あり** — 動作に影響がある可能性があります。変更内容を確認してください。\n';
+                body += '⚠️ **Build output changed** — the app behavior may be affected. Review the changes.\n';
               } else {
-                body += '❓ ビルド差分チェックをスキップしました。\n';
+                body += '❓ Skipped the build output comparison.\n';
               }
 
             } else if (ecosystem === 'npm-frontend') {
-              body += '**エコシステム**: npm (frontend)\n\n';
+              body += '**Ecosystem**: npm (frontend)\n\n';
               if (npmHasDiff === 'false') {
-                body += '✅ **ビルド差分なし** — 動作への影響はありません。安全にマージできます。\n';
+                body += '✅ **No build output changes** — the app behavior is not affected. Safe to merge.\n';
               } else if (npmHasDiff === 'true') {
-                body += '⚠️ **ビルド差分あり** — 動作に影響がある可能性があります。変更内容を確認してください。\n';
+                body += '⚠️ **Build output changed** — the app behavior may be affected. Review the changes.\n';
               } else {
-                body += '❓ ビルド差分チェックをスキップしました。\n';
+                body += '❓ Skipped the build output comparison.\n';
               }
 
             } else {
-              body += '対象外のエコシステムのため、チェックをスキップしました。\n';
+              body += 'Skipped: this ecosystem is not checked.\n';
             }
 
             await github.rest.issues.createComment({
