@@ -258,4 +258,22 @@ describe('PrivacyService', () => {
       store.save.mock.calls.map(([scan]) => scan.transcriptionCreatedAt),
     ).toEqual(['2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z']);
   });
+
+  it('検出の途中で渡した文字起こしが書き換わっても、検出した時点の話者名・作成日時を記録する', async () => {
+    const { service, guardrail, store } = setup();
+    const shared = structuredClone(transcription);
+    const original = structuredClone(transcription);
+    guardrail.inspect.mockImplementationOnce(() => {
+      // Guardrails の応答を待つ間に、呼び出し元が同じオブジェクトを書き換える
+      shared.speakers[0].name = '山田さん';
+      shared.utterances[0].speakerName = '山田さん';
+      shared.createdAt = '2026-02-01T00:00:00.000Z';
+      return Promise.resolve({ pii: [], words: [], content: [] });
+    });
+    await service.scan(shared);
+    expect(store.save.mock.calls[0][0]).toMatchObject({
+      speakerNamesHash: hashSpeakerNames(original),
+      transcriptionCreatedAt: original.createdAt,
+    });
+  });
 });
