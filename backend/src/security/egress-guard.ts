@@ -198,6 +198,9 @@ export function withEgressHosts<T>(
 /** 記録のファイルの大きさの上限の既定（超えるときは .1 に移す） */
 export const EGRESS_LOG_MAX_BYTES = 5 * 1024 * 1024;
 
+/** まだ書いていない記録の大きさの上限の既定（書き込みが遅いときに、メモリに溜め続けない） */
+export const EGRESS_LOG_MAX_PENDING_BYTES = 1024 * 1024;
+
 /** 記録をファイルに書く関数（flush で、それまでに渡した記録を書き終えるまで待てる） */
 export type EgressFileLogger = ((entry: EgressLogEntry) => void) & {
   flush: () => Promise<void>;
@@ -208,12 +211,18 @@ export type EgressFileLogger = ((entry: EgressLogEntry) => void) & {
  * - 接続の処理を止めないよう、書き込みを待たずに戻り、順番に書く
  * - 書くと maxBytes を超えるときは、今のファイルを <file>.1 に移してから書く（古いものは1世代だけ残す）
  * - 書き込みに失敗した記録は捨て、後の記録は書き続ける
+ * - まだ書いていない記録が maxPendingBytes を超えるときは、その記録を捨てる（接続は待たせない）
  */
 export function createEgressFileLogger(
   file: string,
-  { maxBytes = EGRESS_LOG_MAX_BYTES }: { maxBytes?: number } = {},
+  {
+    maxBytes = EGRESS_LOG_MAX_BYTES,
+    maxPendingBytes = EGRESS_LOG_MAX_PENDING_BYTES,
+  }: { maxBytes?: number; maxPendingBytes?: number } = {},
 ): EgressFileLogger {
   let queue: Promise<void> = Promise.resolve();
+  /** まだ書いていない記録の大きさ */
+  let pendingBytes = 0;
   /** 今のファイルの大きさ（初めて書くときと、失敗した後に読み直す） */
   let size: number | undefined;
   const write = async (line: string) => {
@@ -239,7 +248,14 @@ export function createEgressFileLogger(
   };
   const log = (entry: EgressLogEntry) => {
     const line = JSON.stringify(entry) + '\n';
-    queue = queue.then(() => write(line));
+    const bytes = Buffer.byteLength(line);
+    if (pendingBytes + bytes > maxPendingBytes) return;
+    pendingBytes += bytes;
+    queue = queue.then(() =>
+      write(line).finally(() => {
+        pendingBytes -= bytes;
+      }),
+    );
   };
   return Object.assign(log, { flush: () => queue });
 }
