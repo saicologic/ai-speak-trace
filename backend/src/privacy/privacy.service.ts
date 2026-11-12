@@ -160,7 +160,17 @@ export class PrivacyService {
         scannedAt,
         guardrailId: this.guardrail.guardrailId,
         guardrailVersion: this.guardrail.guardrailVersion,
-        findings: toFindings(detected.pii, text, previous?.findings),
+        findings: toFindings(
+          detected.pii,
+          text,
+          // 同じ id で文字起こしし直した会話（別の回の文字起こし）には、前の選択を引き継がない
+          // （記録のない以前の結果は、同じ回か分からないため、これまでどおり引き継ぐ）
+          previous &&
+            (previous.transcriptionCreatedAt === undefined ||
+              previous.transcriptionCreatedAt === transcriptionCreatedAt)
+            ? previous.findings
+            : [],
+        ),
         // 検出に使った話者名（MCP で、チェックの後に話者名が変わっていないか確かめる）
         speakerNamesHash,
         // チェックした回の文字起こし（同じ id で文字起こしし直したものと見分ける）
