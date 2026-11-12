@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { hashTexts, stripSoundTags } from '../ginza/ginza-keywords.utils';
 import { PiiFinding } from '../privacy/privacy.types';
+import { hashSpeakerNames } from '../privacy/privacy.utils';
 import { Transcription } from '../transcription/types/transcription.types';
 import { MAX_RESPONSE_CHARS, MAX_UTTERANCE_CHARS } from './mcp.constants';
 import { ConversationReader } from './conversation-reader';
@@ -71,11 +72,15 @@ class TestDataDir {
     );
   }
 
-  /** 個人情報チェックの結果（scannedAt の既定は文字起こしの保存より後） */
+  /**
+   * 個人情報チェックの結果（scannedAt の既定は文字起こしの保存より後）
+   * extra: チェックした話者名・文字起こしの記録（speakerNamesHash・transcriptionCreatedAt）など。省略すると、記録を足す前の結果になる
+   */
   async writeScan(
     transcriptionId: string,
     findings: PiiFinding[],
     scannedAt = new Date(Date.now() + 60_000).toISOString(),
+    extra: Record<string, unknown> = {},
   ): Promise<void> {
     const dir = path.join(this.dir, 'privacy-scans');
     await fs.mkdir(dir, { recursive: true });
@@ -87,6 +92,7 @@ class TestDataDir {
         guardrailId: 'test-guardrail',
         guardrailVersion: '1',
         findings,
+        ...extra,
       }),
     );
   }
@@ -434,6 +440,132 @@ describe('MCP サーバー', () => {
       const result = await call('list_transcriptions', { cursor: 'xxx' });
       expect(result.isError).toBe(true);
       expect(result.text).toContain('cursor が不正です');
+    });
+  });
+
+  describe('チェックした話者名・文字起こしの記録', () => {
+    /** 話者名を変えた後の名前（架空） */
+    const NEW_NAME = '架空花子';
+    const file = () =>
+      path.join(
+        data.dir,
+        'transcriptions',
+        'checked-talk',
+        'transcription.json',
+      );
+    /** checked-talk のチェックの結果を、記録付きで書き直す（チェックの時刻の既定は文字起こしの保存より前） */
+    const writeRecordedScan = (
+      extra: Record<string, unknown>,
+      scannedAt = '2020-01-01T00:00:00.000Z',
+    ) =>
+      data.writeScan('checked-talk', FINDINGS, scannedAt, {
+        speakerNamesHash: hashSpeakerNames(checked),
+        transcriptionCreatedAt: checked.createdAt,
+        ...extra,
+      });
+    /** チェックの後に、話者 speaker_1 の名前を変える */
+    const renameAfterScan = async () => {
+      const renamed = structuredClone(checked);
+      renamed.speakers[1].name = NEW_NAME;
+      for (const u of renamed.utterances) {
+        if (u.speakerId === 'speaker_1') u.speakerName = NEW_NAME;
+      }
+      await data.writeTranscription(renamed);
+    };
+
+    it('チェックした話者名・文字起こしと同じなら、ファイルの更新時刻にかかわらず話者名も返す', async () => {
+      await writeRecordedScan({});
+      // 更新時刻は、チェックの時刻より後
+      expect((await fs.stat(file())).mtimeMs).toBeGreaterThan(
+        Date.parse('2020-01-01T00:00:00.000Z'),
+      );
+      const { json } = await call('list_transcriptions');
+      expect(json.transcriptions[0]).toEqual({
+        id: h('checked-talk'),
+        createdAt: '2026-03-01T00:00:00.000Z',
+        speakers: [
+          { id: 'speaker_0', name: '[氏名]' },
+          { id: 'speaker_1', name: 'Bさん' },
+        ],
+        utteranceCount: 5,
+        privacy: 'checked',
+      });
+    });
+
+    it('話者名を変えた後のチェックが終わっていなければ、話者名だけを置き換えて本文を返す', async () => {
+      await writeRecordedScan({});
+      await renameAfterScan();
+
+      const list = await call('list_transcriptions');
+      expect(list.json.transcriptions[0]).toMatchObject({
+        id: h('checked-talk'),
+        speakers: [
+          { id: 'speaker_0', name: '話者1' },
+          { id: 'speaker_1', name: '話者2' },
+        ],
+        privacy: 'checked',
+      });
+      expect(list.json.transcriptions[0].notice).toContain(
+        '話者名を変えた後の個人情報チェックが終わっていません',
+      );
+
+      const utterances = await call('get_utterances', {
+        transcriptionId: h('checked-talk'),
+        from: 0,
+        count: 2,
+      });
+      expect(utterances.json.utterances.map((u) => u.speakerName)).toEqual([
+        '話者1',
+        '話者2',
+      ]);
+      expect(utterances.json.utterances[0]).toMatchObject({
+        cite: '話者1 0:00',
+        text: '[氏名]です。今日は型チェックの話をします',
+      });
+
+      // 変えた後の名前では絞り込めない
+      const search = await call('search_utterances', {
+        query: 'TypeScript',
+        speakerName: NEW_NAME,
+      });
+      expect(search.json.total).toBe(0);
+
+      const keywords = await call('get_keywords', {
+        transcriptionId: h('checked-talk'),
+        speakerId: 'speaker_1',
+      });
+      expect(keywords.json.speakerName).toBe('話者2');
+
+      for (const result of [list, utterances, search, keywords]) {
+        expect(result.text).not.toContain(NEW_NAME);
+        expect(result.text).not.toContain(HIDDEN_NAME);
+      }
+    });
+
+    it('同じ id で文字起こしし直した会話は、話者名が同じでも古い（stale）とする', async () => {
+      // チェックの時刻は文字起こしの保存より後（時刻で比べると古いとは分からない）
+      await writeRecordedScan(
+        { transcriptionCreatedAt: '2026-02-01T00:00:00.000Z' },
+        new Date(Date.now() + 60_000).toISOString(),
+      );
+      const { json } = await call('list_transcriptions');
+      expect(json.transcriptions[0].privacy).toBe('stale');
+      expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
+    });
+
+    it('記録の形が崩れていれば、読めない（error）とする', async () => {
+      for (const extra of [
+        { speakerNamesHash: 1 },
+        { transcriptionCreatedAt: null },
+        { speakerNamesHash: undefined },
+        { transcriptionCreatedAt: undefined },
+      ]) {
+        await writeRecordedScan(extra);
+        const { json } = await call('list_transcriptions');
+        expect([JSON.stringify(extra), json.transcriptions[0].privacy]).toEqual(
+          [JSON.stringify(extra), 'error'],
+        );
+      }
     });
   });
 
