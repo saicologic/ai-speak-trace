@@ -1,6 +1,7 @@
 import { Transcription } from '../transcription/types/transcription.types';
 import { PiiFinding } from './privacy.types';
 import {
+  hashSpeakerNames,
   isIgnoredPii,
   maskText,
   maskTranscription,
@@ -376,5 +377,45 @@ describe('ユーザー名の初期状態', () => {
   it('形の崩れた検出は、そのまま返す', () => {
     const broken = [null, 'x'] as unknown as PiiFinding[];
     expect(withCurrentDefaults(broken)).toEqual([null, 'x']);
+  });
+});
+
+describe('hashSpeakerNames', () => {
+  const renamedSpeaker = (name: string): Transcription => ({
+    ...transcription,
+    speakers: [{ ...transcription.speakers[0], name }],
+  });
+  const renamedUtterance = (name: string): Transcription => ({
+    ...transcription,
+    utterances: [{ ...transcription.utterances[0], speakerName: name }],
+  });
+
+  it('話者名が同じなら同じ値になる', () => {
+    expect(hashSpeakerNames(structuredClone(transcription))).toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者の一覧の名前が変わると、違う値になる', () => {
+    expect(hashSpeakerNames(renamedSpeaker('Aさん'))).not.toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('発話の話者名が変わると、違う値になる', () => {
+    expect(hashSpeakerNames(renamedUtterance('Aさん'))).not.toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者名ではない本文・時刻は、値に含めない', () => {
+    const other: Transcription = {
+      ...transcription,
+      fullText: '別の本文',
+      utterances: [
+        { ...transcription.utterances[0], text: '別の本文', end: 5 },
+      ],
+    };
+    expect(hashSpeakerNames(other)).toBe(hashSpeakerNames(transcription));
   });
 });

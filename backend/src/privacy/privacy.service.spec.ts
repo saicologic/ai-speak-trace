@@ -4,6 +4,7 @@ import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PrivacyService } from './privacy.service';
 import { PrivacyScan } from './privacy.types';
+import { hashSpeakerNames } from './privacy.utils';
 
 const transcription: Transcription = {
   id: 't1',
@@ -199,5 +200,43 @@ describe('PrivacyService', () => {
   it('チェック前の文字起こしは、そのまま送る', async () => {
     const { service } = setup();
     expect(await service.maskForSending(transcription)).toBe(transcription);
+  });
+
+  it('チェックした話者名のハッシュを、結果に記録する', async () => {
+    const { service, store } = setup();
+    const scan = await service.scan(transcription);
+    expect(scan.speakerNamesHash).toBe(hashSpeakerNames(transcription));
+    expect(store.save.mock.calls[0][0].speakerNamesHash).toBe(
+      hashSpeakerNames(transcription),
+    );
+  });
+
+  it('話者名を変えて検出し直したときは、変えた後の話者名のハッシュを記録する', async () => {
+    const { service, store } = setup();
+    const renamed: Transcription = {
+      ...transcription,
+      speakers: [{ ...transcription.speakers[0], name: '山田さん' }],
+      utterances: [{ ...transcription.utterances[0], speakerName: '山田さん' }],
+    };
+    const first = service.scan(transcription);
+    service.scanInBackground(renamed);
+    await first;
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save.mock.calls[1][0].speakerNamesHash).toBe(
+      hashSpeakerNames(renamed),
+    );
+    expect(hashSpeakerNames(renamed)).not.toBe(hashSpeakerNames(transcription));
+  });
+
+  it('伏せるかどうかを選んでも、チェックした話者名のハッシュは変えない', async () => {
+    const { service } = setup();
+    await service.scan(transcription);
+    const updated = await service.updateMasks('t1', [
+      { type: 'NAME', text: '山田太郎', mask: true },
+    ]);
+    expect(updated.speakerNamesHash).toBe(hashSpeakerNames(transcription));
   });
 });
