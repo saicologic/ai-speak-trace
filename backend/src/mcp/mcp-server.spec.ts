@@ -373,6 +373,31 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(entry)).not.toContain('Aさん');
     });
 
+    it('文字起こしの保存と同じミリ秒の中でチェックした会話は、古い（stale）としない', async () => {
+      // ファイルの更新時刻はミリ秒より細かく、チェックの時刻はミリ秒までのため、同じミリ秒の中では後に見える
+      const at = Date.parse('2026-10-01T00:00:00.000Z');
+      const file = path.join(
+        data.dir,
+        'transcriptions',
+        'checked-talk',
+        'transcription.json',
+      );
+      await fs.utimes(file, at / 1000 + 0.0004, at / 1000 + 0.0004);
+      expect((await fs.stat(file)).mtimeMs).toBeGreaterThan(at);
+      await data.writeScan(
+        'checked-talk',
+        FINDINGS,
+        new Date(at).toISOString(),
+      );
+      const same = await call('list_transcriptions');
+      expect(same.json.transcriptions[0].privacy).toBe('checked');
+
+      // 1 ミリ秒でも後に保存していれば、古い（stale）とする
+      await fs.utimes(file, (at + 1) / 1000, (at + 1) / 1000);
+      const later = await call('list_transcriptions');
+      expect(later.json.transcriptions[0].privacy).toBe('stale');
+    });
+
     it('会話が多い場合は nextCursor で続きを返す', async () => {
       // 1件が大きくなるよう、話者を多くする
       const speakers = Array.from({ length: 300 }, (_, i) => ({
@@ -637,6 +662,19 @@ describe('MCP サーバー', () => {
       expect(texts).toContain('TypeScript');
       expect(texts).not.toContain(HIDDEN_NAME);
       expect(texts).not.toContain('架空');
+    });
+
+    it('伏せた文字列が空白だけのときも、キーワードを除きすぎない', async () => {
+      await data.writeScan('checked-talk', [
+        ...FINDINGS,
+        maskedFinding('NAME', '氏名', '\u3000 '),
+      ]);
+      await data.writeGinzaCache(checked, terms);
+      const { json } = await call('get_keywords', {
+        transcriptionId: h('checked-talk'),
+      });
+      expect(json.status).toBe('ok');
+      expect(json.keywords.map((k) => k.text)).toContain('型チェック');
     });
 
     it('話者で絞り込める', async () => {
