@@ -392,8 +392,10 @@ describe('MCP サーバー', () => {
       const same = await call('list_transcriptions');
       expect(same.json.transcriptions[0].privacy).toBe('checked');
 
-      // 1 ミリ秒でも後に保存していれば、古い（stale）とする
-      await fs.utimes(file, (at + 1) / 1000, (at + 1) / 1000);
+      // ミリ秒が変わる後に保存していれば、古い（stale）とする
+      // （秒の小数で渡すと、丸めで 1 ミリ秒に届かないことがあるため、2 ミリ秒後にする）
+      await fs.utimes(file, (at + 2) / 1000, (at + 2) / 1000);
+      expect(Math.floor((await fs.stat(file)).mtimeMs)).toBeGreaterThan(at);
       const later = await call('list_transcriptions');
       expect(later.json.transcriptions[0].privacy).toBe('stale');
     });
@@ -674,7 +676,10 @@ describe('MCP サーバー', () => {
         transcriptionId: h('checked-talk'),
       });
       expect(json.status).toBe('ok');
-      expect(json.keywords.map((k) => k.text)).toContain('型チェック');
+      const texts = json.keywords.map((k) => k.text);
+      expect(texts).toContain('型チェック');
+      // ほかの伏せ字による除外は効いたまま
+      expect(texts).not.toContain(HIDDEN_NAME);
     });
 
     it('話者で絞り込める', async () => {
