@@ -91,6 +91,66 @@ function connectTarget(args: unknown[]): ConnectTarget {
   };
 }
 
+/** プロキシの設定を読む環境変数（axios などが使う） */
+const PROXY_ENV_NAMES = [
+  'HTTPS_PROXY',
+  'https_proxy',
+  'HTTP_PROXY',
+  'http_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+];
+
+/** プロキシの URL にポートがないときの、方式ごとのポート */
+const PROXY_DEFAULT_PORTS: Record<string, number> = {
+  'http:': 80,
+  'https:': 443,
+  'socks:': 1080,
+  'socks4:': 1080,
+  'socks5:': 1080,
+};
+
+/** 環境変数に設定されたプロキシの宛先（host:port。読めない設定は除く） */
+function proxyEndpoints(env: NodeJS.ProcessEnv): string[] {
+  const endpoints: string[] = [];
+  for (const name of PROXY_ENV_NAMES) {
+    const value = env[name];
+    if (!value) continue;
+    try {
+      const url = new URL(value);
+      const port = url.port
+        ? Number(url.port)
+        : PROXY_DEFAULT_PORTS[url.protocol];
+      if (url.hostname && port) {
+        endpoints.push(`${normalizeHost(url.hostname)}:${port}`);
+      }
+    } catch {
+      // URL として読めない設定は、プロキシとして扱わない
+    }
+  }
+  return endpoints;
+}
+
+/**
+ * 断ったときのエラーの文
+ * 宛先がプロキシの設定と同じときは、プロキシを使う環境ではつなげないことを示す
+ * （アプリは宛先の名前で確かめるため、プロキシを通す通信は通せない）
+ */
+function blockedMessage(
+  host: string | undefined,
+  port: number | undefined,
+  env: NodeJS.ProcessEnv,
+): string {
+  const target = `${host}:${port}`;
+  if (
+    typeof host === 'string' &&
+    proxyEndpoints(env).includes(`${normalizeHost(host)}:${port}`)
+  ) {
+    return `プロキシを使う環境では、外部の API につなげません（プロキシ: ${target}）。プロキシを使わないネットワークでお試しください`;
+  }
+  return `外への通信を断りました: ${target}`;
+}
+
 /** 外への接続の記録（パス・ヘッダー・本文は残さない） */
 export interface EgressLogEntry {
   time: string;
@@ -149,10 +209,13 @@ export function createEgressFileLogger(
 export function installEgressGuard({
   log,
   allowCustomLookup = false,
+  env = process.env,
 }: {
   log?: (entry: EgressLogEntry) => void;
   /** lookup の差し替えを許す（テストで DNS を引かないため。アプリでは許さない） */
   allowCustomLookup?: boolean;
+  /** プロキシの設定を読む環境変数（断ったときの文に使う。既定は process.env） */
+  env?: NodeJS.ProcessEnv;
 } = {}): () => void {
   // 記録の処理が失敗しても、接続の確かめは続ける
   const record = (entry: EgressLogEntry) => {
@@ -177,10 +240,9 @@ export function installEgressGuard({
     const lookupOk = allowCustomLookup || !target.customLookup;
     if (!lookupOk || !isEgressAllowed(host, port, extraHostsStore.getStore())) {
       record({ time, host, port, allowed: false });
-      const err = Object.assign(
-        new Error(`外への通信を断りました: ${target.host}:${target.port}`),
-        { code: EGRESS_BLOCKED },
-      );
+      const err = Object.assign(new Error(blockedMessage(host, port, env)), {
+        code: EGRESS_BLOCKED,
+      });
       process.nextTick(() => this.destroy(err));
       return this;
     }
