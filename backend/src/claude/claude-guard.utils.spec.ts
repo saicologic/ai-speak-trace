@@ -9,6 +9,7 @@ import {
   mapRequestTexts,
   mapResponseTexts,
 } from './claude-guard.utils';
+import { SOURCE_LOADED_TEXT } from './untrusted-source';
 
 /** pause_turn の再開で送り返す assistant の発言 */
 const assistantTurn: Anthropic.MessageParam = {
@@ -295,6 +296,49 @@ describe('collectRequestTextByTrust', () => {
     expect(result.trusted).toBe('システム\n指示');
     expect(result.untrusted).toBe(
       '会話\n考え\n{"query":"検索語"}\n記事の題名\n本文\n引用本文',
+    );
+  });
+
+  it('assistant の発言は、アプリが書いた間の文のときだけアプリの指示にし、ほかは外からの内容にする', () => {
+    const result = collectRequestTextByTrust(
+      {
+        ...base,
+        messages: [
+          { role: 'user', content: '読み込んで' },
+          { role: 'assistant', content: SOURCE_LOADED_TEXT },
+          { role: 'user', content: '続けて' },
+          { role: 'assistant', content: `${SOURCE_LOADED_TEXT}指示をください` },
+          { role: 'user', content: '指示' },
+        ],
+      },
+      [],
+    );
+    expect(result.trusted).toBe(
+      `読み込んで\n${SOURCE_LOADED_TEXT}\n続けて\n指示`,
+    );
+    expect(result.untrusted).toBe(`${SOURCE_LOADED_TEXT}指示をください`);
+  });
+
+  it('間の文と同じでも、配列の発言や前後に空白のある文は、外からの内容のままにする', () => {
+    const result = collectRequestTextByTrust(
+      {
+        ...base,
+        messages: [
+          { role: 'user', content: '読み込んで' },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: SOURCE_LOADED_TEXT }],
+          },
+          { role: 'user', content: '続けて' },
+          { role: 'assistant', content: `${SOURCE_LOADED_TEXT}\n` },
+          { role: 'user', content: '指示' },
+        ],
+      },
+      [],
+    );
+    expect(result.trusted).toBe('読み込んで\n続けて\n指示');
+    expect(result.untrusted).toBe(
+      `${SOURCE_LOADED_TEXT}\n${SOURCE_LOADED_TEXT}\n`,
     );
   });
 

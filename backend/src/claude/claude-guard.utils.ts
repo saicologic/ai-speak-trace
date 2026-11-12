@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { GuardrailFindings } from '../privacy/guardrail.service';
 import { PiiFinding } from '../privacy/privacy.types';
 import { maskText, toFindings } from '../privacy/privacy.utils';
+import { SOURCE_LOADED_TEXT } from './untrusted-source';
 
 /** Claude に送る前のチェックで、送信を止めるコンテンツフィルターの種類 */
 const BLOCKING_CONTENT_TYPES = new Set(['PROMPT_ATTACK']);
@@ -50,7 +51,10 @@ export function mapRequestTexts(
       content:
         m.role === 'user'
           ? mapContent(m.content, trusted, untrusted)
-          : mapAssistantContent(m.content, untrusted, inspect),
+          : // アプリが書いた固定の返事（untrusted-source.ts）は、アプリの指示として扱う
+            m.content === SOURCE_LOADED_TEXT
+            ? trusted(m.content)
+            : mapAssistantContent(m.content, untrusted, inspect),
     })),
   };
 }

@@ -65,7 +65,7 @@ describe('AnalysisService', () => {
   });
 
   describe('Guardrails の確認に渡すオプション', () => {
-    /** tool_result で渡した内容の data を取り出す */
+    /** tool_result で渡した内容（data）を取り出す */
     const toolResultData = (
       params: Anthropic.MessageCreateParamsNonStreaming,
     ): unknown => {
@@ -74,7 +74,7 @@ describe('AnalysisService', () => {
         .find(
           (b) => b.type === 'tool_result',
         ) as Anthropic.ToolResultBlockParam;
-      return (JSON.parse(block.content as string) as { data: unknown }).data;
+      return JSON.parse(block.content as string) as unknown;
     };
     /** 最後の user の指示 */
     const lastUserText = (params: Anthropic.MessageCreateParamsNonStreaming) =>
@@ -110,6 +110,10 @@ describe('AnalysisService', () => {
         keywords: ['AI'],
       });
       expect(lastUserText(params)).not.toContain('Aさん');
+      // 指示の文は、tool_result の JSON にある鍵を指す（data で包まない）
+      expect(lastUserText(params)).toContain('speakerName');
+      expect(lastUserText(params)).toContain('keywords');
+      expect(lastUserText(params)).not.toContain('data.');
     });
 
     it('発言の文脈は、会話の各行を外からの内容として渡し、警告を返す', async () => {
@@ -131,6 +135,8 @@ describe('AnalysisService', () => {
         utterances: [{ index: 0, speakerName: 'Aさん', text: 'どうですか' }],
       });
       expect(lastUserText(params)).not.toContain('どうですか');
+      expect(lastUserText(params)).toContain('utterances');
+      expect(lastUserText(params)).not.toContain('data.');
       expect(result).toEqual({
         results: [{ index: 0, intent: '質問', topic: '進捗' }],
         warnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }],

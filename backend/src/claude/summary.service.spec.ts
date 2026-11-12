@@ -131,9 +131,9 @@ describe('SummaryService', () => {
           (b) => b.type === 'tool_result',
         ) as Anthropic.ToolResultBlockParam;
       const parsed = JSON.parse(block.content as string) as {
-        data: { conversation: unknown };
+        conversation: unknown;
       };
-      return parsed.data.conversation;
+      return parsed.conversation;
     };
     /** 最後の user の指示 */
     const sentInstructions = () => {
@@ -153,6 +153,9 @@ describe('SummaryService', () => {
       );
 
       expect(sentConversation()).toBe('実際の会話内容');
+      // 在りかの文は、tool_result の JSON にある鍵を指す（data で包まない）
+      expect(FULL_TEXT_REFERENCE).toContain('conversation');
+      expect(FULL_TEXT_REFERENCE).not.toContain('data.');
       expect(sentInstructions()).toBe(
         `要約してください: ${FULL_TEXT_REFERENCE}`,
       );
