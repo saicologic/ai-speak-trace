@@ -625,7 +625,7 @@ describe('ResearchService（失敗した調査の再開）', () => {
           { word: 'ハーネス', count: 5 },
           { word: '金井', count: 2 },
         ],
-        droppedFrequentWords: 1,
+        droppedFrequentWords: 3,
       },
     });
     const job = await service.findById('job-1');
@@ -640,7 +640,7 @@ describe('ResearchService（失敗した調査の再開）', () => {
       { word: 'ハーネス', count: 1 },
     ]);
     // 除いた数は、調査を始めたときに除いた数に、再開したときに除いた数を足す
-    expect(resumed.preSendChecks?.droppedFrequentWords).toBe(2);
+    expect(resumed.preSendChecks?.droppedFrequentWords).toBe(4);
   });
 
   it('以前の失敗した調査にも、エラー文から失敗の説明を付ける', async () => {
