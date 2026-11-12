@@ -13,6 +13,7 @@ import {
 import { PiiFinding, PrivacyScan } from '../privacy/privacy.types';
 import {
   hashSpeakerNames,
+  hashTranscriptionBody,
   maskText,
   maskTranscription,
   withoutIgnoredPii,
@@ -25,7 +26,7 @@ import { stripInvisible } from './invisible-chars';
  * 個人情報チェックの状態
  * - checked: チェック済みで、要確認も残っていない（返す）
  * - unchecked: チェックしていない
- * - stale: チェックの後に文字起こしが変わった（同じ id で文字起こしし直した。記録のない以前の結果は、ファイルの更新時刻で判断する）
+ * - stale: チェックの後に文字起こしが変わった（同じ id で文字起こしし直した・本文が書き換わった。記録のない以前の結果は、ファイルの更新時刻で判断する）
  * - needs_review: 「要確認」の検出が残っている
  * - error: 文字起こしやチェックの結果を読めない（書き込み途中など）
  */
@@ -242,7 +243,11 @@ export class ConversationReader {
     if (recorded) {
       // 文字起こしを作った後に変わるのは話者名だけのため、どの回の文字起こしをチェックしたかと、話者名を比べる
       // （同じ音声ファイル名で文字起こしし直すと、同じ id の別の文字起こしになる）
-      if (recorded.transcriptionCreatedAt !== transcription.createdAt) {
+      // アプリは作った後に本文を書き換えないが、手で書き換えた場合に、古い検出で伏せたまま返さないよう本文も比べる
+      if (
+        recorded.transcriptionCreatedAt !== transcription.createdAt ||
+        recorded.bodyHash !== hashTranscriptionBody(transcription)
+      ) {
         return reject(id, 'stale', known);
       }
       speakerNamesChecked =
@@ -279,29 +284,25 @@ export class ConversationReader {
   }
 }
 
+/** チェックした話者名・文字起こしの記録の項目 */
+const RECORD_KEYS = [
+  'speakerNamesHash',
+  'transcriptionCreatedAt',
+  'bodyHash',
+] as const;
+type CheckedRecord = Record<(typeof RECORD_KEYS)[number], string>;
+
 /**
  * チェックした話者名・文字起こしの記録
- * 記録を足す前に保存した結果（どちらもない）は null、片方だけ・文字列でないものは invalid
+ * 記録を足す前に保存した結果（どれもない）は null、一部だけ・文字列でないものは invalid
  */
-function checkedRecord(
-  scan: PrivacyScan,
-):
-  | { speakerNamesHash: string; transcriptionCreatedAt: string }
-  | null
-  | 'invalid' {
-  const { speakerNamesHash, transcriptionCreatedAt } = scan as Partial<
-    Record<'speakerNamesHash' | 'transcriptionCreatedAt', unknown>
-  >;
-  if (speakerNamesHash === undefined && transcriptionCreatedAt === undefined) {
-    return null;
-  }
-  if (
-    typeof speakerNamesHash !== 'string' ||
-    typeof transcriptionCreatedAt !== 'string'
-  ) {
+function checkedRecord(scan: PrivacyScan): CheckedRecord | null | 'invalid' {
+  const values = scan as Partial<Record<keyof CheckedRecord, unknown>>;
+  if (RECORD_KEYS.every((k) => values[k] === undefined)) return null;
+  if (!RECORD_KEYS.every((k) => typeof values[k] === 'string')) {
     return 'invalid';
   }
-  return { speakerNamesHash, transcriptionCreatedAt };
+  return values as CheckedRecord;
 }
 
 function reject(
