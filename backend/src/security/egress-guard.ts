@@ -151,7 +151,7 @@ function blockedMessage(
     typeof host === 'string' &&
     proxyEndpoints(env).includes(`${normalizeHost(host)}:${port}`)
   ) {
-    return `プロキシを使う環境では、外部の API につなげません（プロキシ: ${target}）。プロキシを使わないネットワークでお試しください`;
+    return `プロキシを使う環境では、外部の API につなげません（プロキシ: ${target}）。HTTPS_PROXY などのプロキシの設定を外してから、アプリを起動し直してください（プロキシを通さないとつながらないネットワークでは使えません）`;
   }
   return `外への通信を断りました: ${target}`;
 }
