@@ -5,7 +5,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { hashTexts, stripSoundTags } from '../ginza/ginza-keywords.utils';
 import { PiiFinding } from '../privacy/privacy.types';
-import { hashSpeakerNames } from '../privacy/privacy.utils';
+import {
+  hashSpeakerNames,
+  hashTranscriptionBody,
+} from '../privacy/privacy.utils';
 import { Transcription } from '../transcription/types/transcription.types';
 import { MAX_RESPONSE_CHARS, MAX_UTTERANCE_CHARS } from './mcp.constants';
 import { ConversationReader } from './conversation-reader';
@@ -461,6 +464,7 @@ describe('MCP サーバー', () => {
       data.writeScan('checked-talk', FINDINGS, scannedAt, {
         speakerNamesHash: hashSpeakerNames(checked),
         transcriptionCreatedAt: checked.createdAt,
+        bodyHash: hashTranscriptionBody(checked),
         ...extra,
       });
     /** チェックの後に、話者 speaker_1 の名前を変える */
@@ -588,6 +592,7 @@ describe('MCP サーバー', () => {
       await data.writeScan('orphan-talk', [], undefined, {
         speakerNamesHash: '',
         transcriptionCreatedAt: orphan.createdAt,
+        bodyHash: hashTranscriptionBody(orphan),
       });
       const { json, text } = await call('get_utterances', {
         transcriptionId: h('orphan-talk'),
@@ -611,12 +616,25 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
     });
 
+    it('チェックの後に本文が書き換わった会話は、話者名・作成日時が同じでも古い（stale）とする', async () => {
+      // チェックの時刻は文字起こしの保存より後（時刻で比べると古いとは分からない）
+      await writeRecordedScan({}, new Date(Date.now() + 60_000).toISOString());
+      const edited = structuredClone(checked);
+      edited.utterances[1].text = '連絡先は 080-1111-2222 です';
+      await data.writeTranscription(edited);
+      const { json } = await call('list_transcriptions');
+      expect(json.transcriptions[0].privacy).toBe('stale');
+      expect(JSON.stringify(json)).not.toContain(HIDDEN_NAME);
+    });
+
     it('記録の形が崩れていれば、読めない（error）とする', async () => {
       for (const extra of [
         { speakerNamesHash: 1 },
         { transcriptionCreatedAt: null },
+        { bodyHash: false },
         { speakerNamesHash: undefined },
         { transcriptionCreatedAt: undefined },
+        { bodyHash: undefined },
       ]) {
         await writeRecordedScan(extra);
         const { json } = await call('list_transcriptions');
