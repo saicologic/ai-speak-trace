@@ -107,7 +107,8 @@ done
 # （シェルの起動ファイル・ログインのときに動くもの・git の hook と設定・エディタのタスク・Claude Code の個人の設定）
 for rule in "Edit(~/.zshrc)" "Edit(~/.zprofile)" "Edit(~/.zshenv)" "Edit(~/.zlogin)" "Edit(~/.bashrc)" "Edit(~/.bash_profile)" "Edit(~/.profile)" \
   "Edit(~/Library/LaunchAgents/**)" "Edit(~/.ssh/**)" "Edit(~/.gitconfig)" "Edit(~/.config/git/**)" \
-  "Edit(//**/.git/hooks/**)" "Edit(//**/.git/config)" "Edit(//**/.envrc)" "Edit(//**/.vscode/**)" \
+  "Edit(//Users/**/.git/hooks/**)" "Edit(//Users/**/.git/config)" "Edit(//Volumes/**/.git/hooks/**)" "Edit(//Volumes/**/.git/config)" \
+  "Edit(//**/.envrc)" "Edit(//**/.vscode/**)" \
   "Edit(~/.claude/settings.json)" "Edit(~/.claude/settings.local.json)" "Edit(//**/.claude/settings.local.json)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
@@ -117,6 +118,23 @@ expect "deny の Edit・Read で、** から書いたもの（今のフォルダ
 expect "リポジトリの .claude/settings.json の書き換えは、ユーザーに確かめる（ask）" '.permissions.ask | index("Edit(//**/.claude/settings.json)") != null' "$M"
 # Playwright MCP で、手元のファイルをページに渡す操作（ドラッグ・アンド・ドロップ）も、ユーザーに確かめる
 expect "Playwright MCP の browser_drop は、ユーザーに確かめる（ask）" '.permissions.ask | index("mcp__playwright__browser_drop") != null' "$M"
+# git の hook と設定は、/Users・/Volumes の下（開発するリポジトリ・外付けのディスク）を止める。//**/ から書くと、
+# サンドボックスの書き込みの禁止にも加わり、テストが一時フォルダ（/private/tmp・/private/var/folders）に作る
+# git のリポジトリも git init できなくなるため
+expect "deny の .git/hooks・.git の設定は、/Users・/Volumes の下の決めたものだけ" '[.permissions.deny[] | select(test("\\.git/(hooks|config|worktrees)"))] | sort == ["Edit(//Users/**/.git/config)", "Edit(//Users/**/.git/config.worktree)", "Edit(//Users/**/.git/hooks/**)", "Edit(//Users/**/.git/worktrees/*/config.worktree)", "Edit(//Volumes/**/.git/config)", "Edit(//Volumes/**/.git/config.worktree)", "Edit(//Volumes/**/.git/hooks/**)", "Edit(//Volumes/**/.git/worktrees/*/config.worktree)"]' "$M"
+# ほかにも、あとで開発者が自分のターミナルで何かを動かしたときに、サンドボックスの外でコマンドが動く場所
+# （worktree ごとの git の設定・npm と cargo の設定・Python が起動のたびに読むファイル・ほかのシェルの起動ファイル）。
+# /Users・/Volumes の下だけにし、テストの一時フォルダ（/private/tmp など）には当てない
+for rule in "Edit(//Users/**/.git/config.worktree)" "Edit(//Users/**/.git/worktrees/*/config.worktree)" \
+  "Edit(//Volumes/**/.git/config.worktree)" "Edit(//Volumes/**/.git/worktrees/*/config.worktree)" \
+  "Edit(//Users/**/.npmrc)" "Edit(//Volumes/**/.npmrc)" "Edit(//Users/**/.cargo/config*)" "Edit(//Volumes/**/.cargo/config*)" \
+  "Edit(//Users/**/site-packages/*.pth)" "Edit(//Users/**/site-packages/sitecustomize.py)" "Edit(//Users/**/site-packages/usercustomize.py)" \
+  "Edit(//Volumes/**/site-packages/*.pth)" "Edit(//Volumes/**/site-packages/sitecustomize.py)" "Edit(//Volumes/**/site-packages/usercustomize.py)" \
+  "Edit(~/.bash_login)" "Edit(~/.bash_logout)" "Edit(~/.zlogout)" "Edit(~/.config/fish/**)"; do
+  expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
+done
+# /Users の下に当てたルールは、/Volumes（外付けのディスク）の下にも同じものを置く
+expect "deny の //Users/** の Edit のルールには、同じ //Volumes/** のルールがある" '[.permissions.deny[] | select(startswith("Edit(//Users/**/"))] as $u | [.permissions.deny[] | select(startswith("Edit(//Volumes/**/"))] as $v | ($u | map(sub("^Edit\\(//Users/"; "Edit(//Volumes/")) | sort) == ($v | sort)' "$M"
 # 読ませない場所を広げる（クラウドの認証情報・ブラウザの Cookie・パスワード・メール）
 for rule in "Read(~/.config/gcloud/**)" "Read(~/.kube/**)" "Read(~/.azure/**)" "Read(~/Library/Cookies/**)" \
   "Read(~/Library/Application Support/Google/Chrome/**)" "Read(~/Library/Application Support/Firefox/**)" "Read(~/Library/Safari/**)" \
@@ -134,7 +152,8 @@ expect "レビュー済みの記録・枠切れの記録（~/.claude/state）を
 for rule in "Bash(npm ci)" "Bash(npm ci *)" "Bash(npm install)" "Bash(npm install *)" "Bash(npm i)" "Bash(npm i *)"; do
   expect "deny に $rule がある" ".permissions.deny | index(\"$rule\") != null" "$M"
 done
-expect "deny に個人のパス（/Users/）を書かない" '[.permissions.deny[] | select(test("/Users/"))] | length == 0' "$M"
+# 決まったユーザー名（/Users/<名前>/）を書かない。/Users/** のように、すべてのユーザーに当たる書き方はよい
+expect "deny に個人のパス（/Users/<名前>/）を書かない" '[.permissions.deny[] | select(test("/Users/[^*/]"))] | length == 0' "$M"
 
 # リポジトリの設定: インストール先のスクリプトを許可し、サンドボックスを弱める設定を書かない
 expect ".claude/settings.json が JSON として読める" '.' "$P"
