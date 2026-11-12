@@ -99,6 +99,11 @@ class FakeGuardrail {
     for (const p of this.pending.splice(0)) p.resolve(findings);
   }
 
+  /** 待たせている確認のうち、最初の1つだけに検出を返す（後の確認は待たせたまま） */
+  releaseOne(findings: GuardrailFindings = noFindings()) {
+    this.pending.shift()?.resolve(findings);
+  }
+
   /** 待たせている確認を、失敗させる */
   fail() {
     this.hold = false;
@@ -218,6 +223,32 @@ describe('話者名を変えてから個人情報チェックをし直すまで�
     expect(e.privacy).toBe('checked');
     expect(e.notice).toBeUndefined();
     expect(await speakerNames()).toEqual(['Cさん', 'Bさん']);
+  });
+
+  it('チェックし直しの途中でもう一度名前を変えたとき、先のチェックだけが終わっても、後で変えた名前を返さない', async () => {
+    guardrail.hold = true;
+    await transcriptions.updateSpeakers('rename-talk', [
+      { id: 'speaker_0', name: 'Cさん' },
+    ]);
+    await waitForRescan(guardrail);
+    // 先のチェックし直しの途中で、もう一度名前を変える（終わってから、最後の名前で検出し直す）
+    await transcriptions.updateSpeakers('rename-talk', [
+      { id: 'speaker_0', name: 'Dさん' },
+    ]);
+    // 先のチェック（Cさん で検出したもの）だけを終わらせる
+    guardrail.releaseOne();
+    await waitForRescan(guardrail);
+
+    const during = await entry();
+    expect(during.privacy).toBe('checked');
+    expect(during.notice).toBe(SPEAKER_NAMES_HIDDEN_NOTICE);
+    expect(await speakerNames()).toEqual(['話者1', '話者2']);
+    expect(JSON.stringify(during)).not.toContain('Dさん');
+
+    // 後のチェック（Dさん で検出したもの）が終わると、Dさん を返す
+    guardrail.releaseOne();
+    await privacy.waitForScans('rename-talk');
+    expect(await speakerNames()).toEqual(['Dさん', 'Bさん']);
   });
 
   it('チェックし直しで変えた名前が氏名として検出されたら、利用者が選ぶまで返さない（要確認）', async () => {
