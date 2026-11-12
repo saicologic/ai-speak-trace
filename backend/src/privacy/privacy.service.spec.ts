@@ -239,4 +239,17 @@ describe('PrivacyService', () => {
     ]);
     expect(updated.speakerNamesHash).toBe(hashSpeakerNames(transcription));
   });
+
+  it('チェックした文字起こしの作成日時を、結果に記録する（同じ id で作り直した文字起こしと見分ける）', async () => {
+    const { service, store } = setup();
+    await service.scan(transcription);
+    const redone: Transcription = {
+      ...transcription,
+      createdAt: '2026-02-01T00:00:00.000Z',
+    };
+    await service.scan(redone);
+    expect(
+      store.save.mock.calls.map(([scan]) => scan.transcriptionCreatedAt),
+    ).toEqual(['2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z']);
+  });
 });
