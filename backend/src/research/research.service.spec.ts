@@ -486,6 +486,9 @@ describe('ResearchService（失敗した調査の再開）', () => {
       ),
     };
     const claude = {
+      proposeKeywords: jest.fn(() =>
+        Promise.resolve({ title: '調査', keywords: [] }),
+      ),
       researchWeb: jest.fn(),
       analyze: jest.fn(() =>
         Promise.resolve([{ text: '本文', citations: [] }]),
@@ -650,6 +653,52 @@ describe('ResearchService（失敗した調査の再開）', () => {
     );
   });
 
+  it('v0.8.x で提案の途中にアプリを終了した調査は、起動したときに中断として記録し、再開できないと示す', async () => {
+    const { service } = setup({
+      ...confirmedJob,
+      status: 'proposing',
+      error: undefined,
+      proposal: undefined,
+      confirmed: undefined,
+    });
+    await service.onModuleInit();
+    const job = await service.findById('job-1');
+    expect(job.status).toBe('failed');
+    expect(job.resume).toBeUndefined();
+    expect(job.errorInfo?.kind).toBe('interrupted');
+    expect(job.errorInfo?.retryable).toBe(false);
+    expect(job.errorInfo?.hint).toContain('新しく調査を始めてください');
+  });
+
+  it('提案に使う入力を保存した調査は、提案の途中で失敗しても、保存した入力で提案から再開する', async () => {
+    const words = [{ word: 'ハーネス', count: 1 }];
+    const { service, claude } = setup({
+      ...confirmedJob,
+      proposal: undefined,
+      confirmed: undefined,
+      proposalInput: { words, droppedFrequentWords: 0 },
+    });
+    const job = await service.findById('job-1');
+    expect(job.resume).toEqual({ from: 'proposing' });
+    expect(job.errorInfo?.kind).toBe('credit');
+    expect(job.errorInfo?.retryable).toBe(true);
+    expect(job.errorInfo?.hint).not.toContain('以前のバージョン');
+
+    await service.resume('job-1');
+    for (
+      let i = 0;
+      i < 10 && claude.proposeKeywords.mock.calls.length === 0;
+      i++
+    ) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(claude.proposeKeywords).toHaveBeenCalledTimes(1);
+    expect(claude.proposeKeywords).toHaveBeenCalledWith(
+      expect.anything(),
+      words,
+    );
+  });
+
   it('以前の失敗した調査にも、エラー文から失敗の説明を付ける', async () => {
     const { service } = setup(confirmedJob);
     const job = await service.findById('job-1');
@@ -803,6 +852,11 @@ describe('ResearchService（送る前の確認）', () => {
 
     // タイトルは空白と改行を整えて保存する
     expect(saved!.title).toBe('ハーネスの 調査');
+    // 提案に使う入力（送れる語と、除いた数）を保存する（失敗したときに提案から再開するため）
+    expect(saved!.proposalInput).toEqual({
+      words: [{ word: 'ハーネス', count: 1 }],
+      droppedFrequentWords: 1,
+    });
     expect(saved!.preSendChecks).toEqual({
       privacyConfigured: true,
       privacy: [
