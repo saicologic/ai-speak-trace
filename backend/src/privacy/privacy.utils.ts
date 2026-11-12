@@ -188,6 +188,33 @@ export function toScanText(transcription: Transcription): string {
 }
 
 /**
+ * 文字起こしの本文（話者名を除く）のハッシュ
+ * MCP で返す・使う項目（全文・単語・発話の話者 id・時刻・本文・単語）を含める。
+ * 個人情報チェックで確かめた本文と、今の本文が同じかを比べるのに使う（アプリは作った後に本文を書き換えないが、手で書き換えた場合に備える）
+ */
+export function hashTranscriptionBody(
+  transcription: Pick<Transcription, 'fullText' | 'words' | 'utterances'>,
+): string {
+  const wordsOf = (words: Transcription['words']) =>
+    words.map((w) => [w.text, w.start, w.end]);
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        fullText: transcription.fullText,
+        words: wordsOf(transcription.words),
+        utterances: transcription.utterances.map((u) => [
+          u.speakerId,
+          u.start,
+          u.end,
+          u.text,
+          wordsOf(u.words),
+        ]),
+      }),
+    )
+    .digest('hex');
+}
+
+/**
  * 話者名（話者の一覧の名前と、発話ごとの話者名）のハッシュ
  * 文字起こしを作った後に変わるのは話者名だけのため、個人情報チェックで確かめた話者名と、今の話者名が同じかを比べるのに使う
  */

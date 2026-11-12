@@ -5,6 +5,7 @@ import { PrivacyScanStore } from './privacy-scan.store';
 import { PiiFinding, PrivacyScan, PrivacyStatus } from './privacy.types';
 import {
   hashSpeakerNames,
+  hashTranscriptionBody,
   maskTranscription,
   toFindings,
   toScanText,
@@ -147,9 +148,10 @@ export class PrivacyService {
     this.errors.delete(transcription.id);
     try {
       const text = toScanText(transcription);
-      // 検出に使う本文と同じ時点の話者名・作成日時を記録する（応答を待つ間に呼び出し元が書き換えても、検出した内容と食い違わない）
+      // 検出に使う本文と同じ時点の話者名・作成日時・本文のハッシュを記録する（応答を待つ間に呼び出し元が書き換えても、検出した内容と食い違わない）
       const speakerNamesHash = hashSpeakerNames(transcription);
       const transcriptionCreatedAt = transcription.createdAt;
+      const bodyHash = hashTranscriptionBody(transcription);
       const detected = await this.guardrail.inspect(text, 'INPUT');
       const previous = await this.store.find(transcription.id);
       const scan: PrivacyScan = {
@@ -163,6 +165,8 @@ export class PrivacyService {
         speakerNamesHash,
         // チェックした回の文字起こし（同じ id で文字起こしし直したものと見分ける）
         transcriptionCreatedAt,
+        // 検出した本文（MCP で、チェックの後に本文が変わっていないか確かめる）
+        bodyHash,
       };
       if (!(await this.store.save(scan))) {
         this.logger.log(
