@@ -147,6 +147,9 @@ export class PrivacyService {
     this.errors.delete(transcription.id);
     try {
       const text = toScanText(transcription);
+      // 検出に使う本文と同じ時点の話者名・作成日時を記録する（応答を待つ間に呼び出し元が書き換えても、検出した内容と食い違わない）
+      const speakerNamesHash = hashSpeakerNames(transcription);
+      const transcriptionCreatedAt = transcription.createdAt;
       const detected = await this.guardrail.inspect(text, 'INPUT');
       const previous = await this.store.find(transcription.id);
       const scan: PrivacyScan = {
@@ -157,9 +160,9 @@ export class PrivacyService {
         guardrailVersion: this.guardrail.guardrailVersion,
         findings: toFindings(detected.pii, text, previous?.findings),
         // 検出に使った話者名（MCP で、チェックの後に話者名が変わっていないか確かめる）
-        speakerNamesHash: hashSpeakerNames(transcription),
+        speakerNamesHash,
         // チェックした回の文字起こし（同じ id で文字起こしし直したものと見分ける）
-        transcriptionCreatedAt: transcription.createdAt,
+        transcriptionCreatedAt,
       };
       if (!(await this.store.save(scan))) {
         this.logger.log(
