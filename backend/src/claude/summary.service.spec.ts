@@ -131,9 +131,9 @@ describe('SummaryService', () => {
           (b) => b.type === 'tool_result',
         ) as Anthropic.ToolResultBlockParam;
       const parsed = JSON.parse(block.content as string) as {
-        data: { conversation: unknown };
+        conversation: unknown;
       };
-      return parsed.data.conversation;
+      return parsed.conversation;
     };
     /** 最後の user の指示 */
     const sentInstructions = () => {

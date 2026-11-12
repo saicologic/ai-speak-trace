@@ -65,7 +65,7 @@ describe('AnalysisService', () => {
   });
 
   describe('Guardrails の確認に渡すオプション', () => {
-    /** tool_result で渡した内容の data を取り出す */
+    /** tool_result で渡した内容（data）を取り出す */
     const toolResultData = (
       params: Anthropic.MessageCreateParamsNonStreaming,
     ): unknown => {
@@ -74,7 +74,7 @@ describe('AnalysisService', () => {
         .find(
           (b) => b.type === 'tool_result',
         ) as Anthropic.ToolResultBlockParam;
-      return (JSON.parse(block.content as string) as { data: unknown }).data;
+      return JSON.parse(block.content as string) as unknown;
     };
     /** 最後の user の指示 */
     const lastUserText = (params: Anthropic.MessageCreateParamsNonStreaming) =>
