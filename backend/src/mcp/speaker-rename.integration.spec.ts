@@ -110,10 +110,17 @@ class FakeGuardrail {
   }
 }
 
-/** 待っている非同期の処理を進める */
-async function flush() {
-  for (let i = 0; i < 20; i++) {
-    await new Promise((resolve) => setImmediate(resolve));
+/**
+ * アプリがチェックし直しを始め、Guardrails の応答を待つところまで進むのを待つ
+ * （チェックし直しはファイルを読んでから Guardrails を呼ぶため、回数ではなく、始まったことを期限付きで待つ）
+ */
+async function waitForRescan(guardrail: { waiting: number }) {
+  const deadline = Date.now() + 2000;
+  while (guardrail.waiting === 0) {
+    if (Date.now() > deadline) {
+      throw new Error('チェックし直しが始まりませんでした');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
 
@@ -180,7 +187,7 @@ describe('話者名を変えてから個人情報チェックをし直すまで�
     await transcriptions.updateSpeakers('rename-talk', [
       { id: 'speaker_0', name: '架空花子' },
     ]);
-    await flush();
+    await waitForRescan(guardrail);
     // アプリはチェックし直しを始めていて、Guardrails の応答を待っている
     expect(guardrail.waiting).toBe(1);
 
@@ -203,7 +210,7 @@ describe('話者名を変えてから個人情報チェックをし直すまで�
     await transcriptions.updateSpeakers('rename-talk', [
       { id: 'speaker_0', name: 'Cさん' },
     ]);
-    await flush();
+    await waitForRescan(guardrail);
     guardrail.release();
     await privacy.waitForScans('rename-talk');
 
@@ -218,7 +225,7 @@ describe('話者名を変えてから個人情報チェックをし直すまで�
     await transcriptions.updateSpeakers('rename-talk', [
       { id: 'speaker_0', name: '架空花子' },
     ]);
-    await flush();
+    await waitForRescan(guardrail);
     guardrail.release({
       ...noFindings(),
       pii: [{ type: 'NAME', match: '架空花子' }],
@@ -235,7 +242,7 @@ describe('話者名を変えてから個人情報チェックをし直すまで�
     await transcriptions.updateSpeakers('rename-talk', [
       { id: 'speaker_0', name: '架空花子' },
     ]);
-    await flush();
+    await waitForRescan(guardrail);
     guardrail.fail();
     await privacy.waitForScans('rename-talk');
 
