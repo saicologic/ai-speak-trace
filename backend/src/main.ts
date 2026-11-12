@@ -3,6 +3,11 @@ import { AppModule } from './app.module';
 import { SettingsService } from './settings/settings.service';
 import { configureApp } from './app-setup';
 import { resolveApiToken } from './security/api-token';
+import {
+  createEgressFileLogger,
+  installEgressGuard,
+} from './security/egress-guard';
+import * as path from 'path';
 
 // pkg --jitless 環境では DOMMatrix 等のグローバルが未定義になるためポリフィル
 if (typeof globalThis.DOMMatrix === 'undefined') {
@@ -19,6 +24,13 @@ if (typeof globalThis.Path2D === 'undefined') {
 SettingsService.loadSettingsIntoEnv();
 // API キーはキーチェーンから読み込む（macOS のみ。settings.json に残っているキーはキーチェーンに移す）
 SettingsService.loadApiKeysFromKeychain();
+// 外への通信を、アプリが使う API の宛先（HTTPS）だけに絞り、データのフォルダの logs/network.jsonl に記録する
+// （DATA_DIR は settings.json から読むため、その後で入れる）
+installEgressGuard({
+  log: createEgressFileLogger(
+    path.join(process.env.DATA_DIR || './data', 'logs', 'network.jsonl'),
+  ),
+});
 
 async function bootstrap() {
   // pkg でまとめた sidecar では process.pkg がある

@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import { egressHostsInScope } from '../security/egress-guard';
 import { GinzaEnvService } from './ginza-env.service';
 
 describe('GinzaEnvService', () => {
@@ -22,6 +24,31 @@ describe('GinzaEnvService', () => {
     new GinzaEnvService({
       get: (key: string) => (key === 'GINZA_HOME' ? home : undefined),
     } as unknown as ConfigService);
+
+  it('uv のダウンロードの間だけ、GitHub のリリースの宛先への接続を許す', async () => {
+    let hosts: readonly string[] = [];
+    let keepAlive: boolean | undefined;
+    const get = jest.spyOn(axios, 'get').mockImplementation((_url, config) => {
+      hosts = egressHostsInScope();
+      // 範囲の外で、残った接続を使い回して GitHub に送らせないよう、接続を使い回さない
+      keepAlive = (config?.httpsAgent as { keepAlive?: boolean } | undefined)
+        ?.keepAlive;
+      return Promise.resolve({ status: 500, data: new ArrayBuffer(0) });
+    });
+    try {
+      await expect(create()['downloadUv']('arm64')).rejects.toThrow('500');
+    } finally {
+      get.mockRestore();
+    }
+    expect(hosts).toEqual(
+      expect.arrayContaining([
+        'github.com',
+        'release-assets.githubusercontent.com',
+      ]),
+    );
+    expect(egressHostsInScope()).toEqual([]);
+    expect(keepAlive).toBe(false);
+  });
 
   it('対応外の環境では、インストールを始めず、今ある環境も消さない', async () => {
     Object.defineProperty(process, 'platform', { value: 'linux' });
