@@ -189,11 +189,14 @@ export function toScanText(transcription: Transcription): string {
 
 /**
  * 文字起こしの本文（話者名を除く）のハッシュ
- * MCP で返す・使う項目（全文・単語・発話の話者 id・時刻・本文・単語）を含める。
+ * MCP で返す・使う項目（全文・単語・話者の一覧の id・発話の話者 id・時刻・本文・単語）を含める。
  * 個人情報チェックで確かめた本文と、今の本文が同じかを比べるのに使う（アプリは作った後に本文を書き換えないが、手で書き換えた場合に備える）
  */
 export function hashTranscriptionBody(
-  transcription: Pick<Transcription, 'fullText' | 'words' | 'utterances'>,
+  transcription: Pick<
+    Transcription,
+    'fullText' | 'words' | 'speakers' | 'utterances'
+  >,
 ): string {
   const wordsOf = (words: Transcription['words']) =>
     words.map((w) => [w.text, w.start, w.end]);
@@ -202,6 +205,7 @@ export function hashTranscriptionBody(
       JSON.stringify({
         fullText: transcription.fullText,
         words: wordsOf(transcription.words),
+        speakerIds: transcription.speakers.map((s) => s.id),
         utterances: transcription.utterances.map((u) => [
           u.speakerId,
           u.start,
