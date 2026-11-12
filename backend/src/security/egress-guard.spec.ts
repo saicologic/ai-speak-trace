@@ -492,6 +492,18 @@ describe('createEgressFileLogger（記録をファイルに書く）', () => {
     expect(existsSync(`${file}.1`)).toBe(false);
   });
 
+  it('まだ書いていない記録が上限を超えるときは、その記録を捨て、書き終えた後はまた受け付ける', async () => {
+    const file = join(dir, 'network.jsonl');
+    // 1行は 62 バイトのため、まだ書いていない記録は2行まで
+    const log = createEgressFileLogger(file, { maxPendingBytes: 124 });
+    for (const t of ['t1', 't2', 't3']) log(entry(t));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2']);
+    log(entry('t4'));
+    await log.flush();
+    expect(linesOf(file)).toEqual(['t1', 't2', 't4']);
+  });
+
   it('前からあるファイルの大きさも数える', async () => {
     const file = join(dir, 'network.jsonl');
     writeFileSync(file, JSON.stringify(entry('t0')) + '\n' + 'x'.repeat(80));
