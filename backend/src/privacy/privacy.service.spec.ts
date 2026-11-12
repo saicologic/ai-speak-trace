@@ -4,7 +4,7 @@ import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PrivacyService } from './privacy.service';
 import { PrivacyScan } from './privacy.types';
-import { hashSpeakerNames } from './privacy.utils';
+import { hashSpeakerNames, hashTranscriptionBody } from './privacy.utils';
 
 const transcription: Transcription = {
   id: 't1',
@@ -275,5 +275,23 @@ describe('PrivacyService', () => {
       speakerNamesHash: hashSpeakerNames(original),
       transcriptionCreatedAt: original.createdAt,
     });
+  });
+
+  it('チェックした本文のハッシュを記録し、検出の途中で書き換わっても検出した時点の値にする', async () => {
+    const { service, guardrail, store } = setup();
+    const shared = structuredClone(transcription);
+    const original = structuredClone(transcription);
+    guardrail.inspect.mockImplementationOnce(() => {
+      shared.utterances[0].text = '書き換えた本文';
+      return Promise.resolve({ pii: [], words: [], content: [] });
+    });
+    const scan = await service.scan(shared);
+    expect(scan.bodyHash).toBe(hashTranscriptionBody(original));
+    expect(store.save.mock.calls[0][0].bodyHash).toBe(
+      hashTranscriptionBody(original),
+    );
+    // 伏せるかどうかを選んでも変えない
+    const updated = await service.updateMasks('t1', []);
+    expect(updated.bodyHash).toBe(hashTranscriptionBody(original));
   });
 });
