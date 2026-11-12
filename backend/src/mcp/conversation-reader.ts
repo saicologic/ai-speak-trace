@@ -259,6 +259,9 @@ export class ConversationReader {
       if (Number.isNaN(scannedAt) || Math.floor(modifiedAt) > scannedAt) {
         return reject(id, 'stale', known);
       }
+      // 同じミリ秒の中では、チェックの後に話者名を変えたのか分からないため、話者名は返さない
+      // （本文は作るときにしか書かれない。話者名を変えると、記録の付いた形でチェックし直される）
+      speakerNamesChecked = modifiedAt <= scannedAt;
     }
     // アプリの画面に出さない検出（国名だけの住所・会社名や製品名だけの氏名など）は、利用者が選べないため要確認として扱わない
     if (withoutIgnoredPii(scan.findings).some((f) => f.needsReview)) {
