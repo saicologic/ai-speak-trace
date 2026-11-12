@@ -4,6 +4,7 @@ import { GuardrailService } from './guardrail.service';
 import { PrivacyScanStore } from './privacy-scan.store';
 import { PiiFinding, PrivacyScan, PrivacyStatus } from './privacy.types';
 import {
+  hashSpeakerNames,
   maskTranscription,
   toFindings,
   toScanText,
@@ -155,6 +156,8 @@ export class PrivacyService {
         guardrailId: this.guardrail.guardrailId,
         guardrailVersion: this.guardrail.guardrailVersion,
         findings: toFindings(detected.pii, text, previous?.findings),
+        // 検出に使った話者名（MCP で、チェックの後に話者名が変わっていないか確かめる）
+        speakerNamesHash: hashSpeakerNames(transcription),
       };
       if (!(await this.store.save(scan))) {
         this.logger.log(

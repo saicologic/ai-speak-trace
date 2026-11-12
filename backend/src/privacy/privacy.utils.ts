@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Transcription } from '../transcription/types/transcription.types';
 import { PiiFinding } from './privacy.types';
 
@@ -184,6 +185,26 @@ export function toScanText(transcription: Transcription): string {
     .filter((u) => u.text.trim())
     .map((u) => `${u.speakerName}: ${u.text}`)
     .join('\n');
+}
+
+/**
+ * 話者名（話者の一覧の名前と、発話ごとの話者名）のハッシュ
+ * 文字起こしを作った後に変わるのは話者名だけのため、個人情報チェックで確かめた話者名と、今の話者名が同じかを比べるのに使う
+ */
+export function hashSpeakerNames(
+  transcription: Pick<Transcription, 'speakers' | 'utterances'>,
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        speakers: transcription.speakers.map((s) => [s.id, s.name]),
+        utterances: transcription.utterances.map((u) => [
+          u.speakerId,
+          u.speakerName,
+        ]),
+      }),
+    )
+    .digest('hex');
 }
 
 function countIn(text: string, target: string): number {

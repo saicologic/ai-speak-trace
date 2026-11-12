@@ -24,6 +24,11 @@ export interface PrivacyScan {
   guardrailId: string;
   guardrailVersion: string;
   findings: PiiFinding[];
+  /**
+   * チェックした話者名のハッシュ（hashSpeakerNames）
+   * MCP で、チェックの後に話者名が変わっていないか確かめる。この項目を足す前に保存した結果にはない
+   */
+  speakerNamesHash?: string;
 }
 
 /** 個人情報チェックの状態（画面表示用） */
