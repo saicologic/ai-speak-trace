@@ -227,75 +227,14 @@ frontend/src/
 | `TranscriptionCompleted`・`SpeakerRenamed`・`TranscriptionDeleted` | イベント | | なし（直接呼んでいる） |
 | `ElevenLabsAdapter` | 腐敗防止層 | `speaker_id`・snake_case をドメインの形に変える。話者名の初期値（Aさん・Bさん）はドメインで決める | `elevenlabs.service.ts`・`transcription.utils.ts` |
 
-#### 話者名を変えるときのコード
+#### 話者名を変えるとき
 
-修正前: `Transcription` はデータだけの interface で、話者名を変えるルールはアプリケーションの service に書いてある。
-
-```ts
-// transcription/types/transcription.types.ts
-export interface Transcription {
-  id: string;
-  speakers: Speaker[];          // 話者名はここと、
-  utterances: Utterance[];      // 発話ごとの speakerName の両方にある
-  // ...
-}
-
-// transcription/transcription.service.ts
-async updateSpeakers(id: string, speakers: { id: string; name: string }[]) {
-  const transcription = await this.getTranscription(id);
-  for (const update of speakers) {
-    const speaker = transcription.speakers.find((s) => s.id === update.id);
-    if (speaker) speaker.name = update.name;          // 直接書き換える
-  }
-  for (const utterance of transcription.utterances) { // 発話の複製も、忘れずに写す必要がある
-    const speaker = transcription.speakers.find((s) => s.id === utterance.speakerId);
-    if (speaker) utterance.speakerName = speaker.name;
-  }
-  await this.store.save(transcription);
-  this.privacyService.rescanIfChecked(transcription); // 名前が変わらなくても呼ぶ。個人情報を直接知っている
-  return transcription;
-}
-```
-
-- どこからでも `speaker.name = ...` と書けるため、発話の `speakerName` を写し忘れると、話者の一覧と発話で名前が食い違う
-- 空の名前・前後の空白は、この service では確かめていない
-- 名前が変わったかどうかに関係なく、個人情報チェックをやり直す
-
-修正後: ルールは `Transcription` の中にあり、外からは変えられない。
-
-```ts
-// transcription/domain/transcription.ts
-export class Transcription {
-  private events: TranscriptionEvent[] = [];
-  private constructor(private props: TranscriptionProps) {}
-
-  static create(input: TranscribedAudio): Transcription      // 文字起こしの直後（話者名は Aさん・Bさん）
-  static reconstruct(json: TranscriptionJson): Transcription // 保存したものから
-
-  /** 知らない話者 ID は無視する。変わったときだけ SpeakerRenamed をためる */
-  renameSpeakers(updates: { id: SpeakerId; name: SpeakerName }[]): void
-
-  /** 発話の話者名は、話者の一覧から読む（複製しない） */
-  speakerNameOf(speakerId: SpeakerId): SpeakerName
-
-  pullEvents(): TranscriptionEvent[]
-  toJSON(): TranscriptionJson
-}
-
-// transcription/application/rename-speakers.ts
-async execute(id: string, updates: { id: string; name: string }[]) {
-  const transcription = await this.repository.findById(id);
-  transcription.renameSpeakers(
-    updates.map((u) => ({ id: SpeakerId.of(u.id), name: SpeakerName.of(u.name) })), // 空の名前はここで止まる
-  );
-  await this.repository.save(transcription);
-  await this.events.publish(transcription.pullEvents()); // 個人情報は SpeakerRenamed を受けてチェックし直す
-}
-```
-
-- 話者名は話者の一覧だけに持つため、写し忘れが起きない
-- 空の名前・前後の空白は `SpeakerName` が受け付けない
-- 文字起こしは個人情報のことを知らない。名前が変わらなかったときは、イベントが出ないのでチェックもやり直さない
+| | 修正前 | 修正後 |
+|---|---|---|
+| ルールの場所 | `TranscriptionService.updateSpeakers()`。データだけの interface を、service が直接書き換える | `Transcription.renameSpeakers()`。外からは書き換えられない |
+| 話者名の持ち方 | 話者の一覧（`speakers[].name`）と、発話ごとの `speakerName` の2か所。service が発話にも写す必要があり、写し忘れると食い違う | 話者の一覧だけ。発話の話者名は `speakerNameOf()` で読む |
+| 空の名前・前後の空白 | この service では確かめていない | `SpeakerName` が受け付けない |
+| 個人情報チェックのやり直し | 名前が変わらなくても、`PrivacyService.rescanIfChecked()` を直接呼ぶ（文字起こしが個人情報を知っている） | 名前が変わったときだけ `SpeakerRenamed` が出て、個人情報がそれを受けてやり直す（文字起こしは個人情報を知らない） |
 
 #### 保存するデータ
 
@@ -323,31 +262,11 @@ async execute(id: string, updates: { id: string; name: string }[]) {
 
 #### 送れる会話の型
 
-修正前:
-
-```ts
-// privacy/privacy.service.ts — 伏せる前も後も同じ型
-async maskForSending(transcription: Transcription): Promise<Transcription>
-
-// claude/summary.service.ts — どんな文字列でも受け取る
-async summarize(fullText: string, ...)
-```
-
-修正後:
-
-```ts
-// privacy/domain/sendable.ts
-export type SendableText = string & { readonly [sendableBrand]: true };
-export function toSendableConversation(
-  transcription: Transcription,
-  findings: PiiFinding[],
-): SendableConversation
-
-// Claude 側は、送れる文字列しか受け取らない
-async summarize(fullText: SendableText, ...)
-```
-
-修正後は、`findById` の結果（伏せる前）を `summarize()` に渡すと、コンパイルで止まる。
+| | 修正前 | 修正後 |
+|---|---|---|
+| 伏せた結果の型 | `PrivacyService.maskForSending()` は `Transcription` を返す。伏せる前と同じ型 | `toSendableConversation()` は `SendableConversation` を返す。本文・話者名・発話・単語は `SendableText`（brand 型） |
+| Claude 側が受け取る型 | `summarize()` などは `string` を受け取る | `SendableText` だけを受け取る |
+| 伏せる前の会話を渡したとき | そのまま通る | コンパイルで止まる |
 
 ### 3-3. ドメインイベント
 
