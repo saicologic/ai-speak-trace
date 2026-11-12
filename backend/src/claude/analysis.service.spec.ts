@@ -110,6 +110,10 @@ describe('AnalysisService', () => {
         keywords: ['AI'],
       });
       expect(lastUserText(params)).not.toContain('Aさん');
+      // 指示の文は、tool_result の JSON にある鍵を指す（data で包まない）
+      expect(lastUserText(params)).toContain('speakerName');
+      expect(lastUserText(params)).toContain('keywords');
+      expect(lastUserText(params)).not.toContain('data.');
     });
 
     it('発言の文脈は、会話の各行を外からの内容として渡し、警告を返す', async () => {
@@ -131,6 +135,8 @@ describe('AnalysisService', () => {
         utterances: [{ index: 0, speakerName: 'Aさん', text: 'どうですか' }],
       });
       expect(lastUserText(params)).not.toContain('どうですか');
+      expect(lastUserText(params)).toContain('utterances');
+      expect(lastUserText(params)).not.toContain('data.');
       expect(result).toEqual({
         results: [{ index: 0, intent: '質問', topic: '進捗' }],
         warnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }],

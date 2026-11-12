@@ -153,6 +153,9 @@ describe('SummaryService', () => {
       );
 
       expect(sentConversation()).toBe('実際の会話内容');
+      // 在りかの文は、tool_result の JSON にある鍵を指す（data で包まない）
+      expect(FULL_TEXT_REFERENCE).toContain('conversation');
+      expect(FULL_TEXT_REFERENCE).not.toContain('data.');
       expect(sentInstructions()).toBe(
         `要約してください: ${FULL_TEXT_REFERENCE}`,
       );
