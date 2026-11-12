@@ -287,6 +287,83 @@ describe('外への接続の記録', () => {
   });
 });
 
+/** 接続を試し、最初に起きたエラーのコードと文を返す（DNS は引かずに、名前が見つからないことにする） */
+function connectError(
+  host: string,
+  port: number,
+): Promise<{ code: string | undefined; message: string }> {
+  return new Promise((resolve) => {
+    const lookup: net.LookupFunction = (_host, _options, callback) => {
+      const err = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+      (callback as (e: Error) => void)(err);
+    };
+    const socket = net.connect({ host, port, lookup });
+    socket.on('error', (e: NodeJS.ErrnoException) => {
+      socket.destroy();
+      resolve({ code: e.code, message: e.message });
+    });
+  });
+}
+
+describe('プロキシを使う環境', () => {
+  let uninstall: (() => void) | undefined;
+  const install = (env: NodeJS.ProcessEnv) => {
+    uninstall = installEgressGuard({ allowCustomLookup: true, env });
+  };
+  afterEach(() => uninstall?.());
+
+  const PROXY_MESSAGE = 'プロキシを使う環境では、外部の API につなげません';
+
+  it('プロキシの宛先への接続は、プロキシを使う環境ではつなげないと分かる文で断る', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('proxy.example', 8080);
+    expect(r.code).toBe('EGRESS_BLOCKED');
+    expect(r.message).toContain(PROXY_MESSAGE);
+    expect(r.message).toContain('proxy.example:8080');
+  });
+
+  it.each([
+    [{ https_proxy: 'http://proxy.example:3128' }, 3128],
+    [{ HTTP_PROXY: 'http://proxy.example:8080' }, 8080],
+    [{ http_proxy: 'http://proxy.example' }, 80],
+    [{ ALL_PROXY: 'socks5://proxy.example:1080' }, 1080],
+    [{ all_proxy: 'https://PROXY.example.' }, 443],
+  ])(
+    'プロキシの設定 %j（ポート %d）も、プロキシの文で断る',
+    async (env, port) => {
+      install(env);
+      const r = await connectError('proxy.example', port);
+      expect(r.code).toBe('EGRESS_BLOCKED');
+      expect(r.message).toContain(PROXY_MESSAGE);
+    },
+  );
+
+  it('プロキシと関係のない宛先は、これまでの文で断る', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    for (const [host, port] of [
+      ['example.com', 443],
+      ['proxy.example', 3128],
+    ] as const) {
+      const r = await connectError(host, port);
+      expect(r.code).toBe('EGRESS_BLOCKED');
+      expect(r.message).toContain('外への通信を断りました');
+      expect(r.message).not.toContain(PROXY_MESSAGE);
+    }
+  });
+
+  it('読めないプロキシの設定は無視し、これまでの文で断る', async () => {
+    install({ HTTPS_PROXY: 'not a url', HTTP_PROXY: '' });
+    const r = await connectError('example.com', 443);
+    expect(r.message).toContain('外への通信を断りました');
+  });
+
+  it('許した宛先には、プロキシの設定があってもそのままつなぐ', async () => {
+    install({ HTTPS_PROXY: 'http://proxy.example:8080' });
+    const r = await connectError('api.anthropic.com', 443);
+    expect(r.code).toBe('ENOTFOUND');
+  });
+});
+
 describe('withEgressHosts（その処理の間だけ宛先を足す）', () => {
   let uninstall: () => void;
   beforeEach(() => {
