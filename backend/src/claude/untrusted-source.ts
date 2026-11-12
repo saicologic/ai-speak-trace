@@ -14,7 +14,10 @@ export const SOURCE_LOADED_TEXT = '分析の対象を読み込みました。';
 
 /** tool_result で渡す、外から来た内容 */
 export interface UntrustedSource {
-  /** 内容の種類と出どころ（例: Podcast や会議の文字起こし） */
+  /**
+   * 内容の種類と出どころ（例: Podcast や会議の文字起こし）
+   * ツールの説明に書き、Guardrails の確認と伏せ字を通らないため、アプリが書いた固定の文だけにする（外から来た値を入れない）
+   */
   description: string;
   /** 内容そのもの。JSON にして渡す */
   data: unknown;
