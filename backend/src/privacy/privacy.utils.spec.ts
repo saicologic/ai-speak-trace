@@ -375,6 +375,23 @@ describe('ユーザー名の初期状態', () => {
     expect(withCurrentDefaults([github])).toEqual([github]);
   });
 
+  it('ユーザー名のほかの種類は、要確認のまま保存されていても、そのまま（利用者が選ぶまで確認済みにしない）', () => {
+    const others: PiiFinding[] = [
+      'EMAIL',
+      'PHONE',
+      'JP_MY_NUMBER',
+      'UNKNOWN',
+    ].map((type) => ({
+      type,
+      label: type,
+      text: `${type}-value`,
+      count: 1,
+      mask: false,
+      needsReview: true,
+    }));
+    expect(withCurrentDefaults(others)).toEqual(others);
+  });
+
   it('形の崩れた検出は、そのまま返す', () => {
     const broken = [null, 'x'] as unknown as PiiFinding[];
     expect(withCurrentDefaults(broken)).toEqual([null, 'x']);

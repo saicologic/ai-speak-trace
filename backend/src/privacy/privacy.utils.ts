@@ -151,7 +151,7 @@ export function isIgnoredPii(type: string, match: string): boolean {
 
 /**
  * 保存済みの検出結果を、今の初期状態にそろえる
- * 利用者がまだ選んでいない（要確認の）検出のうち、今は要確認にしない種類（ユーザー名）は、初期状態どおり伏せる。
+ * 利用者がまだ選んでいない（要確認の）ユーザー名は、初期状態どおり伏せる（ほかの種類は変えない）。
  * 公開したバージョンはユーザー名を結果から除いていたが、開発中のバージョンでは伏せずに要確認として保存していたため。
  * 会社名・製品名など、個人情報として扱わない検出は変えない
  */
@@ -161,7 +161,8 @@ export function withCurrentDefaults(findings: PiiFinding[]): PiiFinding[] {
     f &&
     typeof f === 'object' &&
     f.needsReview === true &&
-    !REVIEW_TYPES.has(f.type) &&
+    // そろえるのはユーザー名だけ（ほかの種類は、利用者が選ぶまで要確認のままにする）
+    f.type === 'USERNAME' &&
     // 会社名・製品名など、個人情報として扱わないものは伏せない
     typeof f.text === 'string' &&
     !isIgnoredPii(f.type, f.text)
