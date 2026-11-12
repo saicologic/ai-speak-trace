@@ -382,9 +382,9 @@ describe('MCP サーバー', () => {
       expect(JSON.stringify(entry)).not.toContain('Aさん');
     });
 
-    it('記録のない以前の結果で、文字起こしの保存と同じミリ秒の中でチェックした会話は、古い（stale）とせず話者名だけを置き換える', async () => {
-      // ファイルの更新時刻はミリ秒より細かく、チェックの時刻はミリ秒までのため、同じミリ秒の中では後に見える
-      // （チェックの後に話者名を変えたのか、変えた後にチェックしたのか分からないため、話者名は返さない）
+    it('記録のない以前の結果では、チェックと同じミリ秒の中かその後に保存した会話を、古い（stale）とする', async () => {
+      // 以前の結果には本文・話者名の記録がなく、同じミリ秒の中ではチェックの前後どちらで保存したか分からないため、
+      // チェックし直しを求める（チェックし直すと、記録の付いた結果になる）
       const at = Date.parse('2026-10-01T00:00:00.000Z');
       const file = path.join(
         data.dir,
@@ -392,44 +392,34 @@ describe('MCP サーバー', () => {
         'checked-talk',
         'transcription.json',
       );
-      await fs.utimes(file, at / 1000 + 0.0004, at / 1000 + 0.0004);
-      expect((await fs.stat(file)).mtimeMs).toBeGreaterThan(at);
       await data.writeScan(
         'checked-talk',
         FINDINGS,
         new Date(at).toISOString(),
       );
-      const same = await call('list_transcriptions');
-      expect(same.json.transcriptions[0]).toMatchObject({
-        privacy: 'checked',
-        speakers: [
-          { id: 'speaker_0', name: '話者1' },
-          { id: 'speaker_1', name: '話者2' },
-        ],
-      });
-      expect(same.json.transcriptions[0].notice).toContain(
-        '話者名を変えた後の個人情報チェックが終わっていません',
-      );
-      expect(same.text).not.toContain('Bさん');
+      const privacyAt = async (mtimeSec: number) => {
+        await fs.utimes(file, mtimeSec, mtimeSec);
+        const { json } = await call('list_transcriptions');
+        return json.transcriptions[0];
+      };
+
+      // 同じミリ秒の中（ファイルの更新時刻はミリ秒より細かい）
+      expect((await privacyAt(at / 1000 + 0.0004)).privacy).toBe('stale');
+      // チェックの時刻とちょうど同じ
+      expect((await privacyAt(at / 1000)).privacy).toBe('stale');
+      // ミリ秒が変わる後（秒の小数で渡すと、丸めで 1 ミリ秒に届かないことがあるため、2 ミリ秒後にする）
+      expect((await privacyAt((at + 2) / 1000)).privacy).toBe('stale');
 
       // チェックより前に保存していれば、話者名も返す
-      await fs.utimes(file, (at - 2) / 1000, (at - 2) / 1000);
-      const before = await call('list_transcriptions');
-      expect(before.json.transcriptions[0]).toMatchObject({
+      const before = await privacyAt((at - 2) / 1000);
+      expect(before).toMatchObject({
         privacy: 'checked',
         speakers: [
           { id: 'speaker_0', name: '[氏名]' },
           { id: 'speaker_1', name: 'Bさん' },
         ],
       });
-      expect(before.json.transcriptions[0].notice).toBeUndefined();
-
-      // ミリ秒が変わる後に保存していれば、古い（stale）とする
-      // （秒の小数で渡すと、丸めで 1 ミリ秒に届かないことがあるため、2 ミリ秒後にする）
-      await fs.utimes(file, (at + 2) / 1000, (at + 2) / 1000);
-      expect(Math.floor((await fs.stat(file)).mtimeMs)).toBeGreaterThan(at);
-      const later = await call('list_transcriptions');
-      expect(later.json.transcriptions[0].privacy).toBe('stale');
+      expect(before.notice).toBeUndefined();
     });
 
     it('会話が多い場合は nextCursor で続きを返す', async () => {
