@@ -123,6 +123,21 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 - Guardrails の単語フィルターは日本語に対応していないため、出力の英語の部分だけを確かめる
 - 調べる範囲を意図して狭くしているため、テーマを広く網羅する調査には向かない
 
+## 既にある Guardrail の根拠の確認を Standard tier にする
+
+`UpdateGuardrail` は設定全体を置き換えるため、変えたい所だけを送ると、ほかの設定が消えます。`tierConfig` を書かなければ、根拠の確認は Classic tier に戻ります（[Safeguard tiers](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-tiers.html)）。そのため、今の設定を `get-guardrail` で取り、根拠の確認の tier だけを変えた入力を `GuardrailUpdateInput` で作ってから送ります。
+
+```bash
+cd backend && npm run build
+aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 > current.json
+node scripts/guardrail-standard-grounding.js current.json > update.json
+aws bedrock update-guardrail --cli-input-json file://update.json --profile <プロファイル> --region ap-northeast-1
+aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 --query contextualGroundingPolicy
+```
+
+- 変わるのは DRAFT です。アプリで番号付きのバージョンを使っているときは、`create-guardrail-version` で新しいバージョンを作り、設定画面のバージョンを入れ替えます
+- 次のときは、入力を作らずに止まります: 根拠の確認が設定されていない、クロスリージョン推論（ガードレールプロファイル）が設定されていない（Standard tier に必要）、引き継ぎ方がわからない設定がある（書かずに消してしまわないため）
+
 ## 用語集
 
 | 用語 | 説明 | このアプリでの使い方 |
@@ -148,5 +163,6 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 | `backend/src/research/research-guardrails.ts` | 根拠スコアのしきい値、Guardrails の出力の確認 |
 | `backend/src/research/research.utils.ts` | 引用の確かめ（`verifyQuotes`）、公式サイトの判定、一般のサイトを調べるかの判断 |
 | `backend/src/research/research-job.store.ts` | 調査ジョブの保存 |
+| `backend/src/privacy/guardrail-update-input.ts`・`backend/scripts/guardrail-standard-grounding.js` | 既にある Guardrail の根拠の確認を Standard tier にする `update-guardrail` の入力を作る |
 | `backend/src/claude/claude-client.service.ts` | Claude への送受信と Guardrails の確認 |
 | `frontend/src/components/ResearchPage.tsx` | ディープサーチの画面 |
