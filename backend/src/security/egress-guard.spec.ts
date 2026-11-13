@@ -41,6 +41,19 @@ describe('isEgressAllowed（外への通信を許すか）', () => {
     );
   });
 
+  it('Guardrail の設定を読み書きする API（bedrock.<リージョン>）は許す', () => {
+    expect(isEgressAllowed('bedrock.ap-northeast-1.amazonaws.com', 443)).toBe(
+      true,
+    );
+    expect(isEgressAllowed('bedrock.ap-northeast-1.amazonaws.com', 80)).toBe(
+      false,
+    );
+    expect(isEgressAllowed('bedrock.evil.com', 443)).toBe(false);
+    expect(
+      isEgressAllowed('bedrock.ap-northeast-1.amazonaws.com.evil.com', 443),
+    ).toBe(false);
+  });
+
   it('一覧にない宛先は断る', () => {
     expect(isEgressAllowed('example.com', 443)).toBe(false);
     expect(isEgressAllowed('s3.amazonaws.com', 443)).toBe(false);
