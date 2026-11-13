@@ -61,6 +61,29 @@ export interface UpdateGuardrailInput {
   crossRegionConfig: { guardrailProfileIdentifier: string };
 }
 
+/** 引き継ぎ方がわかっている get-guardrail の項目（ほかの項目があれば、書かずに消してしまわないよう止める） */
+const KNOWN_FIELDS = new Set<string>([
+  'name',
+  'guardrailId',
+  'guardrailArn',
+  'version',
+  'status',
+  'statusReasons',
+  'failureRecommendations',
+  'createdAt',
+  'updatedAt',
+  'description',
+  'kmsKeyArn',
+  'blockedInputMessaging',
+  'blockedOutputsMessaging',
+  'topicPolicy',
+  'contentPolicy',
+  'wordPolicy',
+  'sensitiveInformationPolicy',
+  'contextualGroundingPolicy',
+  'crossRegionDetails',
+]);
+
 /** 空でない一覧だけを、指定した名前で返す（update-guardrail は空の一覧を受け付けないため） */
 function nonEmpty<K extends string>(
   key: K,
@@ -86,6 +109,24 @@ export class GuardrailUpdateInput {
   /** 根拠の確認（contextual grounding check）の tier だけを STANDARD にした入力 */
   withStandardGrounding(): UpdateGuardrailInput {
     const g = this.current;
+    const unknown = Object.keys(g).filter((k) => !KNOWN_FIELDS.has(k));
+    if (unknown.length > 0) {
+      throw new Error(
+        `引き継ぎ方がわからない設定があります: ${unknown.sort().join(', ')}`,
+      );
+    }
+    const grounding = g.contextualGroundingPolicy;
+    if (!grounding) {
+      throw new Error(
+        '根拠の確認（contextualGroundingPolicy）が設定されていません',
+      );
+    }
+    const profile = g.crossRegionDetails?.guardrailProfileId;
+    if (!profile) {
+      throw new Error(
+        'クロスリージョン推論（ガードレールプロファイル）が設定されていません。STANDARD に必要です',
+      );
+    }
     return {
       guardrailIdentifier: g.guardrailId,
       name: g.name,
@@ -121,12 +162,10 @@ export class GuardrailUpdateInput {
         },
       }),
       contextualGroundingPolicyConfig: {
-        filtersConfig: g.contextualGroundingPolicy!.filters,
+        filtersConfig: grounding.filters,
         tierConfig: { tierName: 'STANDARD' },
       },
-      crossRegionConfig: {
-        guardrailProfileIdentifier: g.crossRegionDetails!.guardrailProfileId!,
-      },
+      crossRegionConfig: { guardrailProfileIdentifier: profile },
     };
   }
 }
