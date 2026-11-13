@@ -16,11 +16,11 @@ const ALLOWED_HOSTS = new Set([
 ]);
 
 /**
- * AWS のリージョンごとの宛先（Guardrails の確認・Guardrail の設定の読み書きと、プロファイルの認証情報）。
+ * AWS のリージョンごとの宛先（Guardrails と、プロファイルの認証情報）。
  * リージョンの名前は英小文字・数字・ハイフンだけ（例 ap-northeast-1）
  */
 const ALLOWED_AWS_HOST =
-  /^(bedrock-runtime|bedrock|sts|portal\.sso|oidc)\.[a-z]{2}(-[a-z]+)+-\d\.amazonaws\.com$/;
+  /^(bedrock-runtime|sts|portal\.sso|oidc)\.[a-z]{2}(-[a-z]+)+-\d\.amazonaws\.com$/;
 
 const HTTPS_PORT = 443;
 

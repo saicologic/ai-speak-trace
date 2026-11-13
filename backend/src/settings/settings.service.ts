@@ -3,10 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { GuardrailService } from '../privacy/guardrail.service';
-import {
-  GroundingTierService,
-  GroundingTierStatus,
-} from '../privacy/grounding-tier.service';
 import { KeychainSecretStore } from './secret-store';
 import { isAiAnalysisEnabled } from './ai-analysis';
 
@@ -99,7 +95,6 @@ export class SettingsService {
   constructor(
     private readonly configService: ConfigService,
     private readonly guardrail: GuardrailService,
-    private readonly groundingTier: GroundingTierService,
   ) {
     this.settingsFilePath =
       this.configService.get<string>('SETTINGS_FILE') ||
@@ -263,14 +258,6 @@ export class SettingsService {
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
-    // 別の Guardrail・バージョン・プロファイルになったら、覚えている根拠の確認の tier を読み直す
-    if (
-      dto.bedrockGuardrailId !== undefined ||
-      guardrailVersion !== undefined ||
-      awsProfile !== undefined
-    ) {
-      this.groundingTier.reset();
-    }
     // 保存できたあとで切り替える（保存に失敗したときに、保存した内容と動きが食い違わないように）
     if (dto.enableAiAnalysis !== undefined) {
       process.env.AI_ANALYSIS = dto.enableAiAnalysis ? 'on' : 'off';
@@ -284,55 +271,6 @@ export class SettingsService {
       settings: this.getSettings(),
       restartRequired,
     };
-  }
-
-  /** 今の Guardrail の根拠の確認の tier */
-  async getGroundingTier(): Promise<{ tier: GroundingTierStatus }> {
-    return { tier: await this.groundingTier.getTier() };
-  }
-
-  /**
-   * Guardrail の根拠の確認を Standard tier にする（今の設定は引き継ぐ）
-   * 新しいバージョンを作ったときは、設定のバージョンをその番号に入れ替える
-   */
-  async switchGroundingToStandard(): Promise<{
-    tier: 'STANDARD';
-    version: string;
-    settings: AppSettings;
-  }> {
-    // 切り替えの最中に Guardrail ID などを保存して、前の Guardrail のバージョンを書かないよう、設定の保存と同じ待ち行列に入れる
-    const run = this.updating.then(() => this.runSwitchToStandard());
-    this.updating = run.catch(() => undefined);
-    const version = await run;
-    return { tier: 'STANDARD', version, settings: this.getSettings() };
-  }
-
-  private async runSwitchToStandard(): Promise<string> {
-    let version: string;
-    try {
-      ({ version } = await this.groundingTier.switchToStandard());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new BadRequestException(
-        `根拠の確認を Standard tier にできませんでした: ${message}`,
-      );
-    }
-    if (version !== 'DRAFT') {
-      // 作ったばかりのバージョンは GroundingTierService が読み直して確かめているため、ApplyGuardrail で確かめ直さない
-      // （確かめ直しが失敗すると、AWS にはできたバージョンと設定が食い違い、押し直すたびにバージョンが増えるため）
-      this.savePinnedVersion(version);
-    }
-    return version;
-  }
-
-  /** Guardrail のバージョンの設定を保存する（確かめ直さない） */
-  private savePinnedVersion(version: string): void {
-    const updated: SettingsFile = {
-      ...this.readSettingsFile(),
-      bedrockGuardrailPinnedVersion: version,
-    };
-    this.writeSettingsFile(updated);
-    process.env.BEDROCK_GUARDRAIL_VERSION = version;
   }
 
   /**
