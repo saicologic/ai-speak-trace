@@ -79,7 +79,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 - 審査の結果が返らなかった事実の文は、裏付けを確かめられないため除く
 - Guardrails には、根拠に Web の引用の抜粋、質問に文が属する論点のキーワード（直前のキーワードの見出し。見出しより前の文は文そのもの）、確かめる応答に文を渡す（`groundingTarget`・`segmentTopics`）
   - 日本語の主張20件と事実を1か所変えた20件で比べると、質問を文そのものにしたときは 28/40、論点のキーワードにしたときは 35/40 だった（Standard tier）
-- しきい値 `0.8` は、66件の主張（正しい主張と、事実を1か所変えた主張）で検証して、正解率が最も高かった（98%）値（`GROUNDING_THRESHOLD`）。この検証は Classic tier の英語の主張で行ったもので、Standard tier ではしきい値を検証し直していない
+- しきい値 `0.8` は、66件の主張（正しい主張と、事実を1か所変えた主張）で検証して、正解率が最も高かった（98%）値（`GROUNDING_THRESHOLD`）。この検証は Classic tier の英語の主張で行った。Standard tier では、日本語の正しい文19件と事実を1か所変えた19件で、しきい値 `0.8` のまま 36/38 だった（Standard tier の点数はほぼ 0・0.6・1 に分かれた）
 - 評価として、引用が付いた文の割合（`citationCoverage`）、裏付けがあった割合（`supportedRate`）、公式サイトの出典の割合（`officialSourceRate`）を返す
 - 除いた文（`removedClaims`）と「要確認」の文（`reviewClaims`）は、理由と一緒に評価に残し、ディープサーチの画面で確かめられるようにする
   - 調査ジョブはアプリのデータフォルダの `research-jobs/<調査ID>.json` に保存し、外には送らない。使った会話を削除すると、調査ジョブも一緒に削除する
@@ -119,7 +119,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 ## 限界
 
 - Guardrails の根拠の確認が日本語に対応するのは Standard tier だけ（Classic tier は英語・フランス語・スペイン語）。アプリは Guardrail の tier を確かめないため、Classic tier の Guardrail では、対応していない言語の文にも点数を付けて判定に使う
-- 根拠の確認の質問に論点のキーワードを渡すため、キーワードと別の意味で書いた文（例: 論点「ハーネス」でのワイヤーハーネスの説明）は、根拠に合っていても点数が下がり「要確認」になることがある
+- 根拠の確認は、言葉は根拠に近いまま意味だけを反対にした文（例: 「分ける」を「1つにまとめる」）を見逃すことがある（Standard tier・論点を質問にして、事実を1か所変えた19件のうち2件）
 - Guardrails の単語フィルターは日本語に対応していないため、出力の英語の部分だけを確かめる
 - 調べる範囲を意図して狭くしているため、テーマを広く網羅する調査には向かない
 
@@ -135,6 +135,7 @@ aws bedrock update-guardrail --cli-input-json file://update.json --profile <プ�
 aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 --query contextualGroundingPolicy
 ```
 
+- `tierConfig` を使うには、新しい AWS CLI が要ります（2.40.2 で使えることを確かめた。2.32.32 は `Unknown parameter in contextualGroundingPolicyConfig: "tierConfig"` で失敗する）。古い CLI は、`get-guardrail` の結果からも根拠の確認の tier を省きます
 - 変わるのは DRAFT です。アプリで番号付きのバージョンを使っているときは、`create-guardrail-version` で新しいバージョンを作り、設定画面のバージョンを入れ替えます
 - 次のときは、入力を作らずに止まります: 番号付きのバージョンの出力を渡した（`update-guardrail` が書き換える DRAFT を古い設定で上書きしないため。`get-guardrail` には `--guardrail-version` を付けない）、根拠の確認が設定されていない、クロスリージョン推論（ガードレールプロファイル）が設定されていない（Standard tier に必要）、引き継ぎ方がわからない設定がある（書かずに消してしまわないため）
 
