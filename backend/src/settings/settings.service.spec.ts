@@ -6,7 +6,6 @@ import * as path from 'path';
 import * as os from 'os';
 import { SettingsService } from './settings.service';
 import { GuardrailService } from '../privacy/guardrail.service';
-import { GroundingTierService } from '../privacy/grounding-tier.service';
 import { KeychainSecretStore } from './secret-store';
 
 /** キーチェーンの代わりに使う、メモリ上のストア */
@@ -35,11 +34,6 @@ describe('SettingsService', () => {
     verify: jest.Mock;
     resetClient: jest.Mock;
   };
-  let groundingTier: {
-    getTier: jest.Mock;
-    switchToStandard: jest.Mock;
-    reset: jest.Mock;
-  };
   const originalAwsProfile = process.env.AWS_PROFILE;
 
   /** 一時ディレクトリに設定ファイルを書き込むヘルパー */
@@ -63,18 +57,12 @@ describe('SettingsService', () => {
       verify: jest.fn().mockResolvedValue(undefined),
       resetClient: jest.fn(),
     };
-    groundingTier = {
-      getTier: jest.fn().mockResolvedValue('CLASSIC'),
-      switchToStandard: jest.fn().mockResolvedValue({ version: 'DRAFT' }),
-      reset: jest.fn(),
-    };
     delete process.env.AWS_PROFILE;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SettingsService,
         { provide: GuardrailService, useValue: guardrail },
-        { provide: GroundingTierService, useValue: groundingTier },
         {
           provide: ConfigService,
           useValue: {
@@ -559,88 +547,6 @@ describe('SettingsService', () => {
 
     it('キーチェーンを使えない環境では何もしない', () => {
       expect(() => SettingsService.loadApiKeysFromKeychain(null)).not.toThrow();
-    });
-  });
-
-  describe('根拠の確認の tier', () => {
-    it('今の tier を返す', async () => {
-      await expect(service.getGroundingTier()).resolves.toEqual({
-        tier: 'CLASSIC',
-      });
-    });
-
-    it('DRAFT を使っていれば、切り替えてもバージョンの設定は変えない', async () => {
-      writeSettings({ bedrockGuardrailId: 'g1' });
-      const result = await service.switchGroundingToStandard();
-      expect(groundingTier.switchToStandard).toHaveBeenCalled();
-      expect(result.tier).toBe('STANDARD');
-      expect(result.settings.guardrail.version).toBe('');
-      expect(readSettings().bedrockGuardrailPinnedVersion).toBeUndefined();
-    });
-
-    it('新しいバージョンを作ったら、設定のバージョンをその番号に入れ替える', async () => {
-      writeSettings({
-        bedrockGuardrailId: 'g1',
-        bedrockGuardrailPinnedVersion: '3',
-      });
-      guardrail.guardrailId = 'g1';
-      groundingTier.switchToStandard.mockResolvedValue({ version: '4' });
-      const result = await service.switchGroundingToStandard();
-      expect(readSettings().bedrockGuardrailPinnedVersion).toBe('4');
-      expect(process.env.BEDROCK_GUARDRAIL_VERSION).toBe('4');
-      expect(result.settings.guardrail.version).toBe('4');
-      // 作ったばかりのバージョンは、ApplyGuardrail で確かめ直さない（失敗して AWS と設定が食い違わないように）
-      expect(guardrail.verify).not.toHaveBeenCalled();
-      // 切り替えで覚えた STANDARD を捨てない
-      expect(groundingTier.reset).not.toHaveBeenCalled();
-    });
-
-    it('切り替えの最中に設定を保存しても、切り替えが終わってから保存する（前の Guardrail のバージョンを、変えた後の設定に書かない）', async () => {
-      writeSettings({
-        bedrockGuardrailId: 'g1',
-        bedrockGuardrailPinnedVersion: '3',
-      });
-      guardrail.guardrailId = 'g1';
-      let finish!: (v: { version: string }) => void;
-      groundingTier.switchToStandard.mockReturnValue(
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-      );
-      const switching = service.switchGroundingToStandard();
-      const saving = service.updateSettings({ enableGinzaKeywords: true });
-      await new Promise((resolve) => setImmediate(resolve));
-      // 切り替えが終わるまで、保存は始まらない
-      expect(readSettings().enableGinzaKeywords).toBeUndefined();
-      finish({ version: '4' });
-      await Promise.all([switching, saving]);
-      expect(readSettings()).toMatchObject({
-        bedrockGuardrailPinnedVersion: '4',
-        enableGinzaKeywords: true,
-      });
-    });
-
-    it('切り替えに失敗したら、理由を添えて BadRequest にする', async () => {
-      groundingTier.switchToStandard.mockRejectedValue(
-        new Error('DRAFT の設定が、使っているバージョン 3 と違う'),
-      );
-      await expect(service.switchGroundingToStandard()).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.switchGroundingToStandard()).rejects.toThrow(
-        'DRAFT の設定が',
-      );
-    });
-
-    it('Guardrail ID・バージョン・AWS のプロファイルを変えたら、覚えている tier を捨てる', async () => {
-      await service.updateSettings({ bedrockGuardrailId: 'g2' });
-      expect(groundingTier.reset).toHaveBeenCalledTimes(1);
-      await service.updateSettings({ enableGinzaKeywords: true });
-      expect(groundingTier.reset).toHaveBeenCalledTimes(1);
-      await service.updateSettings({ awsProfile: 'other' });
-      expect(groundingTier.reset).toHaveBeenCalledTimes(2);
-      await service.updateSettings({ bedrockGuardrailVersion: '5' });
-      expect(groundingTier.reset).toHaveBeenCalledTimes(3);
     });
   });
 });

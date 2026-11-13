@@ -27,8 +27,6 @@ describe('SettingsController', () => {
           useValue: {
             getSettings: jest.fn(),
             updateSettings: jest.fn(),
-            getGroundingTier: jest.fn(),
-            switchGroundingToStandard: jest.fn(),
           },
         },
       ],
@@ -69,29 +67,6 @@ describe('SettingsController', () => {
       expect(settingsService.updateSettings).toHaveBeenCalledWith({
         elevenlabsApiKey: 'new-key',
       });
-    });
-  });
-
-  describe('根拠の確認の tier', () => {
-    it('GET grounding-tier で今の tier を返す', async () => {
-      settingsService.getGroundingTier.mockResolvedValue({ tier: 'CLASSIC' });
-      await expect(controller.getGroundingTier()).resolves.toEqual({
-        tier: 'CLASSIC',
-      });
-    });
-
-    it('POST grounding-tier/standard で Standard に切り替える', async () => {
-      const switched = {
-        tier: 'STANDARD',
-        version: '4',
-        settings: sampleSettings,
-      };
-      settingsService.switchGroundingToStandard.mockResolvedValue(
-        switched as any,
-      );
-      await expect(controller.switchGroundingToStandard()).resolves.toEqual(
-        switched,
-      );
     });
   });
 });
