@@ -391,4 +391,20 @@ describe('GroundingTierService.switchToStandard', () => {
       'automatedReasoningPolicy',
     );
   });
+
+  it('バージョンの説明が違うだけなら、同じ設定とみなして切り替えを終える（新しいバージョンには切り替えの説明を付けるため）', async () => {
+    const pinned = { ...guardrail('3'), description: 'バージョン3' };
+    const created = {
+      ...guardrail('4', 'STANDARD'),
+      description: '根拠の確認を Standard tier にした',
+    };
+    mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
+      '3': [pinned],
+      '4': [created],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).resolves.toEqual({
+      version: '4',
+    });
+  });
 });

@@ -255,7 +255,7 @@ describe('SettingsPage', () => {
       ).toBeInTheDocument();
     });
 
-    it('切り替えている間は、保存できない', async () => {
+    it('切り替えている間は、入力も保存もできない（切り替えた後の設定で、入力が上書きされるため）', async () => {
       vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
       vi.mocked(switchGroundingToStandard).mockReturnValue(new Promise(() => {}));
       render(<SettingsPage onBack={vi.fn()} />);
@@ -264,11 +264,38 @@ describe('SettingsPage', () => {
         await screen.findByRole('button', { name: 'Standard に切り替える' }),
       );
       await waitFor(() => expect(switchGroundingToStandard).toHaveBeenCalled());
-      fireEvent.change(screen.getByPlaceholderText('DRAFT'), {
-        target: { value: '7' },
-      });
 
+      expect(screen.getByPlaceholderText('DRAFT')).toBeDisabled();
       expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+    });
+
+    it('確かめの画面を出している間から、入力と切り替えのボタンを使えなくする（別の Guardrail を切り替えないため）', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(confirmDialog).mockReturnValue(new Promise(() => {}));
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      const button = await screen.findByRole('button', {
+        name: 'Standard に切り替える',
+      });
+      fireEvent.click(button);
+      await waitFor(() => expect(confirmDialog).toHaveBeenCalled());
+
+      expect(screen.getByPlaceholderText('DRAFT')).toBeDisabled();
+      expect(button).toBeDisabled();
+    });
+
+    it('確かめの画面で取り消したら、入力できる状態に戻す', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(confirmDialog).mockResolvedValue(false);
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Standard に切り替える' }),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText('DRAFT')).toBeEnabled(),
+      );
     });
 
     it('AI 分析が OFF なら、tier を読まない', async () => {
