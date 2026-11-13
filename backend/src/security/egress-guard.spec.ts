@@ -52,6 +52,13 @@ describe('isEgressAllowed（外への通信を許すか）', () => {
     expect(
       isEgressAllowed('bedrock.ap-northeast-1.amazonaws.com.evil.com', 443),
     ).toBe(false);
+    expect(isEgressAllowed('bedrock.amazonaws.com', 443)).toBe(false);
+    expect(
+      isEgressAllowed('bedrock-agent.ap-northeast-1.amazonaws.com', 443),
+    ).toBe(false);
+    expect(isEgressAllowed('xbedrock.ap-northeast-1.amazonaws.com', 443)).toBe(
+      false,
+    );
   });
 
   it('一覧にない宛先は断る', () => {

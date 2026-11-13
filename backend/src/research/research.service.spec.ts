@@ -572,37 +572,40 @@ describe('ResearchService（失敗した調査の再開）', () => {
     ]);
   });
 
-  it('根拠の確認が Standard tier でなければ、日本語の文は確かめず、英語の文だけを文そのものを質問にして確かめる', async () => {
-    groundingTier.getTier.mockResolvedValue('CLASSIC');
-    const webCite = {
-      sourceKind: 'web' as const,
-      sourceId: 'https://example.com/a',
-      title: 'a',
-      citedText: 'excerpt',
-      official: true,
-    };
-    const english = 'The harness manages context for long-running agents.';
-    const { service, claude, guardrail, waitFor } = setup({
-      ...confirmedJob,
-      webSources: [source('https://example.com/a')],
-    });
-    claude.analyze.mockResolvedValueOnce([
-      { text: '## ハーネス', citations: [] },
-      { text: 'ハーネスは文脈を管理します。', citations: [webCite] },
-      { text: english, citations: [webCite] },
-    ]);
-    guardrail.checkGrounding.mockResolvedValue({
-      grounding: 0.9,
-      relevance: 0.9,
-    });
+  it.each(['CLASSIC', 'NONE', 'UNKNOWN'])(
+    '根拠の確認の tier が %s なら、日本語の文は確かめず、英語の文だけを文そのものを質問にして確かめる',
+    async (tier) => {
+      groundingTier.getTier.mockResolvedValue(tier);
+      const webCite = {
+        sourceKind: 'web' as const,
+        sourceId: 'https://example.com/a',
+        title: 'a',
+        citedText: 'excerpt',
+        official: true,
+      };
+      const english = 'The harness manages context for long-running agents.';
+      const { service, claude, guardrail, waitFor } = setup({
+        ...confirmedJob,
+        webSources: [source('https://example.com/a')],
+      });
+      claude.analyze.mockResolvedValueOnce([
+        { text: '## ハーネス', citations: [] },
+        { text: 'ハーネスは文脈を管理します。', citations: [webCite] },
+        { text: english, citations: [webCite] },
+      ]);
+      guardrail.checkGrounding.mockResolvedValue({
+        grounding: 0.9,
+        relevance: 0.9,
+      });
 
-    await service.resume('job-1');
-    await waitFor('completed');
+      await service.resume('job-1');
+      await waitFor('completed');
 
-    expect(guardrail.checkGrounding.mock.calls).toEqual([
-      ['excerpt', english, english],
-    ]);
-  });
+      expect(guardrail.checkGrounding.mock.calls).toEqual([
+        ['excerpt', english, english],
+      ]);
+    },
+  );
 
   it('統合分析で失敗した調査は、保存した情報源を使って④から再開する（Web調査をやり直さない）', async () => {
     const webSources = [source('https://example.com/a')];

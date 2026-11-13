@@ -589,8 +589,8 @@ describe('SettingsService', () => {
       expect(readSettings().bedrockGuardrailPinnedVersion).toBe('4');
       expect(process.env.BEDROCK_GUARDRAIL_VERSION).toBe('4');
       expect(result.settings.guardrail.version).toBe('4');
-      // 入れ替えたバージョンの tier を読み直す
-      expect(groundingTier.reset).toHaveBeenCalled();
+      // 作ったばかりのバージョンは、ApplyGuardrail で確かめ直さない（失敗して AWS と設定が食い違わないように）
+      expect(guardrail.verify).not.toHaveBeenCalled();
     });
 
     it('切り替えに失敗したら、理由を添えて BadRequest にする', async () => {
@@ -612,6 +612,8 @@ describe('SettingsService', () => {
       expect(groundingTier.reset).toHaveBeenCalledTimes(1);
       await service.updateSettings({ awsProfile: 'other' });
       expect(groundingTier.reset).toHaveBeenCalledTimes(2);
+      await service.updateSettings({ bedrockGuardrailVersion: '5' });
+      expect(groundingTier.reset).toHaveBeenCalledTimes(3);
     });
   });
 });

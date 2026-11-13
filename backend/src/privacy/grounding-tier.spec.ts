@@ -396,6 +396,19 @@ describe('sameSettingsExceptGroundingTier', () => {
     expect(sameSettingsExceptGroundingTier(guardrail(), pinned)).toBe(false);
   });
 
+  it('ガードレールプロファイルの ARN が違えば、違う設定とみなす', () => {
+    const arn = (name: string) =>
+      `arn:aws:bedrock:ap-northeast-1:000000000000:guardrail-profile/${name}`;
+    const a = guardrail({
+      crossRegionDetails: { guardrailProfileArn: arn('apac.guardrail.v1:0') },
+    });
+    const b = guardrail({
+      version: '3',
+      crossRegionDetails: { guardrailProfileArn: arn('us.guardrail.v1:0') },
+    });
+    expect(sameSettingsExceptGroundingTier(a, b)).toBe(false);
+  });
+
   it('キーの順番が違うだけなら、同じ設定とみなす', () => {
     const a = guardrail({
       contentPolicy: {

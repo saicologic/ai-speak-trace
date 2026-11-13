@@ -13,13 +13,14 @@ import { GroundingTierService } from './grounding-tier.service';
 const guardrail = (
   version: string,
   tier?: 'CLASSIC' | 'STANDARD',
+  status: 'READY' | 'UPDATING' = 'READY',
 ): GetGuardrailCommandOutput => ({
   $metadata: {},
   name: 'research-verify',
   guardrailId: 'g1',
   guardrailArn: 'arn:aws:bedrock:ap-northeast-1:000000000000:guardrail/g1',
   version,
-  status: 'READY',
+  status,
   createdAt: new Date('2026-10-01T00:00:00Z'),
   updatedAt: new Date('2026-10-11T00:00:00Z'),
   blockedInputMessaging: '入力を止めました',
@@ -35,7 +36,13 @@ const guardrail = (
  * BedrockClient.send を差し替える。versions には、GetGuardrail のバージョンごとの結果を順に並べる
  * （同じバージョンを何度も読むときは、並べた順に返す。最後の1つは何度でも返す）
  */
-function mockBedrock(versions: Record<string, GetGuardrailCommandOutput[]>) {
+function mockBedrock(
+  versions: Record<string, GetGuardrailCommandOutput[]>,
+  {
+    updateError,
+    createdVersion = '4',
+  }: { updateError?: Error; createdVersion?: string } = {},
+) {
   const calls: { name: string; input: Record<string, unknown> }[] = [];
   const send = jest
     .spyOn(BedrockClient.prototype, 'send')
@@ -52,11 +59,12 @@ function mockBedrock(versions: Record<string, GetGuardrailCommandOutput[]>) {
       }
       if (command instanceof UpdateGuardrailCommand) {
         calls.push({ name: 'UpdateGuardrail', input });
+        if (updateError) return Promise.reject(updateError);
         return Promise.resolve({ guardrailId: 'g1', version: 'DRAFT' });
       }
       if (command instanceof CreateGuardrailVersionCommand) {
         calls.push({ name: 'CreateGuardrailVersion', input });
-        return Promise.resolve({ guardrailId: 'g1', version: '4' });
+        return Promise.resolve({ guardrailId: 'g1', version: createdVersion });
       }
       return Promise.reject(new Error('想定していない呼び出し'));
     }) as never);
@@ -76,7 +84,10 @@ function setup({ id = 'g1', version = '' } = {}) {
     get: (key: string, fallback?: string) =>
       key === 'AWS_REGION' ? 'ap-northeast-1' : fallback,
   } as unknown as ConfigService;
-  return new GroundingTierService(config, guardrailService);
+  const service = new GroundingTierService(config, guardrailService);
+  // テストでは、Guardrail が READY に戻るのを待つ間隔を 0 にする
+  service.readyPollMs = 0;
+  return service;
 }
 
 afterEach(() => jest.restoreAllMocks());
@@ -104,6 +115,19 @@ describe('GroundingTierService.getTier', () => {
   it('GetGuardrail を呼べなければ（権限がないなど）UNKNOWN', async () => {
     mockBedrock({});
     await expect(setup().getTier()).resolves.toBe('UNKNOWN');
+  });
+
+  it('読めなかったとき（UNKNOWN）は覚えず、次は読み直す（IAM の権限を直した後など）', async () => {
+    const send = jest
+      .spyOn(BedrockClient.prototype, 'send')
+      .mockImplementationOnce((() =>
+        Promise.reject(new Error('AccessDeniedException'))) as never)
+      .mockImplementationOnce((() =>
+        Promise.resolve(guardrail('DRAFT', 'STANDARD'))) as never);
+    const service = setup();
+    await expect(service.getTier()).resolves.toBe('UNKNOWN');
+    await expect(service.getTier()).resolves.toBe('STANDARD');
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it('Guardrail ID が設定されていなければ、呼ばずに UNKNOWN', async () => {
@@ -148,17 +172,19 @@ describe('GroundingTierService.switchToStandard', () => {
 
   it('番号付きのバージョンを使っていれば、DRAFT と同じ設定かを確かめてから新しいバージョンを作り、その番号を返す', async () => {
     const { calls } = mockBedrock({
-      DRAFT: [guardrail('DRAFT')],
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
       '3': [guardrail('3')],
       '4': [guardrail('4', 'STANDARD')],
     });
     await expect(setup({ version: '3' }).switchToStandard()).resolves.toEqual({
       version: '4',
     });
+    // UpdateGuardrail の後、DRAFT が READY に戻ったのを確かめてから、新しいバージョンを作る
     expect(calls.map((c) => [c.name, c.input.guardrailVersion])).toEqual([
       ['GetGuardrail', 'DRAFT'],
       ['GetGuardrail', '3'],
       ['UpdateGuardrail', undefined],
+      ['GetGuardrail', 'DRAFT'],
       ['CreateGuardrailVersion', undefined],
       ['GetGuardrail', '4'],
     ]);
@@ -181,18 +207,88 @@ describe('GroundingTierService.switchToStandard', () => {
     await expect(setup().switchToStandard()).rejects.toThrow('STANDARD');
   });
 
-  it('切り替えたら、覚えている tier を読み直す', async () => {
+  it('切り替えたら、確かめた STANDARD を覚える（切り替えの最中に読んだ古い tier を残さない）', async () => {
     const { calls } = mockBedrock({
       DRAFT: [
         guardrail('DRAFT'),
         guardrail('DRAFT'),
         guardrail('DRAFT', 'STANDARD'),
+        guardrail('DRAFT'),
       ],
     });
     const service = setup();
     await expect(service.getTier()).resolves.toBe('CLASSIC');
     await service.switchToStandard();
     await expect(service.getTier()).resolves.toBe('STANDARD');
-    expect(calls.filter((c) => c.name === 'GetGuardrail')).toHaveLength(4);
+    expect(calls.filter((c) => c.name === 'GetGuardrail')).toHaveLength(3);
+  });
+
+  it('UpdateGuardrail の後、READY に戻るまで待ってから確かめる', async () => {
+    const { calls } = mockBedrock({
+      DRAFT: [
+        guardrail('DRAFT'),
+        guardrail('DRAFT', 'STANDARD', 'UPDATING'),
+        guardrail('DRAFT', 'STANDARD'),
+      ],
+    });
+    await expect(setup().switchToStandard()).resolves.toEqual({
+      version: 'DRAFT',
+    });
+    expect(calls.map((c) => c.name)).toEqual([
+      'GetGuardrail',
+      'UpdateGuardrail',
+      'GetGuardrail',
+      'GetGuardrail',
+    ]);
+  });
+
+  it('READY に戻らなければ、新しいバージョンを作らずに失敗にする', async () => {
+    const { calls } = mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD', 'UPDATING')],
+      '3': [guardrail('3')],
+    });
+    const service = setup({ version: '3' });
+    service.readyPollAttempts = 3;
+    await expect(service.switchToStandard()).rejects.toThrow('READY');
+    expect(calls.map((c) => c.name)).not.toContain('CreateGuardrailVersion');
+  });
+
+  it('UpdateGuardrail が失敗したら、その後は呼ばずに失敗にする', async () => {
+    const { calls } = mockBedrock(
+      { DRAFT: [guardrail('DRAFT')], '3': [guardrail('3')] },
+      { updateError: new Error('AccessDeniedException') },
+    );
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'AccessDeniedException',
+    );
+    expect(calls.map((c) => c.name)).toEqual([
+      'GetGuardrail',
+      'GetGuardrail',
+      'UpdateGuardrail',
+    ]);
+  });
+
+  it('新しいバージョンの番号が返らなければ失敗にする', async () => {
+    mockBedrock(
+      {
+        DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
+        '3': [guardrail('3')],
+      },
+      { createdVersion: '' },
+    );
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'バージョンの番号',
+    );
+  });
+
+  it('新しいバージョンを読み直して STANDARD でなければ失敗にする', async () => {
+    mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
+      '3': [guardrail('3')],
+      '4': [guardrail('4')],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'STANDARD',
+    );
   });
 });
