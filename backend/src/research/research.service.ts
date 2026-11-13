@@ -471,7 +471,10 @@ export class ResearchService implements OnModuleInit {
     const scores = new Map<number, number>();
     if (!this.guardrail.isConfigured()) return scores;
     // 日本語の文の根拠の確認は Standard tier だけが対応する（確かめられなければ英語の文だけにする）
-    const standardTier = (await this.groundingTier.getTier()) === 'STANDARD';
+    const standardTier = await this.groundingTier
+      .getTier()
+      .then((tier) => tier === 'STANDARD')
+      .catch(() => false);
     const topics = segmentTopics(report, keywords);
     for (const [index, segment] of report.entries()) {
       const target = groundingTarget(segment, topics[index], standardTier);

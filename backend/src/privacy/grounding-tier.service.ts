@@ -127,6 +127,12 @@ export class GroundingTierService {
       version = created.version;
       checked = await this.waitUntilReady(id, version);
       // 新しいバージョンは作った時点の DRAFT を写すため、途中で別の操作が設定を変えていないかを確かめる
+      const added = unknownFields(checked);
+      if (added.length > 0) {
+        throw new Error(
+          `新しいバージョン ${version} に、引き継ぎ方がわからない設定があります: ${added.join(', ')}`,
+        );
+      }
       if (!sameSettingsExceptGroundingTier(checked, draft)) {
         throw new Error(
           `新しいバージョン ${version} の設定が、切り替える前の DRAFT と違います。AWS のコンソールで確かめてください`,
