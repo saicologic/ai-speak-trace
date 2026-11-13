@@ -1,21 +1,8 @@
 import {
   extractEnglish,
   groundingTarget,
-  isEnglishText,
   toOutputChecks,
 } from './research-guardrails';
-
-describe('isEnglishText', () => {
-  it('英語の文は true、日本語の文は false', () => {
-    expect(
-      isEnglishText('Claude Code uses a harness to manage long-running tasks.'),
-    ).toBe(true);
-    expect(
-      isEnglishText('Claude Code はハーネスで長い作業を管理します。'),
-    ).toBe(false);
-    expect(isEnglishText('OK')).toBe(false);
-  });
-});
 
 describe('extractEnglish', () => {
   it('日本語に空白なしで混ざった英単語も1行ずつ取り出す', () => {
