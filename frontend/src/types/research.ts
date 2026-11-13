@@ -179,7 +179,7 @@ export interface ClaimCheck {
   topic?: string;
   /** 根拠が付いていなかったか（false は、根拠はあったが内容を裏付けていない）。以前の調査にはない */
   missingCitation?: boolean;
-  /** Guardrails の根拠スコア（0〜1。英語の主張だけ） */
+  /** Guardrails の根拠スコア（0〜1。Web の根拠が付いた主張だけ） */
   groundingScore?: number;
 }
 
@@ -200,7 +200,7 @@ export interface ResearchEvaluation {
   supportedRate: number;
   /** 根拠がない・裏付けられないため、表示から除いた主張 */
   removedClaims: ClaimCheck[];
-  /** 評価モデルと Guardrails の判定が分かれたため、表示は残して確認を促す主張（英語の主張だけ） */
+  /** 評価モデルと Guardrails の判定が分かれたため、表示は残して確認を促す主張（根拠スコアがある主張だけ） */
   reviewClaims?: ClaimCheck[];
   /** Guardrails による確認（Guardrail ID が未設定なら null） */
   guardrails?: {
