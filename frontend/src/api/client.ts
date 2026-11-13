@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  GroundingTier,
   AudioFileInfo,
   ContextAnalysisResponse,
   Feedback,
@@ -721,6 +722,30 @@ export async function fetchSettings(): Promise<AppSettings> {
 /** データフォルダをFinderで開く */
 export async function openDataFolder(): Promise<void> {
   await apiFetch(`${BASE_URL}/settings/open-folder`, { method: 'POST' });
+}
+
+/** Guardrail の根拠の確認の tier を取得 */
+export async function fetchGroundingTier(): Promise<{ tier: GroundingTier }> {
+  const res = await apiFetch(`${BASE_URL}/settings/grounding-tier`);
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '根拠の確認の tier を取得できませんでした'));
+  }
+  return res.json();
+}
+
+/** Guardrail の根拠の確認を Standard tier にする（今の設定は引き継ぐ。新しいバージョンを作ったら設定も入れ替わる） */
+export async function switchGroundingToStandard(): Promise<{
+  tier: 'STANDARD';
+  version: string;
+  settings: AppSettings;
+}> {
+  const res = await apiFetch(`${BASE_URL}/settings/grounding-tier/standard`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, '根拠の確認を Standard tier にできませんでした'));
+  }
+  return res.json();
 }
 
 /** アプリ設定を更新 */

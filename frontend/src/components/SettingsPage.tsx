@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
-import { fetchSettings, updateSettings, openDataFolder } from '../api/client';
-import type { ApiKeyStatus, AppSettings } from '../types';
+import {
+  fetchGroundingTier,
+  fetchSettings,
+  openDataFolder,
+  switchGroundingToStandard,
+  updateSettings,
+} from '../api/client';
+import type { ApiKeyStatus, AppSettings, GroundingTier } from '../types';
+import { confirmDialog } from '../utils/platform';
 import { missingAiSettings } from '../utils/aiAnalysis';
 import './SettingsPage.css';
+
+/** 根拠の確認の tier の説明 */
+const GROUNDING_TIER_LABELS: Record<GroundingTier, string> = {
+  STANDARD: '根拠の確認: Standard（日本語の文も確かめます）',
+  CLASSIC:
+    '根拠の確認: Classic（日本語の文は確かめません。Standard に切り替えると、日本語の文も確かめます）',
+  NONE: '根拠の確認: 設定されていません（ディープサーチの根拠スコアを使いません）',
+  UNKNOWN:
+    '根拠の確認: 確かめられませんでした（IAM に bedrock:GetGuardrail の権限があるか確認してください）',
+};
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -100,6 +117,9 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
   const [guardrailId, setGuardrailId] = useState('');
   const [guardrailVersion, setGuardrailVersion] = useState('');
   const [awsProfile, setAwsProfile] = useState('');
+  const [groundingTier, setGroundingTier] = useState<GroundingTier | null>(null);
+  const [switchingTier, setSwitchingTier] = useState(false);
+  const [tierError, setTierError] = useState('');
 
   /** 設定値を画面の入力に反映する */
   const applySettings = (s: AppSettings) => {
@@ -113,6 +133,50 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
     setGuardrailId(s.guardrail?.id ?? '');
     setGuardrailVersion(s.guardrail?.version ?? '');
     setAwsProfile(s.awsProfile ?? '');
+  };
+
+  // 保存済みの Guardrail の根拠の確認の tier を読む（AI 分析が ON で、Guardrail ID があるときだけ）
+  const savedGuardrailId = settings?.guardrail?.id ?? '';
+  const savedGuardrailVersion = settings?.guardrail?.version ?? '';
+  const savedAiAnalysis = settings?.enableAiAnalysis ?? false;
+  const savedAwsProfile = settings?.awsProfile ?? '';
+  useEffect(() => {
+    if (!savedAiAnalysis || !savedGuardrailId) {
+      setGroundingTier(null);
+      return;
+    }
+    let cancelled = false;
+    fetchGroundingTier()
+      .then(({ tier }) => {
+        if (!cancelled) setGroundingTier(tier);
+      })
+      .catch(() => {
+        if (!cancelled) setGroundingTier('UNKNOWN');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedAiAnalysis, savedGuardrailId, savedGuardrailVersion, savedAwsProfile]);
+
+  /** 確かめてから、Guardrail の根拠の確認を Standard tier にする */
+  const handleSwitchTier = async () => {
+    const confirmed = await confirmDialog(
+      'AWS の Guardrail の設定を書き換えます。根拠の確認を Standard tier にし、ほかの設定はそのまま引き継ぎます。' +
+        '番号付きのバージョンを使っている場合は、新しいバージョンを作り、設定のバージョンを入れ替えます。続けますか？',
+      { title: '根拠の確認を Standard にする', kind: 'warning' },
+    );
+    if (!confirmed) return;
+    setSwitchingTier(true);
+    setTierError('');
+    try {
+      const result = await switchGroundingToStandard();
+      applySettings(result.settings);
+      setGroundingTier(result.tier);
+    } catch (err) {
+      setTierError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSwitchingTier(false);
+    }
   };
 
   // 設定を読み込み
@@ -371,6 +435,25 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     変えると、保存する前にそのプロファイルで Guardrail を呼べることを確かめます。
                   </p>
                 </div>
+                {groundingTier && (
+                  <div className="settings-input-group">
+                    <label>根拠の確認（ディープサーチ）</label>
+                    <p className="settings-checkbox-hint">
+                      {GROUNDING_TIER_LABELS[groundingTier]}
+                    </p>
+                    {groundingTier === 'CLASSIC' && (
+                      <button
+                        type="button"
+                        className="settings-open-folder-button"
+                        onClick={handleSwitchTier}
+                        disabled={switchingTier}
+                      >
+                        Standard に切り替える
+                      </button>
+                    )}
+                    {tierError && <div className="settings-error">{tierError}</div>}
+                  </div>
+                )}
                 </>
               )}
             </div>

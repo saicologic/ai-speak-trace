@@ -158,6 +158,9 @@ export interface SummaryConfig {
 }
 
 /** アプリ設定 */
+/** Guardrail の根拠の確認の tier（UNKNOWN は、GetGuardrail を呼べないなどで確かめられない） */
+export type GroundingTier = 'STANDARD' | 'CLASSIC' | 'NONE' | 'UNKNOWN';
+
 export interface AppSettings {
   appVersion: string;
   paths: {
