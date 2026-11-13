@@ -21,7 +21,10 @@ export function isEnglishText(text: string): boolean {
   return latin >= 20 && latin >= japanese * 4;
 }
 
-/** 根拠の確認の対象（英語で、Web の根拠が付いた文）と、Guardrails に渡す内容 */
+/**
+ * 根拠の確認の対象（Web の根拠が付いた文）と、Guardrails に渡す内容
+ * Standard tier の根拠の確認は日本語にも対応するため、文の言語では絞らない
+ */
 export function groundingTarget(
   segment: ReportSegment,
 ): { source: string; query: string; claim: string } | null {
@@ -30,7 +33,7 @@ export function groundingTarget(
     .filter((c) => c.sourceKind === 'web')
     .map((c) => c.citedText.trim())
     .filter(Boolean);
-  if (sources.length === 0 || !isEnglishText(claim)) return null;
+  if (sources.length === 0 || !claim) return null;
   return {
     source: sources.join('\n\n').slice(0, GROUNDING_SOURCE_MAX_CHARS),
     // 質問は主張そのものにする（主張と関係のない一般的な質問だと、関連度が下がって点数が不安定になる）
