@@ -2,6 +2,7 @@ import { TranscriptionStoreService } from '../transcription/transcription-store.
 import { RawJudgement, ResearchClaudeService } from './research-claude.service';
 import { ResearchJobStore } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
+import { GroundingTierService } from '../privacy/grounding-tier.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import {
   evaluate,
@@ -21,6 +22,12 @@ const cite = (official?: boolean) => ({
   title: 'x',
   citedText: '根拠',
   ...(official !== undefined && { official }),
+});
+
+/** 根拠の確認の tier（多くのテストは Standard tier） */
+let groundingTier = { getTier: jest.fn(() => Promise.resolve('STANDARD')) };
+beforeEach(() => {
+  groundingTier = { getTier: jest.fn(() => Promise.resolve('STANDARD')) };
 });
 
 const ethicsOk = {
@@ -226,6 +233,7 @@ describe('ResearchService', () => {
       {} as ResearchClaudeService,
       { isConfigured: () => false } as unknown as GuardrailService,
       {} as PrivacyService,
+      groundingTier as unknown as GroundingTierService,
     );
     return {
       service,
@@ -256,6 +264,7 @@ describe('ResearchService', () => {
       {} as ResearchClaudeService,
       { isConfigured: () => true } as unknown as GuardrailService,
       privacy as unknown as PrivacyService,
+      groundingTier as unknown as GroundingTierService,
     );
     void service.start(['t1']);
     for (let i = 0; i < 5; i++) {
@@ -279,6 +288,7 @@ describe('ResearchService', () => {
         getStatus: jest.fn(() => Promise.resolve({ scan: null })),
         scan: jest.fn(() => Promise.reject(new Error('throttled'))),
       } as unknown as PrivacyService,
+      groundingTier as unknown as GroundingTierService,
     );
     await expect(service.start(['t1'])).rejects.toThrow(
       '個人情報チェックに失敗したため、調査を始められません: throttled',
@@ -517,6 +527,7 @@ describe('ResearchService（失敗した調査の再開）', () => {
           }),
         ),
       } as unknown as PrivacyService,
+      groundingTier as unknown as GroundingTierService,
     );
     /** バックグラウンドの処理が、指定した状態になるまで待つ */
     const waitFor = async (status: ResearchJob['status']) => {
@@ -558,6 +569,38 @@ describe('ResearchService（失敗した調査の再開）', () => {
     expect(guardrail.checkGrounding.mock.calls).toEqual([
       ['根拠の抜粋', 'ハーネス', 'ハーネスは文脈を管理します。'],
       ['根拠の抜粋', 'MCP', 'MCP は外部のツールにつなぎます。'],
+    ]);
+  });
+
+  it('根拠の確認が Standard tier でなければ、日本語の文は確かめず、英語の文だけを文そのものを質問にして確かめる', async () => {
+    groundingTier.getTier.mockResolvedValue('CLASSIC');
+    const webCite = {
+      sourceKind: 'web' as const,
+      sourceId: 'https://example.com/a',
+      title: 'a',
+      citedText: 'excerpt',
+      official: true,
+    };
+    const english = 'The harness manages context for long-running agents.';
+    const { service, claude, guardrail, waitFor } = setup({
+      ...confirmedJob,
+      webSources: [source('https://example.com/a')],
+    });
+    claude.analyze.mockResolvedValueOnce([
+      { text: '## ハーネス', citations: [] },
+      { text: 'ハーネスは文脈を管理します。', citations: [webCite] },
+      { text: english, citations: [webCite] },
+    ]);
+    guardrail.checkGrounding.mockResolvedValue({
+      grounding: 0.9,
+      relevance: 0.9,
+    });
+
+    await service.resume('job-1');
+    await waitFor('completed');
+
+    expect(guardrail.checkGrounding.mock.calls).toEqual([
+      ['excerpt', english, english],
     ]);
   });
 
@@ -819,6 +862,7 @@ describe('ResearchService（送る前の確認）', () => {
       claude as unknown as ResearchClaudeService,
       { isConfigured: () => true } as unknown as GuardrailService,
       privacy as unknown as PrivacyService,
+      groundingTier as unknown as GroundingTierService,
     );
 
     await service.start(

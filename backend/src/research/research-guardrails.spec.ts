@@ -52,6 +52,24 @@ describe('groundingTarget', () => {
     ).toEqual({ source: 'a', query: claim, claim });
   });
 
+  it('Standard tier でなければ、英語の文だけを対象にし、論点ではなく文そのものを質問にする', () => {
+    const english = 'The harness manages context for long-running agents.';
+    expect(
+      groundingTarget(
+        { text: english, citations: [web('a')] },
+        'ハーネス',
+        false,
+      ),
+    ).toEqual({ source: 'a', query: english, claim: english });
+    expect(
+      groundingTarget(
+        { text: 'ハーネスは文脈を管理します。', citations: [web('a')] },
+        'ハーネス',
+        false,
+      ),
+    ).toBeNull();
+  });
+
   it('Web の根拠がない文と、空の文は対象にしない', () => {
     expect(
       groundingTarget({
