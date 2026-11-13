@@ -703,6 +703,23 @@ function isStructureOnly(text: string, keywords: string[]): boolean {
     .every((line) => line === '' || isSectionLine(line, keywords));
 }
 
+/** レポートの各文の論点（直前に出てきたキーワードの見出し。見出しより前の文は undefined） */
+export function segmentTopics(
+  report: ReportSegment[],
+  keywords: string[],
+): (string | undefined)[] {
+  let topic: string | undefined;
+  return report.map((segment) => {
+    for (const line of segment.text.split('\n')) {
+      const heading = line.trim().match(/^#{1,6}\s+(.+)$/);
+      if (heading && keywords.includes(heading[1].trim())) {
+        topic = heading[1].trim();
+      }
+    }
+    return topic;
+  });
+}
+
 /** 「不足:」「推測:」と明記した注記の文と、関連するキーワードの列挙（事実の主張として審査しない） */
 const NOTE_SENTENCE =
   /^(?:[-*]\s*)?(?:\*\*)?(?:不足|推測|関連するキーワード)(?:\*\*)?\s*[:：]/;
