@@ -292,4 +292,13 @@ describe('GuardrailUpdateInput', () => {
       }).withStandardGrounding(),
     ).toThrow('DRAFT');
   });
+
+  it('version がない get-guardrail の出力では止めない', () => {
+    const current = minimal();
+    delete current.version;
+    expect(
+      new GuardrailUpdateInput(current).withStandardGrounding()
+        .contextualGroundingPolicyConfig.tierConfig,
+    ).toEqual({ tierName: 'STANDARD' });
+  });
 });

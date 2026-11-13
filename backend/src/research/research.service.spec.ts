@@ -988,6 +988,19 @@ describe('segmentTopics', () => {
       'MCP',
     ]);
   });
+
+  it('本文の後にある見出しは、その文の論点にせず、次の文から使う', () => {
+    const report = [
+      seg('## ハーネス'),
+      seg('文脈を保ちます。\n\n## MCP'),
+      seg('外部のツールにつなぎます。'),
+    ];
+    expect(segmentTopics(report, ['ハーネス', 'MCP'])).toEqual([
+      'ハーネス',
+      'ハーネス',
+      'MCP',
+    ]);
+  });
 });
 
 describe('normalizeTitle', () => {
