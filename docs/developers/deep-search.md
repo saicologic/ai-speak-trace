@@ -129,7 +129,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 
 ```bash
 cd backend && npm run build
-aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 > current.json
+aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 --output json > current.json
 node scripts/guardrail-standard-grounding.js current.json > update.json
 aws bedrock update-guardrail --cli-input-json file://update.json --profile <プロファイル> --region ap-northeast-1
 aws bedrock get-guardrail --guardrail-identifier <Guardrail ID> --profile <プロファイル> --region ap-northeast-1 --query contextualGroundingPolicy
