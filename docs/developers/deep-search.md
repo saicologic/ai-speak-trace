@@ -4,7 +4,7 @@
 公式サイトを先に調べ、情報が足りないときだけ一般のサイトも調べます。
 会話での説明と Web の情報が食い違う箇所も示します。
 AI の出力はそのまま使わず、文ごとの引用と別モデルの審査で確かめ、根拠のない文はレポートから除きます。
-Web の根拠が付いた文は、Amazon Bedrock Guardrails の根拠スコア（Standard tier）でも確かめます。
+Web の根拠が付いた文は、Guardrail で根拠の確認を有効にしているとき、Amazon Bedrock Guardrails の根拠スコアでも確かめます（日本語の文を確かめるため、根拠の確認は Standard tier にする前提です）。
 
 コードは `backend/src/research/` にあります。
 
@@ -118,7 +118,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 
 ## 限界
 
-- Guardrails の根拠の確認は、Guardrail を Standard tier にしたときだけ日本語に対応する（Classic tier は英語・フランス語・スペイン語）。Classic tier の Guardrail では、日本語の文の点数が低く出て「要確認」が増える
+- Guardrails の根拠の確認が日本語に対応するのは Standard tier だけ（Classic tier は英語・フランス語・スペイン語）。アプリは Guardrail の tier を確かめないため、Classic tier の Guardrail では、対応していない言語の文にも点数を付けて判定に使う
 - Guardrails の単語フィルターは日本語に対応していないため、出力の英語の部分だけを確かめる
 - 調べる範囲を意図して狭くしているため、テーマを広く網羅する調査には向かない
 
@@ -129,7 +129,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 | Citations（引用） | Claude API の機能。渡した文書のどの部分を根拠にしたかを、回答の文ごとに返す（[Citations](https://platform.claude.com/docs/en/build-with-claude/citations)） | 統合分析で、会話の発言と Web の抜粋を引用させる |
 | LLM-as-a-Judge | AI の出力の良し悪しを、別の AI に判定させる評価の方法 | 分析とは別のモデル（`claude-haiku-5-5`）が、文ごとの裏付けを判定する |
 | Amazon Bedrock Guardrails | AWS のサービス。個人情報・不適切な表現・プロンプト攻撃の検出と、根拠の確認を行う（[Amazon Bedrock Guardrails](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html)） | Claude への送受信の確認と、統合分析の根拠スコアに使う |
-| 根拠スコア（contextual grounding check） | Guardrails の機能。回答が渡した根拠の文章に沿っているかを点数で返す。対応する言語は tier によって違う（[contextual grounding check](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)） | Web の引用がある文を Standard tier で確かめ、しきい値 `0.8` 未満を「根拠と合わない」とする |
+| 根拠スコア（contextual grounding check） | Guardrails の機能。回答が渡した根拠の文章に沿っているかを点数で返す。対応する言語は tier によって違う（[contextual grounding check](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)） | 根拠の確認を有効にした Guardrail で、Web の引用がある文を確かめ、しきい値 `0.8` 未満を「根拠と合わない」とする（Standard tier が前提） |
 | プロンプト攻撃 | 文章に紛れ込ませた指示で、AI に意図しない動きをさせる攻撃。プロンプトインジェクションとも呼ぶ（[prompt attacks](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-prompt-attack.html)） | Claude に送る内容を Guardrails で確かめ、検出したら送らない |
 | 伏せる（マスク）・要確認 | 個人情報チェックで、Claude に送る前に置き換える文字列と、伏せるかどうかを人が決める候補 | 伏せる文字列は置き換えてから送る。要確認のまま送った文字列は記録に残す |
 | `web_search` ツール | Claude API のサーバー側のツール。Claude が自分で Web を検索し、結果を引用付きで返す（[Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)） | Web調査で、キーワードごとに検索させる |
