@@ -376,3 +376,11 @@
   background-color: #fffbeb;
   color: #92400e;
 }
+
+/* 入力をまとめて使えなくするための枠（見た目は変えない） */
+.settings-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}

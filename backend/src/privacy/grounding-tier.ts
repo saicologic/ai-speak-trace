@@ -184,9 +184,9 @@ function canonicalJson(value: unknown): string {
 
 /** 比べる設定（バージョン・日時・状態と、根拠の確認の tier を除く） */
 function comparableSettings(g: GetGuardrailCommandOutput): unknown {
+  // description はバージョンごとの説明なので比べない（新しいバージョンには切り替えの説明を付けるため）
   return {
     name: g.name,
-    description: g.description,
     kmsKeyArn: g.kmsKeyArn,
     blockedInputMessaging: g.blockedInputMessaging,
     blockedOutputsMessaging: g.blockedOutputsMessaging,

@@ -160,13 +160,17 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   /** 確かめてから、Guardrail の根拠の確認を Standard tier にする */
   const handleSwitchTier = async () => {
+    // 確かめの画面を出している間から、入力と保存を止める
+    setSwitchingTier(true);
     const confirmed = await confirmDialog(
       'AWS の Guardrail の設定を書き換えます。根拠の確認を Standard tier にし、ほかの設定はそのまま引き継ぎます。' +
         '番号付きのバージョンを使っている場合は、新しいバージョンを作り、設定のバージョンを入れ替えます。続けますか？',
       { title: '根拠の確認を Standard にする', kind: 'warning' },
     );
-    if (!confirmed) return;
-    setSwitchingTier(true);
+    if (!confirmed) {
+      setSwitchingTier(false);
+      return;
+    }
     setTierError('');
     try {
       const result = await switchGroundingToStandard();
@@ -305,7 +309,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
         )}
 
         {settings && (
-          <>
+          // 切り替えの確かめと切り替えの間は入力させない（切り替えた後の設定で上書きされ、別の Guardrail を切り替えないため）
+          <fieldset className="settings-fieldset" disabled={switchingTier}>
             {/* 文字起こし */}
             <div className="settings-section">
               <h2>文字起こし</h2>
@@ -523,7 +528,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                 {saving ? '保存中...' : '保存'}
               </button>
             </div>
-          </>
+          </fieldset>
         )}
       </div>
     </div>
