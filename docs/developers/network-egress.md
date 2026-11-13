@@ -11,7 +11,6 @@
 | `api.anthropic.com` | 要約・分析・ディープサーチ（Web 検索も Anthropic の側で行う） |
 | `api.elevenlabs.io` | 文字起こし |
 | `bedrock-runtime.<リージョン>.amazonaws.com` | Amazon Bedrock Guardrails（`ApplyGuardrail`） |
-| `bedrock.<リージョン>.amazonaws.com` | Guardrail の設定の読み書き（根拠の確認の tier を読む `GetGuardrail`、設定画面で Standard tier に切り替える `UpdateGuardrail`・`CreateGuardrailVersion`）。会話の本文は送らない |
 | `sts.amazonaws.com`・`sts.<リージョン>.amazonaws.com`・`portal.sso.<リージョン>.amazonaws.com`・`oidc.<リージョン>.amazonaws.com` | AWS のプロファイルの認証情報（AssumeRole・SSO） |
 | `github.com`・`release-assets.githubusercontent.com`・`objects.githubusercontent.com` | GiNZA の準備で `uv` を取るときだけ（`withEgressHosts`） |
 

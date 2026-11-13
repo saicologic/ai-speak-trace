@@ -50,23 +50,21 @@ AI 分析を使うには、AWS アカウントに Guardrail を1つ作り、そ�
    - **クロスリージョン推論**: 有効にし、Guardrail プロファイルに `apac.guardrail.v1:0` を選ぶ（日本語を確認できる Standard ティアに必要です）
    - **コンテンツフィルター**: Standard ティアにし、「プロンプト攻撃」を有効にする。ヘイト・侮辱などのフィルターも有効にすると、Claude の応答に不適切な表現がないかも確認します
    - **機密情報フィルター**: 検出したい個人情報の種類（氏名・住所・電話番号・メールアドレスなど）を選ぶ
-   - **根拠の確認（contextual grounding check）**: ディープサーチの根拠スコアに使います。有効にするときは Standard ティアにします（Classic ティアは日本語に対応していないため、日本語の文を確かめません）。使わない場合は有効にしなくてもかまいません。既に Classic ティアで作った場合は、設定画面の「Standard に切り替える」で切り替えられます（下の IAM の権限が要ります）。Standard ティアにはクロスリージョン推論が要るため、先に AWS のコンソールでクロスリージョン推論を有効にし（Guardrail プロファイルに `apac.guardrail.v1:0`）、番号付きのバージョンを使っている場合は新しいバージョンを作って設定画面のバージョンを入れ替えてから、切り替えてください。クロスリージョン推論が無効なままでは、切り替えずに止まります
+   - **根拠の確認（contextual grounding check）**: ディープサーチの根拠スコアに使います。有効にするときは、必ず Standard ティアにします。アプリは Standard ティアを前提に日本語の文も確かめるため、Classic ティア（日本語に対応していません）のままでは根拠スコアが当てになりません。既に Classic ティアで作った場合は、AWS のコンソールで Standard ティアに変え、新しいバージョンを作って設定画面のバージョンを入れ替えてください。使わない場合は有効にしなくてもかまいません
    - **動作**: どのフィルターも「検出のみ」にする（ブロックしない）。伏せる・送らないの判断はアプリが行います
 2. **バージョンを作る**: 作った Guardrail のバージョンを作り、その番号（`1` など）を設定画面の「バージョン」に入れます。空の場合は DRAFT を使いますが、コンソールで編集するとすぐに変わるため、バージョンの指定を勧めます。
-3. **IAM の権限を付ける**: 使う IAM ユーザーに、Guardrail と、Guardrail プロファイルの送り先のリージョンへの `bedrock:ApplyGuardrail` と、Guardrail の設定を読む `bedrock:GetGuardrail` を許可します。`bedrock:GetGuardrail` がないと、設定画面に「根拠の確認: 確かめられませんでした」と出て、日本語の文の根拠スコアを使いません。
+3. **IAM の権限を付ける**: 使う IAM ユーザーに、Guardrail と、Guardrail プロファイルの送り先のリージョンへの `bedrock:ApplyGuardrail` を許可します。
 
    ```json
    {
      "Effect": "Allow",
-     "Action": ["bedrock:ApplyGuardrail", "bedrock:GetGuardrail"],
+     "Action": ["bedrock:ApplyGuardrail"],
      "Resource": [
        "arn:aws:bedrock:ap-northeast-1:<アカウントID>:guardrail/<Guardrail ID>",
        "arn:aws:bedrock:*:<アカウントID>:guardrail-profile/apac.guardrail.v1:0"
      ]
    }
    ```
-
-   設定画面の「Standard に切り替える」を使う場合は、Guardrail に `bedrock:UpdateGuardrail` と `bedrock:CreateGuardrailVersion` も許可します。切り替えは、今の設定を引き継いで根拠の確認の tier だけを変えます。番号付きのバージョンを使っている場合は、新しいバージョンを作り、設定画面のバージョンをその番号に入れ替えます。DRAFT と使っているバージョンの設定が違う場合は、古い設定で上書きしないよう切り替えず、AWS のコンソールで切り替えるよう案内します。
 
 4. **プロファイルを作る**: `aws configure --profile <名前>` で、その IAM ユーザーのアクセスキーを `~/.aws/credentials` に保存します（SSO には対応していません）。設定画面の「AWS プロファイル」にその名前を入れます（空の場合は `default`）。
 5. **確かめる**: `aws sts get-caller-identity --profile <名前>` で認証情報が使えることを確かめてから、設定画面で保存します。保存するときに、アプリが指定した Guardrail を呼べることを確かめます。
