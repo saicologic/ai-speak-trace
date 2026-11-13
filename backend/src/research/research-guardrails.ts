@@ -12,13 +12,24 @@ export const GROUNDING_THRESHOLD = 0.8;
 const GROUNDING_SOURCE_MAX_CHARS = 50_000;
 
 /**
+ * 英語の主張か（Classic tier の根拠の確認は日本語に対応しないため）
+ * 英字が 20 文字以上あり、英字が日本語の文字より十分に多いものを英語とみなす
+ */
+export function isEnglishText(text: string): boolean {
+  const latin = (text.match(/[A-Za-z]/g) ?? []).length;
+  const japanese = (text.match(/[぀-ヿ㐀-鿿]/g) ?? []).length;
+  return latin >= 20 && latin >= japanese * 4;
+}
+
+/**
  * 根拠の確認の対象（Web の根拠が付いた文）と、Guardrails に渡す内容
- * Standard tier の根拠の確認は日本語にも対応するため、文の言語では絞らない
- * 質問には、文が属する論点（キーワード）を渡す。わからなければ主張そのものを渡す
+ * Standard tier なら、日本語の文も対象にし、質問には文が属する論点（キーワード）を渡す（わからなければ主張そのもの）。
+ * Standard tier でなければ、英語の文だけを対象にし、質問には主張そのものを渡す
  */
 export function groundingTarget(
   segment: ReportSegment,
   topic?: string,
+  standardTier = true,
 ): { source: string; query: string; claim: string } | null {
   const claim = segment.text.trim();
   const sources = segment.citations
@@ -26,10 +37,11 @@ export function groundingTarget(
     .map((c) => c.citedText.trim())
     .filter(Boolean);
   if (sources.length === 0 || !claim) return null;
+  if (!standardTier && !isEnglishText(claim)) return null;
   return {
     source: sources.join('\n\n').slice(0, GROUNDING_SOURCE_MAX_CHARS),
     // Standard tier では、質問を論点にしたほうが、事実を変えた主張を見分けやすかった（日本語の40件で 28/40 → 35/40）
-    query: (topic?.trim() || claim).slice(0, 1000),
+    query: ((standardTier && topic?.trim()) || claim).slice(0, 1000),
     claim: claim.slice(0, 5000),
   };
 }

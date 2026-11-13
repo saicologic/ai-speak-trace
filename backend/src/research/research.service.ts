@@ -14,6 +14,7 @@ import {
   ResearchJobStore,
 } from './research-job.store';
 import { GuardrailService } from '../privacy/guardrail.service';
+import { GroundingTierService } from '../privacy/grounding-tier.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import {
   extractEnglish,
@@ -86,6 +87,7 @@ export class ResearchService implements OnModuleInit {
     private readonly claude: ResearchClaudeService,
     private readonly guardrail: GuardrailService,
     private readonly privacy: PrivacyService,
+    private readonly groundingTier: GroundingTierService,
   ) {}
 
   /** アプリの再起動で中断された調査を、失敗として記録する（中断した段階から再開できる） */
@@ -468,9 +470,11 @@ export class ResearchService implements OnModuleInit {
   ): Promise<Map<number, number>> {
     const scores = new Map<number, number>();
     if (!this.guardrail.isConfigured()) return scores;
+    // 日本語の文の根拠の確認は Standard tier だけが対応する（確かめられなければ英語の文だけにする）
+    const standardTier = (await this.groundingTier.getTier()) === 'STANDARD';
     const topics = segmentTopics(report, keywords);
     for (const [index, segment] of report.entries()) {
-      const target = groundingTarget(segment, topics[index]);
+      const target = groundingTarget(segment, topics[index], standardTier);
       if (!target) continue;
       try {
         const score = await this.guardrail.checkGrounding(
