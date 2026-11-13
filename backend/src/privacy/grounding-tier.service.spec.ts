@@ -13,7 +13,7 @@ import { GroundingTierService } from './grounding-tier.service';
 const guardrail = (
   version: string,
   tier?: 'CLASSIC' | 'STANDARD',
-  status: 'READY' | 'UPDATING' = 'READY',
+  status: 'READY' | 'UPDATING' | 'FAILED' = 'READY',
 ): GetGuardrailCommandOutput => ({
   $metadata: {},
   name: 'research-verify',
@@ -290,5 +290,90 @@ describe('GroundingTierService.switchToStandard', () => {
     await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
       'STANDARD',
     );
+  });
+
+  it('DRAFT が READY でも STANDARD になっていなければ、新しいバージョンを作らずに失敗にする（使わないバージョンを増やさない）', async () => {
+    const { calls } = mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT')],
+      '3': [guardrail('3')],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'STANDARD',
+    );
+    expect(calls.map((c) => c.name)).not.toContain('CreateGuardrailVersion');
+  });
+
+  it('FAILED になったら、待ち続けずにすぐ失敗にする', async () => {
+    const failed = guardrail('DRAFT', 'STANDARD', 'FAILED');
+    failed.statusReasons = ['tierConfig is not supported'];
+    const { calls } = mockBedrock({ DRAFT: [guardrail('DRAFT'), failed] });
+    await expect(setup().switchToStandard()).rejects.toThrow(
+      'tierConfig is not supported',
+    );
+    expect(calls.filter((c) => c.name === 'GetGuardrail')).toHaveLength(2);
+  });
+
+  it('新しいバージョンの設定が、最初に読んだ DRAFT と tier 以外で違えば失敗にする（途中で別の操作が設定を変えたとき）', async () => {
+    const changed = guardrail('4', 'STANDARD');
+    changed.contextualGroundingPolicy = {
+      filters: [{ type: 'GROUNDING', threshold: 0.3, action: 'NONE' }],
+      tier: { tierName: 'STANDARD' },
+    };
+    mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
+      '3': [guardrail('3')],
+      '4': [changed],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      '設定',
+    );
+  });
+
+  it('使っているバージョンに、引き継ぎ方がわからない設定があれば、書き換えずに止める', async () => {
+    const pinned = {
+      ...guardrail('3'),
+      automatedReasoningPolicy: { policies: ['p1'] },
+    } as unknown as GetGuardrailCommandOutput;
+    const { calls } = mockBedrock({
+      DRAFT: [guardrail('DRAFT')],
+      '3': [pinned],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'automatedReasoningPolicy',
+    );
+    expect(calls.map((c) => c.name)).not.toContain('UpdateGuardrail');
+  });
+
+  it('切り替えより前に読み始めた tier は、切り替えた後に届いても覚えない', async () => {
+    let resolveSlow!: (g: GetGuardrailCommandOutput) => void;
+    const slow = new Promise<GetGuardrailCommandOutput>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const later = [
+      guardrail('DRAFT'),
+      guardrail('DRAFT', 'STANDARD'),
+      guardrail('DRAFT'),
+    ];
+    jest.spyOn(BedrockClient.prototype, 'send').mockImplementation(((
+      command: unknown,
+    ) => {
+      if (command instanceof UpdateGuardrailCommand) {
+        return Promise.resolve({ guardrailId: 'g1', version: 'DRAFT' });
+      }
+      // 最初の GetGuardrail（getTier）だけ、返すのを遅らせる
+      if (!resolveSlowUsed) {
+        resolveSlowUsed = true;
+        return slow;
+      }
+      return Promise.resolve(later.shift());
+    }) as never);
+    let resolveSlowUsed = false;
+    const service = setup();
+    const first = service.getTier();
+    await service.switchToStandard();
+    resolveSlow(guardrail('DRAFT'));
+    await expect(first).resolves.toBe('CLASSIC');
+    // 切り替えで覚えた STANDARD が、遅れて届いた CLASSIC で上書きされていない
+    await expect(service.getTier()).resolves.toBe('STANDARD');
   });
 });

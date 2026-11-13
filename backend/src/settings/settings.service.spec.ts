@@ -591,6 +591,33 @@ describe('SettingsService', () => {
       expect(result.settings.guardrail.version).toBe('4');
       // 作ったばかりのバージョンは、ApplyGuardrail で確かめ直さない（失敗して AWS と設定が食い違わないように）
       expect(guardrail.verify).not.toHaveBeenCalled();
+      // 切り替えで覚えた STANDARD を捨てない
+      expect(groundingTier.reset).not.toHaveBeenCalled();
+    });
+
+    it('切り替えの最中に設定を保存しても、切り替えが終わってから保存する（前の Guardrail のバージョンを、変えた後の設定に書かない）', async () => {
+      writeSettings({
+        bedrockGuardrailId: 'g1',
+        bedrockGuardrailPinnedVersion: '3',
+      });
+      guardrail.guardrailId = 'g1';
+      let finish!: (v: { version: string }) => void;
+      groundingTier.switchToStandard.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const switching = service.switchGroundingToStandard();
+      const saving = service.updateSettings({ enableGinzaKeywords: true });
+      await new Promise((resolve) => setImmediate(resolve));
+      // 切り替えが終わるまで、保存は始まらない
+      expect(readSettings().enableGinzaKeywords).toBeUndefined();
+      finish({ version: '4' });
+      await Promise.all([switching, saving]);
+      expect(readSettings()).toMatchObject({
+        bedrockGuardrailPinnedVersion: '4',
+        enableGinzaKeywords: true,
+      });
     });
 
     it('切り替えに失敗したら、理由を添えて BadRequest にする', async () => {
