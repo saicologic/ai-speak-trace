@@ -145,6 +145,12 @@ export class GuardrailUpdateInput {
         `引き継ぎ方がわからない設定があります: ${unknown.join(', ')}`,
       );
     }
+    // update-guardrail が書き換えるのは DRAFT。番号付きのバージョンの設定で DRAFT を上書きしない
+    if (g.version !== undefined && g.version !== 'DRAFT') {
+      throw new Error(
+        `DRAFT の get-guardrail の出力を渡してください（渡されたのはバージョン ${g.version}）`,
+      );
+    }
     const grounding = g.contextualGroundingPolicy;
     if (!grounding?.filters?.length) {
       throw new Error(
