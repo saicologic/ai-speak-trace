@@ -41,8 +41,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-bedrock": "^3.1168.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.1001.0",
-    "@aws-sdk/credential-provider-env": "^3.972.14",
+    "@aws-sdk/client-bedrock-runtime": "^3.1168.0",
+    "@aws-sdk/credential-provider-env": "^3.972.84",
     "@aws-sdk/credential-provider-ini": "^3.972.14",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@nestjs/common": "^11.0.1",
