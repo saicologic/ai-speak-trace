@@ -237,6 +237,40 @@ describe('SettingsPage', () => {
       expect(await screen.findByText(/DRAFT の設定が違う/)).toBeInTheDocument();
     });
 
+    it('保存していない入力があるときは切り替えられず、先に保存するよう案内する', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      render(<SettingsPage onBack={vi.fn()} />);
+      const button = await screen.findByRole('button', {
+        name: 'Standard に切り替える',
+      });
+      expect(button).toBeEnabled();
+
+      fireEvent.change(screen.getByPlaceholderText('DRAFT'), {
+        target: { value: '7' },
+      });
+
+      expect(button).toBeDisabled();
+      expect(
+        screen.getByText(/保存していない変更があります。先に保存してから切り替えてください/),
+      ).toBeInTheDocument();
+    });
+
+    it('切り替えている間は、保存できない', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(switchGroundingToStandard).mockReturnValue(new Promise(() => {}));
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Standard に切り替える' }),
+      );
+      await waitFor(() => expect(switchGroundingToStandard).toHaveBeenCalled());
+      fireEvent.change(screen.getByPlaceholderText('DRAFT'), {
+        target: { value: '7' },
+      });
+
+      expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+    });
+
     it('AI 分析が OFF なら、tier を読まない', async () => {
       vi.mocked(fetchSettings).mockResolvedValue(settings({ enableAiAnalysis: false }));
       render(<SettingsPage onBack={vi.fn()} />);
