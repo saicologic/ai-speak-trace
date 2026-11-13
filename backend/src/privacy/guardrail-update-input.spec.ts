@@ -215,4 +215,72 @@ describe('GuardrailUpdateInput', () => {
       new GuardrailUpdateInput(current).withStandardGrounding(),
     ).toThrow('根拠の確認（contextualGroundingPolicy）が設定されていません');
   });
+
+  it('今の根拠の確認の tier が CLASSIC でも、STANDARD に置き換える', () => {
+    const current = minimal();
+    const input = new GuardrailUpdateInput({
+      ...current,
+      contextualGroundingPolicy: {
+        ...current.contextualGroundingPolicy!,
+        tier: { tierName: 'CLASSIC' },
+      },
+    }).withStandardGrounding();
+    expect(input.contextualGroundingPolicyConfig.tierConfig).toEqual({
+      tierName: 'STANDARD',
+    });
+  });
+
+  it.each([
+    ['topicPolicy', { topics: [{ name: '投資' }], extra: 1 }],
+    ['wordPolicy', { words: [{ text: 'foo' }], extra: 1 }],
+    [
+      'sensitiveInformationPolicy',
+      { piiEntities: [{ type: 'EMAIL' }], extra: 1 },
+    ],
+    [
+      'contextualGroundingPolicy',
+      { filters: [{ type: 'GROUNDING', threshold: 0.8 }], extra: 1 },
+    ],
+    [
+      'crossRegionDetails',
+      { guardrailProfileId: 'apac.guardrail.v1:0', extra: 1 },
+    ],
+  ])('%s の中に引き継ぎ方がわからない項目があれば止める', (policy, value) => {
+    const current = { ...minimal(), [policy]: value } as GetGuardrailResult;
+    expect(() =>
+      new GuardrailUpdateInput(current).withStandardGrounding(),
+    ).toThrow(`${policy}.extra`);
+  });
+
+  it('トピック・コンテンツフィルターの一覧が空なら、項目ごと書かない', () => {
+    const input = new GuardrailUpdateInput({
+      ...minimal(),
+      topicPolicy: { topics: [], tier: { tierName: 'CLASSIC' } },
+      contentPolicy: { filters: [] },
+    }).withStandardGrounding();
+    expect(input).not.toHaveProperty('topicPolicyConfig');
+    expect(input).not.toHaveProperty('contentPolicyConfig');
+  });
+
+  it('根拠の確認にフィルターの一覧がなければ止める', () => {
+    const current = {
+      ...minimal(),
+      contextualGroundingPolicy: {},
+    } as GetGuardrailResult;
+    expect(() =>
+      new GuardrailUpdateInput(current).withStandardGrounding(),
+    ).toThrow('根拠の確認（contextualGroundingPolicy）が設定されていません');
+  });
+
+  it('ガードレールプロファイルの ID が空の文字列なら、ARN を使う', () => {
+    const arn =
+      'arn:aws:bedrock:ap-northeast-1:000000000000:guardrail-profile/apac.guardrail.v1:0';
+    const input = new GuardrailUpdateInput({
+      ...minimal(),
+      crossRegionDetails: { guardrailProfileId: '', guardrailProfileArn: arn },
+    }).withStandardGrounding();
+    expect(input.crossRegionConfig).toEqual({
+      guardrailProfileIdentifier: arn,
+    });
+  });
 });
