@@ -39,7 +39,8 @@ function mockBedrock(versions: Record<string, GetGuardrailCommandOutput[]>) {
   const calls: { name: string; input: Record<string, unknown> }[] = [];
   const send = jest
     .spyOn(BedrockClient.prototype, 'send')
-    .mockImplementation((command: unknown) => {
+    // send は呼び方ごとに型が分かれているため、差し替えの関数の型は合わせない
+    .mockImplementation(((command: unknown) => {
       const { input } = command as { input: Record<string, unknown> };
       if (command instanceof GetGuardrailCommand) {
         calls.push({ name: 'GetGuardrail', input });
@@ -58,7 +59,7 @@ function mockBedrock(versions: Record<string, GetGuardrailCommandOutput[]>) {
         return Promise.resolve({ guardrailId: 'g1', version: '4' });
       }
       return Promise.reject(new Error('想定していない呼び出し'));
-    });
+    }) as never);
   return { calls, send };
 }
 
