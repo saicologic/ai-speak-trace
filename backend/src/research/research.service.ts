@@ -389,7 +389,7 @@ export class ResearchService implements OnModuleInit {
 
       // ⑤ 評価（根拠のない主張は表示から除く）
       const judgement = await this.claude.judge(report, keywords);
-      const grounding = await this.groundingScores(report);
+      const grounding = await this.groundingScores(report, keywords);
       const { finalReport, evaluation } = evaluate(
         report,
         judgement,
@@ -459,16 +459,18 @@ export class ResearchService implements OnModuleInit {
   }
 
   /**
-   * 英語の主張の根拠スコアを Guardrails で計算する（Guardrail ID が未設定なら計算しない）
-   * 失敗した主張は、評価モデルの判定だけで扱う
+   * Web の根拠が付いた主張の根拠スコアを Guardrails で計算する（Guardrail ID が未設定なら計算しない）
+   * 質問には、主張が属する論点のキーワードを渡す。失敗した主張は、評価モデルの判定だけで扱う
    */
   private async groundingScores(
     report: ReportSegment[],
+    keywords: string[],
   ): Promise<Map<number, number>> {
     const scores = new Map<number, number>();
     if (!this.guardrail.isConfigured()) return scores;
+    const topics = segmentTopics(report, keywords);
     for (const [index, segment] of report.entries()) {
-      const target = groundingTarget(segment);
+      const target = groundingTarget(segment, topics[index]);
       if (!target) continue;
       try {
         const score = await this.guardrail.checkGrounding(
