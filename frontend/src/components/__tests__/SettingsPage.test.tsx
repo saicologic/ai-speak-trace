@@ -1,9 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SettingsPage from '../SettingsPage';
-import { fetchSettings, updateSettings } from '../../api/client';
+import {
+  fetchGroundingTier,
+  fetchSettings,
+  switchGroundingToStandard,
+  updateSettings,
+} from '../../api/client';
+import { confirmDialog } from '../../utils/platform';
 import type { AppSettings } from '../../types';
 
 vi.mock('../../api/client');
+vi.mock('../../utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/platform')>()),
+  confirmDialog: vi.fn(),
+}));
 
 const settings = (overrides: Partial<AppSettings> = {}): AppSettings => ({
   appVersion: '0.1.0',
@@ -29,6 +39,9 @@ describe('SettingsPage', () => {
     vi.mocked(updateSettings)
       .mockReset()
       .mockResolvedValue({ settings: settings(), restartRequired: false });
+    vi.mocked(fetchGroundingTier).mockReset().mockResolvedValue({ tier: 'STANDARD' });
+    vi.mocked(switchGroundingToStandard).mockReset();
+    vi.mocked(confirmDialog).mockReset().mockResolvedValue(true);
   });
 
   it('保存済みの API キーは、値を入力欄に出さず、状態と末尾4文字だけを表示する', async () => {
@@ -141,5 +154,83 @@ describe('SettingsPage', () => {
     render(<SettingsPage onBack={vi.fn()} />);
 
     expect(await screen.findByText(/暗号化せずに保存します/)).toBeInTheDocument();
+  });
+
+  describe('根拠の確認の tier', () => {
+    it.each([
+      ['STANDARD', '根拠の確認: Standard（日本語の文も確かめます）'],
+      ['CLASSIC', '根拠の確認: Classic（日本語の文は確かめません）'],
+      ['NONE', '根拠の確認: 設定されていません'],
+      ['UNKNOWN', '根拠の確認: 確かめられませんでした'],
+    ] as const)('%s のとき、tier を表示する', async (tier, text) => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier });
+      render(<SettingsPage onBack={vi.fn()} />);
+      expect(await screen.findByText(new RegExp(text.replace(/[()（）]/g, '.')))).toBeInTheDocument();
+    });
+
+    it('Classic のときだけ「Standard に切り替える」ボタンを出す', async () => {
+      render(<SettingsPage onBack={vi.fn()} />);
+      await screen.findByText(/根拠の確認: Standard/);
+      expect(
+        screen.queryByRole('button', { name: 'Standard に切り替える' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('確かめの画面で OK を押すと切り替え、tier と新しいバージョンを表示する', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(switchGroundingToStandard).mockResolvedValue({
+        tier: 'STANDARD',
+        version: '4',
+        settings: settings({ guardrail: { id: 'gr-1', version: '4' } }),
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Standard に切り替える' }),
+      );
+
+      expect(await screen.findByText(/根拠の確認: Standard/)).toBeInTheDocument();
+      expect(confirmDialog).toHaveBeenCalledWith(
+        expect.stringContaining('AWS の Guardrail の設定を書き換えます'),
+        expect.anything(),
+      );
+      expect(screen.getByPlaceholderText('DRAFT')).toHaveValue('4');
+    });
+
+    it('確かめの画面で取り消すと、切り替えない', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(confirmDialog).mockResolvedValue(false);
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Standard に切り替える' }),
+      );
+
+      await waitFor(() => expect(confirmDialog).toHaveBeenCalled());
+      expect(switchGroundingToStandard).not.toHaveBeenCalled();
+    });
+
+    it('切り替えに失敗したら、理由を表示する', async () => {
+      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      vi.mocked(switchGroundingToStandard).mockRejectedValue(
+        new Error('根拠の確認を Standard tier にできませんでした: DRAFT の設定が違う'),
+      );
+      render(<SettingsPage onBack={vi.fn()} />);
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Standard に切り替える' }),
+      );
+
+      expect(await screen.findByText(/DRAFT の設定が違う/)).toBeInTheDocument();
+    });
+
+    it('Guardrail ID がなければ、tier を読まない', async () => {
+      vi.mocked(fetchSettings).mockResolvedValue(
+        settings({ guardrail: { id: '', version: '' } }),
+      );
+      render(<SettingsPage onBack={vi.fn()} />);
+      await screen.findByRole('heading', { name: 'AI 分析（Claude と AWS）' });
+      expect(fetchGroundingTier).not.toHaveBeenCalled();
+    });
   });
 });
