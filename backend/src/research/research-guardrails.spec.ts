@@ -51,6 +51,20 @@ describe('groundingTarget', () => {
     });
   });
 
+  it('論点（キーワード）がわかっている文は、キーワードを質問にする', () => {
+    const claim = 'ハーネスは長い作業の文脈を管理します。';
+    expect(
+      groundingTarget({ text: claim, citations: [web('a')] }, ' ハーネス '),
+    ).toEqual({ source: 'a', query: 'ハーネス', claim });
+  });
+
+  it('論点のキーワードが空のときは、主張を質問にする', () => {
+    const claim = 'ハーネスは長い作業の文脈を管理します。';
+    expect(
+      groundingTarget({ text: claim, citations: [web('a')] }, '  '),
+    ).toEqual({ source: 'a', query: claim, claim });
+  });
+
   it('Web の根拠がない文と、空の文は対象にしない', () => {
     expect(
       groundingTarget({
