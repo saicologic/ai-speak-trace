@@ -12,16 +12,6 @@ export const GROUNDING_THRESHOLD = 0.8;
 const GROUNDING_SOURCE_MAX_CHARS = 50_000;
 
 /**
- * 英語の主張か（Guardrails の根拠の確認は英語のみ対応のため）
- * 英字が 20 文字以上あり、英字が日本語の文字より十分に多いものを英語とみなす
- */
-export function isEnglishText(text: string): boolean {
-  const latin = (text.match(/[A-Za-z]/g) ?? []).length;
-  const japanese = (text.match(/[぀-ヿ㐀-鿿]/g) ?? []).length;
-  return latin >= 20 && latin >= japanese * 4;
-}
-
-/**
  * 根拠の確認の対象（Web の根拠が付いた文）と、Guardrails に渡す内容
  * Standard tier の根拠の確認は日本語にも対応するため、文の言語では絞らない
  * 質問には、文が属する論点（キーワード）を渡す。わからなければ主張そのものを渡す
