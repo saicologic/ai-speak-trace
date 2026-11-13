@@ -283,4 +283,13 @@ describe('GuardrailUpdateInput', () => {
       guardrailProfileIdentifier: arn,
     });
   });
+
+  it('番号付きのバージョンの get-guardrail の出力では止める（update-guardrail が書き換える DRAFT を、古い設定で上書きしないため）', () => {
+    expect(() =>
+      new GuardrailUpdateInput({
+        ...minimal(),
+        version: '1',
+      }).withStandardGrounding(),
+    ).toThrow('DRAFT');
+  });
 });
