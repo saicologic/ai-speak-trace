@@ -20,7 +20,8 @@ AI Speak Trace は、会話の音声を外部のAIサービスに送って文字
 | Anthropic（Claude API） | ディープサーチで選んだ会話の全文、確定したキーワード、Webの引用本文 | ディープサーチのキーワード提案・Web検索・統合分析・評価 | ディープサーチを実行したとき |
 | Amazon Bedrock Guardrails（AWS） | 文字起こしの全文（話者名を含む） | 個人情報の検出（検出のみ。本文は書き換えません） | ディープサーチで会話を選んだとき（まだ確認していない会話のみ）、確認済みの会話の話者名を変更したとき、「個人情報チェック」で「もう一度確認する」を押したとき（Guardrail ID を設定した場合のみ） |
 | Amazon Bedrock Guardrails（AWS） | Claude に送る内容（上の Anthropic の行のすべて）と、Claude の応答 | プロンプト攻撃の検出、連絡先などの個人情報の検出 | Claude を呼び出すたび（送る前と、応答を受け取った後） |
-| Amazon Bedrock Guardrails（AWS） | ディープサーチの統合分析（会話の引用を含む）、Web の引用が付いた主張・その引用本文・主張が属する論点のキーワード | 分析に含まれる個人情報・不適切な表現の確認、主張の根拠スコアの計算 | ディープサーチの評価のとき（Guardrail ID を設定した場合のみ） |
+| Amazon Bedrock Guardrails（AWS） | ディープサーチの統合分析（会話の引用を含む）、Web の引用が付いた主張・その引用本文・主張が属する論点のキーワード（根拠の確認が Standard tier のとき。それ以外は英語の主張とその引用本文だけ） | 分析に含まれる個人情報・不適切な表現の確認、主張の根拠スコアの計算 | ディープサーチの評価のとき（Guardrail ID を設定した場合のみ） |
+| Amazon Bedrock（AWS） | Guardrail ID とバージョン。切り替えるときは、Guardrail の今の設定（会話の本文は含まない） | 根拠の確認の tier を読む（`GetGuardrail`）。設定画面で「Standard に切り替える」を押して確かめたときだけ、Guardrail の設定を書き換え（`UpdateGuardrail`）、新しいバージョンを作る（`CreateGuardrailVersion`） | 設定画面を開いたとき（AI 分析が ON で Guardrail ID を設定した場合のみ）、ディープサーチの評価のとき |
 | MCP クライアント（Claude Desktop・Claude Code など。その先の Anthropic） | 個人情報チェック済みの会話の、検索で見つかった発話・読んだ範囲の発話（伏せ字にしたもの）、話者名、キーワード | MCP クライアントでの会話の検索・参照 | MCP サーバーを登録したクライアントがツールを呼んだとき（下の「MCP サーバー」を参照） |
 
 設定画面の「AI 分析を使う」が OFF の場合は、Anthropic と Amazon Bedrock Guardrails（AWS）に何も送りません（要約・会話分析・発言の文脈・ディープサーチのボタンは押せない状態になります）。MCP サーバーは、この設定と連動しない別の経路です（下の「MCP サーバー」を参照）。

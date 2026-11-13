@@ -4,7 +4,7 @@
 公式サイトを先に調べ、情報が足りないときだけ一般のサイトも調べます。
 会話での説明と Web の情報が食い違う箇所も示します。
 AI の出力はそのまま使わず、文ごとの引用と別モデルの審査で確かめ、根拠のない文はレポートから除きます。
-Web の根拠が付いた文は、Guardrail で根拠の確認を有効にしているとき、Amazon Bedrock Guardrails の根拠スコアでも確かめます（日本語の文を確かめるため、根拠の確認は Standard tier にする前提です）。
+Web の根拠が付いた文は、Guardrail で根拠の確認を有効にしているとき、Amazon Bedrock Guardrails の根拠スコアでも確かめます。根拠の確認が Standard tier なら日本語の文も、それ以外なら英語の文だけを確かめます。
 
 コードは `backend/src/research/` にあります。
 
@@ -77,9 +77,15 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 
 - 見出し、「推測:」「不足:」と書いた文、関連するキーワードの列挙は、事実の文として審査しない
 - 審査の結果が返らなかった事実の文は、裏付けを確かめられないため除く
-- Guardrails には、根拠に Web の引用の抜粋、質問に文が属する論点のキーワード（直前のキーワードの見出し。見出しより前の文は文そのもの）、確かめる応答に文を渡す（`groundingTarget`・`segmentTopics`）
-  - 日本語の主張20件と事実を1か所変えた20件で比べると、質問を文そのものにしたときは 28/40、論点のキーワードにしたときは 35/40 だった（Standard tier）
-- しきい値 `0.8` は、66件の主張（正しい主張と、事実を1か所変えた主張）で検証して、正解率が最も高かった（98%）値（`GROUNDING_THRESHOLD`）。Standard tier の点数はほぼ 0 か 1 になるため、しきい値を変えても結果はほとんど変わらない
+- Guardrails に渡すものは、根拠の確認の tier で変わる（`groundingTarget`・`segmentTopics`）。tier は `GetGuardrail` で読み、Guardrail ID・バージョン・AWS のプロファイルが同じ間は使い回す（`GroundingTierService`）
+
+| 根拠の確認の tier | 確かめる文 | 質問（query） |
+|---|---|---|
+| Standard | Web の引用がある文（日本語の文も） | 文が属する論点のキーワード（直前のキーワードの見出し。本文の後の見出しは次の文から使う。見出しより前の文は文そのもの） |
+| Classic・設定なし・確かめられない | Web の引用がある英語の文だけ | 文そのもの |
+
+- 日本語の正しい文19件と事実を1か所変えた19件で比べると、Classic・文そのもの 33/38、Classic・論点 31/38、Standard・文そのもの 28/38、Standard・論点 36/38 だった。日本語の主張と英語の根拠を比べる場面で、差が大きかった（誤った文を見つけた数は、Classic 1/6、Standard・論点 4/6）
+- しきい値 `0.8` は、66件の主張（正しい主張と、事実を1か所変えた主張）で検証して、正解率が最も高かった（98%）値（`GROUNDING_THRESHOLD`）。この検証は Classic tier の英語の主張で行った。Standard tier では、上の38件でしきい値 `0.8` のまま 36/38 だった
 - 評価として、引用が付いた文の割合（`citationCoverage`）、裏付けがあった割合（`supportedRate`）、公式サイトの出典の割合（`officialSourceRate`）を返す
 - 除いた文（`removedClaims`）と「要確認」の文（`reviewClaims`）は、理由と一緒に評価に残し、ディープサーチの画面で確かめられるようにする
   - 調査ジョブはアプリのデータフォルダの `research-jobs/<調査ID>.json` に保存し、外には送らない。使った会話を削除すると、調査ジョブも一緒に削除する
@@ -118,7 +124,8 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 
 ## 限界
 
-- Guardrails の根拠の確認が日本語に対応するのは Standard tier だけ（Classic tier は英語・フランス語・スペイン語）。アプリは Guardrail の tier を確かめないため、Classic tier の Guardrail では、対応していない言語の文にも点数を付けて判定に使う
+- Guardrails の根拠の確認が日本語に対応するのは Standard tier だけ（Classic tier は英語・フランス語・スペイン語）。Classic tier の Guardrail では、日本語の文は審査モデルの判定だけで扱う。設定画面から Standard tier に切り替えられる
+- 根拠の確認は、言葉は根拠に近いまま意味だけを反対にした文（例: 「分ける」を「1つにまとめる」）を見逃すことがある（Standard tier・論点を質問にして、事実を1か所変えた19件のうち2件）
 - Guardrails の単語フィルターは日本語に対応していないため、出力の英語の部分だけを確かめる
 - 調べる範囲を意図して狭くしているため、テーマを広く網羅する調査には向かない
 
@@ -129,7 +136,7 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 | Citations（引用） | Claude API の機能。渡した文書のどの部分を根拠にしたかを、回答の文ごとに返す（[Citations](https://platform.claude.com/docs/en/build-with-claude/citations)） | 統合分析で、会話の発言と Web の抜粋を引用させる |
 | LLM-as-a-Judge | AI の出力の良し悪しを、別の AI に判定させる評価の方法 | 分析とは別のモデル（`claude-haiku-5-5`）が、文ごとの裏付けを判定する |
 | Amazon Bedrock Guardrails | AWS のサービス。個人情報・不適切な表現・プロンプト攻撃の検出と、根拠の確認を行う（[Amazon Bedrock Guardrails](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html)） | Claude への送受信の確認と、統合分析の根拠スコアに使う |
-| 根拠スコア（contextual grounding check） | Guardrails の機能。回答が渡した根拠の文章に沿っているかを点数で返す。対応する言語は tier によって違う（[contextual grounding check](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)） | 根拠の確認を有効にした Guardrail で、Web の引用がある文を確かめ、しきい値 `0.8` 未満を「根拠と合わない」とする（Standard tier が前提） |
+| 根拠スコア（contextual grounding check） | Guardrails の機能。回答が渡した根拠の文章に沿っているかを点数で返す。対応する言語は tier によって違う（[contextual grounding check](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)） | 根拠の確認を有効にした Guardrail で、Web の引用がある文（Standard tier なら日本語の文も）を確かめ、しきい値 `0.8` 未満を「根拠と合わない」とする |
 | プロンプト攻撃 | 文章に紛れ込ませた指示で、AI に意図しない動きをさせる攻撃。プロンプトインジェクションとも呼ぶ（[prompt attacks](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-prompt-attack.html)） | Claude に送る内容を Guardrails で確かめ、検出したら送らない |
 | 伏せる（マスク）・要確認 | 個人情報チェックで、Claude に送る前に置き換える文字列と、伏せるかどうかを人が決める候補 | 伏せる文字列は置き換えてから送る。要確認のまま送った文字列は記録に残す |
 | `web_search` ツール | Claude API のサーバー側のツール。Claude が自分で Web を検索し、結果を引用付きで返す（[Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)） | Web調査で、キーワードごとに検索させる |
@@ -147,5 +154,6 @@ AI の出力を、コード・別モデル・Guardrails の3つで確かめま�
 | `backend/src/research/research-guardrails.ts` | 根拠スコアのしきい値、Guardrails の出力の確認 |
 | `backend/src/research/research.utils.ts` | 引用の確かめ（`verifyQuotes`）、公式サイトの判定、一般のサイトを調べるかの判断 |
 | `backend/src/research/research-job.store.ts` | 調査ジョブの保存 |
+| `backend/src/privacy/grounding-tier.service.ts`・`grounding-tier.ts` | 根拠の確認の tier を読む（`GetGuardrail`）、今の設定を引き継いで Standard tier に切り替える（`switchToStandard`） |
 | `backend/src/claude/claude-client.service.ts` | Claude への送受信と Guardrails の確認 |
 | `frontend/src/components/ResearchPage.tsx` | ディープサーチの画面 |
