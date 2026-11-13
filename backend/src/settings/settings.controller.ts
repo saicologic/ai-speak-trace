@@ -30,6 +30,18 @@ export class SettingsController {
     return this.settingsService.updateSettings(dto);
   }
 
+  /** Guardrail の根拠の確認の tier（STANDARD・CLASSIC・NONE・UNKNOWN） */
+  @Get('grounding-tier')
+  getGroundingTier() {
+    return this.settingsService.getGroundingTier();
+  }
+
+  /** Guardrail の根拠の確認を Standard tier にする（画面で確かめてから呼ぶ） */
+  @Post('grounding-tier/standard')
+  switchGroundingToStandard() {
+    return this.settingsService.switchGroundingToStandard();
+  }
+
   /** データフォルダをFinderで開く */
   @Post('open-folder')
   openFolder() {

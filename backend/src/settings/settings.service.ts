@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { GuardrailService } from '../privacy/guardrail.service';
+import {
+  GroundingTierService,
+  GroundingTierStatus,
+} from '../privacy/grounding-tier.service';
 import { KeychainSecretStore } from './secret-store';
 import { isAiAnalysisEnabled } from './ai-analysis';
 
@@ -95,6 +99,7 @@ export class SettingsService {
   constructor(
     private readonly configService: ConfigService,
     private readonly guardrail: GuardrailService,
+    private readonly groundingTier: GroundingTierService,
   ) {
     this.settingsFilePath =
       this.configService.get<string>('SETTINGS_FILE') ||
@@ -258,6 +263,14 @@ export class SettingsService {
 
     this.writeSettingsFile(updated);
     this.logger.log(`設定を保存しました: ${this.settingsFilePath}`);
+    // 別の Guardrail・バージョン・プロファイルになったら、覚えている根拠の確認の tier を読み直す
+    if (
+      dto.bedrockGuardrailId !== undefined ||
+      guardrailVersion !== undefined ||
+      awsProfile !== undefined
+    ) {
+      this.groundingTier.reset();
+    }
     // 保存できたあとで切り替える（保存に失敗したときに、保存した内容と動きが食い違わないように）
     if (dto.enableAiAnalysis !== undefined) {
       process.env.AI_ANALYSIS = dto.enableAiAnalysis ? 'on' : 'off';
@@ -271,6 +284,35 @@ export class SettingsService {
       settings: this.getSettings(),
       restartRequired,
     };
+  }
+
+  /** 今の Guardrail の根拠の確認の tier */
+  async getGroundingTier(): Promise<{ tier: GroundingTierStatus }> {
+    return { tier: await this.groundingTier.getTier() };
+  }
+
+  /**
+   * Guardrail の根拠の確認を Standard tier にする（今の設定は引き継ぐ）
+   * 新しいバージョンを作ったときは、設定のバージョンをその番号に入れ替える
+   */
+  async switchGroundingToStandard(): Promise<{
+    tier: 'STANDARD';
+    version: string;
+    settings: AppSettings;
+  }> {
+    let version: string;
+    try {
+      ({ version } = await this.groundingTier.switchToStandard());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(
+        `根拠の確認を Standard tier にできませんでした: ${message}`,
+      );
+    }
+    if (version !== 'DRAFT') {
+      await this.updateSettings({ bedrockGuardrailVersion: version });
+    }
+    return { tier: 'STANDARD', version, settings: this.getSettings() };
   }
 
   /**
