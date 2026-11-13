@@ -114,7 +114,7 @@ export class GuardrailService {
     return findings;
   }
 
-  /** 主張（claim）が根拠（source）に合っているかの点数（英語のみ対応。根拠チェックの設定がなければ null） */
+  /** 主張（claim）が根拠（source）に合っているかの点数（根拠チェックの設定がなければ null。日本語は Standard tier だけが対応） */
   async checkGrounding(
     source: string,
     query: string,
