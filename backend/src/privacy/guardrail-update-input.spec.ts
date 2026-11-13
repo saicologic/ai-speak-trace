@@ -51,4 +51,60 @@ describe('GuardrailUpdateInput', () => {
       },
     );
   });
+
+  it('ほかの設定（コンテンツフィルターの tier・トピック・単語・機密情報・説明・KMS キー）を引き継ぎ、空の一覧は書かない', () => {
+    const contentFilter = {
+      type: 'PROMPT_ATTACK',
+      inputStrength: 'MEDIUM',
+      outputStrength: 'NONE',
+      inputAction: 'NONE',
+    };
+    const topic = { name: '投資', definition: '投資の助言', type: 'DENY' };
+    const word = { text: 'foo', inputAction: 'NONE' };
+    const pii = { type: 'EMAIL', action: 'NONE' };
+    const input = new GuardrailUpdateInput({
+      ...minimal(),
+      description: '動作確認用',
+      kmsKeyArn: 'arn:aws:kms:ap-northeast-1:000000000000:key/k1',
+      contentPolicy: {
+        filters: [contentFilter],
+        tier: { tierName: 'STANDARD' },
+      },
+      topicPolicy: { topics: [topic], tier: { tierName: 'CLASSIC' } },
+      wordPolicy: { words: [word], managedWordLists: [] },
+      sensitiveInformationPolicy: { piiEntities: [pii], regexes: [] },
+    }).withStandardGrounding();
+
+    expect(input).toMatchObject({
+      description: '動作確認用',
+      kmsKeyId: 'arn:aws:kms:ap-northeast-1:000000000000:key/k1',
+      contentPolicyConfig: {
+        filtersConfig: [contentFilter],
+        tierConfig: { tierName: 'STANDARD' },
+      },
+      topicPolicyConfig: {
+        topicsConfig: [topic],
+        tierConfig: { tierName: 'CLASSIC' },
+      },
+    });
+    // 空の一覧は書かない（update-guardrail は空の一覧を受け付けないため）
+    expect(input.wordPolicyConfig).toEqual({ wordsConfig: [word] });
+    expect(input.sensitiveInformationPolicyConfig).toEqual({
+      piiEntitiesConfig: [pii],
+    });
+  });
+
+  it('設定されていない項目は書かない', () => {
+    const input = new GuardrailUpdateInput(minimal()).withStandardGrounding();
+    expect(Object.keys(input).sort()).toEqual(
+      [
+        'blockedInputMessaging',
+        'blockedOutputsMessaging',
+        'contextualGroundingPolicyConfig',
+        'crossRegionConfig',
+        'guardrailIdentifier',
+        'name',
+      ].sort(),
+    );
+  });
 });
