@@ -168,16 +168,23 @@ describe('SettingsPage', () => {
       expect(await screen.findByText(new RegExp(text.replace(/[()（）]/g, '.')))).toBeInTheDocument();
     });
 
-    it('Classic のときだけ「Standard に切り替える」ボタンを出す', async () => {
-      render(<SettingsPage onBack={vi.fn()} />);
-      await screen.findByText(/根拠の確認: Standard/);
-      expect(
-        screen.queryByRole('button', { name: 'Standard に切り替える' }),
-      ).not.toBeInTheDocument();
-    });
+    it.each(['STANDARD', 'NONE', 'UNKNOWN'] as const)(
+      '%s のときは「Standard に切り替える」ボタンを出さない',
+      async (tier) => {
+        vi.mocked(fetchGroundingTier).mockResolvedValue({ tier });
+        render(<SettingsPage onBack={vi.fn()} />);
+        await screen.findByText(/根拠の確認: /);
+        expect(
+          screen.queryByRole('button', { name: 'Standard に切り替える' }),
+        ).not.toBeInTheDocument();
+      },
+    );
 
     it('確かめの画面で OK を押すと切り替え、tier と新しいバージョンを表示する', async () => {
-      vi.mocked(fetchGroundingTier).mockResolvedValue({ tier: 'CLASSIC' });
+      // 切り替えた後に読み直すと、バックエンドは新しいバージョンの STANDARD を返す
+      vi.mocked(fetchGroundingTier)
+        .mockResolvedValueOnce({ tier: 'CLASSIC' })
+        .mockResolvedValue({ tier: 'STANDARD' });
       vi.mocked(switchGroundingToStandard).mockResolvedValue({
         tier: 'STANDARD',
         version: '4',
@@ -195,6 +202,12 @@ describe('SettingsPage', () => {
         expect.anything(),
       );
       expect(screen.getByPlaceholderText('DRAFT')).toHaveValue('4');
+      // 新しいバージョンの tier を読み直した後も Standard のままで、ボタンは消える
+      await waitFor(() => expect(fetchGroundingTier).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText(/根拠の確認: Standard/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Standard に切り替える' }),
+      ).not.toBeInTheDocument();
     });
 
     it('確かめの画面で取り消すと、切り替えない', async () => {
@@ -222,6 +235,13 @@ describe('SettingsPage', () => {
       );
 
       expect(await screen.findByText(/DRAFT の設定が違う/)).toBeInTheDocument();
+    });
+
+    it('AI 分析が OFF なら、tier を読まない', async () => {
+      vi.mocked(fetchSettings).mockResolvedValue(settings({ enableAiAnalysis: false }));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await screen.findByRole('checkbox', { name: 'AI 分析を使う' });
+      expect(fetchGroundingTier).not.toHaveBeenCalled();
     });
 
     it('Guardrail ID がなければ、tier を読まない', async () => {
