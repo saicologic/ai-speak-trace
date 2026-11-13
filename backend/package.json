@@ -40,6 +40,7 @@
   "bin": "dist/main.js",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@aws-sdk/client-bedrock": "^3.1001.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1001.0",
     "@aws-sdk/credential-provider-env": "^3.972.14",
     "@aws-sdk/credential-provider-ini": "^3.972.14",
