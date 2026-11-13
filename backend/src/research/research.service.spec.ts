@@ -572,6 +572,38 @@ describe('ResearchService（失敗した調査の再開）', () => {
     ]);
   });
 
+  it('根拠の確認の tier を読めずに失敗しても、調査を止めず、英語の文だけを確かめる', async () => {
+    groundingTier.getTier.mockRejectedValue(new Error('AccessDeniedException'));
+    const webCite = {
+      sourceKind: 'web' as const,
+      sourceId: 'https://example.com/a',
+      title: 'a',
+      citedText: 'excerpt',
+      official: true,
+    };
+    const english = 'The harness manages context for long-running agents.';
+    const { service, claude, guardrail, waitFor } = setup({
+      ...confirmedJob,
+      webSources: [source('https://example.com/a')],
+    });
+    claude.analyze.mockResolvedValueOnce([
+      { text: 'ハーネスは文脈を管理します。', citations: [webCite] },
+      { text: english, citations: [webCite] },
+    ]);
+    guardrail.checkGrounding.mockResolvedValue({
+      grounding: 0.9,
+      relevance: 0.9,
+    });
+
+    await service.resume('job-1');
+    const done = await waitFor('completed');
+
+    expect(done.status).toBe('completed');
+    expect(guardrail.checkGrounding.mock.calls).toEqual([
+      ['excerpt', english, english],
+    ]);
+  });
+
   it.each(['CLASSIC', 'NONE', 'UNKNOWN'])(
     '根拠の確認の tier が %s なら、日本語の文は確かめず、英語の文だけを文そのものを質問にして確かめる',
     async (tier) => {

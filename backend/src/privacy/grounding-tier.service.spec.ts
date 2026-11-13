@@ -376,4 +376,19 @@ describe('GroundingTierService.switchToStandard', () => {
     // 切り替えで覚えた STANDARD が、遅れて届いた CLASSIC で上書きされていない
     await expect(service.getTier()).resolves.toBe('STANDARD');
   });
+
+  it('新しいバージョンに、引き継ぎ方がわからない設定が入っていれば失敗にする（途中で別の操作が足したとき）', async () => {
+    const created = {
+      ...guardrail('4', 'STANDARD'),
+      automatedReasoningPolicy: { policies: ['p1'] },
+    } as unknown as GetGuardrailCommandOutput;
+    mockBedrock({
+      DRAFT: [guardrail('DRAFT'), guardrail('DRAFT', 'STANDARD')],
+      '3': [guardrail('3')],
+      '4': [created],
+    });
+    await expect(setup({ version: '3' }).switchToStandard()).rejects.toThrow(
+      'automatedReasoningPolicy',
+    );
+  });
 });
