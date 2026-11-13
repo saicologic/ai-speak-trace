@@ -23,7 +23,10 @@ export interface GetGuardrailResult {
     piiEntities?: PolicyItem[];
     regexes?: PolicyItem[];
   };
-  contextualGroundingPolicy?: { filters: PolicyItem[] };
+  contextualGroundingPolicy?: {
+    filters: PolicyItem[];
+    tier?: { tierName: TierName };
+  };
   crossRegionDetails?: {
     guardrailProfileId?: string;
     guardrailProfileArn?: string;
@@ -84,14 +87,41 @@ const KNOWN_FIELDS = new Set<string>([
   'crossRegionDetails',
 ]);
 
-/** 空でない一覧だけを、指定した名前で返す（update-guardrail は空の一覧を受け付けないため） */
-function nonEmpty<K extends string>(
-  key: K,
-  items: PolicyItem[] | undefined,
-): Partial<Record<K, PolicyItem[]>> {
-  return items && items.length > 0
-    ? ({ [key]: items } as Record<K, PolicyItem[]>)
-    : {};
+/** ポリシーの中の、引き継ぎ方がわかっている項目 */
+const KNOWN_POLICY_FIELDS: Record<string, string[]> = {
+  topicPolicy: ['topics', 'tier'],
+  contentPolicy: ['filters', 'tier'],
+  wordPolicy: ['words', 'managedWordLists'],
+  sensitiveInformationPolicy: ['piiEntities', 'regexes'],
+  // tier は書き換えるため、今の値は使わない
+  contextualGroundingPolicy: ['filters', 'tier'],
+  crossRegionDetails: ['guardrailProfileId', 'guardrailProfileArn'],
+};
+
+/** 引き継ぎ方がわからない項目の名前（ポリシーの中は「ポリシー.項目」） */
+function unknownFields(g: GetGuardrailResult): string[] {
+  const record = g as unknown as Record<string, unknown>;
+  const unknown = Object.keys(record).filter((k) => !KNOWN_FIELDS.has(k));
+  for (const [policy, fields] of Object.entries(KNOWN_POLICY_FIELDS)) {
+    const value = record[policy];
+    if (!value || typeof value !== 'object') continue;
+    for (const key of Object.keys(value)) {
+      if (!fields.includes(key)) unknown.push(`${policy}.${key}`);
+    }
+  }
+  return unknown.sort();
+}
+
+/** 空でない一覧だけをまとめ、どれも空なら undefined を返す（update-guardrail は空の一覧を受け付けないため） */
+function nonEmptyLists<K extends string>(
+  lists: Record<K, PolicyItem[] | undefined>,
+): Partial<Record<K, PolicyItem[]>> | undefined {
+  const entries = Object.entries(lists).filter(
+    (e): e is [string, PolicyItem[]] => Array.isArray(e[1]) && e[1].length > 0,
+  );
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Partial<Record<K, PolicyItem[]>>)
+    : undefined;
 }
 
 /** tier が設定されていれば tierConfig にする */
@@ -109,24 +139,35 @@ export class GuardrailUpdateInput {
   /** 根拠の確認（contextual grounding check）の tier だけを STANDARD にした入力 */
   withStandardGrounding(): UpdateGuardrailInput {
     const g = this.current;
-    const unknown = Object.keys(g).filter((k) => !KNOWN_FIELDS.has(k));
+    const unknown = unknownFields(g);
     if (unknown.length > 0) {
       throw new Error(
-        `引き継ぎ方がわからない設定があります: ${unknown.sort().join(', ')}`,
+        `引き継ぎ方がわからない設定があります: ${unknown.join(', ')}`,
       );
     }
     const grounding = g.contextualGroundingPolicy;
-    if (!grounding) {
+    if (!grounding || grounding.filters.length === 0) {
       throw new Error(
         '根拠の確認（contextualGroundingPolicy）が設定されていません',
       );
     }
-    const profile = g.crossRegionDetails?.guardrailProfileId;
+    // guardrailProfileIdentifier は ID と ARN のどちらでもよい
+    const profile =
+      g.crossRegionDetails?.guardrailProfileId ??
+      g.crossRegionDetails?.guardrailProfileArn;
     if (!profile) {
       throw new Error(
         'クロスリージョン推論（ガードレールプロファイル）が設定されていません。STANDARD に必要です',
       );
     }
+    const words = nonEmptyLists({
+      wordsConfig: g.wordPolicy?.words,
+      managedWordListsConfig: g.wordPolicy?.managedWordLists,
+    });
+    const sensitive = nonEmptyLists({
+      piiEntitiesConfig: g.sensitiveInformationPolicy?.piiEntities,
+      regexesConfig: g.sensitiveInformationPolicy?.regexes,
+    });
     return {
       guardrailIdentifier: g.guardrailId,
       name: g.name,
@@ -146,21 +187,8 @@ export class GuardrailUpdateInput {
           ...tierConfig(g.contentPolicy.tier),
         },
       }),
-      ...(g.wordPolicy && {
-        wordPolicyConfig: {
-          ...nonEmpty('wordsConfig', g.wordPolicy.words),
-          ...nonEmpty('managedWordListsConfig', g.wordPolicy.managedWordLists),
-        },
-      }),
-      ...(g.sensitiveInformationPolicy && {
-        sensitiveInformationPolicyConfig: {
-          ...nonEmpty(
-            'piiEntitiesConfig',
-            g.sensitiveInformationPolicy.piiEntities,
-          ),
-          ...nonEmpty('regexesConfig', g.sensitiveInformationPolicy.regexes),
-        },
-      }),
+      ...(words && { wordPolicyConfig: words }),
+      ...(sensitive && { sensitiveInformationPolicyConfig: sensitive }),
       contextualGroundingPolicyConfig: {
         filtersConfig: grounding.filters,
         tierConfig: { tierName: 'STANDARD' },
