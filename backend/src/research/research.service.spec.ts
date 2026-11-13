@@ -488,20 +488,24 @@ describe('ResearchService（失敗した調査の再開）', () => {
         Promise.resolve({ claims: [], relevance: [], ethics: ethicsOk }),
       ),
     };
+    const guardrail = {
+      isConfigured: () => true,
+      guardrailId: 'g1',
+      inspect: jest.fn(() =>
+        Promise.resolve({ pii: [], words: [], content: [] }),
+      ),
+      checkGrounding: jest.fn(
+        (): Promise<{ grounding: number; relevance: number } | null> =>
+          Promise.resolve(null),
+      ),
+    };
     const service = new ResearchService(
       {
         findForSending: jest.fn(() => Promise.resolve(transcription)),
       } as unknown as TranscriptionStoreService,
       jobStore as unknown as ResearchJobStore,
       claude as unknown as ResearchClaudeService,
-      {
-        isConfigured: () => true,
-        guardrailId: 'g1',
-        inspect: jest.fn(() =>
-          Promise.resolve({ pii: [], words: [], content: [] }),
-        ),
-        checkGrounding: jest.fn(() => Promise.resolve(null)),
-      } as unknown as GuardrailService,
+      guardrail as unknown as GuardrailService,
       {
         waitForScans: jest.fn(() => Promise.resolve()),
         getStatus: jest.fn(() =>
@@ -520,8 +524,41 @@ describe('ResearchService（失敗した調査の再開）', () => {
       }
       return current!;
     };
-    return { service, jobStore, claude, waitFor };
+    return { service, jobStore, claude, guardrail, waitFor };
   };
+
+  it('評価では、各文が属する論点のキーワードを質問にして、Guardrails の根拠スコアを求める', async () => {
+    const webCite = {
+      sourceKind: 'web' as const,
+      sourceId: 'https://example.com/a',
+      title: 'a',
+      citedText: '根拠の抜粋',
+      official: true,
+    };
+    const { service, claude, guardrail, waitFor } = setup({
+      ...confirmedJob,
+      webSources: [source('https://example.com/a')],
+    });
+    claude.analyze.mockResolvedValueOnce([
+      { text: '## ハーネス', citations: [] },
+      { text: 'ハーネスは文脈を管理します。', citations: [webCite] },
+      { text: '## MCP', citations: [] },
+      { text: 'MCP は外部のツールにつなぎます。', citations: [webCite] },
+    ]);
+    guardrail.checkGrounding.mockResolvedValue({
+      grounding: 0.9,
+      relevance: 0.9,
+    });
+
+    await service.resume('job-1');
+    const done = await waitFor('completed');
+
+    expect(done.status).toBe('completed');
+    expect(guardrail.checkGrounding.mock.calls).toEqual([
+      ['根拠の抜粋', 'ハーネス', 'ハーネスは文脈を管理します。'],
+      ['根拠の抜粋', 'MCP', 'MCP は外部のツールにつなぎます。'],
+    ]);
+  });
 
   it('統合分析で失敗した調査は、保存した情報源を使って④から再開する（Web調査をやり直さない）', async () => {
     const webSources = [source('https://example.com/a')];
