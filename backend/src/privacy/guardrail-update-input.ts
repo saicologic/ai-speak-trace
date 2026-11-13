@@ -146,14 +146,14 @@ export class GuardrailUpdateInput {
       );
     }
     const grounding = g.contextualGroundingPolicy;
-    if (!grounding || grounding.filters.length === 0) {
+    if (!grounding?.filters?.length) {
       throw new Error(
         '根拠の確認（contextualGroundingPolicy）が設定されていません',
       );
     }
     // guardrailProfileIdentifier は ID と ARN のどちらでもよい
     const profile =
-      g.crossRegionDetails?.guardrailProfileId ??
+      g.crossRegionDetails?.guardrailProfileId ||
       g.crossRegionDetails?.guardrailProfileArn;
     if (!profile) {
       throw new Error(
@@ -175,13 +175,13 @@ export class GuardrailUpdateInput {
       ...(g.kmsKeyArn && { kmsKeyId: g.kmsKeyArn }),
       blockedInputMessaging: g.blockedInputMessaging,
       blockedOutputsMessaging: g.blockedOutputsMessaging,
-      ...(g.topicPolicy && {
+      ...(g.topicPolicy?.topics?.length && {
         topicPolicyConfig: {
           topicsConfig: g.topicPolicy.topics,
           ...tierConfig(g.topicPolicy.tier),
         },
       }),
-      ...(g.contentPolicy && {
+      ...(g.contentPolicy?.filters?.length && {
         contentPolicyConfig: {
           filtersConfig: g.contentPolicy.filters,
           ...tierConfig(g.contentPolicy.tier),
