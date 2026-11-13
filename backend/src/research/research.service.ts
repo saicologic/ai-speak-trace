@@ -705,20 +705,31 @@ function isStructureOnly(text: string, keywords: string[]): boolean {
     .every((line) => line === '' || isSectionLine(line, keywords));
 }
 
-/** レポートの各文の論点（直前に出てきたキーワードの見出し。見出しより前の文は undefined） */
+/**
+ * レポートの各文の論点（直前に出てきたキーワードの見出し。見出しより前の文は undefined）
+ * 本文の後にある見出しは、その文の論点にせず、次の文から使う
+ */
 export function segmentTopics(
   report: ReportSegment[],
   keywords: string[],
 ): (string | undefined)[] {
   let topic: string | undefined;
   return report.map((segment) => {
+    let own: string | undefined;
+    let bodySeen = false;
     for (const line of segment.text.split('\n')) {
-      const heading = line.trim().match(/^#{1,6}\s+(.+)$/);
-      if (heading && keywords.includes(heading[1].trim())) {
-        topic = heading[1].trim();
+      const text = line.trim();
+      if (!text) continue;
+      const heading = text.match(/^#{1,6}\s+(.+)$/);
+      if (!heading) {
+        // 最初の本文の行までに出てきた見出しを、この文の論点にする
+        if (!bodySeen) own = topic;
+        bodySeen = true;
+        continue;
       }
+      if (keywords.includes(heading[1].trim())) topic = heading[1].trim();
     }
-    return topic;
+    return bodySeen ? own : topic;
   });
 }
 
