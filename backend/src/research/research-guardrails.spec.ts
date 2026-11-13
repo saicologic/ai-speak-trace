@@ -34,18 +34,31 @@ describe('groundingTarget', () => {
     official: true,
   });
 
-  it('Web の根拠が付いた英語の文だけを対象にする', () => {
+  it('Web の根拠が付いた英語の文を対象にする', () => {
     const claim = 'The harness manages context for long-running agents.';
     expect(
       groundingTarget({ text: claim, citations: [web('a'), web('b')] }),
     ).toEqual({ source: 'a\n\nb', query: claim, claim });
     expect(groundingTarget({ text: claim, citations: [] })).toBeNull();
+  });
+
+  it('Web の根拠が付いた日本語の文も対象にする（Standard tier は日本語に対応）', () => {
+    const claim = 'ハーネスは長い作業の文脈を管理します。';
+    expect(groundingTarget({ text: claim, citations: [web('a')] })).toEqual({
+      source: 'a',
+      query: claim,
+      claim,
+    });
+  });
+
+  it('Web の根拠がない文と、空の文は対象にしない', () => {
     expect(
       groundingTarget({
         text: 'ハーネスは文脈を管理します。',
-        citations: [web('a')],
+        citations: [{ ...web('会話'), sourceKind: 'conversation' as const }],
       }),
     ).toBeNull();
+    expect(groundingTarget({ text: '  \n ', citations: [web('a')] })).toBeNull();
   });
 });
 
