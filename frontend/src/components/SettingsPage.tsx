@@ -446,10 +446,15 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                         type="button"
                         className="settings-open-folder-button"
                         onClick={handleSwitchTier}
-                        disabled={switchingTier}
+                        disabled={switchingTier || saving || hasChanges}
                       >
                         Standard に切り替える
                       </button>
+                    )}
+                    {groundingTier === 'CLASSIC' && hasChanges && (
+                      <p className="settings-checkbox-hint">
+                        保存していない変更があります。先に保存してから切り替えてください（切り替えた後の設定で、入力が上書きされるため）。
+                      </p>
                     )}
                     {tierError && <div className="settings-error">{tierError}</div>}
                   </div>
@@ -513,7 +518,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               <button
                 className="settings-save-button"
                 onClick={handleSave}
-                disabled={saving || !hasChanges}
+                disabled={saving || switchingTier || !hasChanges}
               >
                 {saving ? '保存中...' : '保存'}
               </button>
