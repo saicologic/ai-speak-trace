@@ -98,11 +98,19 @@ describe('standardGroundingRequest', () => {
       inputStrength: 'MEDIUM',
       outputStrength: 'NONE',
       inputAction: 'NONE',
-    };
-    const topic = { name: '投資', definition: '投資の助言', type: 'DENY' };
-    const word = { text: 'foo', inputAction: 'NONE' };
-    const managed = { type: 'PROFANITY', inputAction: 'NONE' };
-    const regex = { name: '社員番号', pattern: 'E[0-9]{6}', action: 'NONE' };
+    } as const;
+    const topic = {
+      name: '投資',
+      definition: '投資の助言',
+      type: 'DENY',
+    } as const;
+    const word = { text: 'foo', inputAction: 'NONE' } as const;
+    const managed = { type: 'PROFANITY', inputAction: 'NONE' } as const;
+    const regex = {
+      name: '社員番号',
+      pattern: 'E[0-9]{6}',
+      action: 'NONE',
+    } as const;
     const current = guardrail();
     const input = standardGroundingRequest({
       ...current,
@@ -149,8 +157,8 @@ describe('standardGroundingRequest', () => {
   it('tier のないポリシーには tierConfig を書かない', () => {
     const input = standardGroundingRequest({
       ...guardrail(),
-      contentPolicy: { filters: [{ type: 'HATE' }] },
-      topicPolicy: { topics: [{ name: '投資' }] },
+      contentPolicy: { filters: [{ type: 'HATE' }] } as never,
+      topicPolicy: { topics: [{ name: '投資' }] } as never,
     });
     expect(input.contentPolicyConfig).toEqual({
       filtersConfig: [{ type: 'HATE' }],
