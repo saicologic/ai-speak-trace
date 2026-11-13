@@ -907,6 +907,41 @@ describe('evaluate の除いた文', () => {
   });
 });
 
+describe('evaluate の除いた文（Guardrails の根拠スコアあり）', () => {
+  it('評価モデルと Guardrails の両方が合わないとした日本語の文にも、論点を記録する', () => {
+    const report: ReportSegment[] = [
+      { text: '## ハーネス', citations: [] },
+      {
+        text: 'ハーネスは文脈を管理しません。',
+        citations: [
+          {
+            sourceKind: 'web',
+            sourceId: 'https://a.com',
+            title: 'a',
+            citedText: 'x',
+          },
+        ],
+      },
+    ];
+    const { evaluation } = evaluate(
+      report,
+      {
+        claims: [
+          { index: 0, factual: false, verdict: 'not_applicable', reason: '' },
+          { index: 1, factual: true, verdict: 'unsupported', reason: 'r' },
+        ],
+        relevance: [],
+        ethics: ethicsOk,
+      } as unknown as RawJudgement,
+      ['ハーネス'],
+      new Map([[1, 0.1]]),
+    );
+    expect(
+      evaluation.removedClaims.map((c) => [c.claim, c.topic, c.groundingScore]),
+    ).toEqual([['ハーネスは文脈を管理しません。', 'ハーネス', 0.1]]);
+  });
+});
+
 describe('evaluate の relevance', () => {
   it('確定したキーワードの判定だけを使う（関連するキーワードの判定は捨てる）', () => {
     const report: ReportSegment[] = [{ text: '## ハーネス\n', citations: [] }];
