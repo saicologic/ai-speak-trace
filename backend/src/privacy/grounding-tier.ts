@@ -167,3 +167,47 @@ export function standardGroundingRequest(
     crossRegionConfig: { guardrailProfileIdentifier: profile },
   };
 }
+
+/** キーの順番をそろえた JSON（設定を比べるため） */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
+            a.localeCompare(b),
+          ),
+        )
+      : v,
+  );
+}
+
+/** 比べる設定（バージョン・日時・状態と、根拠の確認の tier を除く） */
+function comparableSettings(g: GetGuardrailCommandOutput): unknown {
+  return {
+    name: g.name,
+    description: g.description,
+    kmsKeyArn: g.kmsKeyArn,
+    blockedInputMessaging: g.blockedInputMessaging,
+    blockedOutputsMessaging: g.blockedOutputsMessaging,
+    topicPolicy: g.topicPolicy,
+    contentPolicy: g.contentPolicy,
+    wordPolicy: g.wordPolicy,
+    sensitiveInformationPolicy: g.sensitiveInformationPolicy,
+    groundingFilters: g.contextualGroundingPolicy?.filters,
+    guardrailProfileId: g.crossRegionDetails?.guardrailProfileId,
+  };
+}
+
+/**
+ * 2つの設定が、根拠の確認の tier 以外で同じか
+ * 番号付きのバージョンを使っているとき、DRAFT から新しいバージョンを作っても、tier のほかは変わらないことを確かめるため
+ */
+export function sameSettingsExceptGroundingTier(
+  a: GetGuardrailCommandOutput,
+  b: GetGuardrailCommandOutput,
+): boolean {
+  return (
+    canonicalJson(comparableSettings(a)) ===
+    canonicalJson(comparableSettings(b))
+  );
+}
