@@ -1,5 +1,9 @@
 import type { GetGuardrailCommandOutput } from '@aws-sdk/client-bedrock';
-import { groundingTierOf, standardGroundingRequest } from './grounding-tier';
+import {
+  groundingTierOf,
+  sameSettingsExceptGroundingTier,
+  standardGroundingRequest,
+} from './grounding-tier';
 
 /** GetGuardrail の結果の最小限の形（根拠の確認とクロスリージョン推論だけ） */
 const guardrail = (
@@ -348,5 +352,65 @@ describe('standardGroundingRequest', () => {
       standardGroundingRequest(current).contextualGroundingPolicyConfig
         .tierConfig,
     ).toEqual({ tierName: 'STANDARD' });
+  });
+});
+
+describe('sameSettingsExceptGroundingTier', () => {
+  it('バージョン・日時・状態・根拠の確認の tier だけが違うなら、同じ設定とみなす', () => {
+    const draft = guardrail({
+      contextualGroundingPolicy: {
+        filters: [{ type: 'GROUNDING', threshold: 0.8, action: 'NONE' }],
+        tier: { tierName: 'CLASSIC' },
+      },
+    });
+    const pinned = guardrail({
+      version: '3',
+      status: 'READY',
+      updatedAt: new Date('2026-11-01T00:00:00Z'),
+      contextualGroundingPolicy: {
+        filters: [{ type: 'GROUNDING', threshold: 0.8, action: 'NONE' }],
+      },
+    });
+    expect(sameSettingsExceptGroundingTier(draft, pinned)).toBe(true);
+  });
+
+  it('根拠の確認のしきい値が違えば、違う設定とみなす', () => {
+    const pinned = guardrail({
+      version: '3',
+      contextualGroundingPolicy: {
+        filters: [{ type: 'GROUNDING', threshold: 0.5, action: 'NONE' }],
+      },
+    });
+    expect(sameSettingsExceptGroundingTier(guardrail(), pinned)).toBe(false);
+  });
+
+  it('ほかのポリシー（コンテンツフィルター）が違えば、違う設定とみなす', () => {
+    const pinned = guardrail({
+      version: '3',
+      contentPolicy: {
+        filters: [
+          { type: 'HATE', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+        ],
+      },
+    });
+    expect(sameSettingsExceptGroundingTier(guardrail(), pinned)).toBe(false);
+  });
+
+  it('キーの順番が違うだけなら、同じ設定とみなす', () => {
+    const a = guardrail({
+      contentPolicy: {
+        filters: [
+          { type: 'HATE', inputStrength: 'HIGH', outputStrength: 'LOW' },
+        ],
+      },
+    });
+    const b = guardrail({
+      contentPolicy: {
+        filters: [
+          { outputStrength: 'LOW', type: 'HATE', inputStrength: 'HIGH' },
+        ],
+      },
+    });
+    expect(sameSettingsExceptGroundingTier(a, b)).toBe(true);
   });
 });
