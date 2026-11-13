@@ -107,4 +107,30 @@ describe('GuardrailUpdateInput', () => {
       ].sort(),
     );
   });
+
+  it('根拠の確認が設定されていなければ止める', () => {
+    const current = minimal();
+    delete current.contextualGroundingPolicy;
+    expect(() =>
+      new GuardrailUpdateInput(current).withStandardGrounding(),
+    ).toThrow('根拠の確認（contextualGroundingPolicy）が設定されていません');
+  });
+
+  it('ガードレールプロファイルがなければ止める（STANDARD に必要なため）', () => {
+    const current = minimal();
+    delete current.crossRegionDetails;
+    expect(() =>
+      new GuardrailUpdateInput(current).withStandardGrounding(),
+    ).toThrow('ガードレールプロファイル');
+  });
+
+  it('引き継ぎ方がわからない設定があれば止める（書かずに消してしまわないため）', () => {
+    const current = {
+      ...minimal(),
+      automatedReasoningPolicy: { policies: ['p1'] },
+    } as GetGuardrailResult;
+    expect(() =>
+      new GuardrailUpdateInput(current).withStandardGrounding(),
+    ).toThrow('automatedReasoningPolicy');
+  });
 });
