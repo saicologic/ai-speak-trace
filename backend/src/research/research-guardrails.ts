@@ -24,9 +24,11 @@ export function isEnglishText(text: string): boolean {
 /**
  * 根拠の確認の対象（Web の根拠が付いた文）と、Guardrails に渡す内容
  * Standard tier の根拠の確認は日本語にも対応するため、文の言語では絞らない
+ * 質問には、文が属する論点（キーワード）を渡す。わからなければ主張そのものを渡す
  */
 export function groundingTarget(
   segment: ReportSegment,
+  topic?: string,
 ): { source: string; query: string; claim: string } | null {
   const claim = segment.text.trim();
   const sources = segment.citations
@@ -36,8 +38,8 @@ export function groundingTarget(
   if (sources.length === 0 || !claim) return null;
   return {
     source: sources.join('\n\n').slice(0, GROUNDING_SOURCE_MAX_CHARS),
-    // 質問は主張そのものにする（主張と関係のない一般的な質問だと、関連度が下がって点数が不安定になる）
-    query: claim.slice(0, 1000),
+    // Standard tier では、質問を論点にしたほうが、事実を変えた主張を見分けやすかった（日本語の40件で 28/40 → 35/40）
+    query: (topic?.trim() || claim).slice(0, 1000),
     claim: claim.slice(0, 5000),
   };
 }
