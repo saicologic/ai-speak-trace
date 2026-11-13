@@ -300,6 +300,14 @@ export class SettingsService {
     version: string;
     settings: AppSettings;
   }> {
+    // 切り替えの最中に Guardrail ID などを保存して、前の Guardrail のバージョンを書かないよう、設定の保存と同じ待ち行列に入れる
+    const run = this.updating.then(() => this.runSwitchToStandard());
+    this.updating = run.catch(() => undefined);
+    const version = await run;
+    return { tier: 'STANDARD', version, settings: this.getSettings() };
+  }
+
+  private async runSwitchToStandard(): Promise<string> {
     let version: string;
     try {
       ({ version } = await this.groundingTier.switchToStandard());
@@ -312,11 +320,9 @@ export class SettingsService {
     if (version !== 'DRAFT') {
       // 作ったばかりのバージョンは GroundingTierService が読み直して確かめているため、ApplyGuardrail で確かめ直さない
       // （確かめ直しが失敗すると、AWS にはできたバージョンと設定が食い違い、押し直すたびにバージョンが増えるため）
-      const run = this.updating.then(() => this.savePinnedVersion(version));
-      this.updating = run.catch(() => undefined);
-      await run;
+      this.savePinnedVersion(version);
     }
-    return { tier: 'STANDARD', version, settings: this.getSettings() };
+    return version;
   }
 
   /** Guardrail のバージョンの設定を保存する（確かめ直さない） */

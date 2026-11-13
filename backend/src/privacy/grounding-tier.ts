@@ -64,7 +64,7 @@ const KNOWN_POLICY_FIELDS: Record<string, string[]> = {
 };
 
 /** 引き継ぎ方がわからない項目の名前（ポリシーの中は「ポリシー.項目」。値が undefined の項目は数えない） */
-function unknownFields(g: GetGuardrailCommandOutput): string[] {
+export function unknownFields(g: GetGuardrailCommandOutput): string[] {
   const record = g as unknown as Record<string, unknown>;
   const present = (o: Record<string, unknown>) =>
     Object.keys(o).filter((k) => o[k] !== undefined);
