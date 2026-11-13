@@ -57,6 +57,14 @@
 | AI に動作確認を頼む | [docs/developers/ai-testing.md](docs/developers/ai-testing.md) |
 | バックエンド・フロントエンド | [backend/README.md](backend/README.md)・[frontend/README.md](frontend/README.md) |
 
+## 検討中
+
+まだ決まっていない設計の話し合いです。決まったものは、`docs/developers/` に正式なドキュメントとして残します。
+
+| 内容 | ドキュメント |
+|---|---|
+| システム全体のアーキテクチャを、コンポーネントの分け方から見直す | [安定し続けるアーキテクチャ](https://claude.ai/artifact/WH9LjYNbWQkGHA3dYmYATy)（Claude の Artifact） |
+
 ## ライセンス
 
 [MIT License](LICENSE)
