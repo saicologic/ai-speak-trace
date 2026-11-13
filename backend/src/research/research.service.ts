@@ -745,16 +745,11 @@ export function evaluate(
   let factual = 0;
   let cited = 0;
   let supported = 0;
-  // 除いた文がどの論点のものかを記録するため、直前の論点の見出しを覚えておく
-  let topic: string | undefined;
+  // 除いた文がどの論点のものかを記録する
+  const topics = segmentTopics(report, keywords);
 
   report.forEach((segment, index) => {
-    for (const line of segment.text.split('\n')) {
-      const heading = line.trim().match(/^#{1,6}\s+(.+)$/);
-      if (heading && keywords.includes(heading[1].trim())) {
-        topic = heading[1].trim();
-      }
-    }
+    const topic = topics[index];
     const v = verdicts.get(index);
     // 注記の文は、審査員の判定によらず事実の主張として扱わない
     if (NOTE_SENTENCE.test(segment.text.trim())) return;
