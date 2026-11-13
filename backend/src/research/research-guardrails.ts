@@ -29,7 +29,8 @@ export function isEnglishText(text: string): boolean {
 export function groundingTarget(
   segment: ReportSegment,
   topic?: string,
-  standardTier = true,
+  /** 根拠の確認が Standard tier か（わからなければ、安全な側の false） */
+  standardTier = false,
 ): { source: string; query: string; claim: string } | null {
   const claim = segment.text.trim();
   const sources = segment.citations

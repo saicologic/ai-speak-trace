@@ -310,9 +310,23 @@ export class SettingsService {
       );
     }
     if (version !== 'DRAFT') {
-      await this.updateSettings({ bedrockGuardrailVersion: version });
+      // 作ったばかりのバージョンは GroundingTierService が読み直して確かめているため、ApplyGuardrail で確かめ直さない
+      // （確かめ直しが失敗すると、AWS にはできたバージョンと設定が食い違い、押し直すたびにバージョンが増えるため）
+      const run = this.updating.then(() => this.savePinnedVersion(version));
+      this.updating = run.catch(() => undefined);
+      await run;
     }
     return { tier: 'STANDARD', version, settings: this.getSettings() };
+  }
+
+  /** Guardrail のバージョンの設定を保存する（確かめ直さない） */
+  private savePinnedVersion(version: string): void {
+    const updated: SettingsFile = {
+      ...this.readSettingsFile(),
+      bedrockGuardrailPinnedVersion: version,
+    };
+    this.writeSettingsFile(updated);
+    process.env.BEDROCK_GUARDRAIL_VERSION = version;
   }
 
   /**

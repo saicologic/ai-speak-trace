@@ -29,8 +29,11 @@ export type GroundingTierStatus = GroundingTier | 'UNKNOWN';
 export class GroundingTierService {
   private readonly logger = new Logger(GroundingTierService.name);
   private client?: BedrockClient;
-  /** 読んだ tier（Guardrail ID・バージョンが同じ間は使い回す） */
-  private cached?: { key: string; tier: GroundingTierStatus };
+  /** 読んだ tier（Guardrail ID・バージョンが同じ間は使い回す。読めなかったときは覚えない） */
+  private cached?: { key: string; tier: GroundingTier };
+  /** 書き換えた後、Guardrail が READY に戻るのを確かめる間隔（ミリ秒）と回数 */
+  readyPollMs = 1000;
+  readyPollAttempts = 30;
 
   constructor(
     private readonly configService: ConfigService,
@@ -50,18 +53,18 @@ export class GroundingTierService {
     const version = this.guardrail.guardrailVersion;
     const key = `${id}@${version}`;
     if (this.cached?.key === key) return this.cached.tier;
-    let tier: GroundingTierStatus;
     try {
-      tier = groundingTierOf(await this.get(id, version));
+      const tier = groundingTierOf(await this.get(id, version));
+      this.cached = { key, tier };
+      return tier;
     } catch (error) {
+      // 一時的な失敗や権限の不足は、直した後に読み直せるよう覚えない
       this.logger.warn(
         `根拠の確認の tier を確かめられません（Guardrail ${id}、バージョン ${version}）`,
         error instanceof Error ? error.message : error,
       );
-      tier = 'UNKNOWN';
+      return 'UNKNOWN';
     }
-    this.cached = { key, tier };
-    return tier;
   }
 
   /**
@@ -85,7 +88,10 @@ export class GroundingTierService {
     await this.getClient().send(
       new UpdateGuardrailCommand(standardGroundingRequest(draft)),
     );
+    // 更新中（UPDATING）は新しいバージョンを作れないため、READY に戻るまで待つ
+    const updated = await this.waitUntilReady(id, 'DRAFT');
     let version = 'DRAFT';
+    let checked = updated;
     if (pinned !== 'DRAFT') {
       const created = await this.getClient().send(
         new CreateGuardrailVersionCommand({
@@ -97,15 +103,35 @@ export class GroundingTierService {
         throw new Error('新しいバージョンの番号が返りませんでした');
       }
       version = created.version;
+      checked = await this.waitUntilReady(id, version);
     }
     // SDK が tierConfig を知らないと、エラーにならずに捨てるため、読み直して確かめる
-    const after = groundingTierOf(await this.get(id, version));
+    const after = groundingTierOf(checked);
     if (after !== 'STANDARD') {
       throw new Error(
         `根拠の確認が STANDARD になりませんでした（${after}）。AWS SDK の版が古い可能性があります`,
       );
     }
+    // 切り替えの最中に読まれた古い tier が残らないよう、確かめた tier を覚える
+    this.cached = { key: `${id}@${version}`, tier: 'STANDARD' };
     return { version };
+  }
+
+  /** Guardrail が READY になるまで読み直す（ならなければ失敗にする） */
+  private async waitUntilReady(
+    id: string,
+    version: string,
+  ): Promise<GetGuardrailCommandOutput> {
+    for (let attempt = 1; ; attempt++) {
+      const guardrail = await this.get(id, version);
+      if (guardrail.status === 'READY') return guardrail;
+      if (attempt >= this.readyPollAttempts) {
+        throw new Error(
+          `Guardrail（バージョン ${version}）が READY に戻りませんでした（${guardrail.status ?? '不明'}）`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.readyPollMs));
+    }
   }
 
   private get(id: string, version: string): Promise<GetGuardrailCommandOutput> {

@@ -140,7 +140,8 @@ export function standardGroundingRequest(
     ...(g.kmsKeyArn && { kmsKeyId: g.kmsKeyArn }),
     blockedInputMessaging: g.blockedInputMessaging,
     blockedOutputsMessaging: g.blockedOutputsMessaging,
-    // GetGuardrail と UpdateGuardrail は、フィルター・トピックの1件の形が同じ
+    // GetGuardrail と UpdateGuardrail は、フィルター・トピックの1件の形が同じ（SDK 3.1168.0 で確かめた）。
+    // 1件の中の項目は確かめずに渡すため、SDK を上げるときは、1件の形が変わっていないかを確かめる
     ...(topics?.length && {
       topicPolicyConfig: {
         topicsConfig: topics as GuardrailTopicConfig[],
@@ -195,6 +196,7 @@ function comparableSettings(g: GetGuardrailCommandOutput): unknown {
     sensitiveInformationPolicy: g.sensitiveInformationPolicy,
     groundingFilters: g.contextualGroundingPolicy?.filters,
     guardrailProfileId: g.crossRegionDetails?.guardrailProfileId,
+    guardrailProfileArn: g.crossRegionDetails?.guardrailProfileArn,
   };
 }
 
