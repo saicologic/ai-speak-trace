@@ -8,6 +8,7 @@ import {
   normalizeTitle,
   ResearchService,
   resumeStage,
+  segmentTopics,
   sendableWords,
 } from './research.service';
 import { Transcription } from '../transcription/types/transcription.types';
@@ -887,6 +888,32 @@ describe('evaluate の relevance', () => {
       ['ハーネス'],
     );
     expect(evaluation.relevance.map((r) => r.keyword)).toEqual(['ハーネス']);
+  });
+});
+
+describe('segmentTopics', () => {
+  const seg = (text: string): ReportSegment => ({ text, citations: [] });
+
+  it('各文の論点を、直前のキーワードの見出しから決める', () => {
+    const report = [
+      seg('はじめに'),
+      seg('## ハーネス\n長い作業を管理します。'),
+      seg('文脈を保ちます。'),
+      seg('### 補足'),
+      seg('補足の文です。'),
+      seg('## MCP'),
+      seg('外部のツールにつなぎます。'),
+    ];
+    expect(segmentTopics(report, ['ハーネス', 'MCP'])).toEqual([
+      undefined,
+      'ハーネス',
+      'ハーネス',
+      // キーワードではない見出しでは、論点を変えない
+      'ハーネス',
+      'ハーネス',
+      'MCP',
+      'MCP',
+    ]);
   });
 });
 
