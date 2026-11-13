@@ -481,8 +481,9 @@ describe('ResearchService（失敗した調査の再開）', () => {
         Promise.resolve({ title: '調査', keywords: [] }),
       ),
       researchWeb: jest.fn(),
-      analyze: jest.fn(() =>
-        Promise.resolve([{ text: '本文', citations: [] }]),
+      analyze: jest.fn(
+        (): Promise<ReportSegment[]> =>
+          Promise.resolve([{ text: '本文', citations: [] }]),
       ),
       judge: jest.fn(() =>
         Promise.resolve({ claims: [], relevance: [], ethics: ethicsOk }),

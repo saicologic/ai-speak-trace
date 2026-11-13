@@ -72,7 +72,9 @@ describe('groundingTarget', () => {
         citations: [{ ...web('会話'), sourceKind: 'conversation' as const }],
       }),
     ).toBeNull();
-    expect(groundingTarget({ text: '  \n ', citations: [web('a')] })).toBeNull();
+    expect(
+      groundingTarget({ text: '  \n ', citations: [web('a')] }),
+    ).toBeNull();
   });
 });
 
