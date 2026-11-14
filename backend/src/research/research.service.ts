@@ -719,7 +719,8 @@ export function segmentTopics(
     let bodySeen = false;
     for (const line of segment.text.split('\n')) {
       const text = line.trim();
-      if (!text) continue;
+      // 「**詳しく**」などの構成のラベルは、本文とみなさない
+      if (!text || SECTION_LABEL.test(text)) continue;
       const heading = text.match(/^#{1,6}\s+(.+)$/);
       if (!heading) {
         // 最初の本文の行までに出てきた見出しを、この文の論点にする
