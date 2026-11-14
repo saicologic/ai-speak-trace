@@ -83,6 +83,23 @@ describe('estimateCostUsd', () => {
     );
   });
 
+  it('Haiku 5.5 の 10 万トークンの境目は、キャッシュの書き込みの内訳があれば内訳の合計で数える', () => {
+    expect(
+      estimateCostUsd(
+        'claude-haiku-5-5',
+        usage({
+          input_tokens: 60_000,
+          cache_read_input_tokens: 40_000,
+          cache_creation_input_tokens: null,
+          cache_creation: {
+            ephemeral_5m_input_tokens: 1,
+            ephemeral_1h_input_tokens: 0,
+          },
+        }),
+      ),
+    ).toBeCloseTo((60_000 * 0.5 + 40_000 * 0.05 + 1 * 0.625) / MILLION, 10);
+  });
+
   it('Web 検索は、1,000 回あたり $10 を足す', () => {
     expect(
       estimateCostUsd(
