@@ -421,7 +421,27 @@ describe('ClaudeClientService.createMessage', () => {
       expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
     });
 
+    it('キャッシュの書き込みの内訳だけがあるときは、内訳の合計をキャッシュの書き込みのトークン数として記録する', async () => {
+      mockCreate.mockResolvedValue({
+        ...textResponse('了解しました'),
+        usage: {
+          ...usage,
+          cache_creation_input_tokens: null,
+          cache_creation: {
+            ephemeral_5m_input_tokens: 300,
+            ephemeral_1h_input_tokens: 200,
+          },
+        },
+      } as Anthropic.Message);
+      await service.createMessage(params);
+      expect(lastAudit()?.usage?.cacheCreationInputTokens).toBe(500);
+    });
+
     it('応答の確認で止めたときも、Claude には課金されているため、トークン数と費用の目安を記録する', async () => {
+      jest
+        .spyOn(performance, 'now')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1800);
       mockCreate.mockResolvedValue(withUsage('ひどい言葉'));
       guardrail.inspect
         .mockResolvedValueOnce(noFindings())
@@ -436,7 +456,7 @@ describe('ClaudeClientService.createMessage', () => {
         usage: { inputTokens: 1000, outputTokens: 200 },
       });
       expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
-      expect(record?.claudeDurationMs).toEqual(expect.any(Number));
+      expect(record?.claudeDurationMs).toBe(800);
     });
 
     it('応答の確認（Guardrails）が失敗したときも、Claude には課金されているため、エラーとしてトークン数と費用の目安を記録する', async () => {
