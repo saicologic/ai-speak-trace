@@ -334,7 +334,11 @@ function recordUsage(
   audit.usage = {
     inputTokens: usage.input_tokens,
     outputTokens: usage.output_tokens,
-    cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
+    // 費用の計算（estimateCostUsd）と同じく、内訳があれば内訳の合計で数える
+    cacheCreationInputTokens: usage.cache_creation
+      ? usage.cache_creation.ephemeral_5m_input_tokens +
+        usage.cache_creation.ephemeral_1h_input_tokens
+      : (usage.cache_creation_input_tokens ?? 0),
     cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
     webSearchRequests: usage.server_tool_use?.web_search_requests ?? 0,
   };
