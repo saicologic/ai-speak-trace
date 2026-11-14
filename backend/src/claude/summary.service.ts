@@ -3,6 +3,7 @@ import { ClaudeClientService } from './claude-client.service';
 import { ContentWarning } from './claude-guard.utils';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
 import { withUntrustedSource } from './untrusted-source';
+import { DEFAULT_SUMMARY_MODEL, SUMMARY_MODELS } from './models';
 
 /** プロンプトの {{fullText}} の代わりに書く、会話の全文の在りか（会話の全文は tool_result で渡す） */
 export const FULL_TEXT_REFERENCE =
@@ -47,19 +48,15 @@ export class SummaryService {
 - decisions: 会話中に明示的に合意・決定された事項を列挙する。なければ空配列 []
 </instructions>`;
 
-  /** 要約で選択可能なモデル一覧（要約向き順） */
-  static readonly SUMMARY_MODELS = [
-    { id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5（推奨）' },
-    { id: 'claude-haiku-5-5', label: 'claude-haiku-5-5（高速・低コスト）' },
-    { id: 'claude-opus-5-5', label: 'claude-opus-5-5（高品質）' },
-  ];
+  /** 要約で選択可能なモデル一覧（要約向き順。中身は models.ts で決める） */
+  static readonly SUMMARY_MODELS = SUMMARY_MODELS;
 
   constructor(private readonly claudeClient: ClaudeClientService) {}
 
   /** 会話全文を要約してJSON構造で返す */
   async summarize(
     fullText: string,
-    model: string = 'claude-sonnet-5-5',
+    model: string = DEFAULT_SUMMARY_MODEL,
     promptTemplate: string = SummaryService.DEFAULT_SUMMARY_PROMPT,
   ): Promise<{ summary: SummaryOutput; warnings: ContentWarning[] }> {
     this.logger.log(`要約開始: model=${model}`);

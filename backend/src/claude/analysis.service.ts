@@ -8,9 +8,10 @@ import { ContentWarning } from './claude-guard.utils';
 import { AnalysisResult } from '../interview/types/interview.types';
 import { assertCompleteResponse, extractText } from './claude-response.utils';
 import { UntrustedSource, withUntrustedSource } from './untrusted-source';
+import { CLAUDE_MODEL } from './models';
 
-/** 会話分析・発言の文脈・ディープサーチに使うClaudeモデル */
-export const CLAUDE_MODEL = 'claude-sonnet-5-5';
+// モデルは models.ts で決める。前からの import のために、ここからも export する
+export { CLAUDE_MODEL };
 
 /** 思考の深さ（Sonnet 5.5 の既定は high。分析・要約用途のため medium に下げる） */
 const CLAUDE_EFFORT = 'medium';

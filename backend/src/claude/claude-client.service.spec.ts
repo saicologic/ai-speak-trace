@@ -378,6 +378,146 @@ describe('ClaudeClientService.createMessage', () => {
     });
   });
 
+  describe('トークン数・費用の目安・所要時間の記録', () => {
+    const usage: Anthropic.Usage = {
+      input_tokens: 1000,
+      output_tokens: 200,
+      cache_creation_input_tokens: null,
+      cache_read_input_tokens: 500,
+      cache_creation: null,
+      server_tool_use: { web_search_requests: 2, web_fetch_requests: 0 },
+      inference_geo: null,
+      service_tier: null,
+    };
+    /** Sonnet 5.5 の単価（$2・$10・キャッシュの読み込み $0.10）と Web 検索 2 回（$0.02） */
+    const expectedCost = (1000 * 2 + 200 * 10 + 500 * 0.1) / 1_000_000 + 0.02;
+
+    const withUsage = (text: string): Anthropic.Message =>
+      ({ ...textResponse(text), usage }) as Anthropic.Message;
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('送って応答を返したとき、トークン数・Web 検索の回数・費用の目安・Claude の所要時間を記録する', async () => {
+      jest
+        .spyOn(performance, 'now')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(3500);
+      mockCreate.mockResolvedValue(withUsage('了解しました'));
+      await service.createMessage(params, { purpose: 'summary' });
+      const record = lastAudit();
+      expect(record).toMatchObject({
+        outcome: 'sent',
+        usage: {
+          inputTokens: 1000,
+          outputTokens: 200,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 500,
+          webSearchRequests: 2,
+        },
+        claudeDurationMs: 2500,
+      });
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
+    });
+
+    it('キャッシュの書き込みの内訳だけがあるときは、内訳の合計をキャッシュの書き込みのトークン数として記録する', async () => {
+      mockCreate.mockResolvedValue({
+        ...textResponse('了解しました'),
+        usage: {
+          ...usage,
+          cache_creation_input_tokens: null,
+          cache_creation: {
+            ephemeral_5m_input_tokens: 300,
+            ephemeral_1h_input_tokens: 200,
+          },
+        },
+      } as Anthropic.Message);
+      await service.createMessage(params);
+      expect(lastAudit()?.usage?.cacheCreationInputTokens).toBe(500);
+    });
+
+    it('応答の確認で止めたときも、Claude には課金されているため、トークン数と費用の目安を記録する', async () => {
+      jest
+        .spyOn(performance, 'now')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1800);
+      mockCreate.mockResolvedValue(withUsage('ひどい言葉'));
+      guardrail.inspect
+        .mockResolvedValueOnce(noFindings())
+        .mockResolvedValueOnce({
+          ...noFindings(),
+          content: [{ type: 'INSULTS', confidence: 'HIGH' }],
+        });
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record).toMatchObject({
+        outcome: 'blocked_output',
+        usage: { inputTokens: 1000, outputTokens: 200 },
+      });
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
+      expect(record?.claudeDurationMs).toBe(800);
+    });
+
+    it('応答の確認（Guardrails）が失敗したときも、Claude には課金されているため、エラーとしてトークン数と費用の目安を記録する', async () => {
+      mockCreate.mockResolvedValue(withUsage('了解しました'));
+      guardrail.inspect
+        .mockResolvedValueOnce(noFindings())
+        .mockRejectedValueOnce(new Error('ThrottlingException'));
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record).toMatchObject({
+        outcome: 'error',
+        reason: 'ThrottlingException',
+        usage: { inputTokens: 1000, outputTokens: 200 },
+      });
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
+    });
+
+    it('送る前の確認（Guardrails）が失敗したときは、Claude を呼んでいないため、トークン数・費用の目安・所要時間を記録しない', async () => {
+      guardrail.inspect.mockRejectedValueOnce(new Error('AccessDenied'));
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record?.outcome).toBe('error');
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+      expect(record).not.toHaveProperty('claudeDurationMs');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('Claude の呼び出しが失敗したときは、応答がないため、トークン数・費用の目安・所要時間を記録しない', async () => {
+      mockCreate.mockRejectedValue(new Error('overloaded'));
+      await expect(service.createMessage(params)).rejects.toThrow('overloaded');
+      const record = lastAudit();
+      expect(record).toMatchObject({ outcome: 'error', reason: 'overloaded' });
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+      expect(record).not.toHaveProperty('claudeDurationMs');
+    });
+
+    it('送る前に止めたときは、Claude を呼んでいないため、トークン数と費用の目安を記録しない', async () => {
+      guardrail.inspect.mockResolvedValueOnce({
+        ...noFindings(),
+        content: [{ type: 'PROMPT_ATTACK', confidence: 'HIGH' }],
+      });
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record?.outcome).toBe('blocked_input');
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('応答に usage がないときも、トークン数を付けずに記録する', async () => {
+      mockCreate.mockResolvedValue(textResponse('了解しました'));
+      await service.createMessage(params);
+      const record = lastAudit();
+      expect(record?.outcome).toBe('sent');
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+    });
+  });
+
   describe('外からの内容（untrusted）を指定した場合', () => {
     const summaryParams: Anthropic.MessageCreateParamsNonStreaming = {
       ...params,

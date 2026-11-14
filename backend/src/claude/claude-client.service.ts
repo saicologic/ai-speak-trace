@@ -30,6 +30,7 @@ import {
   masker,
   toAutoMaskFindings,
 } from './claude-guard.utils';
+import { estimateCostUsd } from './models';
 
 /**
  * Claude に送るすべてのリクエストの system の先頭に付ける、AI倫理の指示
@@ -227,9 +228,13 @@ export class ClaudeClientService {
       this.logger.log(`送る内容の個人情報を伏せます: ${inputMasks.length}件`);
     }
     // 倫理の指示はアプリの固定の文で、個人情報やプロンプト攻撃を含まないため、確認の後に足す
+    const startedAt = performance.now();
     const response = await this.getClient().messages.create(
       withEthicsSystem(mapRequestTexts(params, masker(inputMasks))),
     );
+    audit.claudeDurationMs = Math.round(performance.now() - startedAt);
+    // 応答の確認で止めても Claude には課金されているため、確認の前に記録する
+    recordUsage(audit, params.model, response.usage);
 
     const outputText = collectResponseText(response);
     const outputFindings = await this.guardrail.inspect(outputText, 'OUTPUT', {
@@ -314,6 +319,30 @@ export class ClaudeClientService {
 /** 個人情報の種類の表示名（重複なし） */
 function labels(findings: PiiFinding[]): string {
   return [...new Set(findings.map((f) => f.label))].join('、');
+}
+
+/**
+ * 応答の usage から、トークン数と費用の目安を記録に入れる
+ * usage がない応答（型の上ではあるが、念のため）は記録しない
+ */
+function recordUsage(
+  audit: ClaudeAuditRecord,
+  model: string,
+  usage: Anthropic.Usage | undefined,
+): void {
+  if (!usage) return;
+  audit.usage = {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    // 費用の計算（estimateCostUsd）と同じく、内訳があれば内訳の合計で数える
+    cacheCreationInputTokens: usage.cache_creation
+      ? usage.cache_creation.ephemeral_5m_input_tokens +
+        usage.cache_creation.ephemeral_1h_input_tokens
+      : (usage.cache_creation_input_tokens ?? 0),
+    cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
+    webSearchRequests: usage.server_tool_use?.web_search_requests ?? 0,
+  };
+  audit.estimatedCostUsd = estimateCostUsd(model, usage);
 }
 
 /** Guardrails の検出結果を、記録の形にする（検出した文字列は残さない） */
