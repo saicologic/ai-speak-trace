@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type Anthropic from '@anthropic-ai/sdk';
 import { ClaudeClientService } from '../claude/claude-client.service';
-import { CLAUDE_MODEL } from '../claude/analysis.service';
+import { CLAUDE_MODEL, JUDGE_MODEL } from '../claude/models';
 import {
   assertCompleteResponse,
   extractText,
@@ -23,8 +23,8 @@ import {
   toReportSegments,
 } from './research.utils';
 
-/** 評価（LLM-as-a-Judge）に使うモデル。分析とは別のモデルで、主張と根拠を突き合わせる */
-export const JUDGE_MODEL = 'claude-haiku-5-5';
+// モデルは models.ts で決める。前からの import のために、ここからも export する
+export { JUDGE_MODEL };
 
 const MAX_TOKENS = 16000;
 const MAX_PAUSE_CONTINUATIONS = 3;
