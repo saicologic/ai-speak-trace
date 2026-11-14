@@ -418,7 +418,7 @@ describe('ClaudeClientService.createMessage', () => {
         },
         claudeDurationMs: 2500,
       });
-      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost);
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
     });
 
     it('応答の確認で止めたときも、Claude には課金されているため、トークン数と費用の目安を記録する', async () => {
@@ -435,7 +435,44 @@ describe('ClaudeClientService.createMessage', () => {
         outcome: 'blocked_output',
         usage: { inputTokens: 1000, outputTokens: 200 },
       });
-      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost);
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
+      expect(record?.claudeDurationMs).toEqual(expect.any(Number));
+    });
+
+    it('応答の確認（Guardrails）が失敗したときも、Claude には課金されているため、エラーとしてトークン数と費用の目安を記録する', async () => {
+      mockCreate.mockResolvedValue(withUsage('了解しました'));
+      guardrail.inspect
+        .mockResolvedValueOnce(noFindings())
+        .mockRejectedValueOnce(new Error('ThrottlingException'));
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record).toMatchObject({
+        outcome: 'error',
+        reason: 'ThrottlingException',
+        usage: { inputTokens: 1000, outputTokens: 200 },
+      });
+      expect(record?.estimatedCostUsd).toBeCloseTo(expectedCost, 10);
+    });
+
+    it('送る前の確認（Guardrails）が失敗したときは、Claude を呼んでいないため、トークン数・費用の目安・所要時間を記録しない', async () => {
+      guardrail.inspect.mockRejectedValueOnce(new Error('AccessDenied'));
+      await expect(service.createMessage(params)).rejects.toThrow();
+      const record = lastAudit();
+      expect(record?.outcome).toBe('error');
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+      expect(record).not.toHaveProperty('claudeDurationMs');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('Claude の呼び出しが失敗したときは、応答がないため、トークン数・費用の目安・所要時間を記録しない', async () => {
+      mockCreate.mockRejectedValue(new Error('overloaded'));
+      await expect(service.createMessage(params)).rejects.toThrow('overloaded');
+      const record = lastAudit();
+      expect(record).toMatchObject({ outcome: 'error', reason: 'overloaded' });
+      expect(record).not.toHaveProperty('usage');
+      expect(record).not.toHaveProperty('estimatedCostUsd');
+      expect(record).not.toHaveProperty('claudeDurationMs');
     });
 
     it('送る前に止めたときは、Claude を呼んでいないため、トークン数と費用の目安を記録しない', async () => {

@@ -25,7 +25,7 @@ describe('estimateCostUsd', () => {
         'claude-sonnet-5-5',
         usage({ input_tokens: MILLION, output_tokens: MILLION }),
       ),
-    ).toBeCloseTo(12);
+    ).toBeCloseTo(12, 10);
   });
 
   it('キャッシュの読み込み・5 分の書き込み・1 時間の書き込みを、それぞれの単価で計算する', () => {
@@ -41,7 +41,7 @@ describe('estimateCostUsd', () => {
           },
         }),
       ),
-    ).toBeCloseTo(0.1 + 2.5 + 4);
+    ).toBeCloseTo(0.1 + 2.5 + 4, 10);
   });
 
   it('キャッシュの書き込みの内訳がないときは、5 分の単価で計算する', () => {
@@ -50,7 +50,7 @@ describe('estimateCostUsd', () => {
         'claude-opus-5-5',
         usage({ cache_creation_input_tokens: MILLION }),
       ),
-    ).toBeCloseTo(5);
+    ).toBeCloseTo(5, 10);
   });
 
   it('Haiku 5.5 は、入力とキャッシュの合計がちょうど 10 万トークンなら低い単価で計算する', () => {
@@ -63,7 +63,7 @@ describe('estimateCostUsd', () => {
           output_tokens: 10_000,
         }),
       ),
-    ).toBeCloseTo((60_000 * 0.1 + 40_000 * 0.01 + 10_000 * 0.5) / MILLION);
+    ).toBeCloseTo((60_000 * 0.1 + 40_000 * 0.01 + 10_000 * 0.5) / MILLION, 10);
   });
 
   it('Haiku 5.5 は、入力とキャッシュの合計が 10 万トークンを超えると、すべてを高い単価で計算する', () => {
@@ -79,6 +79,7 @@ describe('estimateCostUsd', () => {
       ),
     ).toBeCloseTo(
       (60_000 * 0.5 + 40_000 * 0.05 + 1 * 0.625 + 10_000 * 2.5) / MILLION,
+      10,
     );
   });
 
@@ -90,7 +91,7 @@ describe('estimateCostUsd', () => {
           server_tool_use: { web_search_requests: 3, web_fetch_requests: 0 },
         }),
       ),
-    ).toBeCloseTo(0.03);
+    ).toBeCloseTo(0.03, 10);
   });
 
   it('単価の表にないモデルは、費用を null（不明）にする', () => {
@@ -105,6 +106,6 @@ describe('estimateCostUsd', () => {
         'claude-sonnet-5-5',
         usage({ input_tokens: MILLION, cache_read_input_tokens: null }),
       ),
-    ).toBeCloseTo(2);
+    ).toBeCloseTo(2, 10);
   });
 });
