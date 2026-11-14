@@ -100,7 +100,9 @@ export function estimateCostUsd(
     ? usage.cache_creation.ephemeral_5m_input_tokens
     : cacheWrite;
 
-  const promptTokens = usage.input_tokens + cacheRead + cacheWrite;
+  // 単価の計算と同じく、内訳があれば内訳の合計で数える
+  const promptTokens =
+    usage.input_tokens + cacheRead + cacheWrite5m + cacheWrite1h;
   const p =
     prices.longContext &&
     prices.longContextThreshold !== undefined &&
