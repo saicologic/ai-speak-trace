@@ -1001,6 +1001,19 @@ describe('segmentTopics', () => {
       'MCP',
     ]);
   });
+
+  it('「**詳しく**」などの構成のラベルは本文とみなさず、その後の見出しをその文の論点にする', () => {
+    const report = [
+      seg('## ハーネス'),
+      seg('文脈を保ちます。'),
+      seg('**詳しく**\n## MCP\n外部のツールにつなぎます。'),
+    ];
+    expect(segmentTopics(report, ['ハーネス', 'MCP'])).toEqual([
+      'ハーネス',
+      'ハーネス',
+      'MCP',
+    ]);
+  });
 });
 
 describe('normalizeTitle', () => {
