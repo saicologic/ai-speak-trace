@@ -8,6 +8,7 @@
 | 個人・社内向けにカスタマイズして使いたい | [リポジトリをフォーク](https://github.com/saicologic/ai-speak-trace/fork)して、自分のApple Developer証明書とGitHub Secretsを設定してください（[コード署名の設定手順](code-signing.md)を参照） |
 | MCP サーバーの設計を知りたい | [MCP サーバーの設計](mcp-server.md)を参照してください |
 | 検討中のアーキテクチャの見直しを知りたい | [安定し続けるアーキテクチャ](https://claude.ai/artifact/WH9LjYNbWQkGHA3dYmYATy)（検討中）を参照してください |
+| 精度・速度・評価・脆弱性への対応を知りたい | [精度・速度・評価・脆弱性への対応](quality-overview.md)を参照してください |
 | バックエンドの外への通信の制限を知りたい | [バックエンドの外への通信の制限と記録](network-egress.md)を参照してください |
 | Claude Code で開発したい | 最初に [Claude Code のサンドボックスと GitHub への操作](claude-code-sandbox.md)の手順で、チーム共通の設定を入れてください |
 
