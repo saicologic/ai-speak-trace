@@ -96,7 +96,7 @@ Claude の呼び出しの記録（`claude-audit.store.ts`）に、次の項目�
 | バックエンドの API | 対応している | 起動のたびに作るトークンを、アプリの画面だけが持つ。トークンのないリクエストは受け付けない | 自前のコード（`api-token.ts`。Tauri の sidecar に渡す） |
 | API キーの保存 | 対応している | API キーを `settings.json` に平文で置かず、キーチェーンに入れる。値はコマンドの引数に載せない | macOS のキーチェーン（`/usr/bin/security`） |
 | ファイルのパス | 対応している | 保存先の外を指す ID・ファイル名では、読み書き・削除をしない | 自前のコード（`safe-path.ts`） |
-| 画面に出す AI の回答 | 対応している | 回答を無害にしてから表示する | DOMPurify（`sanitizeHtml.ts`） |
+| 画面に出す AI の回答 | 対応している | Markdown から作った HTML のスクリプト・イベント属性・不許可のリンク先などを取り除いて表示する | `DOMParser` を使った自前のフィルター（`frontend/src/utils/sanitizeHtml.ts`） |
 | 画面が読み込めるもの | 対応している | 読み込める先を自分と localhost のバックエンドに絞り、外のスクリプト・iframe を止める。リリース版では Web インスペクタを開けない | Tauri の CSP |
 | MCP サーバー | 対応している | データのフォルダを読み、監査ログを書くことだけを許し、外への通信を止めて起動する | macOS の `sandbox-exec`（[MCP サーバーの設計](mcp-server.md)） |
 | 自動アップデート | 対応していない | 新しい版は利用者が GitHub Releases から入れ直す。脆弱性を直した版が出ても、古い版を使い続けることがある | なし |
