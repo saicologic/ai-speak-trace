@@ -54,6 +54,7 @@
 | 開発環境・ビルド・アーキテクチャ | [docs/developers/README.md](docs/developers/README.md) |
 | macOS のコード署名・公証 | [docs/developers/code-signing.md](docs/developers/code-signing.md) |
 | ディープサーチの仕組み | [docs/developers/deep-search.md](docs/developers/deep-search.md) |
+| 精度・速度・評価・脆弱性への対応 | [docs/developers/quality-overview.md](docs/developers/quality-overview.md) |
 | AI に動作確認を頼む | [docs/developers/ai-testing.md](docs/developers/ai-testing.md) |
 | バックエンド・フロントエンド | [backend/README.md](backend/README.md)・[frontend/README.md](frontend/README.md) |
 
