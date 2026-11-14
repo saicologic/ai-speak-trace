@@ -321,7 +321,6 @@ function labels(findings: PiiFinding[]): string {
   return [...new Set(findings.map((f) => f.label))].join('、');
 }
 
-/** Guardrails の検出結果を、記録の形にする（検出した文字列は残さない） */
 /**
  * 応答の usage から、トークン数と費用の目安を記録に入れる
  * usage がない応答（型の上ではあるが、念のため）は記録しない
@@ -342,6 +341,7 @@ function recordUsage(
   audit.estimatedCostUsd = estimateCostUsd(model, usage);
 }
 
+/** Guardrails の検出結果を、記録の形にする（検出した文字列は残さない） */
 function toCheckRecord(findings: GuardrailFindings): GuardrailCheckRecord {
   return {
     piiTypes: countPiiTypes(findings.pii),
