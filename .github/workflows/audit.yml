@@ -1,0 +1,51 @@
+name: Audit
+
+# 依存パッケージに、公開された脆弱性がないかを調べる
+# - npm: backend・frontend・ルート（Tauri CLI）の package-lock.json を npm audit で調べる（high 以上で失敗）
+# - cargo: src-tauri/Cargo.lock を cargo audit（RustSec のデータベース）で調べる
+# 依存を変えた PR のほか、依存を変えていなくても新しく公開された脆弱性に気づけるよう、毎週も動かす
+# 必須チェックではないため、paths で絞ってよい（必須チェックに paths を付けると pending のまま残る）
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+    paths:
+      - '**/package-lock.json'
+      - 'src-tauri/Cargo.lock'
+      - '.github/workflows/audit.yml'
+  schedule:
+    # 毎週月曜 9:00（日本時間）
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [backend, frontend, .]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+      # npm audit は package-lock.json だけを読むため、npm ci はしない
+      - name: npm audit（${{ matrix.directory }}）
+        working-directory: ${{ matrix.directory }}
+        run: npm audit --audit-level=high
+
+  cargo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: cargo-audit を入れる
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
