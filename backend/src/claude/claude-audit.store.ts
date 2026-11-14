@@ -37,6 +37,21 @@ export interface ClaudeAuditRecord {
   reason?: string;
   input?: GuardrailCheckRecord;
   output?: GuardrailCheckRecord;
+  /** Claude が返したトークン数（Claude を呼んで応答があったときだけ） */
+  usage?: ClaudeUsageRecord;
+  /** 費用の目安（米ドル。単価の表にないモデルは null） */
+  estimatedCostUsd?: number | null;
+  /** Claude の呼び出しにかかった時間（ミリ秒。Guardrails の確認の時間は含めない） */
+  claudeDurationMs?: number;
+}
+
+/** Claude の呼び出し1回のトークン数 */
+export interface ClaudeUsageRecord {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  webSearchRequests: number;
 }
 
 /**
