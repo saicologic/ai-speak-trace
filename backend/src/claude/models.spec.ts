@@ -111,6 +111,28 @@ describe('estimateCostUsd', () => {
     ).toBeCloseTo(0.03, 10);
   });
 
+  it('推論を米国内に限定した呼び出し（inference_geo が us）は、トークンの費用だけを 1.1 倍にする（Web 検索は倍にしない）', () => {
+    expect(
+      estimateCostUsd(
+        'claude-sonnet-5-5',
+        usage({
+          input_tokens: MILLION,
+          inference_geo: 'us',
+          server_tool_use: { web_search_requests: 1, web_fetch_requests: 0 },
+        }),
+      ),
+    ).toBeCloseTo(2 * 1.1 + 0.01, 10);
+  });
+
+  it('米国内以外の推論（inference_geo が global）は、割増しない', () => {
+    expect(
+      estimateCostUsd(
+        'claude-sonnet-5-5',
+        usage({ input_tokens: MILLION, inference_geo: 'global' }),
+      ),
+    ).toBeCloseTo(2, 10);
+  });
+
   it('単価の表にないモデルは、費用を null（不明）にする', () => {
     expect(
       estimateCostUsd('claude-unknown-1', usage({ input_tokens: 100 })),
