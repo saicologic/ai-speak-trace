@@ -76,6 +76,9 @@ const MODEL_PRICES: Record<string, ModelPrices> = {
   },
 };
 
+/** 推論を米国内に限定した呼び出し（inference_geo が us）の、トークンの料金の倍率 */
+const US_INFERENCE_MULTIPLIER = 1.1;
+
 /** Web 検索 1 回の単価（米ドル。1,000 回あたり $10） */
 const WEB_SEARCH_PRICE = 10 / 1000;
 
@@ -117,6 +120,9 @@ export function estimateCostUsd(
       cacheWrite5m * p.cacheWrite5m +
       cacheWrite1h * p.cacheWrite1h) *
     PER_TOKEN;
+  // 米国内の推論の割増は、トークンの料金だけにかかる（Web 検索の料金にはかからない）
+  const geoMultiplier =
+    usage.inference_geo === 'us' ? US_INFERENCE_MULTIPLIER : 1;
   const searches = usage.server_tool_use?.web_search_requests ?? 0;
-  return tokenCost + searches * WEB_SEARCH_PRICE;
+  return tokenCost * geoMultiplier + searches * WEB_SEARCH_PRICE;
 }
