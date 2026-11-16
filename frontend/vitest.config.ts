@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    css: false,
+    // CSS は読み込まない。ただし、レイアウトの決まりをテストで確かめる CSS だけは中身を読めるようにする
+    css: { include: [/PageLayout\.css/] },
   },
 })

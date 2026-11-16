@@ -2,10 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { PageLayout } from '../PageLayout';
 import pageLayoutCss from '../PageLayout.css?raw';
 
-/** CSS の文字列から、セレクターに書いた宣言を取り出す（空白と改行を詰める） */
+/** CSS の文字列から、セレクターに書いた宣言を取り出す（コメントを除き、空白と改行を詰める） */
 const declarationsOf = (css: string, selector: string): string => {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = css.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`));
+  const match = withoutComments.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`));
   return match ? match[1].replace(/\s+/g, ' ').trim() : '';
 };
 
