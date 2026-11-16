@@ -55,8 +55,9 @@
   min-width: 280px;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
-  /* サイドバー全体はスクロールさせず、文字起こし履歴の一覧だけをスクロールする（TranscriptionList.css） */
-  overflow: hidden;
+  /* ふつうは文字起こし履歴の一覧だけがスクロールする（TranscriptionList.css）。
+     画面が低くて一覧の最低の高さを保てないときだけ、サイドバー全体をスクロールし、全部のボタンと履歴に届くようにする */
+  overflow-y: auto;
   padding: 1rem;
   display: flex;
   flex-direction: column;

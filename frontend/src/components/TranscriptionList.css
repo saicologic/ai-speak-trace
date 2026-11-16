@@ -1,7 +1,7 @@
-/* サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする */
+/* サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする（画面が低くても、一覧を見られる高さは保つ） */
 .transcription-list {
   flex: 1;
-  min-height: 0;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
 }
