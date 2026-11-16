@@ -22,10 +22,18 @@ vi.mock('../../api/client', async (importOriginal) => {
 const fixedArea = (container: HTMLElement) => container.querySelector('.page-layout-fixed');
 const scrollArea = (container: HTMLElement) => container.querySelector('.page-layout-scroll');
 
-/** 戻るボタンとタブが固定する部分にあり、本文がスクロールする部分にあることを確かめる */
-const expectFixedHeaderAndTabs = (container: HTMLElement, tabNames: string[]) => {
+/** 一覧と詳細を並べる箱が、スクロールする部分の直接の子であることを確かめる（間に箱があると、高さいっぱいに広がらない） */
+const expectLogsLayoutFillsScrollArea = (container: HTMLElement) => {
+  const logsLayout = container.querySelector('.interview-logs-layout');
+  expect(logsLayout).not.toBeNull();
+  expect(logsLayout?.parentElement).toBe(scrollArea(container));
+};
+
+/** 戻るボタン・タイトル・タブが固定する部分にあることを確かめる */
+const expectFixedHeaderAndTabs = (container: HTMLElement, title: string, tabNames: string[]) => {
   const fixed = fixedArea(container);
   expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
+  expect(fixed).toContainElement(screen.getByRole('heading', { name: title, level: 1 }));
   for (const name of tabNames) {
     expect(fixed).toContainElement(screen.getByRole('button', { name }));
   }
@@ -51,8 +59,7 @@ describe('ジョブ進捗確認', () => {
       <ResumableJobsPage jobs={[job]} onBack={vi.fn()} onSelectJob={vi.fn()} onJobsDeleted={vi.fn()} />,
     );
 
-    expectFixedHeaderAndTabs(container, []);
-    expect(fixedArea(container)).toContainElement(screen.getByRole('heading', { name: 'ジョブ進捗確認' }));
+    expectFixedHeaderAndTabs(container, 'ジョブ進捗確認', []);
     expect(scrollArea(container)).toContainElement(screen.getByText('test-audio.mp3'));
   });
 });
@@ -61,7 +68,7 @@ describe('要約', () => {
   it('新規要約のタブでは、戻るボタンとタブを固定し、要約の指示だけをスクロールする', () => {
     const { container } = render(<SummaryPage transcriptionId="t-1" onBack={vi.fn()} />);
 
-    expectFixedHeaderAndTabs(container, ['新規要約', '要約結果']);
+    expectFixedHeaderAndTabs(container, '要約', ['新規要約', '要約結果']);
     expect(scrollArea(container)).toContainElement(container.querySelector('.interview-content'));
   });
 
@@ -69,8 +76,8 @@ describe('要約', () => {
     const { container } = render(<SummaryPage transcriptionId="t-1" onBack={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: '要約結果' }));
 
-    expectFixedHeaderAndTabs(container, ['新規要約', '要約結果']);
-    expect(scrollArea(container)).toContainElement(container.querySelector('.interview-logs-layout'));
+    expectFixedHeaderAndTabs(container, '要約', ['新規要約', '要約結果']);
+    expectLogsLayoutFillsScrollArea(container);
   });
 });
 
@@ -88,7 +95,7 @@ describe('会話分析', () => {
   it('新規分析のタブでは、戻るボタンとタブを固定し、分析の入力だけをスクロールする', () => {
     const { container } = renderPage();
 
-    expectFixedHeaderAndTabs(container, ['新規分析', '過去の分析ログ']);
+    expectFixedHeaderAndTabs(container, '会話分析', ['新規分析', '過去の分析ログ']);
     expect(scrollArea(container)).toContainElement(container.querySelector('.interview-content'));
   });
 
@@ -96,8 +103,8 @@ describe('会話分析', () => {
     const { container } = renderPage();
     fireEvent.click(screen.getByRole('button', { name: '過去の分析ログ' }));
 
-    expectFixedHeaderAndTabs(container, ['新規分析', '過去の分析ログ']);
-    expect(scrollArea(container)).toContainElement(container.querySelector('.interview-logs-layout'));
+    expectFixedHeaderAndTabs(container, '会話分析', ['新規分析', '過去の分析ログ']);
+    expectLogsLayoutFillsScrollArea(container);
   });
 });
 
@@ -105,7 +112,7 @@ describe('ディープサーチ', () => {
   it('新しい調査のタブでは、戻るボタンとタブを固定し、調査の入力だけをスクロールする', () => {
     const { container } = render(<ResearchPage onBack={vi.fn()} onOpenTranscription={vi.fn()} />);
 
-    expectFixedHeaderAndTabs(container, ['新しい調査', '調査結果']);
+    expectFixedHeaderAndTabs(container, 'ディープサーチ', ['新しい調査', '調査結果']);
     expect(scrollArea(container)).toContainElement(container.querySelector('.research-content'));
   });
 
@@ -113,7 +120,7 @@ describe('ディープサーチ', () => {
     const { container } = render(<ResearchPage onBack={vi.fn()} onOpenTranscription={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: '調査結果' }));
 
-    expectFixedHeaderAndTabs(container, ['新しい調査', '調査結果']);
-    expect(scrollArea(container)).toContainElement(container.querySelector('.interview-logs-layout'));
+    expectFixedHeaderAndTabs(container, 'ディープサーチ', ['新しい調査', '調査結果']);
+    expectLogsLayoutFillsScrollArea(container);
   });
 });

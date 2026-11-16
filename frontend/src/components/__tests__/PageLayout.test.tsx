@@ -23,6 +23,8 @@ describe('PageLayout', () => {
     expect(fixed).toContainElement(screen.getByRole('heading', { name: '会話分析' }));
     expect(scroll).toContainElement(screen.getByText('本文'));
     expect(fixed).not.toContainElement(screen.getByText('本文'));
+    // クラス名を渡さないときは、外枠のクラスは page-layout だけにする
+    expect(container.firstElementChild).toHaveClass('page-layout', { exact: true });
   });
 
   it('ページごとのクラス名を外枠に付ける', () => {
@@ -39,6 +41,7 @@ describe('PageLayout', () => {
 describe('PageLayout.css', () => {
   it('外枠は画面の高さに合わせ、外枠そのものはスクロールさせない', () => {
     const root = declarationsOf(pageLayoutCss, '.page-layout');
+    expect(root).toContain('display: flex;');
     expect(root).toContain('height: 100vh;');
     expect(root).toContain('overflow: hidden;');
     expect(root).toContain('flex-direction: column;');
@@ -53,5 +56,8 @@ describe('PageLayout.css', () => {
     expect(scroll).toContain('flex: 1;');
     expect(scroll).toContain('min-height: 0;');
     expect(scroll).toContain('overflow-y: auto;');
+    // 一覧と詳細を並べる画面で、子を高さいっぱいに広げられるようにする
+    expect(scroll).toContain('display: flex;');
+    expect(scroll).toContain('flex-direction: column;');
   });
 });
