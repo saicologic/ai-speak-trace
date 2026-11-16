@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchSettings, updateSettings, openDataFolder } from '../api/client';
 import type { ApiKeyStatus, AppSettings } from '../types';
 import { missingAiSettings } from '../utils/aiAnalysis';
+import { PageLayout } from './PageLayout';
 import './SettingsPage.css';
 
 interface SettingsPageProps {
@@ -223,14 +224,17 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
       : 'APIキーは、設定ファイル（settings.json）に暗号化せずに保存します。このフォルダを他人と共有しないでください。';
 
   return (
-    <div className="settings-page">
-      <div className="settings-header">
-        <button className="settings-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>設定</h1>
-      </div>
-
+    <PageLayout
+      className="settings-page"
+      header={
+        <div className="settings-header">
+          <button className="settings-back-button" onClick={onBack}>
+            ← 戻る
+          </button>
+          <h1>設定</h1>
+        </div>
+      }
+    >
       <div className="settings-content">
         {loading && <div className="settings-loading">読み込み中...</div>}
 
@@ -438,6 +442,6 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
           </>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

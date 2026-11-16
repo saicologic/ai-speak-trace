@@ -3,6 +3,7 @@ import { deleteChunkedJob } from '../api/client';
 import type { ChunkedJobDetail } from '../api/client';
 import { formatTime } from '../utils/transcription';
 import { confirmDialog } from '../utils/platform';
+import { PageLayout } from './PageLayout';
 import './ResumableJobsPage.css';
 
 interface ResumableJobsPageProps {
@@ -71,14 +72,17 @@ export function ResumableJobsPage({
   };
 
   return (
-    <div className="resumable-jobs-page">
-      <div className="resumable-jobs-header">
-        <button className="resumable-jobs-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>ジョブ進捗確認</h1>
-      </div>
-
+    <PageLayout
+      className="resumable-jobs-page"
+      header={
+        <div className="resumable-jobs-header">
+          <button className="resumable-jobs-back-button" onClick={onBack}>
+            ← 戻る
+          </button>
+          <h1>ジョブ進捗確認</h1>
+        </div>
+      }
+    >
       <div className="resumable-jobs-content">
         {jobs.length === 0 ? (
           <div className="resumable-jobs-empty">
@@ -183,6 +187,6 @@ export function ResumableJobsPage({
           </>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

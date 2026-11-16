@@ -29,6 +29,7 @@ import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { FeedbackButton } from './FeedbackButton';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
+import { PageLayout } from './PageLayout';
 import './InterviewPage.css';
 import './SummaryPage.css';
 import './ResearchPage.css';
@@ -328,34 +329,39 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
   );
 
   return (
-    <div className="research-page">
-      <header className="research-header">
-        <button className="research-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>ディープサーチ</h1>
-        {activeTab === 'new' && job && (
-          <button className="research-new-button" onClick={() => setJob(null)}>
-            ＋ 新しい調査
-          </button>
-        )}
-      </header>
+    <PageLayout
+      className="research-page"
+      header={
+        <>
+          <header className="research-header">
+            <button className="research-back-button" onClick={onBack}>
+              ← 戻る
+            </button>
+            <h1>ディープサーチ</h1>
+            {activeTab === 'new' && job && (
+              <button className="research-new-button" onClick={() => setJob(null)}>
+                ＋ 新しい調査
+              </button>
+            )}
+          </header>
 
-      <div className="interview-tabs">
-        <button
-          className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
-          onClick={() => setActiveTab('new')}
-        >
-          新しい調査
-        </button>
-        <button
-          className={`interview-tab ${activeTab === 'results' ? 'active' : ''}`}
-          onClick={() => setActiveTab('results')}
-        >
-          調査結果
-        </button>
-      </div>
-
+          <div className="interview-tabs">
+            <button
+              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              onClick={() => setActiveTab('new')}
+            >
+              新しい調査
+            </button>
+            <button
+              className={`interview-tab ${activeTab === 'results' ? 'active' : ''}`}
+              onClick={() => setActiveTab('results')}
+            >
+              調査結果
+            </button>
+          </div>
+        </>
+      }
+    >
       {activeTab === 'new' && (
         <div className="research-content">
           {error && <div className="research-error">{error}</div>}
@@ -630,7 +636,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
