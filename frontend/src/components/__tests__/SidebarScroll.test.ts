@@ -11,20 +11,22 @@ const declarationsOf = (css: string, selector: string): string => {
 
 /**
  * トップ画面の左のサイドバー
- * ボタン・「履歴」・「文字起こし履歴」の見出しは固定し、音声ファイルの一覧だけをスクロールする
+ * ボタン・「履歴」・「文字起こし履歴」の見出しは固定し、音声ファイルの一覧だけをスクロールする。
+ * 画面が低くて一覧の最低の高さを保てないときだけ、サイドバー全体をスクロールする（どの高さでも、全部のボタンと履歴に届くようにする）
  */
 describe('トップ画面の左のサイドバーのスクロール', () => {
-  it('サイドバー全体はスクロールさせない', () => {
+  it('サイドバーは縦に並べ、入りきらないときだけ全体をスクロールする', () => {
     const sidebar = declarationsOf(appCss, '.app-sidebar');
-    expect(sidebar).toContain('overflow: hidden;');
-    expect(sidebar).not.toContain('overflow-y: auto;');
+    expect(sidebar).toContain('display: flex;');
     expect(sidebar).toContain('flex-direction: column;');
+    expect(sidebar).toContain('overflow-y: auto;');
+    expect(sidebar).not.toContain('overflow: hidden;');
   });
 
-  it('文字起こし履歴は、サイドバーの残りの高さを使う', () => {
+  it('文字起こし履歴は、サイドバーの残りの高さを使い、画面が低くても一覧を見られる高さを保つ', () => {
     const list = declarationsOf(transcriptionListCss, '.transcription-list');
     expect(list).toContain('flex: 1;');
-    expect(list).toContain('min-height: 0;');
+    expect(list).toContain('min-height: 160px;');
     expect(list).toContain('display: flex;');
     expect(list).toContain('flex-direction: column;');
   });
