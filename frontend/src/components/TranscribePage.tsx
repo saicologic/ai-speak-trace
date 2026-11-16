@@ -13,6 +13,7 @@ import type { ChunkedJobStatus, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
 import { CREDITS_PER_MINUTE, formatTime, formatDuration } from '../utils/transcription';
 import { confirmDialog, isTauri } from '../utils/platform';
+import { PageLayout } from './PageLayout';
 import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
@@ -354,14 +355,17 @@ export function TranscribePage({
   };
 
   return (
-    <div className="transcribe-page">
-      <div className="transcribe-header">
-        <button className="transcribe-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>音声ファイルの文字起こし</h1>
-      </div>
-
+    <PageLayout
+      className="transcribe-page"
+      header={
+        <div className="transcribe-header">
+          <button className="transcribe-back-button" onClick={onBack}>
+            ← 戻る
+          </button>
+          <h1>音声ファイルの文字起こし</h1>
+        </div>
+      }
+    >
       <div className="transcribe-content">
         {error && (
           <div className="transcribe-error">
@@ -576,6 +580,6 @@ export function TranscribePage({
           </div>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

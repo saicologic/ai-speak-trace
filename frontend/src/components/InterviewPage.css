@@ -1,7 +1,5 @@
+/* 外枠の高さとスクロールは PageLayout が決める（ここでは背景だけ） */
 .interview-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   background-color: #f9fafb;
 }
 
@@ -418,7 +416,8 @@
   display: flex;
   flex: 1;
   overflow: hidden;
-  height: calc(100vh - 100px);
+  /* PageLayout のスクロールする部分の高さいっぱいに広げる（一覧と詳細は、それぞれの中でスクロールする） */
+  min-height: 0;
 }
 
 /* ログ一覧 */

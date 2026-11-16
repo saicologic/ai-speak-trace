@@ -114,4 +114,15 @@ describe('JobProgressPage', () => {
     // isProcessing: false → isTimerRunning は false のまま → タイマー表示なし
     expect(screen.queryByText(/\d+:\d+ 経過/)).toBeNull();
   });
+
+  it('スクロールしても、戻るボタンとタイトルは固定し、ジョブの中身だけをスクロールする', async () => {
+    const { container } = render(<JobProgressPage {...defaultProps} />);
+    await waitForJobLoaded();
+
+    const fixed = container.querySelector('.page-layout-fixed');
+    const scroll = container.querySelector('.page-layout-scroll');
+    expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
+    expect(fixed).toContainElement(screen.getByRole('heading', { name: '文字起こし処理中' }));
+    expect(scroll).toContainElement(screen.getByText('test-audio.mp3'));
+  });
 });

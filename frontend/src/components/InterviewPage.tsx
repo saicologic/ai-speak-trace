@@ -11,6 +11,7 @@ import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { markdownToSafeHtml } from '../utils/markdownHtml';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
+import { PageLayout } from './PageLayout';
 
 interface QuestionItem {
   text: string;
@@ -240,30 +241,35 @@ export function InterviewPage({
   };
 
   return (
-    <div className="interview-page">
-      <header className="interview-header">
-        <button className="interview-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>会話分析</h1>
-      </header>
+    <PageLayout
+      className="interview-page"
+      header={
+        <>
+          <header className="interview-header">
+            <button className="interview-back-button" onClick={onBack}>
+              ← 戻る
+            </button>
+            <h1>会話分析</h1>
+          </header>
 
-      {/* タブ切り替え */}
-      <div className="interview-tabs">
-        <button
-          className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
-          onClick={() => setActiveTab('new')}
-        >
-          新規分析
-        </button>
-        <button
-          className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('logs')}
-        >
-          過去の分析ログ
-        </button>
-      </div>
-
+          {/* タブ切り替え */}
+          <div className="interview-tabs">
+            <button
+              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              onClick={() => setActiveTab('new')}
+            >
+              新規分析
+            </button>
+            <button
+              className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('logs')}
+            >
+              過去の分析ログ
+            </button>
+          </div>
+        </>
+      }
+    >
       {/* 新規分析タブ */}
       {activeTab === 'new' && (
         <div className="interview-content">
@@ -471,7 +477,7 @@ export function InterviewPage({
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
