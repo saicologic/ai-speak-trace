@@ -55,7 +55,8 @@
   min-width: 280px;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
-  overflow-y: auto;
+  /* サイドバー全体はスクロールさせず、文字起こし履歴の一覧だけをスクロールする（TranscriptionList.css） */
+  overflow: hidden;
   padding: 1rem;
   display: flex;
   flex-direction: column;

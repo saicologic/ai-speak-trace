@@ -1,4 +1,13 @@
+/* サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする */
+.transcription-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .transcription-list-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -28,6 +37,9 @@
 
 .transcription-list-items {
   list-style: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .transcription-list-items li {
