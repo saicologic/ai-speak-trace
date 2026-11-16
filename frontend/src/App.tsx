@@ -431,7 +431,6 @@ function App() {
               ディープサーチ
             </button>
           </div>
-          <div className="sidebar-section-title">履歴</div>
           <TranscriptionList
             selectedId={selectedTranscriptionId}
             onSelect={handleTranscriptionSelect}

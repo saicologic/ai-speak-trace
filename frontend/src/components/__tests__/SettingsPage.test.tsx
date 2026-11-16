@@ -142,4 +142,14 @@ describe('SettingsPage', () => {
 
     expect(await screen.findByText(/暗号化せずに保存します/)).toBeInTheDocument();
   });
+
+  it('スクロールしても、戻るボタンとタイトルは固定し、設定の中身だけをスクロールする', async () => {
+    const { container } = render(<SettingsPage onBack={vi.fn()} />);
+
+    const fixed = container.querySelector('.page-layout-fixed');
+    const scroll = container.querySelector('.page-layout-scroll');
+    expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
+    expect(fixed).toContainElement(screen.getByRole('heading', { name: '設定', level: 1 }));
+    expect(scroll).toContainElement(await screen.findByText('設定済み（末尾 1234）'));
+  });
 });

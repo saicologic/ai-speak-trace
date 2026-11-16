@@ -1,7 +1,5 @@
+/* 外枠の高さとスクロールは PageLayout が決める（ここでは背景だけ） */
 .research-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   background-color: #f9fafb;
 }
 

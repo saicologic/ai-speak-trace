@@ -12,6 +12,7 @@ import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
+import { PageLayout } from './PageLayout';
 
 interface Props {
   transcriptionId: string;
@@ -225,29 +226,34 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
   const enabledCount = fields.filter((f) => f.instruction.trim() !== '').length;
 
   return (
-    <div className="interview-page">
-      <header className="interview-header">
-        <button className="interview-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>要約</h1>
-      </header>
+    <PageLayout
+      className="interview-page"
+      header={
+        <>
+          <header className="interview-header">
+            <button className="interview-back-button" onClick={onBack}>
+              ← 戻る
+            </button>
+            <h1>要約</h1>
+          </header>
 
-      <div className="interview-tabs">
-        <button
-          className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('new'); setCompletedId(null); }}
-        >
-          新規要約
-        </button>
-        <button
-          className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('logs')}
-        >
-          要約結果
-        </button>
-      </div>
-
+          <div className="interview-tabs">
+            <button
+              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('new'); setCompletedId(null); }}
+            >
+              新規要約
+            </button>
+            <button
+              className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('logs')}
+            >
+              要約結果
+            </button>
+          </div>
+        </>
+      }
+    >
       {activeTab === 'new' && (
         <div className="interview-content">
           {error && <div className="interview-error">{error}</div>}
@@ -481,7 +487,7 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 

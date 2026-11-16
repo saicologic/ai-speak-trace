@@ -9,6 +9,7 @@ import {
 import type { ChunkedJobDetail, CreditInfo } from '../api/client';
 import type { Transcription } from '../types';
 import { formatTime, formatDuration, estimateCredits } from '../utils/transcription';
+import { PageLayout } from './PageLayout';
 import './JobProgressPage.css';
 
 /** ポーリング間隔（ミリ秒） */
@@ -199,14 +200,17 @@ export function JobProgressPage({
     (job.status === 'transcribing' || job.status === 'splitting' || job.status === 'initializing');
 
   return (
-    <div className="job-progress-page">
-      <div className="job-progress-header">
-        <button className="job-progress-back-button" onClick={onBack}>
-          ← 戻る
-        </button>
-        <h1>文字起こし処理中</h1>
-      </div>
-
+    <PageLayout
+      className="job-progress-page"
+      header={
+        <div className="job-progress-header">
+          <button className="job-progress-back-button" onClick={onBack}>
+            ← 戻る
+          </button>
+          <h1>文字起こし処理中</h1>
+        </div>
+      }
+    >
       <div className="job-progress-content">
         {error && (
           <div className="job-progress-error">
@@ -380,6 +384,6 @@ export function JobProgressPage({
           </div>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }
