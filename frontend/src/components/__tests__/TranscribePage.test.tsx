@@ -111,4 +111,15 @@ describe('TranscribePage', () => {
       expect(screen.getByText('音声ファイルの確認')).toBeInTheDocument();
     });
   });
+
+  it('スクロールしても、戻るボタンとタイトルは固定し、ファイルの選択から下だけをスクロールする', () => {
+    vi.mocked(checkCredits).mockReturnValue(new Promise(() => {}));
+    const { container } = render(<TranscribePage {...defaultProps} />);
+
+    const fixed = container.querySelector('.page-layout-fixed');
+    const scroll = container.querySelector('.page-layout-scroll');
+    expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
+    expect(fixed).toContainElement(screen.getByRole('heading', { name: '音声ファイルの文字起こし' }));
+    expect(scroll).toContainElement(screen.getByRole('heading', { name: '音声ファイルを選択' }));
+  });
 });
