@@ -4,9 +4,21 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-/* 使える色を決める。Tailwind の標準の色（oklch）は消し、今の画面と同じ 16 進の値（Tailwind v3 の値）で決めた色だけを使う */
+/* 使える色と文字の大きさを決める。Tailwind の標準のもの（色は oklch）は消し、今の画面に合わせて決めたものだけを使う。
+   色は、今の画面と同じ 16 進の値（Tailwind v3 の値）にする */
 @theme {
   --color-*: initial;
+  --text-*: initial;
+
+  /* 文字の大きさ。行の高さは決めない（画面全体の 1.6 を受け継ぐ） */
+  --text-2xs: 0.7rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.85rem;
+  --text-base: 0.9rem; /* 本文（発言・回答） */
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
 
   /* 役割で呼ぶ色 */
   --color-primary: #3b82f6; /* 主なボタン・選んでいるもの */
