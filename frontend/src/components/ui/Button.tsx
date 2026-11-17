@@ -29,18 +29,24 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   /** 大きさ（渡さないときは md） */
   size?: ButtonSize;
+  /**
+   * 足すクラス（幅や外側の余白など、置き場所の指定に使う）
+   * 色・余白・文字の大きさは variant と size で決める。同じ項目のクラスを渡しても、どちらが効くかは CSS の順で決まり、後ろに書いたほうが勝つとは限らない
+   */
+  className?: string;
 }
 
 /**
  * アプリで共通に使うボタン
  * type を渡さないときは button にする（フォームの中でも、押しただけで送信しない）
  */
-export function Button({ type = 'button', variant = 'secondary', size = 'md', ...props }: ButtonProps) {
-  return (
-    <button
-      type={type}
-      className={`rounded-md border font-medium ${variantClasses[variant]} ${sizeClasses[size]}`}
-      {...props}
-    />
-  );
+export function Button({
+  type = 'button',
+  variant = 'secondary',
+  size = 'md',
+  className,
+  ...props
+}: ButtonProps) {
+  const classes = `rounded-md border font-medium ${variantClasses[variant]} ${sizeClasses[size]}`;
+  return <button type={type} className={className ? `${classes} ${className}` : classes} {...props} />;
 }
