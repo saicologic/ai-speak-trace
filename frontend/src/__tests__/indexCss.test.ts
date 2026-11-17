@@ -85,5 +85,25 @@ describe('index.css', () => {
     // どの色も 16 進で書く（oklch などで書いた色を混ぜない）
     expect(Object.entries(colors).filter(([, value]) => !/^#[0-9a-f]{6}$/.test(value))).toEqual([]);
   });
+
+  it('文字の大きさは、標準の段階を消して決めた 8 段階だけにし、行の高さは決めない（画面全体の 1.6 を受け継ぐ）', () => {
+    const { inside: theme } = splitBlocks(withoutComments(indexCss), '@theme');
+    expect(theme).toContain('--text-*: initial;');
+    const sizes = Object.fromEntries(
+      [...theme.matchAll(/--(text-[a-z0-9]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+    );
+    expect(sizes).toEqual({
+      'text-2xs': '0.7rem',
+      'text-xs': '0.75rem',
+      'text-sm': '0.8rem',
+      'text-md': '0.85rem',
+      'text-base': '0.9rem',
+      'text-lg': '1rem',
+      'text-xl': '1.25rem',
+      'text-2xl': '1.5rem',
+    });
+    // Tailwind の text-* は、行の高さの変数があると行の高さも変える。今の画面に合わせ、行の高さは書かない
+    expect(theme).not.toMatch(/--text-[a-z0-9]+--line-height/);
+  });
 });
 
