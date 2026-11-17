@@ -29,10 +29,15 @@ describe('Button', () => {
     ['danger', ['bg-danger', 'text-white', 'enabled:hover:bg-danger-hover']],
     // 紺のヘッダーの上に置くボタン（戻るボタンなど）
     ['onDark', ['bg-transparent', 'text-white', 'border-white/30', 'enabled:hover:bg-white/10']],
-  ] as const)('種類が %s のときは、決めた色のクラスを付ける', (variant, classes) => {
+  ] as const)('種類が %s のときは、決めた色のクラスを付け、ほかの種類（secondary）のクラスは付けない', (variant, classes) => {
     render(<Button variant={variant}>実行</Button>);
 
-    expect(screen.getByRole('button', { name: '実行' })).toHaveClass(...classes);
+    const button = screen.getByRole('button', { name: '実行' });
+    expect(button).toHaveClass(...classes);
+    // not.toHaveClass にクラスをまとめて渡すと「全部が付いているか」になるため、1 つずつ確かめる
+    for (const other of ['bg-white', 'text-gray-700', 'border-gray-300']) {
+      expect(button).not.toHaveClass(other);
+    }
   });
 
   it('大きさを渡さないときは md にし、角を丸め、文字を少し太くする', () => {
@@ -52,7 +57,9 @@ describe('Button', () => {
 
     const button = screen.getByRole('button', { name: '削除' });
     expect(button).toHaveClass('px-2.5', 'py-1', 'text-sm', 'rounded-md');
-    expect(button).not.toHaveClass('px-4', 'py-2', 'text-md');
+    for (const md of ['px-4', 'py-2', 'text-md']) {
+      expect(button).not.toHaveClass(md);
+    }
   });
 
   it('className を渡すと、決めたクラスを残したまま、後ろに足す（幅や外側の余白など、置き場所の指定に使う）', () => {
@@ -65,6 +72,14 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: '文字起こし' });
     expect(button).toHaveClass('bg-primary', 'px-4', 'w-full', 'mt-2');
     expect(button.className.endsWith(' w-full mt-2')).toBe(true);
+  });
+
+  it('className に空の文字列を渡したときは、後ろに空白を足さない', () => {
+    render(<Button className="">閉じる</Button>);
+
+    const button = screen.getByRole('button', { name: '閉じる' });
+    expect(button).toHaveClass('bg-white', 'px-4');
+    expect(button.className).toBe(button.className.trim());
   });
 
   it('type="submit" を渡すと、送信のボタンにする', () => {
