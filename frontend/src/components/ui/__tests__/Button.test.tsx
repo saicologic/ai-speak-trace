@@ -53,5 +53,17 @@ describe('Button', () => {
     expect(button).toHaveClass('px-2.5', 'py-1', 'text-sm', 'rounded-md');
     expect(button).not.toHaveClass('px-4', 'py-2', 'text-md');
   });
+
+  it('className を渡すと、決めたクラスを残したまま、後ろに足す（幅や外側の余白など、置き場所の指定に使う）', () => {
+    render(
+      <Button variant="primary" className="w-full mt-2">
+        文字起こし
+      </Button>,
+    );
+
+    const button = screen.getByRole('button', { name: '文字起こし' });
+    expect(button).toHaveClass('bg-primary', 'px-4', 'w-full', 'mt-2');
+    expect(button.className.endsWith(' w-full mt-2')).toBe(true);
+  });
 });
 
