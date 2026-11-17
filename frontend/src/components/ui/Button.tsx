@@ -47,6 +47,6 @@ export function Button({
   className,
   ...props
 }: ButtonProps) {
-  const classes = `rounded-md border font-medium ${variantClasses[variant]} ${sizeClasses[size]}`;
+  const classes = `rounded-md border font-medium disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]}`;
   return <button type={type} className={className ? `${classes} ${className}` : classes} {...props} />;
 }
