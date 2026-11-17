@@ -39,7 +39,13 @@ const declarationsOf = (css: string, selector: string): string => {
   return match ? match[1].replace(/\s+/g, ' ').trim() : '';
 };
 
-const themeOf = (css: string): string => splitBlocks(withoutComments(css), /@theme/).inside;
+/** @theme のブロックの中身を集める（@theme inline { ... } のように、後ろに指定があるものも含める） */
+const themeOf = (css: string): string => {
+  const source = withoutComments(css);
+  // 切り出せなかった @theme がないこと（読み落としたブロックの中は確かめられないため）
+  expect(source.match(/@theme\b/g)?.length ?? 0).toBe(source.match(/@theme(?:\s+[a-z-]+)*\s*\{/g)?.length ?? 0);
+  return splitBlocks(source, /@theme(?:\s+[a-z-]+)*/).inside;
+};
 
 /** Tailwind v3 の色の値（今の画面で使っている値） */
 const v3Palette: Record<string, string[]> = {
@@ -65,13 +71,14 @@ describe('index.css', () => {
     expect(css).toContain('@import "tailwindcss/utilities.css" layer(utilities);');
     // Preflight だけを読む書き方も、Preflight を含む全部を読む書き方（tailwindcss・tailwindcss/index.css）も使わない
     expect(css).not.toMatch(/preflight/i);
-    expect(css).not.toMatch(/@import\s+(url\(\s*)?["']tailwindcss(\/index(\.css)?)?["']/);
+    expect(css).not.toMatch(/@import\s+(url\(\s*)?["']?tailwindcss(\/index(\.css)?)?["']?\s*(\)|;|\s)/);
   });
 
-  it('要素に当てる設定（:root・*・body・button・input）は @layer base の中にだけ書く（@layer の外に書くと、Tailwind のクラスより強くなり、クラスが効かない）', () => {
+  it('要素に当てる設定（:root・*・body・button・input など）は @layer base の中にだけ書く（@layer の外に書くと、Tailwind のクラスより強くなり、クラスが効かない）', () => {
     const { inside, outside } = splitBlocks(withoutComments(indexCss), /@layer\s+base/);
-    // :where(button) や :is(button, input) のように、かっこの中に書いたものも見つける
-    const elementSelector = /(^|[\s,>+~(])(:root|body|button|input)\b|(^|[\s,>+~(])\*/;
+    // 要素の名前（html・textarea・a なども）・*・:root を見つける。:where(button) のように、かっこの中に書いたものも見つける
+    // （. # [ : で始まるクラス・ID・属性・疑似クラスは要素ではない。@keyframes の from・to は除く）
+    const elementSelector = /(^|[\s,>+~(])(?!(?:from|to)(?![\w-]))([a-z][a-z0-9-]*|\*|:root)(?![\w-])/;
     expect(selectorsOf(outside).filter((s) => elementSelector.test(s))).toEqual([]);
     // 今の見た目を保つため、要素の設定そのものは残す
     const baseSelectors = selectorsOf(inside);
@@ -135,7 +142,8 @@ describe('index.css', () => {
     expect(reset).toBeGreaterThanOrEqual(0);
     expect(reset).toBeLessThan(theme.search(/--text-[^*:\s]+:/));
     const sizes = Object.fromEntries(
-      [...theme.matchAll(/--(text-[a-z0-9]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+      // 名前に大文字・_・- がある大きさも取り出す（--text-sm--line-height のような入れ子の変数も、ここで混ざれば失敗する）
+      [...theme.matchAll(/--(text-[^:\s*]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
     );
     expect(sizes).toEqual({
       'text-2xs': '0.7rem',
