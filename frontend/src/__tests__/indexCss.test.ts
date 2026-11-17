@@ -52,4 +52,38 @@ describe('index.css', () => {
       expect(baseSelectors).toContain(selector);
     }
   });
+
+  it('色は、Tailwind の標準の色（oklch）を消し、今の画面と同じ 16 進の値で決めた色だけを使えるようにする', () => {
+    const { inside: theme } = splitBlocks(withoutComments(indexCss), '@theme');
+    expect(theme).toContain('--color-*: initial;');
+    const colors = Object.fromEntries(
+      [...theme.matchAll(/--(color-[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+    );
+    // 役割で呼ぶ色（ボタン・ヘッダー・背景）
+    expect(colors).toMatchObject({
+      'color-primary': '#3b82f6',
+      'color-primary-hover': '#2563eb',
+      'color-danger': '#dc2626',
+      'color-danger-hover': '#b91c1c',
+      'color-brand': '#1a1a2e',
+      'color-brand-hover': '#2d2d4e',
+      'color-brand-muted': '#a0a0b8',
+      'color-canvas': '#f5f5f7',
+      'color-white': '#ffffff',
+    });
+    // 灰・青・赤などの段階は、今の画面で使っている値（Tailwind v3 の値）にする
+    expect(colors).toMatchObject({
+      'color-gray-200': '#e5e7eb',
+      'color-gray-700': '#374151',
+      'color-blue-500': '#3b82f6',
+      'color-red-800': '#991b1b',
+      'color-amber-800': '#92400e',
+      'color-green-50': '#f0fdf4',
+      'color-violet-500': '#8b5cf6',
+      'color-yellow-400': '#facc15',
+    });
+    // どの色も 16 進で書く（oklch などで書いた色を混ぜない）
+    expect(Object.entries(colors).filter(([, value]) => !/^#[0-9a-f]{6}$/.test(value))).toEqual([]);
+  });
 });
+
