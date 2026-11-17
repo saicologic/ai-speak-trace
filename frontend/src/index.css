@@ -1,3 +1,9 @@
+/* Tailwind CSS の色・文字の大きさ（theme）とクラス（utilities）を読み込む。
+   Preflight（ブラウザの既定のスタイルを消す部分）は、まだ Tailwind に移していない画面の見た目を変えるため、全部の画面を移し終えるまで読み込まない */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
 :root {
   font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP',
     system-ui, sans-serif;
