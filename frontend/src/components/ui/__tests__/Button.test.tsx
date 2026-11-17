@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Button } from '../Button';
 
 /**
@@ -64,6 +65,41 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: '文字起こし' });
     expect(button).toHaveClass('bg-primary', 'px-4', 'w-full', 'mt-2');
     expect(button.className.endsWith(' w-full mt-2')).toBe(true);
+  });
+
+  it('type="submit" を渡すと、送信のボタンにする', () => {
+    render(<Button type="submit">送信</Button>);
+
+    expect(screen.getByRole('button', { name: '送信' })).toHaveAttribute('type', 'submit');
+  });
+
+  it('押せないとき（disabled）は、押しても onClick を呼ばず、薄くして押せないことが分かるようにする', async () => {
+    const onClick = vi.fn();
+    render(
+      <Button variant="primary" disabled onClick={onClick}>
+        保存
+      </Button>,
+    );
+
+    const button = screen.getByRole('button', { name: '保存' });
+    await userEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button).toBeDisabled();
+    expect(button).toHaveClass('disabled:cursor-not-allowed', 'disabled:opacity-50');
+  });
+
+  it('押せるときは、押すと onClick を呼ぶ。aria-label などのボタンの属性も渡せる', async () => {
+    const onClick = vi.fn();
+    render(
+      <Button aria-label="設定を開く" title="設定" onClick={onClick}>
+        ⚙
+      </Button>,
+    );
+
+    const button = screen.getByRole('button', { name: '設定を開く' });
+    expect(button).toHaveAttribute('title', '設定');
+    await userEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
 
