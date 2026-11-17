@@ -33,5 +33,25 @@ describe('Button', () => {
 
     expect(screen.getByRole('button', { name: '実行' })).toHaveClass(...classes);
   });
+
+  it('大きさを渡さないときは md にし、角を丸め、文字を少し太くする', () => {
+    render(<Button>保存</Button>);
+
+    expect(screen.getByRole('button', { name: '保存' })).toHaveClass(
+      'px-4',
+      'py-2',
+      'text-md',
+      'rounded-md',
+      'font-medium',
+    );
+  });
+
+  it('大きさが sm のときは、余白と文字を小さくする', () => {
+    render(<Button size="sm">削除</Button>);
+
+    const button = screen.getByRole('button', { name: '削除' });
+    expect(button).toHaveClass('px-2.5', 'py-1', 'text-sm', 'rounded-md');
+    expect(button).not.toHaveClass('px-4', 'py-2', 'text-md');
+  });
 });
 
