@@ -164,17 +164,18 @@ rc=$?
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '一覧に足せません'; then ok; else ng "一覧に足せないときに伝えない（rc=$rc、$err）"; fi
 rm -rf "$HOME/.claude"
 
-# 9. URL を確かめられないとき（node が動かない、判断のスクリプトが失敗した）は、確かめる側（ask）に倒し、理由を伝える
+# 9. URL を確かめられないとき（node が動かない、判断のスクリプトが失敗した）は、開かない（deny）。理由と直し方を伝える
+# （確かめないまま、file:・data: などを確認で許可してしまわないように）
 # （hook は jq を使わない。開く前か後かは、入口のスクリプトで分ける）
 bash_path=$(command -v bash)
 mkdir -p "$tmp/nonode"
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/nonode/$c"; done
 out=$(pre_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$PRE")
-if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q node; then ok; else ng "node が動かないときに理由を添えて ask にしない（$out）"; fi
+if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep -q node; then ok; else ng "node が動かないときに理由を添えて止めない（$out）"; fi
 out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>/dev/null)
 if [ -z "$out" ]; then ok; else ng "node が動かないときに、開いた後に何かを出した（$out）"; fi
 out=$(printf '%s' '{not json' | bash "$PRE")
-if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q '確かめられなかった'; then ok; else ng "判断のスクリプトが失敗したときに ask にしない（$out）"; fi
+if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep -q '確かめられなかった'; then ok; else ng "判断のスクリプトが失敗したときに止めない（$out）"; fi
 out=$(printf '%s' '{not json' | bash "$POST" 2>/dev/null)
 if [ -z "$out" ]; then ok; else ng "判断のスクリプトが失敗したときに、開いた後に何かを出した（$out）"; fi
 

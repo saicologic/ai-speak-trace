@@ -97,6 +97,10 @@ expect "Playwright MCP の browser_evaluate を ask に入れない" '(.permissi
 # allow・ask のルールに入れると hook の判断より先に決まるため、どちらにも入れない
 expect "Playwright MCP の browser_navigate を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_navigate")) == null' "$M"
 expect "Playwright MCP の browser_navigate を ask に入れない（hook が決める）" '(.permissions.ask | index("mcp__playwright__browser_navigate")) == null' "$M"
+# 開く前の hook が起動できない・時間切れ・失敗したときは、開かない（onFailure: block。Claude Code 2.1.295 から）
+expect "開く前の hook が失敗したときは、ページを開かない（onFailure: block）" \
+  '[.hooks.PreToolUse[]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.command == "/opt/claude-code-team/bin/playwright-navigate-pre.sh") | .onFailure] == ["block"]' "$M"
+expect "Claude Code 2.1.295 より前の版を起動させない（hook の onFailure を使うため）" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 295]' "$M"
 for pair in PreToolUse:pre PostToolUse:post; do
   event=${pair%%:*} name=playwright-navigate-${pair#*:}.sh
   expect "browser_navigate の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
