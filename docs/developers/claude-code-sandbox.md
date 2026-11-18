@@ -129,7 +129,12 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 
 - `mcp-sandbox.spec.ts` は、`sandbox-exec` で MCP サーバーをサンドボックスに入れて確かめるテストです。サンドボックスの中からもう1つサンドボックスは作れない（`sandbox_apply: Operation not permitted`）ため、Claude Code の中では飛ばします。CI（ubuntu）にも `sandbox-exec` がないため飛ばします。MCP サーバーの仕組み（`backend/scripts/mcp-sandbox.*`・`backend/src/mcp/`）を変えたときは、開発者が `cd backend && npx jest src/mcp/mcp-sandbox.spec.ts` を流して確かめます
 - `npm ci`・`npm install` は、サンドボックスの中では npm のキャッシュ（`~/.npm`）に書けず、保護されたファイル（`.vscode/settings.json` など）も消せないため、`node_modules` を消した後に途中で止まり、壊れたまま残ります。依存を足すときも、Claude Code は `package.json` の変更を提案し、開発者が入れます
-- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。プロキシを通らない WebRTC の UDP も、Chrome の起動引数で止めています（`/opt/claude-code-team/etc/playwright-mcp.json`）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
+- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。ページを開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）操作は、画面の確認で何度も使うため、確かめずに許可しています。手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。プロキシを通らない WebRTC の UDP も、Chrome の起動引数で止めています（`/opt/claude-code-team/etc/playwright-mcp.json`）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
+  - `browser_navigate`・`browser_evaluate` を確かめずに許可するため、次のことは確認なしでできます。受け入れたうえで許可しています
+    - `file://` の URL を開いて、手元のファイルを読む（プロキシは http・https にしか効かないため。`Read` の deny も通らない）
+    - `data:` の URL を開いて、JavaScript を動かす
+    - 開発者の Mac で待ち受けている、ほかのローカルのサービス（`localhost`・`127.0.0.1` の別のポート）を開く
+    - アプリのページの中から、手元のバックエンドの API を直接呼ぶ（文字起こしの削除や、Claude・ElevenLabs への送信など、画面に出ない操作も含む）
 
 ## 変えたいとき
 
