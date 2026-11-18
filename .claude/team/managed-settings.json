@@ -2,7 +2,6 @@
   "requiredMinimumVersion": "2.1.277",
   "permissions": {
     "allow": [
-      "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_evaluate"
     ],
     "ask": [
@@ -129,6 +128,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-gate.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -145,6 +154,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-gate.sh",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "matcher": "Bash",
         "hooks": [
