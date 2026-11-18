@@ -132,7 +132,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/opt/claude-code-team/bin/playwright-navigate-gate.sh",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-pre.sh",
             "timeout": 10
           }
         ]
@@ -159,7 +159,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/opt/claude-code-team/bin/playwright-navigate-gate.sh",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-post.sh",
             "timeout": 10
           }
         ]
