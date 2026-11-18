@@ -2,7 +2,8 @@
 # reply-language-check.sh（managed settings の Stop の hook）のテスト（bash .claude/team/tests/reply-language-check.test.sh）
 # 返答の最後のメッセージが英語のときは止めて日本語で書き直させ、日本語の返答・短い返答は止めないことを確かめる
 set -u
-HOOK="$(cd "$(dirname "$0")/../bin" && pwd)/reply-language-check.sh"
+BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+HOOK="$BIN/reply-language-check.sh"
 
 pass=0
 fail=0
@@ -17,18 +18,25 @@ stop_input() {
   jq -n --arg m "$1" --argjson active "${2:-false}" \
     '{hook_event_name: "Stop", session_id: "s", transcript_path: "/nonexistent.jsonl", stop_hook_active: $active, last_assistant_message: $m}'
 }
-# 判断（block / none）
-decision_of() {
-  local out
-  out=$(cat)
-  if [ -z "$out" ]; then echo none; else printf '%s' "$out" | jq -r '.decision // "none"'; fi
+# expect_result <期待（block / none）> <説明> <入力の JSON>
+# none: 何も出さず 0 で終える。block: decision が block の JSON を出して 0 で終える
+expect_result() {
+  local want=$1 desc=$2 out rc
+  out=$(printf '%s' "$3" | bash "$HOOK")
+  rc=$?
+  if [ "$rc" != 0 ]; then
+    ng "$desc（終了コード $rc）"
+  elif [ "$want" = none ]; then
+    if [ -z "$out" ]; then ok; else ng "$desc（期待 none、出力 $out）"; fi
+  else
+    if [ "$(printf '%s' "$out" | jq -r '.decision // empty' 2>/dev/null)" = block ]; then ok; else ng "$desc（期待 block、出力 $out）"; fi
+  fi
 }
 # check <期待> <説明> <返答> [stop_hook_active]
-check() {
-  local want=$1 desc=$2 got
-  got=$(stop_input "$3" "${4:-false}" | bash "$HOOK" | decision_of)
-  if [ "$got" = "$want" ]; then ok; else ng "$desc（期待 $want、結果 $got）"; fi
-}
+check() { expect_result "$1" "$2" "$(stop_input "$3" "${4:-false}")"; }
+# 英字だけの文字列（n 文字）・日本語だけの文字列（n 文字）
+latin() { printf 'a%.0s' $(seq 1 "$1"); }
+kana() { printf 'あ%.0s' $(seq 1 "$1"); }
 
 JA='PR #277 のチェックは、全部通りました。CodeRabbit は、PR が Draft なのでまだレビューしていません。マージして入れ直したら、教えてください。'
 EN='I opened a draft PR into main. The CI and CodeRabbit checks are still running in the background. When they finish, I will notify you and list any failed checks or review findings.'
@@ -44,18 +52,28 @@ if printf '%s' "$out" | jq -r '.reason' | grep -q '日本語で書き直して';
 # 3. 書き直しの途中（stop_hook_active）は、もう一度は止めない（終わらなくならないように）
 check none '書き直しの途中の英語の返答' "$EN" true
 
-# 4. 日本語の文に、英語のコード・インラインコード・URL・パス・識別子が多く入っていても止めない
-MIXED='変えたファイルは次のとおりです。
-
-```sh
-/opt/claude-code-team/bin/github.sh pr create --draft --base main --head fix/playwright-mcp-allow --title "fix: something" --body-file /tmp/body.md
-npx vitest run src/components/ui/__tests__/Button.test.tsx --reporter=verbose
-```
-
-- `.claude/team/managed-settings.json` の `permissions.ask` から `mcp__playwright__browser_navigate` を外しました
-- 詳しくは https://code.claude.com/docs/en/hooks#stop-decision-control と docs/developers/claude-code-sandbox.md を見てください
-- テストは `bash .claude/team/tests/managed-settings.test.sh` で流せます'
-check none '英語のコード・識別子の多い日本語の返答' "$MIXED"
+# 4. 言語の判断に関係しない部分は数えない（どれも、数えると英字が多くなり止まる量にしてある）
+LONG_EN='npx vitest run src/components/ui/Button.test.tsx --reporter verbose --coverage'
+check none 'バッククォートのコードブロック' "実行例です。
+\`\`\`sh
+$LONG_EN
+\`\`\`"
+check none 'チルダのコードブロック' "実行例です。
+~~~sh
+$LONG_EN
+~~~"
+check none 'インラインコード' "実行例です。\`$LONG_EN\`"
+check none '中にバッククォートのある、二重のバッククォートのインラインコード' "実行例です。\`\`echo \`date\` && $LONG_EN\`\`"
+check none '引用の行（英語の指摘・ログ）' "指摘は次のとおりです。
+> Please verify the exit code before extracting the decision in every case.
+> Treat parenthesized file paths as path boundaries as well."
+check none 'URL' "詳しくはここです。https://code.claude.com/docs/en/hooks#stop-decision-control-and-examples"
+check none 'メールアドレス' "連絡先です。notifications-for-the-team-members@example-company.example.com"
+check none '空白の後のパス' "変えました。 .claude/team/bin/reply-language-check.sh .claude/team/bin/lib/reply-language-check.mjs"
+check none '日本語・かっこのすぐ後のパス' '次のファイルを変えました（.claude/team/bin/reply-language-check.sh・.claude/team/bin/lib/reply-language-check.mjs・.claude/team/managed-settings.json・backend/src/lint/claude-team-tools.spec.ts）。'
+check none '半角のかっこの中のパス' '参照先です。(backend/src/guardrails/guardrails-policy-validation.service.ts)'
+# URL のすぐ後に続く日本語は、URL と一緒に消さない
+check none 'URL のすぐ後に続く日本語' "見てくださいhttps://x.example/aaを$(kana 16) Run these steps carefully please now ok then"
 
 # 日本語の表に、英語の名前（CI のジョブ名など）が並んでいても止めない
 TABLE='| PR | 状態 | 残っていること |
@@ -68,21 +86,28 @@ check none '英語の名前が並ぶ日本語の表' "$TABLE"
 EN_WITH_JA='Saved to memory. Two questions for you: should I build the Stop hook, and is it OK to proceed with the plan for 「Playwright の navigate を確かめずに許可する」? The PR title is 「fix: Playwright MCP の browser_navigate と browser_evaluate を確かめずに許可する」.'
 check block '日本語のタイトルが少し入った英語の返答' "$EN_WITH_JA"
 
-# 6. 短い返答は止めない（判断できないため）
+# 6. 短い返答は止めない（判断に使う文字が 40 文字より少ないとき）。境目も確かめる
 check none '短い英語の返答' 'OK.'
 check none '番号だけの返答' 'PR #277'
+check none '英字 39 文字' "$(latin 39)"
+check block '英字 40 文字' "$(latin 40)"
+# 日本語の割合が 2 割ちょうどなら止めず、2 割より少なければ止める
+check none '日本語 8 文字・英字 32 文字（2 割ちょうど）' "$(kana 8)$(latin 32)"
+check block '日本語 7 文字・英字 33 文字（2 割より少ない）' "$(kana 7)$(latin 33)"
 
 # 7. 返答がない・空・文字列でないときは止めない
 check none '空の返答' ''
-out=$(jq -n '{hook_event_name: "Stop", stop_hook_active: false}' | bash "$HOOK" | decision_of)
-if [ "$out" = none ]; then ok; else ng "返答の項目がないときに止めた"; fi
-out=$(jq -n '{hook_event_name: "Stop", stop_hook_active: false, last_assistant_message: 123}' | bash "$HOOK" | decision_of)
-if [ "$out" = none ]; then ok; else ng "返答が文字列でないときに止めた"; fi
+expect_result none '返答の項目がない' "$(jq -n '{hook_event_name: "Stop", stop_hook_active: false}')"
+expect_result none '返答が文字列でない' "$(jq -n '{hook_event_name: "Stop", stop_hook_active: false, last_assistant_message: 123}')"
+# 判断のスクリプトそのものも、返答がない・文字列でないときに失敗しない（.sh で失敗を隠していないこと）
+for json in '{"hook_event_name":"Stop","stop_hook_active":false}' '{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":123}'; do
+  out=$(printf '%s' "$json" | node "$BIN/lib/reply-language-check.mjs")
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "判断のスクリプトが、返答がない・文字列でないときに失敗した（rc=$rc、$json）"; fi
+done
 
 # 8. 入力が壊れているときは止めない（確かめる仕組みが壊れても、作業を止めない）
-out=$(printf '%s' '{not json' | bash "$HOOK" 2>/dev/null)
-rc=$?
-if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "壊れた入力で何かを出した・0 で終えない（rc=$rc、$out）"; fi
+expect_result none '壊れた入力' '{not json'
 
 # 9. node が動かないときは止めない
 tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/reply-language-check-test.XXXXXX")" && pwd -P) || exit 1
