@@ -1,5 +1,5 @@
 {
-  "requiredMinimumVersion": "2.1.277",
+  "requiredMinimumVersion": "2.1.295",
   "permissions": {
     "allow": [
       "mcp__playwright__browser_evaluate"
@@ -133,7 +133,8 @@
           {
             "type": "command",
             "command": "/opt/claude-code-team/bin/playwright-navigate-pre.sh",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       },
