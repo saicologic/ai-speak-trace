@@ -89,11 +89,17 @@ done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.ho
 expect "確認を飛ばす github.sh --skip は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/github.sh --skip *)") != null' "$M"
 expect "レビュー済みにする cr-review.sh --accept は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)") != null' "$M"
 expect "レビュー済みにする cr-review.sh --base-branch … --accept も、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)") != null' "$M"
-# Playwright MCP のページを開く操作と、ページで JavaScript を動かす操作は、画面の確認で何度も使うため、確かめずに許可する
+# Playwright MCP のページで JavaScript を動かす操作は、画面の確認で何度も使うため、確かめずに許可する
 # （ask が allow より強いため、ask には入れない。受け入れた危険は docs/developers/claude-code-sandbox.md に書く）
-for tool in mcp__playwright__browser_navigate mcp__playwright__browser_evaluate; do
-  expect "Playwright MCP の $tool は、確かめずに許可する（allow）" --arg t "$tool" '.permissions.allow | index($t) != null' "$M"
-  expect "Playwright MCP の $tool を ask に入れない" --arg t "$tool" '(.permissions.ask | index($t)) == null' "$M"
+expect "Playwright MCP の browser_evaluate は、確かめずに許可する（allow）" '.permissions.allow | index("mcp__playwright__browser_evaluate") != null' "$M"
+expect "Playwright MCP の browser_evaluate を ask に入れない" '(.permissions.ask | index("mcp__playwright__browser_evaluate")) == null' "$M"
+# ページを開く操作は、hook（playwright-navigate-gate.sh）が URL を見て決める（許可したサイトは allow、初めてのサイトは ask、サイトではない URL は deny）
+# allow・ask のルールに入れると hook の判断より先に決まるため、どちらにも入れない
+expect "Playwright MCP の browser_navigate を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_navigate")) == null' "$M"
+expect "Playwright MCP の browser_navigate を ask に入れない（hook が決める）" '(.permissions.ask | index("mcp__playwright__browser_navigate")) == null' "$M"
+for event in PreToolUse PostToolUse; do
+  expect "browser_navigate の $event で playwright-navigate-gate.sh を動かす" --arg e "$event" \
+    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[].command] | index("/opt/claude-code-team/bin/playwright-navigate-gate.sh") != null' "$M"
 done
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
 # Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）
