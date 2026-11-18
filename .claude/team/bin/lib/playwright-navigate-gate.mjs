@@ -100,16 +100,23 @@ if (mode === 'pre') {
     process.stdout.write(decision('allow', `許可したサイト（${origin}）`))
   } else {
     const file = pendingPath(input.tool_use_id)
+    let recorded = false
     if (file) {
       try {
         mkdirSync(pendingDir, { recursive: true, mode: 0o700 })
         writeFileSync(file, origin, { mode: 0o600 })
+        recorded = true
       } catch {
         // 記録できなくても確認は出す（開いた後に一覧へ足さないだけ）
       }
     }
     process.stdout.write(
-      decision('ask', `初めて開くサイト（${origin}）です。許可すると一覧（~/.claude/state/playwright-allowed-origins）に足し、次からは確認しません`),
+      decision(
+        'ask',
+        recorded
+          ? `初めて開くサイト（${origin}）です。許可すると一覧（~/.claude/state/playwright-allowed-origins）に足し、次からは確認しません`
+          : `初めて開くサイト（${origin}）です。確認の記録を残せなかったため、許可すると今回は開けますが、次回も確認します`,
+      ),
     )
   }
   prunePending()
@@ -125,8 +132,10 @@ if (mode === 'pre') {
     }
   }
   // 開く前に ask にした呼び出しだけ足す（記録したオリジンを、もう一度読み直してから足す）
+  // 開いた URL のオリジンが記録と違う（ほかの hook が入力を書き換えたなど）ときは、どちらも足さない
   const checked = origin ? originOf(origin).origin : null
-  if (checked && !allowed().has(checked)) {
+  const opened = originOf(input.tool_input?.url).origin
+  if (checked && checked === opened && !allowed().has(checked)) {
     try {
       appendOrigin(checked)
     } catch (error) {
