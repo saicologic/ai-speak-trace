@@ -93,13 +93,13 @@ expect "レビュー済みにする cr-review.sh --base-branch … --accept も�
 # （ask が allow より強いため、ask には入れない。受け入れた危険は docs/developers/claude-code-sandbox.md に書く）
 expect "Playwright MCP の browser_evaluate は、確かめずに許可する（allow）" '.permissions.allow | index("mcp__playwright__browser_evaluate") != null' "$M"
 expect "Playwright MCP の browser_evaluate を ask に入れない" '(.permissions.ask | index("mcp__playwright__browser_evaluate")) == null' "$M"
-# ページを開く操作は、hook（playwright-navigate-gate.sh）が URL を見て決める（許可したサイトは allow、初めてのサイトは ask、サイトではない URL は deny）
+# ページを開く操作は、hook（playwright-navigate-pre.sh・playwright-navigate-post.sh）が URL を見て決める（許可したサイトは allow、初めてのサイトは ask、サイトではない URL は deny）
 # allow・ask のルールに入れると hook の判断より先に決まるため、どちらにも入れない
 expect "Playwright MCP の browser_navigate を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_navigate")) == null' "$M"
 expect "Playwright MCP の browser_navigate を ask に入れない（hook が決める）" '(.permissions.ask | index("mcp__playwright__browser_navigate")) == null' "$M"
 for pair in PreToolUse:pre PostToolUse:post; do
-  event=${pair%%:*} arg=${pair#*:}
-  expect "browser_navigate の $event で playwright-navigate-gate.sh $arg を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/playwright-navigate-gate.sh $arg" \
+  event=${pair%%:*} name=playwright-navigate-${pair#*:}.sh
+  expect "browser_navigate の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
     '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
 done
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"

@@ -1,9 +1,11 @@
 #!/bin/bash
-# playwright-navigate-gate.sh（managed settings の PreToolUse・PostToolUse / mcp__playwright__browser_navigate の hook）のテスト
+# playwright-navigate-pre.sh・playwright-navigate-post.sh（managed settings の PreToolUse・PostToolUse / mcp__playwright__browser_navigate の hook）のテスト
 # （bash .claude/team/tests/playwright-navigate-gate.test.sh）
 # 許可したサイトは確認なしで開き、許可していないサイトは初回だけ確かめ、確かめて開けたサイトだけを一覧に足すことを確かめる
 set -u
-HOOK="$(cd "$(dirname "$0")/../bin" && pwd)/playwright-navigate-gate.sh"
+BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+PRE="$BIN/playwright-navigate-pre.sh"
+POST="$BIN/playwright-navigate-post.sh"
 
 pass=0
 fail=0
@@ -32,7 +34,7 @@ decision_of() {
 # 開く前の判断（tool_use_id は呼ぶたびに変える）
 decide() {
   n=$((n + 1))
-  pre_input "$1" "toolu_test_$n" | bash "$HOOK" pre | decision_of
+  pre_input "$1" "toolu_test_$n" | bash "$PRE" | decision_of
 }
 # check <期待> <URL>
 check() {
@@ -43,8 +45,8 @@ check() {
 # 開く前と開いた後を、同じ tool_use_id で続けて流す（確認で許可して開けたときの流れ）
 open_page() {
   n=$((n + 1))
-  pre_input "$1" "toolu_test_$n" | bash "$HOOK" pre >/dev/null
-  post_input "$1" "toolu_test_$n" | bash "$HOOK" post >/dev/null
+  pre_input "$1" "toolu_test_$n" | bash "$PRE" >/dev/null
+  post_input "$1" "toolu_test_$n" | bash "$POST" >/dev/null
 }
 
 # 1. 初めから許可するサイト（開発用の画面）
@@ -72,7 +74,7 @@ check deny 'http://user:pass@localhost:5173/'
 # 6. 読み取れない URL・空の URL・URL がないときは止める
 check deny 'not a url'
 check deny ''
-got=$(jq -n '{hook_event_name: "PreToolUse", tool_use_id: "toolu_nourl", tool_input: {}}' | bash "$HOOK" pre | decision_of)
+got=$(jq -n '{hook_event_name: "PreToolUse", tool_use_id: "toolu_nourl", tool_input: {}}' | bash "$PRE" | decision_of)
 if [ "$got" = deny ]; then ok; else ng "URL がないときに止めない（結果 $got）"; fi
 
 # 7. 開く URL の大文字・既定のポートは、まとめてから比べる
@@ -117,19 +119,19 @@ if grep -qE '^(file|data|null)' "$LIST"; then ng "サイトではない URL を�
 # 確かめなかった呼び出し（一覧にあったため allow にしたもの）の後では足さない
 # （開いている間に一覧から消したサイトを、開き終わったときに足し直さない）
 printf '%s\n' 'http://localhost:6290' >"$LIST"
-pre_input 'http://localhost:6290/' toolu_allowed | bash "$HOOK" pre >/dev/null
+pre_input 'http://localhost:6290/' toolu_allowed | bash "$PRE" >/dev/null
 : >"$LIST"
-post_input 'http://localhost:6290/' toolu_allowed | bash "$HOOK" post >/dev/null
+post_input 'http://localhost:6290/' toolu_allowed | bash "$POST" >/dev/null
 if grep -qx 'http://localhost:6290' "$LIST"; then ng "確かめずに開いた後に、一覧から消したサイトを足し直した"; else ok; fi
 # 開く前の hook を通っていない呼び出し・tool_use_id のない呼び出しの後では足さない
-post_input 'http://localhost:6291/' toolu_unknown | bash "$HOOK" post >/dev/null
-jq -n '{hook_event_name: "PostToolUse", tool_input: {url: "http://localhost:6292/"}}' | bash "$HOOK" post >/dev/null
+post_input 'http://localhost:6291/' toolu_unknown | bash "$POST" >/dev/null
+jq -n '{hook_event_name: "PostToolUse", tool_input: {url: "http://localhost:6292/"}}' | bash "$POST" >/dev/null
 if grep -qE 'localhost:629[12]' "$LIST"; then ng "確かめていない呼び出しの後に足した"; else ok; fi
 # 確かめた呼び出しの記録は、開いた後に消す（同じ tool_use_id で二度足さない）
-pre_input 'http://localhost:6293/' toolu_once | bash "$HOOK" pre >/dev/null
-post_input 'http://localhost:6293/' toolu_once | bash "$HOOK" post >/dev/null
+pre_input 'http://localhost:6293/' toolu_once | bash "$PRE" >/dev/null
+post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
 : >"$LIST"
-post_input 'http://localhost:6293/' toolu_once | bash "$HOOK" post >/dev/null
+post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
 if grep -qx 'http://localhost:6293' "$LIST"; then ng "確かめた呼び出しの記録を消さず、二度目にも足した"; else ok; fi
 
 # 末尾に改行のない一覧に足しても、行がつながらない
@@ -147,35 +149,33 @@ open_page 'http://localhost:7000/'
 if [ -f "$LIST" ] && grep -qx 'http://localhost:7000' "$LIST"; then ok; else ng "一覧のフォルダがないときに足せない"; fi
 
 # 開いた後（post）は、開く前の判断を出さない
-out=$(post_input 'http://localhost:7001/' toolu_post_only | bash "$HOOK" post)
+out=$(post_input 'http://localhost:7001/' toolu_post_only | bash "$POST")
 if [ -z "$out" ]; then ok; else ng "開いた後に何かを出した（$out）"; fi
-# 想定していない呼び方（引数がない・ほかの引数）では、何もしない
-for arg in '' other; do
-  out=$(pre_input 'http://localhost:7002/' "toolu_arg_$arg" | bash "$HOOK" $arg)
-  if [ -z "$out" ]; then ok; else ng "引数「$arg」で何かを出した（$out）"; fi
-done
+# 開いた後の hook に、開く前の入力が来ても、判断は出さない
+out=$(pre_input 'http://localhost:7002/' toolu_wrong_event | bash "$POST")
+if [ -z "$out" ]; then ok; else ng "開いた後の hook が、開く前の入力に判断を出した（$out）"; fi
 
 # 一覧に足せなかったときは、開いた後に、足せなかったことと直し方を伝える（標準エラー・終了コード 1）
 rm -rf "$HOME/.claude"
 mkdir -p "$LIST"
-pre_input 'http://localhost:7003/' toolu_unwritable | bash "$HOOK" pre >/dev/null
-err=$(post_input 'http://localhost:7003/' toolu_unwritable | bash "$HOOK" post 2>&1 >/dev/null)
+pre_input 'http://localhost:7003/' toolu_unwritable | bash "$PRE" >/dev/null
+err=$(post_input 'http://localhost:7003/' toolu_unwritable | bash "$POST" 2>&1 >/dev/null)
 rc=$?
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '一覧に足せません'; then ok; else ng "一覧に足せないときに伝えない（rc=$rc、$err）"; fi
 rm -rf "$HOME/.claude"
 
 # 9. URL を確かめられないとき（node が動かない、判断のスクリプトが失敗した）は、確かめる側（ask）に倒し、理由を伝える
-# （hook は jq を使わない。開く前か後かは、managed settings で渡す引数で決める）
+# （hook は jq を使わない。開く前か後かは、入口のスクリプトで分ける）
 bash_path=$(command -v bash)
 mkdir -p "$tmp/nonode"
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/nonode/$c"; done
-out=$(pre_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$HOOK" pre)
+out=$(pre_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q node; then ok; else ng "node が動かないときに理由を添えて ask にしない（$out）"; fi
-out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$HOOK" post 2>/dev/null)
+out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>/dev/null)
 if [ -z "$out" ]; then ok; else ng "node が動かないときに、開いた後に何かを出した（$out）"; fi
-out=$(printf '%s' '{not json' | bash "$HOOK" pre)
+out=$(printf '%s' '{not json' | bash "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q '確かめられなかった'; then ok; else ng "判断のスクリプトが失敗したときに ask にしない（$out）"; fi
-out=$(printf '%s' '{not json' | bash "$HOOK" post 2>/dev/null)
+out=$(printf '%s' '{not json' | bash "$POST" 2>/dev/null)
 if [ -z "$out" ]; then ok; else ng "判断のスクリプトが失敗したときに、開いた後に何かを出した（$out）"; fi
 
 echo "pass=$pass fail=$fail"
