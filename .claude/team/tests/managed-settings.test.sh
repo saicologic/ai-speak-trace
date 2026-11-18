@@ -97,9 +97,10 @@ expect "Playwright MCP の browser_evaluate を ask に入れない" '(.permissi
 # allow・ask のルールに入れると hook の判断より先に決まるため、どちらにも入れない
 expect "Playwright MCP の browser_navigate を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_navigate")) == null' "$M"
 expect "Playwright MCP の browser_navigate を ask に入れない（hook が決める）" '(.permissions.ask | index("mcp__playwright__browser_navigate")) == null' "$M"
-for event in PreToolUse PostToolUse; do
-  expect "browser_navigate の $event で playwright-navigate-gate.sh を動かす" --arg e "$event" \
-    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[].command] | index("/opt/claude-code-team/bin/playwright-navigate-gate.sh") != null' "$M"
+for pair in PreToolUse:pre PostToolUse:post; do
+  event=${pair%%:*} arg=${pair#*:}
+  expect "browser_navigate の $event で playwright-navigate-gate.sh $arg を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/playwright-navigate-gate.sh $arg" \
+    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
 done
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
 # Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）
