@@ -130,9 +130,37 @@ if grep -qE 'localhost:629[12]' "$LIST"; then ng "確かめていない呼び出
 # 確かめた呼び出しの記録は、開いた後に消す（同じ tool_use_id で二度足さない）
 pre_input 'http://localhost:6293/' toolu_once | bash "$PRE" >/dev/null
 post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
+if grep -qx 'http://localhost:6293' "$LIST"; then ok; else ng "確かめて開けたサイトを一覧に足していない（二度目の前）"; fi
 : >"$LIST"
 post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
 if grep -qx 'http://localhost:6293' "$LIST"; then ng "確かめた呼び出しの記録を消さず、二度目にも足した"; else ok; fi
+
+# 開く前と開いた後で URL が変わったとき（ほかの hook が入力を書き換えたときなど）は、どちらも足さない
+pre_input 'http://localhost:6294/' toolu_changed | bash "$PRE" >/dev/null
+post_input 'http://localhost:6295/' toolu_changed | bash "$POST" >/dev/null
+if grep -qE 'localhost:629[45]' "$LIST"; then ng "開く前と開いた後で URL が変わったのに足した"; else ok; fi
+
+# tool_use_id に ../ などが入っていても、記録のフォルダの外（一覧そのもの）を書き換えない
+printf '%s\n' 'http://localhost:6400' >"$LIST"
+pre_input 'http://localhost:6401/' '../playwright-allowed-origins' | bash "$PRE" >/dev/null
+post_input 'http://localhost:6401/' '../playwright-allowed-origins' | bash "$POST" >/dev/null
+if [ "$(cat "$LIST")" = 'http://localhost:6400' ]; then ok; else ng "tool_use_id の ../ で一覧を書き換えた（$(cat "$LIST")）"; fi
+
+# 確かめたまま開かなかった呼び出しの記録は、24 時間より古ければ消す（新しい記録は残す）
+PENDING="$HOME/.claude/state/playwright-navigate-pending"
+mkdir -p "$PENDING"
+printf '%s' 'http://localhost:6410' >"$PENDING/toolu_old"
+touch -t 202001010000 "$PENDING/toolu_old"
+printf '%s' 'http://localhost:6411' >"$PENDING/toolu_new"
+pre_input 'http://localhost:6412/' toolu_prune | bash "$PRE" >/dev/null
+if [ ! -e "$PENDING/toolu_old" ] && [ -e "$PENDING/toolu_new" ]; then ok; else ng "古い記録を消していない・新しい記録まで消した"; fi
+
+# 記録できないときは、確認は出すが、次も確認することを伝える（「次からは確認しません」と言わない）
+rm -rf "$PENDING"
+printf 'x' >"$PENDING"
+out=$(pre_input 'http://localhost:6420/' toolu_nopending | bash "$PRE")
+if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q '次回も確認します' && ! printf '%s' "$out" | grep -q '次からは確認しません'; then ok; else ng "記録できないときの確認の文が違う（$out）"; fi
+rm -f "$PENDING"
 
 # 末尾に改行のない一覧に足しても、行がつながらない
 printf '%s' 'http://localhost:6300' >"$LIST"
@@ -148,9 +176,10 @@ rm -rf "$HOME/.claude"
 open_page 'http://localhost:7000/'
 if [ -f "$LIST" ] && grep -qx 'http://localhost:7000' "$LIST"; then ok; else ng "一覧のフォルダがないときに足せない"; fi
 
-# 開いた後（post）は、開く前の判断を出さない
+# 開いた後（post）は、開く前の判断を出さず、0 で終える
 out=$(post_input 'http://localhost:7001/' toolu_post_only | bash "$POST")
-if [ -z "$out" ]; then ok; else ng "開いた後に何かを出した（$out）"; fi
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "開いた後に何かを出した・0 で終えない（rc=$rc、$out）"; fi
 # 開いた後の hook に、開く前の入力が来ても、判断は出さない
 out=$(pre_input 'http://localhost:7002/' toolu_wrong_event | bash "$POST")
 if [ -z "$out" ]; then ok; else ng "開いた後の hook が、開く前の入力に判断を出した（$out）"; fi
@@ -173,11 +202,20 @@ for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/nonode/$c"; done
 out=$(pre_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep -q node; then ok; else ng "node が動かないときに理由を添えて止めない（$out）"; fi
 out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>/dev/null)
-if [ -z "$out" ]; then ok; else ng "node が動かないときに、開いた後に何かを出した（$out）"; fi
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "node が動かないときに、開いた後に何かを出した・0 で終えない（rc=$rc、$out）"; fi
+# node が判断を出さずに 0 で終えたとき（中身のない node など）も、開かない
+mkdir -p "$tmp/silentnode"
+for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/silentnode/$c"; done
+printf '#!/bin/sh\nexit 0\n' >"$tmp/silentnode/node"
+chmod +x "$tmp/silentnode/node"
+out=$(pre_input 'http://localhost:5173/' toolu_silent | PATH="$tmp/silentnode" "$bash_path" "$PRE")
+if [ "$(printf '%s' "$out" | decision_of)" = deny ]; then ok; else ng "node が何も出さないときに止めない（$out）"; fi
 out=$(printf '%s' '{not json' | bash "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep -q '確かめられなかった'; then ok; else ng "判断のスクリプトが失敗したときに止めない（$out）"; fi
 out=$(printf '%s' '{not json' | bash "$POST" 2>/dev/null)
-if [ -z "$out" ]; then ok; else ng "判断のスクリプトが失敗したときに、開いた後に何かを出した（$out）"; fi
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 1 ]; then ok; else ng "判断のスクリプトが失敗したときに、開いた後に何かを出した・1 で終えない（rc=$rc、$out）"; fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
