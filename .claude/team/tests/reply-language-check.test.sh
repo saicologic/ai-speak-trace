@@ -72,6 +72,16 @@ check none 'メールアドレス' "連絡先です。notifications-for-the-team
 check none '空白の後のパス' "変えました。 .claude/team/bin/reply-language-check.sh .claude/team/bin/lib/reply-language-check.mjs"
 check none '日本語・かっこのすぐ後のパス' '次のファイルを変えました（.claude/team/bin/reply-language-check.sh・.claude/team/bin/lib/reply-language-check.mjs・.claude/team/managed-settings.json・backend/src/lint/claude-team-tools.spec.ts）。'
 check none '半角のかっこの中のパス' '参照先です。(backend/src/guardrails/guardrails-policy-validation.service.ts)'
+check none '字下げしたチルダのコードブロック' "実行例です。
+  ~~~
+  $LONG_EN
+  ~~~"
+check none '別の記号の混ざった行では閉じないコードブロック' "実行例です。
+~~~
+~~~\`
+$LONG_EN
+~~~"
+check none '/ のないファイルの名前' '更新しました。 reply-language-check.mjs managed-settings.test.sh claude-team-tools.spec.ts'
 # URL のすぐ後に続く日本語は、URL と一緒に消さない
 check none 'URL のすぐ後に続く日本語' "見てくださいhttps://x.example/aaを$(kana 16) Run these steps carefully please now ok then"
 
@@ -81,6 +91,18 @@ TABLE='| PR | 状態 | 残っていること |
 | #277 Playwright の navigate・evaluate | Draft、CI はすべて通過（build・backend-test・frontend-test・tdd-order） | マージと install.sh での入れ直し |
 | #276 Tailwind の準備 | Draft、CI はすべて通過 | 動作確認の残り 1 か所 |'
 check none '英語の名前が並ぶ日本語の表' "$TABLE"
+
+# 除く処理が、英語の文まで消さないこと
+check block '対になっていないバッククォートの後の英語の文（段落をまたいでインラインコードにしない）' 'The template literal opening (`) was not closed.
+
+I fixed the parser, updated the tests, and verified the build passes on CI. Then I ran `npm test`.'
+check block 'バッククォートの数が開きと閉じで違う英語の文' '``The release notes were updated and every check passed on the main branch today.`'
+check block '引用の間の英語の段落' '> note `
+
+This English paragraph explains everything that changed in the build today.
+
+> end `'
+check block '/ でつないだふつうの英語の言葉' 'The build/test checks passed and the start/stop steps are ready.'
 
 # 5. 英語の返答の中に、日本語のタイトルやパスが少し入っていても止める
 EN_WITH_JA='Saved to memory. Two questions for you: should I build the Stop hook, and is it OK to proceed with the plan for 「Playwright の navigate を確かめずに許可する」? The PR title is 「fix: Playwright MCP の browser_navigate と browser_evaluate を確かめずに許可する」.'
@@ -111,7 +133,10 @@ done
 expect_result none '壊れた入力' '{not json'
 
 # 9. node が動かないときは止めない
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/reply-language-check-test.XXXXXX")" && pwd -P) || exit 1
+# 一時フォルダを作れたことを確かめてから、消す処理を登録する（作れないまま今のフォルダを消さないように）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/reply-language-check-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/$c"; done
 bash_path=$(command -v bash)
