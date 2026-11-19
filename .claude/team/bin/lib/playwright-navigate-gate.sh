@@ -21,7 +21,13 @@ navigate_gate() {
     exit 0
   }
 
-  command -v node >/dev/null 2>&1 || unchecked "node が見つからず、URL を確かめられないため開きません。Node を入れてください（brew install node@24）"
+  if ! command -v node >/dev/null 2>&1; then
+    [ "$mode" = post ] && {
+      echo "node が見つからず、許可したサイトの一覧に足せませんでした。次も確認が出ます。Node を入れてください（brew install node@24）" >&2
+      exit 1
+    }
+    unchecked "node が見つからず、URL を確かめられないため開きません。Node を入れてください（brew install node@24）"
+  fi
   if [ "$mode" = pre ]; then
     out=$(printf '%s' "$input" | node "$lib_dir/playwright-navigate-gate.mjs" pre "$state_dir") || unchecked "URL を確かめられなかったため開きません"
     # 判断が出なかったときも、確かめられなかったものとして開かない（何も出さないと、普通の許可の判断に回るため）

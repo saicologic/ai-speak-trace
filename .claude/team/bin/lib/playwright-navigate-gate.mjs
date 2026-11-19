@@ -2,7 +2,7 @@
 // playwright-navigate-gate.sh から呼ぶ。引数に pre・post と状態のフォルダ（~/.claude/state）、標準入力に hook の入力（JSON）を受け取る
 // - pre: 判断（allow / ask / deny）を hook の出力（JSON）として標準出力に書く。ask にした呼び出しを tool_use_id ごとに記録する
 // - post: 開く前に ask にした呼び出しだけ、そのサイトを一覧に足す（標準出力には何も書かない。足せないときは標準エラーに書いて 1 で終える）
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const [mode, stateDir] = process.argv.slice(2)
@@ -73,6 +73,48 @@ function prunePending() {
   }
 }
 
+/** ロックを待つ長さ・古いロック（消し忘れ）とみなす長さ（hook の timeout の 10 秒に収める） */
+const LOCK_WAIT_MS = 5000
+const LOCK_STALE_MS = 30 * 1000
+
+/** 少し待つ（hook は短い間しか動かないため、止めて待つ） */
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/**
+ * 一覧のロック（フォルダを作れたら取れた）を取ってから fn を動かす。ほかのセッションが一覧に足している間は待つ
+ * 古いロックは消し忘れとみなして消す。待ちきれないときは、理由を投げる
+ */
+function withListLock(fn) {
+  const lockPath = `${listPath}.lock`
+  mkdirSync(stateDir, { recursive: true, mode: 0o700 })
+  const deadline = Date.now() + LOCK_WAIT_MS
+  for (;;) {
+    try {
+      mkdirSync(lockPath, { mode: 0o700 })
+      break
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+      try {
+        if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
+          rmdirSync(lockPath)
+          continue
+        }
+      } catch {
+        continue
+      }
+      if (Date.now() > deadline) throw new Error(`ほかのセッションが一覧を使っていて、ロック（${lockPath}）を取れませんでした`)
+      sleep(100)
+    }
+  }
+  try {
+    return fn()
+  } finally {
+    rmdirSync(lockPath)
+  }
+}
+
 /** 一覧の最後に足す。最後の行に改行がないときは、先に改行を足す（行がつながらないように） */
 function appendOrigin(origin) {
   mkdirSync(stateDir, { recursive: true, mode: 0o700 })
@@ -127,7 +169,14 @@ if (mode === 'pre') {
     try {
       origin = readFileSync(file, 'utf-8').trim()
       unlinkSync(file)
-    } catch {
+    } catch (error) {
+      // 記録がない（確かめなかった呼び出し）ときは、何もしない。読めない・消せないときは、足さずに伝える
+      if (error.code !== 'ENOENT') {
+        process.stderr.write(
+          `確かめた呼び出しの記録を消せませんでした（${file}: ${error.message}）。一覧には足していません。次も確認が出ます。記録のフォルダの権限を確かめてください\n`,
+        )
+        process.exit(1)
+      }
       origin = null
     }
   }
@@ -135,9 +184,12 @@ if (mode === 'pre') {
   // 開いた URL のオリジンが記録と違う（ほかの hook が入力を書き換えたなど）ときは、どちらも足さない
   const checked = origin ? originOf(origin).origin : null
   const opened = originOf(input.tool_input?.url).origin
-  if (checked && checked === opened && !allowed().has(checked)) {
+  if (checked && checked === opened) {
     try {
-      appendOrigin(checked)
+      // 一覧にあるかを確かめてから足すまでを、ロックの中で行う（同じサイトを二重に足さない）
+      withListLock(() => {
+        if (!allowed().has(checked)) appendOrigin(checked)
+      })
     } catch (error) {
       process.stderr.write(
         `許可したサイトの一覧に足せませんでした（${listPath}: ${error.message}）。ページは開いています。次も確認が出ます。一覧のファイルを直すか、${checked} の行を自分で足してください\n`,
