@@ -209,6 +209,34 @@ touch -t 202001010000 "$LOCK"
 post_ok 'http://localhost:6442/' toolu_lock_stale
 if grep -qx 'http://localhost:6442' "$LIST" && [ ! -e "$LOCK" ]; then ok; else ng "古いロックを待ったまま足さない・ロックが残った"; fi
 
+# 一覧への書き込みが途中で失敗しても（容量不足など）、切れたオリジンを一覧に残さない
+# （書き込みを「半分書いてから容量不足で失敗する」ものに差し替えて、判断のスクリプトを流す）
+cat >"$tmp/partial-write.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const failing = (original) =>
+  function (file, data, ...rest) {
+    if (String(file).includes('playwright-allowed-origins')) {
+      const text = String(data)
+      original.call(fs, file, text.slice(0, Math.floor(text.length / 2)), ...rest)
+      const error = new Error('ENOSPC: no space left on device')
+      error.code = 'ENOSPC'
+      throw error
+    }
+    return original.call(fs, file, data, ...rest)
+  }
+fs.appendFileSync = failing(fs.appendFileSync)
+fs.writeFileSync = failing(fs.writeFileSync)
+syncBuiltinESMExports()
+JS
+STATE="$HOME/.claude/state"
+printf '%s\n' 'http://localhost:6400' >"$LIST"
+pre_input 'http://localhost:6451/' toolu_partial | bash "$PRE" >/dev/null
+post_input 'http://localhost:6451/' toolu_partial | node --require "$tmp/partial-write.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$STATE" >/dev/null 2>&1
+rc=$?
+if [ "$rc" = 1 ] && [ "$(cat "$LIST")" = 'http://localhost:6400' ]; then ok; else ng "書き込みが途中で失敗したときに、一覧を書き換えた・1 で終えない（rc=$rc、$(tr '\n' ' ' <"$LIST")）"; fi
+if ls "$STATE" | grep -vE '^(playwright-allowed-origins|playwright-navigate-pending)$' | grep -q .; then ng "書き込みに失敗した一時ファイルが残った（$(ls "$STATE" | tr '\n' ' ')）"; else ok; fi
+
 # 末尾に改行のない一覧に足しても、行がつながらない
 printf '%s' 'http://localhost:6300' >"$LIST"
 open_page 'http://localhost:6301/'
