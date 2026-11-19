@@ -169,7 +169,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 |---|---|
 | 公開のリポジトリの PR・Issue に書く | `github.sh` の PR・Issue への文章の書き込みは、毎回ユーザーに確かめます（managed settings の `ask`）。タイトル・本文に API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます |
 | push するコードに入れる | まだ送っていないコミットで足した行に、API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます（後のコミットで消しても、前のコミットに残るため） |
-| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります） |
+| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを、`Read`・Bash では読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります）。Playwright MCP は、`file://` の URL を開けば、確認なしで読めます（上の「サンドボックスの中での開発」） |
 | あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc`・`~/.config/fish` など）・`~/Library/LaunchAgents`・`/Users`・`/Volumes` の下のリポジトリの git の hook と設定（worktree ごとの設定を含む。テストが一時フォルダに作るリポジトリは除く）・`.npmrc`・`.cargo/config*`・Python が起動のたびに読むファイル（`site-packages` の `*.pth`・`sitecustomize.py`・`usercustomize.py`）・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
 | 個人・プロジェクトの設定に hook を足す | managed settings の hook だけを動かします（`allowManagedHooksOnly`）。**この Mac のほかのプロジェクトでも、個人の設定の hook は動きません** |
 
