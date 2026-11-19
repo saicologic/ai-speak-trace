@@ -33,7 +33,14 @@ expect_result() {
   fi
 }
 # check <期待> <説明> <返答> [stop_hook_active]
-check() { expect_result "$1" "$2" "$(stop_input "$3" "${4:-false}")"; }
+check() {
+  local json
+  json=$(stop_input "$3" "${4:-false}") && [ -n "$json" ] || {
+    ng "$2（テストの入力を作れなかった）"
+    return
+  }
+  expect_result "$1" "$2" "$json"
+}
 # 英字だけの文字列（n 文字）・日本語だけの文字列（n 文字）
 latin() { printf 'a%.0s' $(seq 1 "$1"); }
 kana() { printf 'あ%.0s' $(seq 1 "$1"); }
@@ -76,11 +83,26 @@ check none '字下げしたチルダのコードブロック' "実行例です�
   ~~~
   $LONG_EN
   ~~~"
+check none '4 つ以上の空白で字下げした、空の行のあるコードブロック' "実行例です。
+     \`\`\`bash
+     $LONG_EN
+
+     $LONG_EN
+     \`\`\`"
+check none '閉じのないコードブロック（最後まで）' "実行例です。
+~~~
+$LONG_EN
+$LONG_EN"
 check none '別の記号の混ざった行では閉じないコードブロック' "実行例です。
 ~~~
 ~~~\`
 $LONG_EN
 ~~~"
+# / を含む並びは、パス・ブランチの名前とみなして除く（種類ごとに、除かなければ止まる量にしてある）
+check none '/・~ で始まる並び' '場所です。 ~/Library/Caches /opt/claude-code-team /usr/local/bin ~/.claude/state'
+check none '/ が 2 つ以上で拡張子のない並び' '場所です。 backend/src/lint frontend/src/components .claude/team/tests'
+check none '/ が 1 つで拡張子のある並び' '場所です。 docs/ai-testing.md backend/package.json scripts/dev.mjs'
+check none '/ が 1 つで拡張子のないブランチ・フォルダの名前' '対象のブランチとフォルダ: fix/japanese-reply-check・feature/tailwind-setup・backend/src・frontend/src・docs/developers'
 check none '/ のないファイルの名前' '更新しました。 reply-language-check.mjs managed-settings.test.sh claude-team-tools.spec.ts'
 # URL のすぐ後に続く日本語は、URL と一緒に消さない
 check none 'URL のすぐ後に続く日本語' "見てくださいhttps://x.example/aaを$(kana 16) Run these steps carefully please now ok then"
@@ -102,7 +124,9 @@ check block '引用の間の英語の段落' '> note `
 This English paragraph explains everything that changed in the build today.
 
 > end `'
-check block '/ でつないだふつうの英語の言葉' 'The build/test checks passed and the start/stop steps are ready.'
+check block '引用の行のすぐ間の英語の行（引用を先に除くので、インラインコードにしない）' '> note `
+This English line explains everything that changed in the build today and more.
+> end `'
 
 # 5. 英語の返答の中に、日本語のタイトルやパスが少し入っていても止める
 EN_WITH_JA='Saved to memory. Two questions for you: should I build the Stop hook, and is it OK to proceed with the plan for 「Playwright の navigate を確かめずに許可する」? The PR title is 「fix: Playwright MCP の browser_navigate と browser_evaluate を確かめずに許可する」.'
