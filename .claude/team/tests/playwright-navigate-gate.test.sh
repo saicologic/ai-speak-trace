@@ -209,6 +209,17 @@ touch -t 202001010000 "$LOCK"
 post_ok 'http://localhost:6442/' toolu_lock_stale
 if grep -qx 'http://localhost:6442' "$LIST" && [ ! -e "$LOCK" ]; then ok; else ng "古いロックを待ったまま足さない・ロックが残った"; fi
 
+# 古いロックを消せないとき（ロックがフォルダではなくファイルのときなど）も、待つのは決めた時間までで、理由を伝えて 1 で終える
+pre_input 'http://localhost:6443/' toolu_lock_file | bash "$PRE" >/dev/null
+rm -rf "$LOCK"
+: >"$LOCK"
+touch -t 202001010000 "$LOCK"
+# 判断のスクリプトを、8 秒の時間切れ（perl の alarm）付きで直接流す（待ち続けても、node ごと止まるように）
+post_input 'http://localhost:6443/' toolu_lock_file | perl -e 'alarm 8; exec @ARGV' node "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+rc=$?
+if [ "$rc" = 1 ]; then ok; else ng "古いロックを消せないときに、決めた時間で 1 で終えない（rc=$rc。142 は 8 秒の時間切れ）"; fi
+rm -f "$LOCK"
+
 # 一覧への書き込みが途中で失敗しても（容量不足など）、切れたオリジンを一覧に残さない
 # （書き込みを「半分書いてから容量不足で失敗する」ものに差し替えて、判断のスクリプトを流す）
 cat >"$tmp/partial-write.cjs" <<'JS'
