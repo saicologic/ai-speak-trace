@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'path'
 
@@ -17,7 +18,7 @@ export default defineConfig(() => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     // Tauri開発時にコンソールをクリアしない
     clearScreen: false,
     server: {
