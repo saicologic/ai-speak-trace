@@ -42,6 +42,13 @@ check() {
   got=$(decide "$url")
   if [ "$got" = "$want" ]; then ok; else ng "$url（期待 $want、結果 $got）"; fi
 }
+# 開いた後の hook を流し、何も出さず 0 で終えることを確かめる（足さない場面でも、途中で失敗していないこと）
+post_ok() {
+  local out rc
+  out=$(post_input "$1" "$2" | bash "$POST")
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "開いた後の hook が失敗した（$1、rc=$rc、$out）"; fi
+}
 # 開く前と開いた後を、同じ tool_use_id で続けて流す（確認で許可して開けたときの流れ）
 open_page() {
   n=$((n + 1))
@@ -121,23 +128,25 @@ if grep -qE '^(file|data|null)' "$LIST"; then ng "サイトではない URL を�
 printf '%s\n' 'http://localhost:6290' >"$LIST"
 pre_input 'http://localhost:6290/' toolu_allowed | bash "$PRE" >/dev/null
 : >"$LIST"
-post_input 'http://localhost:6290/' toolu_allowed | bash "$POST" >/dev/null
+post_ok 'http://localhost:6290/' toolu_allowed
 if grep -qx 'http://localhost:6290' "$LIST"; then ng "確かめずに開いた後に、一覧から消したサイトを足し直した"; else ok; fi
 # 開く前の hook を通っていない呼び出し・tool_use_id のない呼び出しの後では足さない
-post_input 'http://localhost:6291/' toolu_unknown | bash "$POST" >/dev/null
-jq -n '{hook_event_name: "PostToolUse", tool_input: {url: "http://localhost:6292/"}}' | bash "$POST" >/dev/null
+post_ok 'http://localhost:6291/' toolu_unknown
+out=$(jq -n '{hook_event_name: "PostToolUse", tool_input: {url: "http://localhost:6292/"}}' | bash "$POST")
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "tool_use_id のない呼び出しの後で失敗した（rc=$rc、$out）"; fi
 if grep -qE 'localhost:629[12]' "$LIST"; then ng "確かめていない呼び出しの後に足した"; else ok; fi
 # 確かめた呼び出しの記録は、開いた後に消す（同じ tool_use_id で二度足さない）
 pre_input 'http://localhost:6293/' toolu_once | bash "$PRE" >/dev/null
 post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
 if grep -qx 'http://localhost:6293' "$LIST"; then ok; else ng "確かめて開けたサイトを一覧に足していない（二度目の前）"; fi
 : >"$LIST"
-post_input 'http://localhost:6293/' toolu_once | bash "$POST" >/dev/null
+post_ok 'http://localhost:6293/' toolu_once
 if grep -qx 'http://localhost:6293' "$LIST"; then ng "確かめた呼び出しの記録を消さず、二度目にも足した"; else ok; fi
 
 # 開く前と開いた後で URL が変わったとき（ほかの hook が入力を書き換えたときなど）は、どちらも足さない
 pre_input 'http://localhost:6294/' toolu_changed | bash "$PRE" >/dev/null
-post_input 'http://localhost:6295/' toolu_changed | bash "$POST" >/dev/null
+post_ok 'http://localhost:6295/' toolu_changed
 if grep -qE 'localhost:629[45]' "$LIST"; then ng "開く前と開いた後で URL が変わったのに足した"; else ok; fi
 
 # tool_use_id に ../ などが入っていても、記録のフォルダの外（一覧そのもの）を書き換えない
@@ -161,6 +170,44 @@ printf 'x' >"$PENDING"
 out=$(pre_input 'http://localhost:6420/' toolu_nopending | bash "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = ask ] && printf '%s' "$out" | grep -q '次回も確認します' && ! printf '%s' "$out" | grep -q '次からは確認しません'; then ok; else ng "記録できないときの確認の文が違う（$out）"; fi
 rm -f "$PENDING"
+
+# 確かめた呼び出しの記録を消せないときは、足さずに、理由を標準エラーで伝えて 1 で終える
+: >"$LIST"
+PENDING="$HOME/.claude/state/playwright-navigate-pending"
+pre_input 'http://localhost:6430/' toolu_locked_record | bash "$PRE" >/dev/null
+chmod 500 "$PENDING"
+err=$(post_input 'http://localhost:6430/' toolu_locked_record | bash "$POST" 2>&1 >/dev/null)
+rc=$?
+chmod 700 "$PENDING"
+if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '記録を消せません' && ! grep -qx 'http://localhost:6430' "$LIST"; then ok; else ng "記録を消せないときに伝えない・足した（rc=$rc、$err）"; fi
+
+# 一覧に足すのは、ロックを取ってから（ほかのセッションが足している間は待ち、同じ行を二重に足さない）
+LOCK="$LIST.lock"
+pre_input 'http://localhost:6440/' toolu_lock_a | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+(post_input 'http://localhost:6440/' toolu_lock_a | bash "$POST" >/dev/null) &
+waiter=$!
+sleep 1
+if grep -qx 'http://localhost:6440' "$LIST"; then ng "ロックを取られている間に足した"; else ok; fi
+rmdir "$LOCK"
+wait "$waiter"
+if grep -qx 'http://localhost:6440' "$LIST"; then ok; else ng "ロックが外れた後に足していない"; fi
+# ロックを待っている間に、ほかのセッションが同じサイトを足したら、二重に足さない
+pre_input 'http://localhost:6441/' toolu_lock_b | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+(post_input 'http://localhost:6441/' toolu_lock_b | bash "$POST" >/dev/null) &
+waiter=$!
+sleep 1
+printf '%s\n' 'http://localhost:6441' >>"$LIST"
+rmdir "$LOCK"
+wait "$waiter"
+if [ "$(grep -cx 'http://localhost:6441' "$LIST")" = 1 ]; then ok; else ng "ロックを待っている間に足されたサイトを、二重に足した"; fi
+# 古いロック（消し忘れ）は待たない
+pre_input 'http://localhost:6442/' toolu_lock_stale | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+touch -t 202001010000 "$LOCK"
+post_ok 'http://localhost:6442/' toolu_lock_stale
+if grep -qx 'http://localhost:6442' "$LIST" && [ ! -e "$LOCK" ]; then ok; else ng "古いロックを待ったまま足さない・ロックが残った"; fi
 
 # 末尾に改行のない一覧に足しても、行がつながらない
 printf '%s' 'http://localhost:6300' >"$LIST"
@@ -201,9 +248,11 @@ mkdir -p "$tmp/nonode"
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/nonode/$c"; done
 out=$(pre_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep -q node; then ok; else ng "node が動かないときに理由を添えて止めない（$out）"; fi
-out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>/dev/null)
+# 開いた後に node がないときは、一覧に足せなかったことを標準エラーで伝え、1 で終える（標準出力には何も出さない）
+err=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>&1 >/dev/null)
 rc=$?
-if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "node が動かないときに、開いた後に何かを出した・0 で終えない（rc=$rc、$out）"; fi
+out=$(post_input 'http://localhost:5173/' toolu_tools | PATH="$tmp/nonode" "$bash_path" "$POST" 2>/dev/null)
+if [ -z "$out" ] && [ "$rc" = 1 ] && printf '%s' "$err" | grep -q node; then ok; else ng "node が動かないときに、開いた後に足せなかったことを伝えない（rc=$rc、$err、$out）"; fi
 # node が判断を出さずに 0 で終えたとき（中身のない node など）も、開かない
 mkdir -p "$tmp/silentnode"
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/silentnode/$c"; done
