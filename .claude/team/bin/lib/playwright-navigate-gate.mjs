@@ -91,22 +91,24 @@ function withListLock(fn) {
   mkdirSync(stateDir, { recursive: true, mode: 0o700 })
   const deadline = Date.now() + LOCK_WAIT_MS
   for (;;) {
+    // 待つのは決めた時間まで（古いロックを消せないときも、ここで止まる）
+    if (Date.now() > deadline) throw new Error(`ほかのセッションが一覧を使っていて、ロック（${lockPath}）を取れませんでした`)
     try {
       mkdirSync(lockPath, { mode: 0o700 })
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
-      try {
-        if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
-          rmdirSync(lockPath)
-          continue
-        }
-      } catch {
+    }
+    try {
+      if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
+        rmdirSync(lockPath)
         continue
       }
-      if (Date.now() > deadline) throw new Error(`ほかのセッションが一覧を使っていて、ロック（${lockPath}）を取れませんでした`)
-      sleep(100)
+    } catch (error) {
+      // ロックがちょうど消えたときは、すぐ取り直す。消せないときは、少し待ってからもう一度
+      if (error.code === 'ENOENT') continue
     }
+    sleep(100)
   }
   try {
     return fn()
