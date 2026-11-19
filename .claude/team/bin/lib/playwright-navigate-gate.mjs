@@ -2,7 +2,7 @@
 // playwright-navigate-gate.sh から呼ぶ。引数に pre・post と状態のフォルダ（~/.claude/state）、標準入力に hook の入力（JSON）を受け取る
 // - pre: 判断（allow / ask / deny）を hook の出力（JSON）として標準出力に書く。ask にした呼び出しを tool_use_id ごとに記録する
 // - post: 開く前に ask にした呼び出しだけ、そのサイトを一覧に足す（標準出力には何も書かない。足せないときは標準エラーに書いて 1 で終える）
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const [mode, stateDir] = process.argv.slice(2)
@@ -115,17 +115,31 @@ function withListLock(fn) {
   }
 }
 
-/** 一覧の最後に足す。最後の行に改行がないときは、先に改行を足す（行がつながらないように） */
+/**
+ * 一覧の最後に足す。最後の行に改行がないときは、先に改行を足す（行がつながらないように）
+ * 一覧全体を一時ファイルに書いてから入れ替える（書き込みが途中で失敗しても、切れたオリジンを一覧に残さない）
+ */
 function appendOrigin(origin) {
   mkdirSync(stateDir, { recursive: true, mode: 0o700 })
-  let prefix = ''
+  let text = ''
   try {
-    const text = readFileSync(listPath, 'utf-8')
-    if (text.length > 0 && !text.endsWith('\n')) prefix = '\n'
+    text = readFileSync(listPath, 'utf-8')
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
-  appendFileSync(listPath, `${prefix}${origin}\n`, { mode: 0o600 })
+  const prefix = text.length > 0 && !text.endsWith('\n') ? '\n' : ''
+  const temp = `${listPath}.tmp-${process.pid}`
+  try {
+    writeFileSync(temp, `${text}${prefix}${origin}\n`, { mode: 0o600 })
+    renameSync(temp, listPath)
+  } catch (error) {
+    try {
+      unlinkSync(temp)
+    } catch {
+      // 一時ファイルができていなければ、消すものはない
+    }
+    throw error
+  }
 }
 
 const decision = (permissionDecision, permissionDecisionReason) =>
