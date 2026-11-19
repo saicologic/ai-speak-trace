@@ -1,12 +1,14 @@
 {
   "requiredMinimumVersion": "2.1.277",
   "permissions": {
+    "allow": [
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_evaluate"
+    ],
     "ask": [
       "Bash(/opt/claude-code-team/bin/github.sh --skip *)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)",
-      "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_file_upload",
       "Bash(/opt/claude-code-team/bin/github.sh pr create *)",
       "Bash(/opt/claude-code-team/bin/github.sh pr edit *)",

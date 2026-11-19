@@ -129,7 +129,12 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 
 - `mcp-sandbox.spec.ts` は、`sandbox-exec` で MCP サーバーをサンドボックスに入れて確かめるテストです。サンドボックスの中からもう1つサンドボックスは作れない（`sandbox_apply: Operation not permitted`）ため、Claude Code の中では飛ばします。CI（ubuntu）にも `sandbox-exec` がないため飛ばします。MCP サーバーの仕組み（`backend/scripts/mcp-sandbox.*`・`backend/src/mcp/`）を変えたときは、開発者が `cd backend && npx jest src/mcp/mcp-sandbox.spec.ts` を流して確かめます
 - `npm ci`・`npm install` は、サンドボックスの中では npm のキャッシュ（`~/.npm`）に書けず、保護されたファイル（`.vscode/settings.json` など）も消せないため、`node_modules` を消した後に途中で止まり、壊れたまま残ります。依存を足すときも、Claude Code は `package.json` の変更を提案し、開発者が入れます
-- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。外の URL を開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）・手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。プロキシを通らない WebRTC の UDP も、Chrome の起動引数で止めています（`/opt/claude-code-team/etc/playwright-mcp.json`）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
+- Claude Code はサーバーを起動できません（ポートを開けないため）。Playwright MCP はサンドボックスの外で動くため、開発者が起動したサーバーを開けます。ページを開く（`browser_navigate`）・ページで JavaScript を動かす（`browser_evaluate`）操作は、画面の確認で何度も使うため、確かめずに許可しています。手元のファイルをページに渡す（`browser_file_upload`）操作は毎回ユーザーに確かめ、Playwright のサーバーの中で任意のコードを動かす操作（`browser_run_code_unsafe`）は使えません。Playwright MCP のブラウザは、つながらないプロキシ（`http://127.0.0.1:9`）を通し、`localhost`・`127.0.0.1` だけを例外にしているため、外のサイトにはつながりません（ページの JavaScript・リダイレクトも同じ）。プロキシを通らない WebRTC の UDP も、Chrome の起動引数で止めています（`/opt/claude-code-team/etc/playwright-mcp.json`）。Playwright MCP の `--allowed-origins` は、README に「守りにはならない」とあるため使いません
+  - `browser_navigate`・`browser_evaluate` を確かめずに許可するため、次のことは確認なしでできます。受け入れたうえで許可しています
+    - `file://` の URL を開いて、手元のファイルを読む（プロキシは http・https にしか効かないため。`Read` の deny も通らない）
+    - `data:` の URL を開いて、JavaScript を動かす
+    - 開発者の Mac で待ち受けている、ほかのローカルのサービス（`localhost`・`127.0.0.1` の別のポート）を開く
+    - アプリのページの中から、手元のバックエンドの API を直接呼ぶ（文字起こしの削除や、Claude・ElevenLabs への送信など、画面に出ない操作も含む）
 
 ## 変えたいとき
 
@@ -164,7 +169,7 @@ push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook�
 |---|---|
 | 公開のリポジトリの PR・Issue に書く | `github.sh` の PR・Issue への文章の書き込みは、毎回ユーザーに確かめます（managed settings の `ask`）。タイトル・本文に API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます |
 | push するコードに入れる | まだ送っていないコミットで足した行に、API キー・トークン・秘密鍵の形があれば、`github.sh` が止めます（後のコミットで消しても、前のコミットに残るため） |
-| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります） |
+| 秘密の情報を読む | `~/.ssh`・`~/.aws`・クラウドの認証情報・ブラウザの Cookie・パスワード・メールなどを、`Read`・Bash では読ませません（managed settings の `Read` の deny。サンドボックスにも同じものが加わります）。Playwright MCP は、`file://` の URL を開けば、確認なしで読めます（上の「サンドボックスの中での開発」） |
 | あとから外でコマンドを動かす | シェルの起動ファイル（`~/.zshrc`・`~/.config/fish` など）・`~/Library/LaunchAgents`・`/Users`・`/Volumes` の下のリポジトリの git の hook と設定（worktree ごとの設定を含む。テストが一時フォルダに作るリポジトリは除く）・`.npmrc`・`.cargo/config*`・Python が起動のたびに読むファイル（`site-packages` の `*.pth`・`sitecustomize.py`・`usercustomize.py`）・`.envrc`・`.vscode`・Claude Code の個人の設定を、ファイルを書くツールで書き換えさせません（`Edit` の deny） |
 | 個人・プロジェクトの設定に hook を足す | managed settings の hook だけを動かします（`allowManagedHooksOnly`）。**この Mac のほかのプロジェクトでも、個人の設定の hook は動きません** |
 
