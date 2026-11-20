@@ -315,6 +315,7 @@ check_tabs deny '{"action": "new", "url": ""}'
 check_tabs deny '{"action": "select", "index": 0, "url": "file:///etc/hosts"}'
 # URL が文字列でないときも止める
 check_tabs deny '{"action": "new", "url": 123}'
+check_tabs deny '{"action": "new", "url": false}'
 check_tabs deny '{"action": "new", "url": {}}'
 check_tabs deny '{"action": "new", "url": ["http://localhost:5173/"]}'
 check_tabs deny '{"action": "new", "url": ["file:///etc/hosts"]}'
@@ -403,6 +404,19 @@ if [ "$got" = deny ] && [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開く�
 rm -f "$tmp/fakenode-ran"
 post_input 'http://localhost:6304/' toolu_fakenode | PATH="$tmp/fakenode:$PATH" bash "$ENTRY_POST" >/dev/null 2>&1
 if [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開いた後の入口が、受け取った PATH の node を使った"; fi
+# 入口から中身を正しく呼ぶ（開く前は pre・開いた後は post）。決めた PATH に node があるときは、確かめて開けたサイトを一覧に足す
+# node がないとき（CI など）は、開いた後の入口が 1 で終える（どちらの場面でも、どちらかを必ず確かめる）
+if PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" command -v node >/dev/null 2>&1; then
+  got=$(pre_input 'http://localhost:6305/' toolu_entry | bash "$ENTRY_PRE" | decision_of)
+  if [ "$got" = ask ]; then ok; else ng "開く前の入口で、初めてのサイトを確かめない（結果 $got）"; fi
+  out=$(post_input 'http://localhost:6305/' toolu_entry | bash "$ENTRY_POST")
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ] && grep -qx 'http://localhost:6305' "$LIST"; then ok; else ng "開いた後の入口で、確かめて開けたサイトを一覧に足さない（rc=$rc、$out）"; fi
+else
+  post_input 'http://localhost:6305/' toolu_entry | bash "$ENTRY_POST" >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" = 1 ]; then ok; else ng "node がないときに、開いた後の入口が 1 で終えない（rc=$rc）"; fi
+fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
