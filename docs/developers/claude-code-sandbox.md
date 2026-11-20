@@ -118,6 +118,8 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 
 push・PR の作成の後は、`watch-pr-checks.sh`（managed settings の hook）が、`/opt/claude-code-team/bin/wait-pr-checks.sh` で CI と CodeRabbit を監視するよう Claude Code に伝えます。
 
+返答の最後のメッセージが英語のときは、`reply-language-check.sh`（managed settings の Stop の hook）が止めて、日本語で書き直させます。コードブロック・インラインコード・引用の行・URL・メールアドレス・ファイルの場所を除いた文で、日本語の文字（ひらがな・カタカナ・漢字）と英字（A〜Z・a〜z）を数え、合わせた数のうち日本語の文字が 2 割より少ないときに英語とみなします（数字・記号は数えません）。数えた文字が 40 より少ない短い返答は確かめません。書き直した返答は、もう一度は止めません。判断に Node を使うため、Claude Code から `node` が見つからないときは、何もせず英語の返答も止めません（入れ直しでは直らないので、`node` が `PATH` にあるかを確かめます）。
+
 ## サンドボックスの中での開発
 
 | 作業 | Claude Code（サンドボックスの中） | 開発者（自分のターミナル） |
