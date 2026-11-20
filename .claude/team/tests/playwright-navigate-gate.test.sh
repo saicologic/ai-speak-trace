@@ -225,6 +225,53 @@ touch -t 202001010000 "$LOCK"
 post_ok 'http://localhost:6442/' toolu_lock_stale
 if grep -qx 'http://localhost:6442' "$LIST" && [ ! -e "$LOCK" ]; then ok; else ng "古いロックを待ったまま足さない・ロックが残った"; fi
 
+# 古いロックを片付けるのは、片付けのロック（.reclaim）を取ってから（2 つのセッションが同じ古いロックを片付けて、取り直したロックを消さないように）
+pre_input 'http://localhost:6444/' toolu_lock_reclaim | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+touch -t 202001010000 "$LOCK"
+mkdir "$LOCK.reclaim"
+(post_input 'http://localhost:6444/' toolu_lock_reclaim | bash "$POST" >/dev/null) &
+waiter=$!
+sleep 1
+if [ -d "$LOCK" ] && ! grep -qx 'http://localhost:6444' "$LIST"; then ok; else ng "ほかのセッションが片付けている間に、古いロックを消した・足した"; fi
+rmdir "$LOCK.reclaim"
+wait "$waiter"
+if grep -qx 'http://localhost:6444' "$LIST" && [ ! -e "$LOCK" ] && [ ! -e "$LOCK.reclaim" ]; then ok; else ng "片付けのロックが外れた後に、古いロックを片付けて足していない"; fi
+# 片付けのロックも古い（片付けの途中で落ちた）ときは、待たない
+pre_input 'http://localhost:6445/' toolu_lock_reclaim_stale | bash "$PRE" >/dev/null
+mkdir "$LOCK" "$LOCK.reclaim"
+touch -t 202001010000 "$LOCK" "$LOCK.reclaim"
+post_ok 'http://localhost:6445/' toolu_lock_reclaim_stale
+if grep -qx 'http://localhost:6445' "$LIST" && [ ! -e "$LOCK" ] && [ ! -e "$LOCK.reclaim" ]; then ok; else ng "古い片付けのロックを待ったまま足さない・ロックが残った"; fi
+# 2 つのセッションが同じ古いロックを同時に見つけても、どちらのサイトも一覧に残る
+pre_input 'http://localhost:6446/' toolu_lock_pair_a | bash "$PRE" >/dev/null
+pre_input 'http://localhost:6447/' toolu_lock_pair_b | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+touch -t 202001010000 "$LOCK"
+(post_input 'http://localhost:6446/' toolu_lock_pair_a | bash "$POST" >/dev/null) &
+pair_a=$!
+(post_input 'http://localhost:6447/' toolu_lock_pair_b | bash "$POST" >/dev/null) &
+pair_b=$!
+wait "$pair_a" "$pair_b"
+if grep -qx 'http://localhost:6446' "$LIST" && grep -qx 'http://localhost:6447' "$LIST" && [ ! -e "$LOCK" ]; then ok; else ng "同じ古いロックを同時に片付けたときに、どちらかのサイトが消えた・ロックが残った"; fi
+# ロックを外すのは、自分が取ったロックのときだけ（一覧を書いている間に、ほかのセッションの印に替わったら、消さずに伝える）
+cat >"$tmp/steal-lock.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const original = fs.renameSync
+fs.renameSync = function (from, to, ...rest) {
+  const result = original.call(fs, from, to, ...rest)
+  if (String(to).endsWith('playwright-allowed-origins')) fs.writeFileSync(`${to}.lock/owner`, 'other-session')
+  return result
+}
+syncBuiltinESMExports()
+JS
+pre_input 'http://localhost:6448/' toolu_lock_owner | bash "$PRE" >/dev/null
+err=$(post_input 'http://localhost:6448/' toolu_lock_owner | node --require "$tmp/steal-lock.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" 2>&1 >/dev/null)
+rc=$?
+if [ "$rc" = 1 ] && [ "$(cat "$LOCK/owner" 2>/dev/null)" = other-session ] && printf '%s' "$err" | grep -q 'ロック'; then ok; else ng "ほかのセッションのロックを外した・伝えない（rc=$rc、$err）"; fi
+rm -rf "$LOCK"
+
 # 古いロックを消せないとき（ロックがフォルダではなくファイルのときなど）も、待つのは決めた時間までで、理由を伝えて 1 で終える
 pre_input 'http://localhost:6443/' toolu_lock_file | bash "$PRE" >/dev/null
 rm -rf "$LOCK"
