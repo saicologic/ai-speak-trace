@@ -83,6 +83,16 @@ check deny 'not a url'
 check deny ''
 got=$(jq -n '{hook_event_name: "PreToolUse", tool_use_id: "toolu_nourl", tool_input: {}}' | bash "$PRE" | decision_of)
 if [ "$got" = deny ]; then ok; else ng "URL がないときに止めない（結果 $got）"; fi
+# browser_navigate で URL がない・null のときも止める（URL のない browser_tabs とは違い、ふだんの確認に任せない）
+for i in '{}' '{"url": null}'; do
+  got=$(jq -n --argjson i "$i" '{hook_event_name: "PreToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_nourl_nav", tool_input: $i}' | bash "$PRE" | decision_of)
+  if [ "$got" = deny ]; then ok; else ng "browser_navigate の URL が $i のときに止めない（結果 $got）"; fi
+done
+# URL が文字列でないときは止める（文字列にすると URL に見える配列なども、開かない）
+for u in '123' 'false' '{}' '["http://localhost:5173/"]' '["file:///etc/hosts"]'; do
+  got=$(jq -n --argjson u "$u" '{hook_event_name: "PreToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_badurl", tool_input: {url: $u}}' | bash "$PRE" | decision_of)
+  if [ "$got" = deny ]; then ok; else ng "browser_navigate の URL が $u のときに止めない（結果 $got）"; fi
+done
 
 # 7. 開く URL の大文字・既定のポートは、まとめてから比べる
 check allow 'HTTP://LOCALHOST:5173/'
@@ -297,11 +307,26 @@ check_tabs deny '{"action": "new", "url": "http://localhost:5173@evil.example/"}
 check_tabs deny '{"action": "new", "url": ""}'
 # new 以外の操作に URL を渡したときも、同じように確かめる（Playwright MCP が使わない値でも、開かないとは限らないため）
 check_tabs deny '{"action": "select", "index": 0, "url": "file:///etc/hosts"}'
+# URL が文字列でないときも止める
+check_tabs deny '{"action": "new", "url": 123}'
+check_tabs deny '{"action": "new", "url": {}}'
+check_tabs deny '{"action": "new", "url": ["http://localhost:5173/"]}'
+check_tabs deny '{"action": "new", "url": ["file:///etc/hosts"]}'
 # URL のない操作（一覧・閉じる・選ぶ・URL のない新しいタブ）は、hook では決めない（何も出さず、ふだんの確認に任せる）
 for i in '{"action": "list"}' '{"action": "close", "index": 1}' '{"action": "select", "index": 0}' '{"action": "new"}' '{"action": "new", "url": null}'; do
   out=$(tabs_input PreToolUse toolu_tabs_nourl "$i" | bash "$PRE")
   rc=$?
   if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "URL のない browser_tabs $i で判断を出した・0 で終えない（rc=$rc、$out）"; fi
+done
+# tool_input そのものがない・null のときも、URL のない操作として決めない
+for i in 'tool_input' 'null'; do
+  if [ "$i" = tool_input ]; then
+    out=$(jq -n '{hook_event_name: "PreToolUse", tool_name: "mcp__playwright__browser_tabs", tool_use_id: "toolu_tabs_noinput"}' | bash "$PRE")
+  else
+    out=$(tabs_input PreToolUse toolu_tabs_noinput null | bash "$PRE")
+  fi
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "tool_input のない browser_tabs（$i）で判断を出した・0 で終えない（rc=$rc、$out）"; fi
 done
 # 確かめて新しいタブで開けたサイトは一覧に足し、次から確かめない（browser_navigate でも確かめない）
 tabs_input PreToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' | bash "$PRE" >/dev/null
@@ -311,7 +336,8 @@ if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "新しいタブで開いた
 if grep -qx 'http://localhost:6302' "$LIST"; then ok; else ng "確かめて新しいタブで開けたサイトを一覧に足さない"; fi
 check_tabs allow '{"action": "new", "url": "http://localhost:6302/b"}'
 check allow 'http://localhost:6302/c'
-# URL のない操作の後は、何も出さず 0 で終え、一覧も変えない
+# URL のない操作の後は、何も出さず 0 で終え、一覧も変えない（同じ tool_use_id で確認の記録が残っていても、足さない）
+tabs_input PreToolUse toolu_tabs_list '{"action": "new", "url": "http://localhost:6303/"}' | bash "$PRE" >/dev/null
 before=$(cat "$LIST")
 out=$(tabs_input PostToolUse toolu_tabs_list '{"action": "list"}' | bash "$POST")
 rc=$?
@@ -335,6 +361,9 @@ mkdir -p "$tmp/silentnode"
 for c in cat dirname; do ln -s "$(command -v "$c")" "$tmp/silentnode/$c"; done
 printf '#!/bin/sh\nexit 0\n' >"$tmp/silentnode/node"
 chmod +x "$tmp/silentnode/node"
+# node が見つからないときは、URL のない browser_tabs も止める（確かめられないときは、開かない側に倒す）
+out=$(tabs_input PreToolUse toolu_tabs_nonode '{"action": "list"}' | PATH="$tmp/nonode" "$bash_path" "$PRE")
+if [ "$(printf '%s' "$out" | decision_of)" = deny ]; then ok; else ng "node が見つからないときに、URL のない browser_tabs を止めない（$out）"; fi
 out=$(pre_input 'http://localhost:5173/' toolu_silent | PATH="$tmp/silentnode" "$bash_path" "$PRE")
 if [ "$(printf '%s' "$out" | decision_of)" = deny ]; then ok; else ng "node が何も出さないときに止めない（$out）"; fi
 out=$(printf '%s' '{not json' | bash "$PRE")
