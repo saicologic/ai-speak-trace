@@ -19,9 +19,11 @@ const PENDING_TTL_MS = 24 * 60 * 60 * 1000
  * サイトではない URL（file:・data:・javascript: など）と、ユーザー名・パスワードの付いた URL は、理由を返す
  */
 function originOf(raw) {
+  // 文字列でないもの（文字列にすると URL に見える配列など）は読まない
+  if (typeof raw !== 'string') return { reason: '読み取れない URL' }
   let url
   try {
-    url = new URL(String(raw ?? ''))
+    url = new URL(raw)
   } catch {
     return { reason: '読み取れない URL' }
   }
