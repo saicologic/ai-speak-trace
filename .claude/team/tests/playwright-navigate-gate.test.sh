@@ -4,8 +4,9 @@
 # 許可したサイトは確認なしで開き、許可していないサイトは初回だけ確かめ、確かめて開けたサイトだけを一覧に足すことを確かめる
 set -u
 BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
-PRE="$BIN/playwright-navigate-pre.sh"
-POST="$BIN/playwright-navigate-post.sh"
+# 入口（PATH を決めた値にしてから中身を読む）。下の 14. で確かめる
+ENTRY_PRE="$BIN/playwright-navigate-pre.sh"
+ENTRY_POST="$BIN/playwright-navigate-post.sh"
 
 pass=0
 fail=0
@@ -20,6 +21,11 @@ trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"
 LIST="$HOME/.claude/state/playwright-allowed-origins"
+# 判断の中身（lib/playwright-navigate-gate.sh）を、受け取った PATH のまま動かす入口（node が見つからないときなどを作って確かめるため）
+PRE="$tmp/gate-pre.sh"
+POST="$tmp/gate-post.sh"
+printf '. "%s"\nnavigate_gate pre\n' "$BIN/lib/playwright-navigate-gate.sh" >"$PRE"
+printf '. "%s"\nnavigate_gate post\n' "$BIN/lib/playwright-navigate-gate.sh" >"$POST"
 n=0
 
 # pre_input <URL> <tool_use_id>・post_input <URL> <tool_use_id>
@@ -371,6 +377,32 @@ if [ "$(printf '%s' "$out" | decision_of)" = deny ] && printf '%s' "$out" | grep
 out=$(printf '%s' '{not json' | bash "$POST" 2>/dev/null)
 rc=$?
 if [ -z "$out" ] && [ "$rc" = 1 ]; then ok; else ng "判断のスクリプトが失敗したときに、開いた後に何かを出した・1 で終えない（rc=$rc、$out）"; fi
+
+# 14. 入口は、受け取った PATH を使わず、Playwright MCP（playwright-mcp.sh）と同じ決めた場所から node を探す
+# （hook はサンドボックスの外で動くため、作業ツリーなどに置いた node を動かさない。node@24 は keg-only で、ふだんの bin にないため）
+mcp_path=$(grep -E '^PATH="?/' "$BIN/playwright-mcp.sh")
+for f in "$ENTRY_PRE" "$ENTRY_POST"; do
+  name=$(basename "$f")
+  path_line=$(grep -nE '^PATH="?/' "$f" | head -1)
+  source_line=$(grep -nE '^\. ' "$f" | head -1)
+  if [ -n "$mcp_path" ] && [ "${path_line#*:}" = "$mcp_path" ]; then ok; else ng "$name で、PATH を playwright-mcp.sh と同じ値にしていない（${path_line#*:}）"; fi
+  if grep -qE '^export PATH$' "$f"; then ok; else ng "$name で、PATH を export していない"; fi
+  if [ -n "$path_line" ] && [ -n "$source_line" ] && [ "${path_line%%:*}" -lt "${source_line%%:*}" ]; then ok; else ng "$name で、中身を読む前に PATH を決めていない"; fi
+done
+# 受け取った PATH の先頭に偽の node があっても使わない（偽の node は file: を許可する判断を出し、動いた印を残す）
+mkdir -p "$tmp/fakenode"
+cat >"$tmp/fakenode/node" <<FAKE
+#!/bin/sh
+: >"$tmp/fakenode-ran"
+printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"fake"}}'
+FAKE
+chmod +x "$tmp/fakenode/node"
+rm -f "$tmp/fakenode-ran"
+got=$(pre_input 'file:///etc/hosts' toolu_fakenode | PATH="$tmp/fakenode:$PATH" bash "$ENTRY_PRE" | decision_of)
+if [ "$got" = deny ] && [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開く前の入口が、受け取った PATH の node を使った（結果 $got）"; fi
+rm -f "$tmp/fakenode-ran"
+post_input 'http://localhost:6304/' toolu_fakenode | PATH="$tmp/fakenode:$PATH" bash "$ENTRY_POST" >/dev/null 2>&1
+if [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開いた後の入口が、受け取った PATH の node を使った"; fi
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
