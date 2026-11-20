@@ -139,6 +139,17 @@
         ]
       },
       {
+        "matcher": "mcp__playwright__browser_tabs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-pre.sh",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -168,6 +179,16 @@
     "PostToolUse": [
       {
         "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-post.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__playwright__browser_tabs",
         "hooks": [
           {
             "type": "command",

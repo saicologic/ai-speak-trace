@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// playwright-navigate-gate.sh から呼ぶ。引数に pre・post と状態のフォルダ（~/.claude/state）、標準入力に hook の入力（JSON）を受け取る
+// playwright-navigate-gate.sh から呼ぶ（browser_navigate と、URL を渡した browser_tabs）。引数に pre・post と状態のフォルダ（~/.claude/state）、標準入力に hook の入力（JSON）を受け取る
 // - pre: 判断（allow / ask / deny）を hook の出力（JSON）として標準出力に書く。ask にした呼び出しを tool_use_id ごとに記録する
 // - post: 開く前に ask にした呼び出しだけ、そのサイトを一覧に足す（標準出力には何も書かない。足せないときは標準エラーに書いて 1 で終える）
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -150,7 +150,13 @@ const decision = (permissionDecision, permissionDecisionReason) =>
 const input = JSON.parse(readFileSync(0, 'utf-8'))
 const allowed = () => new Set([...DEFAULT_ORIGINS, ...readList()])
 
-if (mode === 'pre') {
+// 新しいタブを開く操作（browser_tabs）は、URL を渡したときだけ確かめる。URL のない操作（一覧・閉じる・選ぶ）は、hook では決めない
+const noUrlTabs = input.tool_name === 'mcp__playwright__browser_tabs' && input.tool_input?.url == null
+
+if (noUrlTabs) {
+  // 決めないことを playwright-navigate-gate.sh に伝える（.sh は何も出さずに終え、ふだんの確認に任せる）
+  if (mode === 'pre') process.stdout.write('NO_DECISION')
+} else if (mode === 'pre') {
   const { origin, reason } = originOf(input.tool_input?.url)
   if (!origin) {
     process.stdout.write(decision('deny', `${reason}のため開きません。Playwright MCP では http・https のサイトだけを開きます`))

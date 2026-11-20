@@ -1,4 +1,4 @@
-# Playwright MCP でページを開く（mcp__playwright__browser_navigate）前と後に動く hook の中身
+# Playwright MCP でページを開く（mcp__playwright__browser_navigate・URL を渡した mcp__playwright__browser_tabs）前と後に動く hook の中身
 # 入口: bin/playwright-navigate-pre.sh（PreToolUse）・bin/playwright-navigate-post.sh（PostToolUse）から読み込み、navigate_gate pre / post を呼ぶ
 #
 # - 開く前: 許可したサイトなら allow、初めてのサイトなら ask、サイトではない URL（file:・data: など）と、URL を確かめられないときは deny を返す
@@ -32,6 +32,8 @@ navigate_gate() {
     out=$(printf '%s' "$input" | node "$lib_dir/playwright-navigate-gate.mjs" pre "$state_dir") || unchecked "URL を確かめられなかったため開きません"
     # 判断が出なかったときも、確かめられなかったものとして開かない（何も出さないと、普通の許可の判断に回るため）
     [ -n "$out" ] || unchecked "URL を確かめられなかったため開きません"
+    # URL のない browser_tabs（一覧・閉じる・選ぶ）は、hook では決めない
+    [ "$out" = NO_DECISION ] && exit 0
     printf '%s\n' "$out"
     exit 0
   fi
