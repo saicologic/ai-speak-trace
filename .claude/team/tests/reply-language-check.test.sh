@@ -98,12 +98,30 @@ check none '別の記号の混ざった行では閉じないコードブロッ�
 ~~~\`
 $LONG_EN
 ~~~"
+# 箇条書きの中で始まるコードブロックも除き、閉じた後の文は残す
+# （後の文は、日本語 10 文字・英字 40 文字の 2 割ちょうど。コードを数えても、日本語を消しても止まる）
+check none '箇条書きの中のコードブロックと、閉じた後の日本語' "- 実行例です。
+- ~~~text
+  $LONG_EN
+  ~~~
+$(kana 10)$(latin 40)"
+check none '番号付きの箇条書きの中のコードブロック' "1. 実行例です。
+2. \`\`\`bash
+   $LONG_EN
+   \`\`\`"
+check block '箇条書きの中のコードブロックが閉じた後の英語の文（最後まで除かない）' "- ~~~text
+  echo
+  ~~~
+$EN"
 # / を含む並びは、パス・ブランチの名前とみなして除く（種類ごとに、除かなければ止まる量にしてある）
 check none '/・~ で始まる並び' '場所です。 ~/Library/Caches /opt/claude-code-team /usr/local/bin ~/.claude/state'
 check none '/ が 2 つ以上で拡張子のない並び' '場所です。 backend/src/lint frontend/src/components .claude/team/tests'
 check none '/ が 1 つで拡張子のある並び' '場所です。 docs/ai-testing.md backend/package.json scripts/dev.mjs'
 check none '/ が 1 つで拡張子のないブランチ・フォルダの名前' '対象のブランチとフォルダ: fix/japanese-reply-check・feature/tailwind-setup・backend/src・frontend/src・docs/developers'
 check none '/ のないファイルの名前' '更新しました。 reply-language-check.mjs managed-settings.test.sh claude-team-tools.spec.ts'
+check none '+ を含むパス' 'ログの場所です。 /tmp/build+releasecandidate /opt/cache+temporaryfiles /var/log+previousruns'
+# + を含むパスのすぐ後の日本語は消さない（日本語 10 文字・英字 40 文字の 2 割ちょうど。+ の後を数えても、日本語を消しても止まる）
+check none '+ を含むパスのすぐ後に続く日本語' "/tmp/build+x$(kana 10) $(latin 40)"
 # URL のすぐ後に続く日本語は、URL と一緒に消さない
 check none 'URL のすぐ後に続く日本語' "見てくださいhttps://x.example/aaを$(kana 16) Run these steps carefully please now ok then"
 
