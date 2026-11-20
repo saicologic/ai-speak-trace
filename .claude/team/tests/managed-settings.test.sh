@@ -85,6 +85,10 @@ while IFS= read -r name; do
   fi
 done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.hooks[]?.command)] | .[] | select(startswith($p)) | ltrimstr($p) | split(" ")[0]' "$M" | sort -u)
 
+# 返答の最後のメッセージが英語のときは、止めて日本語で書き直させる（返答は日本語で書く決まりのため）
+expect "Stop で reply-language-check.sh を、command の hook として動かす" \
+  '[.hooks.Stop[]? | .hooks[] | select(.type == "command" and .command == "/opt/claude-code-team/bin/reply-language-check.sh")] | length == 1' "$M"
+
 # 権限
 expect "確認を飛ばす github.sh --skip は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/github.sh --skip *)") != null' "$M"
 expect "レビュー済みにする cr-review.sh --accept は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)") != null' "$M"
