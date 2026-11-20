@@ -110,6 +110,17 @@ for pair in PreToolUse:pre PostToolUse:post; do
   expect "browser_navigate の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
     '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
 done
+# 新しいタブを開く操作（browser_tabs）も URL を渡せるため、同じ hook で確かめる（allow・ask に入れない）
+expect "Playwright MCP の browser_tabs を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_tabs")) == null' "$M"
+expect "Playwright MCP の browser_tabs を ask に入れない（hook が決める）" '(.permissions.ask // [] | index("mcp__playwright__browser_tabs")) == null' "$M"
+expect "browser_tabs の開く前の hook が失敗したときは、タブを開かない（onFailure: block）" \
+  '[.hooks.PreToolUse[]? | select(.matcher == "mcp__playwright__browser_tabs") | .hooks[] | select(.command == "/opt/claude-code-team/bin/playwright-navigate-pre.sh") | .onFailure] == ["block"]' "$M"
+for pair in PreToolUse:pre PostToolUse:post; do
+  event=${pair%%:*} name=playwright-navigate-${pair#*:}.sh
+  expect "browser_tabs の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
+    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_tabs") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
+done
+expect "リポジトリの設定で browser_tabs を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_tabs")] | length == 0' "$P"
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
 # Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）
 expect "Playwright MCP の browser_run_code_unsafe を使わせない（deny）" '.permissions.deny | index("mcp__playwright__browser_run_code_unsafe") != null' "$M"

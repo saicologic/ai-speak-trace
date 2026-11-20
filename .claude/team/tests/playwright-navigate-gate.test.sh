@@ -279,6 +279,44 @@ rc=$?
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '一覧に足せません'; then ok; else ng "一覧に足せないときに伝えない（rc=$rc、$err）"; fi
 rm -rf "$HOME/.claude"
 
+# 13. 新しいタブを開く操作（browser_tabs）で URL を渡したときも、browser_navigate と同じように決める
+# tabs_input <PreToolUse|PostToolUse> <tool_use_id> <tool_input の JSON>
+tabs_input() { jq -n --arg e "$1" --arg id "$2" --argjson i "$3" '{hook_event_name: $e, tool_name: "mcp__playwright__browser_tabs", tool_use_id: $id, tool_input: $i}'; }
+# check_tabs <期待> <tool_input の JSON>
+check_tabs() {
+  local got
+  n=$((n + 1))
+  got=$(tabs_input PreToolUse "toolu_tabs_$n" "$2" | bash "$PRE" | decision_of)
+  if [ "$got" = "$1" ]; then ok; else ng "browser_tabs $2（期待 $1、結果 $got）"; fi
+}
+check_tabs allow '{"action": "new", "url": "http://localhost:5173/"}'
+check_tabs ask '{"action": "new", "url": "http://localhost:6301/"}'
+check_tabs deny '{"action": "new", "url": "file:///etc/hosts"}'
+check_tabs deny '{"action": "new", "url": "data:text/html,<script>alert(1)</script>"}'
+check_tabs deny '{"action": "new", "url": "http://localhost:5173@evil.example/"}'
+check_tabs deny '{"action": "new", "url": ""}'
+# new 以外の操作に URL を渡したときも、同じように確かめる（Playwright MCP が使わない値でも、開かないとは限らないため）
+check_tabs deny '{"action": "select", "index": 0, "url": "file:///etc/hosts"}'
+# URL のない操作（一覧・閉じる・選ぶ・URL のない新しいタブ）は、hook では決めない（何も出さず、ふだんの確認に任せる）
+for i in '{"action": "list"}' '{"action": "close", "index": 1}' '{"action": "select", "index": 0}' '{"action": "new"}' '{"action": "new", "url": null}'; do
+  out=$(tabs_input PreToolUse toolu_tabs_nourl "$i" | bash "$PRE")
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "URL のない browser_tabs $i で判断を出した・0 で終えない（rc=$rc、$out）"; fi
+done
+# 確かめて新しいタブで開けたサイトは一覧に足し、次から確かめない（browser_navigate でも確かめない）
+tabs_input PreToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' | bash "$PRE" >/dev/null
+out=$(tabs_input PostToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' | bash "$POST")
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "新しいタブで開いた後の hook が失敗した（rc=$rc、$out）"; fi
+if grep -qx 'http://localhost:6302' "$LIST"; then ok; else ng "確かめて新しいタブで開けたサイトを一覧に足さない"; fi
+check_tabs allow '{"action": "new", "url": "http://localhost:6302/b"}'
+check allow 'http://localhost:6302/c'
+# URL のない操作の後は、何も出さず 0 で終え、一覧も変えない
+before=$(cat "$LIST")
+out=$(tabs_input PostToolUse toolu_tabs_list '{"action": "list"}' | bash "$POST")
+rc=$?
+if [ -z "$out" ] && [ "$rc" = 0 ] && [ "$(cat "$LIST")" = "$before" ]; then ok; else ng "URL のない browser_tabs の後の hook が失敗した・一覧を変えた（rc=$rc、$out）"; fi
+
 # 9. URL を確かめられないとき（node が動かない、判断のスクリプトが失敗した）は、開かない（deny）。理由と直し方を伝える
 # （確かめないまま、file:・data: などを確認で許可してしまわないように）
 # （hook は jq を使わない。開く前か後かは、入口のスクリプトで分ける）
