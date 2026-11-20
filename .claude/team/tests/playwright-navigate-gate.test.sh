@@ -290,7 +290,8 @@ const fs = require('node:fs')
 const { syncBuiltinESMExports } = require('node:module')
 const failing = (original) =>
   function (file, data, ...rest) {
-    if (String(file).includes('playwright-allowed-origins')) {
+    // 一覧（と一覧の一時ファイル）だけを失敗させる（ロックの持ち主の印は書けるようにして、一覧を書く途中の失敗を確かめる）
+    if (String(file).includes('playwright-allowed-origins') && !String(file).includes('.lock')) {
       const text = String(data)
       original.call(fs, file, text.slice(0, Math.floor(text.length / 2)), ...rest)
       const error = new Error('ENOSPC: no space left on device')
@@ -310,6 +311,7 @@ post_input 'http://localhost:6451/' toolu_partial | node --require "$tmp/partial
 rc=$?
 if [ "$rc" = 1 ] && [ "$(cat "$LIST")" = 'http://localhost:6400' ]; then ok; else ng "書き込みが途中で失敗したときに、一覧を書き換えた・1 で終えない（rc=$rc、$(tr '\n' ' ' <"$LIST")）"; fi
 if ls "$STATE" | grep -vE '^(playwright-allowed-origins|playwright-navigate-pending)$' | grep -q .; then ng "書き込みに失敗した一時ファイルが残った（$(ls "$STATE" | tr '\n' ' ')）"; else ok; fi
+if [ ! -e "$LIST.lock" ]; then ok; else ng "書き込みに失敗したときに、ロックが残った"; fi
 
 # 末尾に改行のない一覧に足しても、行がつながらない
 printf '%s' 'http://localhost:6300' >"$LIST"

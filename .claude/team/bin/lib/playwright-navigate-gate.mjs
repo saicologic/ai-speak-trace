@@ -2,7 +2,7 @@
 // playwright-navigate-gate.sh から呼ぶ（browser_navigate と、URL を渡した browser_tabs）。引数に pre・post と状態のフォルダ（~/.claude/state）、標準入力に hook の入力（JSON）を受け取る
 // - pre: 判断（allow / ask / deny）を hook の出力（JSON）として標準出力に書く。ask にした呼び出しを tool_use_id ごとに記録する
 // - post: 開く前に ask にした呼び出しだけ、そのサイトを一覧に足す（標準出力には何も書かない。足せないときは標準エラーに書いて 1 で終える）
-import { mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const [mode, stateDir] = process.argv.slice(2)
@@ -84,12 +84,64 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
+/** フォルダが古い（消し忘れ）か。なければ false */
+function isStale(path) {
+  try {
+    return Date.now() - statSync(path).mtimeMs > LOCK_STALE_MS
+  } catch {
+    return false
+  }
+}
+
+/** ロックのフォルダを、中の持ち主の印ごと消す（すでにないときは何もしない） */
+function removeLock(lockPath) {
+  try {
+    unlinkSync(join(lockPath, 'owner'))
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  try {
+    rmdirSync(lockPath)
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+}
+
+/**
+ * 古いロックを片付ける。片付けのロック（.reclaim）を取ってから、もう一度古いかを確かめて消す
+ * （2 つのセッションが同じ古いロックを見つけたときに、先に片付けて取り直したロックを、もう片方が消さないように）
+ * 片付けのロックを取れないときは何もしない（呼んだ側が少し待ってからもう一度）。片付けのロックも古いときは、片付けの途中で落ちたものとして消す
+ */
+function reclaimStaleLock(lockPath) {
+  const reclaimPath = `${lockPath}.reclaim`
+  try {
+    mkdirSync(reclaimPath, { mode: 0o700 })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    if (isStale(reclaimPath)) {
+      try {
+        rmdirSync(reclaimPath)
+      } catch {
+        // ほかのセッションが先に消したときは、次にもう一度
+      }
+    }
+    return
+  }
+  try {
+    if (isStale(lockPath)) removeLock(lockPath)
+  } finally {
+    rmdirSync(reclaimPath)
+  }
+}
+
 /**
  * 一覧のロック（フォルダを作れたら取れた）を取ってから fn を動かす。ほかのセッションが一覧に足している間は待つ
- * 古いロックは消し忘れとみなして消す。待ちきれないときは、理由を投げる
+ * ロックには持ち主の印（owner）を書き、外すときは自分の印のときだけ外す。古いロックは消し忘れとみなして片付ける。待ちきれないときは、理由を投げる
  */
 function withListLock(fn) {
   const lockPath = `${listPath}.lock`
+  const ownerPath = join(lockPath, 'owner')
+  const token = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   mkdirSync(stateDir, { recursive: true, mode: 0o700 })
   const deadline = Date.now() + LOCK_WAIT_MS
   for (;;) {
@@ -97,26 +149,39 @@ function withListLock(fn) {
     if (Date.now() > deadline) throw new Error(`ほかのセッションが一覧を使っていて、ロック（${lockPath}）を取れませんでした`)
     try {
       mkdirSync(lockPath, { mode: 0o700 })
+      try {
+        writeFileSync(ownerPath, token, { mode: 0o600 })
+      } catch (error) {
+        removeLock(lockPath)
+        throw error
+      }
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
     }
     try {
-      if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
-        rmdirSync(lockPath)
-        continue
+      if (isStale(lockPath)) {
+        reclaimStaleLock(lockPath)
+        if (!existsSync(lockPath)) continue
       }
-    } catch (error) {
-      // ロックがちょうど消えたときは、すぐ取り直す。消せないときは、少し待ってからもう一度
-      if (error.code === 'ENOENT') continue
+    } catch {
+      // 消せないときは、少し待ってからもう一度
     }
     sleep(100)
   }
+  const result = fn()
+  // 自分の印のときだけ外す（一覧を書いている間に、ほかのセッションに古いロックとして片付けられ、取り直されたときは消さない）
+  let owner = null
   try {
-    return fn()
-  } finally {
-    rmdirSync(lockPath)
+    owner = readFileSync(ownerPath, 'utf-8')
+  } catch {
+    // 印が読めないときは、自分のロックとはみなさない
   }
+  if (owner !== token) {
+    throw new Error(`一覧に足している間に、ロック（${lockPath}）がほかのセッションに替わりました。一覧を確かめてください`)
+  }
+  removeLock(lockPath)
+  return result
 }
 
 /**
