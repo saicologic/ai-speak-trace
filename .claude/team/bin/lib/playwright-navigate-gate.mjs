@@ -169,18 +169,28 @@ function withListLock(fn) {
     }
     sleep(100)
   }
-  const result = fn()
   // 自分の印のときだけ外す（一覧を書いている間に、ほかのセッションに古いロックとして片付けられ、取り直されたときは消さない）
-  let owner = null
-  try {
-    owner = readFileSync(ownerPath, 'utf-8')
-  } catch {
-    // 印が読めないときは、自分のロックとはみなさない
+  const release = () => {
+    let owner = null
+    try {
+      owner = readFileSync(ownerPath, 'utf-8')
+    } catch {
+      // 印が読めないときは、自分のロックとはみなさない
+    }
+    if (owner !== token) return false
+    removeLock(lockPath)
+    return true
   }
-  if (owner !== token) {
+  let result
+  try {
+    result = fn()
+  } catch (error) {
+    release()
+    throw error
+  }
+  if (!release()) {
     throw new Error(`一覧に足している間に、ロック（${lockPath}）がほかのセッションに替わりました。一覧を確かめてください`)
   }
-  removeLock(lockPath)
   return result
 }
 
