@@ -11,12 +11,17 @@ describe('cssSelectsClass', () => {
     ['main > .sidebar.open { color: red; }', '子の組み合わせ・クラスを重ねたもの'],
     ['.a, .sidebar { color: red; }', 'カンマで並べたものの 2 つ目'],
     ['@media (min-width: 600px) { .sidebar { color: red; } }', '@media の中'],
+    ['[data-x="a"] .sidebar { color: red; }', '引用符を使う属性セレクターの後'],
+    ['.other::after { content: "{"; } .sidebar { color: red; }', '{ を含む文字列のあとのルール'],
   ])('%s は指定に数える（%s）', (css) => {
     expect(cssSelectsClass(css, 'sidebar')).toBe(true);
   });
 
   it.each([
     ['.other::after { content: ".sidebar"; }', '宣言の値の文字'],
+    ['.other::after { content: "{.sidebar{"; }', '宣言の値の文字列の中の { '],
+    [".other::after { content: '}.sidebar{'; }", '一重引用符の文字列の中の } と {'],
+    ['.other::after { content: "\\"{.sidebar{"; }', '文字列の中でエスケープした引用符の後'],
     ['.other { background: url(./x.sidebar.png); }', '宣言の値の URL'],
     ['/* .sidebar { color: red; } */ .other { color: red; }', 'コメントの中'],
     ['.sidebar-right { color: red; }', '名前の続く別のクラス'],
