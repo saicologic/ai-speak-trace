@@ -94,6 +94,16 @@ describe('TranscriptionList の見た目', () => {
     expect(header).toContainElement(screen.getByRole('button', { name: '更新' }));
   });
 
+  it('「更新」ボタンは、見出しの行に合わせて、ふつうのボタンより小さくする', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    // 小さくする指定（.reload-button）は、どこからも読み込まない AudioFileList.css にしかなく、効いていなかった
+    expect(classesOf(screen.getByRole('button', { name: '更新' }))).toEqual(
+      ['text-xs', 'px-[0.6em]', 'py-[0.3em]'].sort(),
+    );
+  });
+
   it('音声ファイルの一覧だけが、長いときにスクロールする', async () => {
     render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
     await screen.findByText('a.mp3');
