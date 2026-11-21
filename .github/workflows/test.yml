@@ -135,3 +135,8 @@ jobs:
         run: cd frontend && npx tsc -b
       - if: needs.changes.outputs.frontend == 'true'
         run: cd frontend && npm run test:run
+      # 画面の高さ・スクロール・カーソルを乗せたときの表示は、jsdom では確かめられないため、本物のブラウザで確かめる（frontend/e2e）
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npx playwright install --with-deps chromium
+      - if: needs.changes.outputs.frontend == 'true'
+        run: cd frontend && npm run test:e2e
