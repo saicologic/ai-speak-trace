@@ -196,7 +196,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | ユーザー名・パスワードの付いた URL・文字列でない URL | 開かない |
 | URL を確かめられないとき（Node が見つからない・判断のスクリプトが失敗した・hook が起動できない・時間切れ） | 開かない |
 
-- hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS`・`PERL5OPT`・`PERL5LIB`・`PERLLIB` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
+- hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS`・`PERL5OPT`・`PERL5LIB`・`PERLLIB` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/usr/local/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
 - 確認で許可したかは、開く前の hook が `tool_use_id` ごとに記録し、開いた後の hook がその呼び出しだけを一覧に足します（確認せずに開いた呼び出しや、URL が変わったときは足しません）
 - 開いた後の hook は、Playwright MCP の結果の最初の `### Page` の節の `- Page URL:` の行から、実際に着いたページを読みます（ページの中身に書かれた同じ形の行は使いません）。足すのは、着いたページが確認したサイトと同じときだけです
   - リダイレクトで別のサイトに着いたときと、開くのに失敗したとき（結果が `### Error`）は、足しません（次も確認が出ます）
@@ -250,7 +250,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | `open`・`osascript` が失敗する | サンドボックスでは使えません。開発者が自分のターミナルで実行します |
 | 開発サーバーを起動できない（`listen EPERM`） | サンドボックスでは、ポートを開けません。開発者が自分のターミナルで起動します。`sandbox.network.allowLocalBinding` を入れるとポートを開けますが、自分の Mac の中で待ち受けているすべてのアプリにつなげるようになり、ポートを絞れないため、入れません |
 | `npm ci`・`npm install` が断られる | サンドボックスの中では途中で止まって `node_modules` が壊れるため、managed settings で止めています。開発者が自分のターミナルで実行します |
-| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
+| Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/usr/local/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | Playwright MCP で、どのページも開けない | ページを開く hook が `node` を見つけられないか、hook を入れていません。上と同じ場所に Node.js があるかと、`install.sh` で入れ直したかを確かめます |
 | 許可したはずのサイトで、毎回確認が出る | 開いた後の hook が一覧に足せていません。リダイレクトで別のサイトに着いていないかと、hook が伝えた理由を見て、`~/.claude/state/playwright-allowed-origins` の権限を直すか、オリジンの行を自分で足します |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
