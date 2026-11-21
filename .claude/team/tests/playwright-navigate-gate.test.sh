@@ -243,6 +243,11 @@ spoof='### Page\n- Page URL: http://localhost:6469/\n- Page Title: B\n### Events
 pre_input 'http://localhost:6468/' toolu_spoof | bash "$PRE" >/dev/null
 out=$(jq -n --arg t "$(printf "$spoof")" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_spoof", tool_input: {url: "http://localhost:6468/"}, tool_response: {content: [{type: "text", text: $t}]}}' | bash "$POST")
 if [ -z "$out" ] && ! grep -qx 'http://localhost:6468' "$LIST"; then ok; else ng "ページの中身に書かれた Page URL で、リダイレクトした先を読み違えた（$out）"; fi
+# 最初の「### Page」のすぐ次の行が「- Page URL: 」でないときも、後ろの節を探さず、読めないものとして扱う
+pre_input 'http://localhost:6473/' toolu_first_page | bash "$PRE" >/dev/null
+err=$(jq -n '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_first_page", tool_input: {url: "http://localhost:6473/"}, tool_response: {content: [{type: "text", text: "### Page\n- Page Title: B\n### Events\n### Page\n- Page URL: http://localhost:6473/"}]}}' | bash "$POST" 2>&1 >/dev/null)
+rc=$?
+if [ "$rc" = 1 ] && ! grep -qx 'http://localhost:6473' "$LIST"; then ok; else ng "最初の Page の節で読めないときに、後ろの節の Page URL を読んだ（rc=$rc、$err）"; fi
 # 「### Page」の節の外にだけ「- Page URL: 」があるときは、着いたページを読めないものとして扱う
 pre_input 'http://localhost:6470/' toolu_outside | bash "$PRE" >/dev/null
 err=$(jq -n '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_outside", tool_input: {url: "http://localhost:6470/"}, tool_response: {content: [{type: "text", text: "### Events\n- [LOG] x\n- Page URL: http://localhost:6470/"}]}}' | bash "$POST" 2>&1 >/dev/null)
@@ -632,6 +637,13 @@ for f in "$ENTRY_PRE" "$ENTRY_POST"; do
   if [ -n "$mcp_path" ] && [ "${path_line#*:}" = "$mcp_path" ]; then ok; else ng "$name で、PATH を playwright-mcp.sh と同じ値にしていない（${path_line#*:}）"; fi
   if grep -qE '^export PATH$' "$f"; then ok; else ng "$name で、PATH を export していない"; fi
   if [ -n "$path_line" ] && [ -n "$source_line" ] && [ "${path_line%%:*}" -lt "${source_line%%:*}" ]; then ok; else ng "$name で、中身を読む前に PATH を決めていない"; fi
+done
+# 決めた PATH には、Apple シリコンと Intel の Mac の、brew の node@24 の場所（ふだんの bin にリンクされない）を入れる
+for d in /opt/homebrew/opt/node@24/bin /usr/local/opt/node@24/bin; do
+  case ":${mcp_path#PATH=}:" in
+    *":$d:"* | *":$d\":"* | *":\"$d:"*) ok ;;
+    *) ng "決めた PATH に $d がない（$mcp_path）" ;;
+  esac
 done
 # 受け取った PATH の先頭に偽の node があっても使わない（偽の node は file: を許可する判断を出し、動いた印を残す）
 mkdir -p "$tmp/fakenode"
