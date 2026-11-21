@@ -84,6 +84,12 @@ check deny 'data:text/html,<script>alert(1)</script>'
 check deny 'javascript:alert(1)'
 check deny 'about:blank'
 check deny 'view-source:http://localhost:5173/'
+# 「http://」「https://」で始まらない URL は止める（Playwright MCP は「://」のない URL の前に https:// を付けるため、判断したサイトと開くサイトがずれる）
+check deny 'http:/localhost:5173/'
+check deny 'http:localhost:5173/'
+check deny 'http:\\localhost:5173/'
+check deny ' http://localhost:5173/'
+check allow 'HTTP://localhost:5173/'
 
 # 5. ユーザー名・パスワードの付いた URL は止める（localhost に見せかけて別のホストを開けるため）
 check deny 'http://localhost:5173@evil.example/'
@@ -687,7 +693,11 @@ if [ ! -e "$tmp/evil-ran" ]; then ok; else ng "入口が、受け取った NODE_
 
 # 入口から中身を正しく呼ぶ（開く前は pre・開いた後は post）。決めた PATH に node があるときは、確かめて開けたサイトを一覧に足す
 # node がないとき（CI など）は、開いた後の入口が 1 で終える（どちらの場面でも、どちらかを必ず確かめる）
-if PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" command -v node >/dev/null 2>&1; then
+# （node を探すのは、入口と同じ決めた PATH。playwright-mcp.sh の PATH の行から、外側の引用符を除いて取り出す）
+entry_path=${mcp_path#PATH=}
+entry_path=${entry_path#\"}
+entry_path=${entry_path%\"}
+if PATH="$entry_path" command -v node >/dev/null 2>&1; then
   got=$(pre_input 'http://localhost:6305/' toolu_entry | bash "$ENTRY_PRE" | decision_of)
   if [ "$got" = ask ]; then ok; else ng "開く前の入口で、初めてのサイトを確かめない（結果 $got）"; fi
   out=$(post_input 'http://localhost:6305/' toolu_entry | bash "$ENTRY_POST")
