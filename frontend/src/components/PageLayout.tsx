@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import './PageLayout.css';
 
 interface PageLayoutProps {
   /** 固定する部分（戻るボタン・タイトル・タブ） */
@@ -10,6 +9,9 @@ interface PageLayoutProps {
   className?: string;
 }
 
+/** 外枠：画面の高さに合わせ、外枠そのものはスクロールさせない（page-layout は目印のクラス） */
+const rootClass = 'page-layout flex h-screen flex-col overflow-hidden';
+
 /**
  * ページの外枠
  * ヘッダー（とタブ）を画面の上に固定し、それ以外だけをスクロールさせる。
@@ -17,9 +19,12 @@ interface PageLayoutProps {
  */
 export function PageLayout({ header, children, className }: PageLayoutProps) {
   return (
-    <div className={className ? `page-layout ${className}` : 'page-layout'}>
-      <div className="page-layout-fixed">{header}</div>
-      <div className="page-layout-scroll">{children}</div>
+    <div className={className ? `${rootClass} ${className}` : rootClass}>
+      {/* 固定する部分（ヘッダー・タブ）：中身が長くても縮まない */}
+      <div className="page-layout-fixed shrink-0">{header}</div>
+      {/* スクロールする部分：残りの高さを使い、中身が長いときだけスクロールする
+          （一覧と詳細を左右に並べる画面は、子に flex-1 と min-h-0 を付けると、高さいっぱいに広がる） */}
+      <div className="page-layout-scroll flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </div>
   );
 }
