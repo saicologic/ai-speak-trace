@@ -196,9 +196,9 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | ユーザー名・パスワードの付いた URL・文字列でない URL | 開かない |
 | URL を確かめられないとき（Node が見つからない・判断のスクリプトが失敗した・hook が起動できない・時間切れ） | 開かない |
 
-- hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
+- hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS`・`PERL5OPT`・`PERL5LIB`・`PERLLIB` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
 - 確認で許可したかは、開く前の hook が `tool_use_id` ごとに記録し、開いた後の hook がその呼び出しだけを一覧に足します（確認せずに開いた呼び出しや、URL が変わったときは足しません）
-- 開いた後の hook は、Playwright MCP の結果の `- Page URL:` の行から、実際に着いたページを読みます。足すのは、着いたページが確認したサイトと同じときだけです
+- 開いた後の hook は、Playwright MCP の結果の最初の `### Page` の節の `- Page URL:` の行から、実際に着いたページを読みます（ページの中身に書かれた同じ形の行は使いません）。足すのは、着いたページが確認したサイトと同じときだけです
   - リダイレクトで別のサイトに着いたときと、開くのに失敗したとき（結果が `### Error`）は、足しません（次も確認が出ます）
   - 結果から着いたページを読めないときは、足さずに理由を伝えます
 
