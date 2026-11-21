@@ -193,6 +193,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | 許可したサイト（初めは開発用の画面の `http://localhost:5173`・`http://127.0.0.1:5173`） | 確認なしで開く |
 | 初めてのサイト | 確かめる。確認で許可して開けたら、一覧に足し、次からは確かめない |
 | http・https 以外の URL（`file:`・`data:`・`javascript:` など） | 開かない |
+| `http://`・`https://` で始まらない書き方（`http:/localhost:5173` など。Playwright MCP が前に `https://` を付けるため、判断したサイトと開くサイトがずれる） | 開かない |
 | ユーザー名・パスワードの付いた URL・文字列でない URL | 開かない |
 | URL を確かめられないとき（Node が見つからない・判断のスクリプトが失敗した・hook が起動できない・時間切れ） | 開かない |
 
