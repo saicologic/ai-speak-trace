@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { deleteTranscription, fetchTranscriptions } from '../api/client';
 import { confirmDialog } from '../utils/platform';
 import type { TranscriptionSummary } from '../types';
-import './TranscriptionList.css';
 
 interface Props {
   selectedId: string | null;
@@ -11,6 +10,16 @@ interface Props {
   onDeleted?: (id: string) => void;
   loading: boolean;
 }
+
+/** 音声ファイルの項目：選んだ項目は濃い緑の枠にし、カーソルを乗せても色を変えない */
+const itemClass =
+  'flex w-full flex-col gap-[0.15rem] rounded-lg border px-3 py-[0.6rem] text-left transition-all duration-150';
+const selectedItemClass = 'border-green-500 bg-green-50';
+const unselectedItemClass = 'border-gray-200 bg-white hover:border-green-300 hover:bg-green-50';
+
+/** 削除ボタン：ふだんは見えず、項目にカーソルを乗せたとき・フォーカスしたとき・削除しているあいだだけ見える */
+const deleteButtonClass =
+  'absolute top-[0.4rem] right-[0.4rem] rounded-sm border border-red-200 bg-white px-[0.4rem] py-[0.1rem] text-2xs text-red-700 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 disabled:border-gray-200 disabled:text-gray-400';
 
 /** 日時を読みやすい形式に変換 */
 function formatDate(iso: string): string {
@@ -85,9 +94,11 @@ export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: 
   }, []);
 
   return (
-    <div className="transcription-list">
-      <div className="transcription-list-header">
-        <h2>文字起こし履歴</h2>
+    // サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする（画面が低くても、一覧を見られる高さは保つ）。
+    // transcription-list は、サイドバーの直接の子であることをテストで確かめるための目印
+    <div className="transcription-list flex min-h-40 flex-1 flex-col">
+      <div className="mb-3 flex shrink-0 items-center justify-between">
+        <h2 className="text-lg font-semibold">文字起こし履歴</h2>
         <button
           className="reload-button"
           onClick={loadItems}
@@ -98,34 +109,34 @@ export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: 
       </div>
 
       {fetchError && (
-        <div className="transcription-list-error">{fetchError}</div>
+        <div className="mb-2 rounded-md bg-red-50 p-2 text-sm text-red-800">{fetchError}</div>
       )}
 
       {items.length === 0 && !fetchError && (
-        <p className="transcription-list-empty">
+        <p className="py-4 text-center text-md text-gray-400">
           文字起こし履歴がありません。<br />
           音声ファイルから文字起こしを実行してください。
         </p>
       )}
 
-      <ul className="transcription-list-items">
+      <ul className="min-h-0 flex-1 list-none overflow-y-auto">
         {items.map((item) => (
-          <li key={item.id}>
+          <li key={item.id} className="group relative mb-1">
             <button
-              className={`transcription-item ${selectedId === item.id ? 'selected' : ''}`}
+              className={`${itemClass} ${selectedId === item.id ? selectedItemClass : unselectedItemClass}`}
               onClick={() => onSelect(item.id)}
               disabled={loading}
             >
-              <span className="transcription-item-name">
+              <span className="pr-10 text-md font-medium break-all">
                 {item.audioFileName}
               </span>
-              <span className="transcription-item-date">
+              <span className="text-xs text-gray-400">
                 {formatDate(item.createdAt)}
               </span>
             </button>
             <button
               type="button"
-              className={`transcription-item-delete ${deletingId === item.id ? 'deleting' : ''}`}
+              className={`${deleteButtonClass} ${deletingId === item.id ? 'opacity-100' : 'opacity-0'}`}
               onClick={() => handleDelete(item)}
               disabled={loading || deletingId !== null}
               aria-label={`${item.audioFileName} の文字起こしを削除`}
