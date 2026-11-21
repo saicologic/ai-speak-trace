@@ -198,7 +198,9 @@ describe('TranscriptionList の見た目', () => {
 
   it('ほかの CSS ファイルでも、目印のクラスに見た目を指定しない', () => {
     expect(cssFilesSelecting('transcription-list')).toEqual([]);
-    // 探し方がまちがっていないことを、画面の CSS のクラスが見つかることで確かめる
+    // 探し方がまちがっていないことを、画面の CSS のクラスが見つかることと、src の直下の CSS も読んでいることで確かめる
+    // （glob のキーは、このテストのファイルから見た相対パス）
     expect(cssFilesSelecting('settings-page')).toEqual(['../SettingsPage.css']);
+    expect(Object.keys(allCss)).toEqual(expect.arrayContaining(['../../App.css', '../../index.css']));
   });
 });
