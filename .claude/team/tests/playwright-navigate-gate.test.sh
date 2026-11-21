@@ -295,8 +295,9 @@ hold_flock() {
   wait_for "$tmp/flock-held"
 }
 # 開いた後の hook がロックのファイルを開いた（ロックを取りに来た）ことを lsof で見てから、まだ node を動かしていないことを確かめる
+# （印を作るのは、一覧に足す post の node だけ。ロックを取る前の確かめ（post-check）の node では作らない）
 cat >"$tmp/node-started.cjs" <<'JS'
-require('node:fs').writeFileSync(process.env.NODE_STARTED, '')
+if (process.argv[2] === 'post') require('node:fs').writeFileSync(process.env.NODE_STARTED, '')
 JS
 pre_input 'http://localhost:6465/' toolu_flock | bash "$PRE" >/dev/null
 hold_flock
@@ -318,11 +319,14 @@ rc=$?
 if [ "$rc" = 0 ] && grep -qx 'http://localhost:6465' "$LIST"; then ok; else ng "ロック（flock）が外れた後に、足していない（rc=$rc）"; fi
 # node が動いている間も、ロック（flock）を持ち続ける（exec の後もロックのファイルを開いたままにする）
 # （node の中で印を作って止まり、その間にテストからロックを取れないことを確かめる）
+# （止まるのは、一覧に足す post の node だけ。ロックを取る前の確かめ（post-check）の node では止まらない）
 cat >"$tmp/hold-in-node.cjs" <<'JS'
 const fs = require('node:fs')
-fs.writeFileSync(process.env.HOLD_MARK, '')
-const until = Date.now() + 5000
-while (!fs.existsSync(process.env.HOLD_RELEASE) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+if (process.argv[2] === 'post') {
+  fs.writeFileSync(process.env.HOLD_MARK, '')
+  const until = Date.now() + 5000
+  while (!fs.existsSync(process.env.HOLD_RELEASE) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+}
 JS
 pre_input 'http://localhost:6471/' toolu_flock_node | bash "$PRE" >/dev/null
 rm -f "$tmp/hold-mark" "$tmp/hold-release"
@@ -357,7 +361,7 @@ hold_flock
 for kind in tabs nav; do
   started=$(perl -MTime::HiRes=time -e 'printf "%d", time * 1000')
   if [ "$kind" = tabs ]; then
-    out=$(tabs_input PostToolUse toolu_noupdate_tabs '{"action": "list"}' | bash "$POST" 2>&1)
+    out=$(jq -n '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_tabs", tool_use_id: "toolu_noupdate_tabs", tool_input: {action: "list"}}' | bash "$POST" 2>&1)
   else
     out=$(post_input 'http://localhost:5173/' toolu_noupdate_nav | bash "$POST" 2>&1)
   fi
@@ -505,15 +509,15 @@ fs.mkdirSync = function (path, ...rest) {
 }
 syncBuiltinESMExports()
 JS
-# ロックを待つ上限（5 秒）まで、実際には待たずに進める（Date.now を、呼ぶたびに 1 秒ずつ進むものに差し替える）
+# ロックを待つ上限（5 秒）まで、実際には待たずに進める（Date.now を、呼ぶたびに 0.5 秒ずつ進むものに差し替える）
 # 30 秒より新しいロックを古いとみなさないよう、上限を過ぎるまでに進めるのは数秒だけにする
 # 終わるときに、進めた時間（ミリ秒）を $FAST_CLOCK_OUT に書く（待つ上限が hook の timeout の 10 秒に収まるかを確かめるため）
 cat >"$tmp/fast-clock.cjs" <<'JS'
 const start = Date.now()
 let calls = 0
-Date.now = () => start + 1000 * calls++
+Date.now = () => start + 500 * calls++
 process.on('exit', () => {
-  if (process.env.FAST_CLOCK_OUT) require('node:fs').writeFileSync(process.env.FAST_CLOCK_OUT, String(1000 * calls))
+  if (process.env.FAST_CLOCK_OUT) require('node:fs').writeFileSync(process.env.FAST_CLOCK_OUT, String(500 * calls))
 })
 JS
 CLOCK_OUT="$tmp/fast-clock-out"
