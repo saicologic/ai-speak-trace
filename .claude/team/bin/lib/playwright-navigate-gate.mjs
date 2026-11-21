@@ -235,11 +235,10 @@ function landedOf(response) {
   }
   collect(response)
   if (response?.isError === true || texts.some((text) => text.trimStart().startsWith('### Error'))) return { failed: true }
-  let url
-  for (const text of texts) {
-    for (const match of text.matchAll(/^- Page URL: (\S+)[ \t]*$/gm)) url = match[1]
-  }
-  return url ? { origin: originOf(url).origin } : {}
+  // 読むのは、最初の「### Page」の節のすぐ次の行だけ（Playwright MCP は、ページの中身（スナップショット・コンソールの出力）をこの節より後に出す。
+  // ページの中身に書かれた「- Page URL: 」で、着いたページを読み違えないように）
+  const page = texts.join('\n').match(/^### Page[ \t]*\n- Page URL: (\S+)[ \t]*$/m)
+  return page ? { origin: originOf(page[1]).origin } : {}
 }
 
 const decision = (permissionDecision, permissionDecisionReason) =>
