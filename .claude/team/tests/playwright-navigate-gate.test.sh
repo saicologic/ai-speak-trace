@@ -56,7 +56,7 @@ check() {
 # 開いた後の hook を流し、何も出さず 0 で終えることを確かめる（足さない場面でも、途中で失敗していないこと）
 post_ok() {
   local out rc
-  out=$(post_input "$1" "$2" | bash "$POST")
+  out=$(post_input "$1" "$2" "${3:-$1}" | bash "$POST")
   rc=$?
   if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "開いた後の hook が失敗した（$1、rc=$rc、$out）"; fi
 }
