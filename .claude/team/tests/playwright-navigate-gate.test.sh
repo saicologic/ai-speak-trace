@@ -346,11 +346,16 @@ syncBuiltinESMExports()
 JS
 # ロックを待つ上限（5 秒）まで、実際には待たずに進める（Date.now を、呼ぶたびに 1 秒ずつ進むものに差し替える）
 # 30 秒より新しいロックを古いとみなさないよう、上限を過ぎるまでに進めるのは数秒だけにする
+# 終わるときに、進めた時間（ミリ秒）を $FAST_CLOCK_OUT に書く（待つ上限が hook の timeout の 10 秒に収まるかを確かめるため）
 cat >"$tmp/fast-clock.cjs" <<'JS'
 const start = Date.now()
 let calls = 0
 Date.now = () => start + 1000 * calls++
+process.on('exit', () => {
+  if (process.env.FAST_CLOCK_OUT) require('node:fs').writeFileSync(process.env.FAST_CLOCK_OUT, String(1000 * calls))
+})
 JS
+CLOCK_OUT="$tmp/fast-clock-out"
 pre_input 'http://localhost:6450/' toolu_reacquire | bash "$PRE" >/dev/null
 mkdir "$LOCK"
 touch -t 202001010000 "$LOCK"
@@ -365,8 +370,12 @@ rm -rf "$LOCK"
 : >"$LOCK"
 touch -t 202001010000 "$LOCK"
 # 判断のスクリプトを、8 秒の時間切れ（perl の alarm）付きで直接流す（待ち続けても、node ごと止まるように）
-post_input 'http://localhost:6443/' toolu_lock_file | perl -e 'alarm 8; exec @ARGV' node --require "$tmp/fast-clock.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+rm -f "$CLOCK_OUT"
+post_input 'http://localhost:6443/' toolu_lock_file | FAST_CLOCK_OUT="$CLOCK_OUT" perl -e 'alarm 8; exec @ARGV' node --require "$tmp/fast-clock.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
 rc=$?
+# 進めた時間で、待つのを止めるまでが hook の timeout（10 秒）より短いことを確かめる（上限を長くしすぎると、hook ごと時間切れになるため）
+elapsed=$(cat "$CLOCK_OUT" 2>/dev/null || echo none)
+if [ "$elapsed" != none ] && [ "$elapsed" -lt 10000 ]; then ok; else ng "古いロックを消せないときに、待つのを止めるまでが 10 秒より長い（進めた時間 $elapsed ミリ秒）"; fi
 if [ "$rc" = 1 ]; then ok; else ng "古いロックを消せないときに、決めた時間で 1 で終えない（rc=$rc。142 は 8 秒の時間切れ）"; fi
 rm -f "$LOCK"
 
