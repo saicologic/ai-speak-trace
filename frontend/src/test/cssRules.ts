@@ -17,15 +17,26 @@ export const allCss: Record<string, string> = Object.fromEntries(
 export const withoutComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /**
- * 目印のクラスを指定している CSS ファイルを、src から見たパスで返す
- * （.a.b・.a:hover・a > .b などを含む。.a-b のような別の名前は除く）
+ * CSS の文字列から、ルールのセレクター（{ の前の部分）を取り出す
+ * 宣言の値（content の文字・url() など）は、{ } の中にあるため含めない。@media などの条件も、ここでは含む
  */
-export const cssFilesSelecting = (className: string): string[] => {
+const selectorsOf = (css: string): string[] =>
+  [...withoutComments(css).matchAll(/([^{};]+)\{/g)].map((m) => m[1].trim());
+
+/**
+ * CSS の文字列が、目印のクラスをセレクターで指定しているか
+ * （.a.b・.a:hover・a > .b などを含む。.a-b のような別の名前と、宣言の値・コメントの中の文字は除く）
+ */
+export const cssSelectsClass = (css: string, className: string): boolean => {
   const pattern = new RegExp(`\\.${className}(?![\\w-])`);
-  return Object.entries(allCss)
-    .filter(([, css]) => pattern.test(withoutComments(css)))
-    .map(([path]) => path);
+  return selectorsOf(css).some((selector) => pattern.test(selector));
 };
+
+/** 目印のクラスを指定している CSS ファイルを、src から見たパスで返す */
+export const cssFilesSelecting = (className: string): string[] =>
+  Object.entries(allCss)
+    .filter(([, css]) => cssSelectsClass(css, className))
+    .map(([path]) => path);
 
 /** 要素のクラスを、並びを問わない集まりにする */
 export const classesOf = (element: Element | null): string[] =>
