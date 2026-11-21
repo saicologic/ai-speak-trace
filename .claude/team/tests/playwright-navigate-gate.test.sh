@@ -229,6 +229,25 @@ for r in '{"content": [{"type": "text", "text": "### Error\nnet::ERR_CONNECTION_
   out=$(jq -n --argjson r "$r" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_failed", tool_input: {url: "http://localhost:6463/"}, tool_response: $r}' | bash "$POST" 2>/dev/null)
   if [ -z "$out" ] && ! grep -qx 'http://localhost:6463' "$LIST"; then ok; else ng "開くのに失敗したのに、一覧に足した（$r）"; fi
 done
+# 結果の形（content の配列・文字列）が違っても、着いたページを読む
+for r in '[{"type": "text", "text": "### Page\n- Page URL: http://localhost:6467/"}]' '"### Page\n- Page URL: http://localhost:6467/"'; do
+  sed -i.bak '/^http:\/\/localhost:6467$/d' "$LIST" && rm -f "$LIST.bak"
+  pre_input 'http://localhost:6467/' toolu_shape | bash "$PRE" >/dev/null
+  out=$(jq -n --argjson r "$r" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_shape", tool_input: {url: "http://localhost:6467/"}, tool_response: $r}' | bash "$POST")
+  rc=$?
+  if [ -z "$out" ] && [ "$rc" = 0 ] && grep -qx 'http://localhost:6467' "$LIST"; then ok; else ng "結果の形が $r のときに、着いたページを読めない（rc=$rc、$out）"; fi
+done
+# 読むのは、最初の「### Page」の節のすぐ次の行だけ（ページの中身（コンソールの出力など）に書かれた「- Page URL: 」は使わない）
+# 確認した 6468 から 6469 にリダイレクトし、ページが 6468 の行を出しても、足さない
+spoof='### Page\n- Page URL: http://localhost:6469/\n- Page Title: B\n### Events\n- [LOG] x\n### Page\n- Page URL: http://localhost:6468/\n- Page URL: http://localhost:6468/'
+pre_input 'http://localhost:6468/' toolu_spoof | bash "$PRE" >/dev/null
+out=$(jq -n --arg t "$(printf "$spoof")" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_spoof", tool_input: {url: "http://localhost:6468/"}, tool_response: {content: [{type: "text", text: $t}]}}' | bash "$POST")
+if [ -z "$out" ] && ! grep -qx 'http://localhost:6468' "$LIST"; then ok; else ng "ページの中身に書かれた Page URL で、リダイレクトした先を読み違えた（$out）"; fi
+# 「### Page」の節の外にだけ「- Page URL: 」があるときは、着いたページを読めないものとして扱う
+pre_input 'http://localhost:6470/' toolu_outside | bash "$PRE" >/dev/null
+err=$(jq -n '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_outside", tool_input: {url: "http://localhost:6470/"}, tool_response: {content: [{type: "text", text: "### Events\n- [LOG] x\n- Page URL: http://localhost:6470/"}]}}' | bash "$POST" 2>&1 >/dev/null)
+rc=$?
+if [ "$rc" = 1 ] && ! grep -qx 'http://localhost:6470' "$LIST"; then ok; else ng "Page の節の外の Page URL を、着いたページとして読んだ（rc=$rc、$err）"; fi
 # 結果から着いたページの URL を読めないときは、足さずに理由を伝えて 1 で終える
 for r in 'null' '{"content": []}' '{"content": [{"type": "text", "text": "### Page\n- Page Title: Test"}]}'; do
   pre_input 'http://localhost:6464/' toolu_no_landed | bash "$PRE" >/dev/null
@@ -258,6 +277,24 @@ wait "$holder" 2>/dev/null
 wait "$waiter"
 rc=$?
 if [ "$rc" = 0 ] && grep -qx 'http://localhost:6465' "$LIST"; then ok; else ng "ロック（flock）が外れた後に、足していない（rc=$rc）"; fi
+# node が動いている間も、ロック（flock）を持ち続ける（exec の後もロックのファイルを開いたままにする）
+# （node の中で印を作って止まり、その間にテストからロックを取れないことを確かめる）
+cat >"$tmp/hold-in-node.cjs" <<'JS'
+const fs = require('node:fs')
+fs.writeFileSync(process.env.HOLD_MARK, '')
+const until = Date.now() + 5000
+while (!fs.existsSync(process.env.HOLD_RELEASE) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+JS
+pre_input 'http://localhost:6471/' toolu_flock_node | bash "$PRE" >/dev/null
+rm -f "$tmp/hold-mark" "$tmp/hold-release"
+(post_input 'http://localhost:6471/' toolu_flock_node | NODE_OPTIONS="--require $tmp/hold-in-node.cjs" HOLD_MARK="$tmp/hold-mark" HOLD_RELEASE="$tmp/hold-release" bash "$POST" >/dev/null 2>&1) &
+waiter=$!
+wait_for "$tmp/hold-mark"
+if perl -MFcntl=:flock -e 'open(my $f, ">>", $ARGV[0]) or exit 2; exit(flock($f, LOCK_EX | LOCK_NB) ? 0 : 1)' "$FLOCK"; then ng "node が動いている間に、ロック（flock）が外れていた"; else ok; fi
+: >"$tmp/hold-release"
+wait "$waiter"
+rc=$?
+if [ "$rc" = 0 ] && grep -qx 'http://localhost:6471' "$LIST"; then ok; else ng "node の中で待った後に、足していない（rc=$rc）"; fi
 # 待つのは 3 秒まで。取れなければ、足さずに理由を伝えて 1 で終える
 pre_input 'http://localhost:6466/' toolu_flock_timeout | bash "$PRE" >/dev/null
 hold_flock
@@ -613,10 +650,23 @@ if [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開いた後の入口が、�
 # 入口は、受け取った NODE_OPTIONS を node に渡さない（--require で、ほかのコードを読み込ませないように）
 for f in "$ENTRY_PRE" "$ENTRY_POST"; do
   name=$(basename "$f")
-  unset_line=$(grep -nE '^unset NODE_OPTIONS$' "$f" | head -1)
+  unset_line=$(grep -nE '^unset NODE_OPTIONS( |$)' "$f" | head -1)
   source_line=$(grep -nE '^\. ' "$f" | head -1)
   if [ -n "$unset_line" ] && [ "${unset_line%%:*}" -lt "${source_line%%:*}" ]; then ok; else ng "$name で、中身を読む前に NODE_OPTIONS を消していない"; fi
 done
+# 入口は、受け取った PERL5OPT・PERL5LIB・PERLLIB を perl に渡さない（開いた後の hook は perl を使うため）
+for f in "$ENTRY_PRE" "$ENTRY_POST"; do
+  name=$(basename "$f")
+  unset_line=$(grep -nE '^unset NODE_OPTIONS PERL5OPT PERL5LIB PERLLIB$' "$f" | head -1)
+  source_line=$(grep -nE '^\. ' "$f" | head -1)
+  if [ -n "$unset_line" ] && [ "${unset_line%%:*}" -lt "${source_line%%:*}" ]; then ok; else ng "$name で、中身を読む前に PERL5OPT・PERL5LIB・PERLLIB を消していない"; fi
+done
+mkdir -p "$tmp/perllib"
+printf '%s\n' 'package EvilMark; open(my $f, ">", $ENV{PERL_MARK}); close $f; 1;' >"$tmp/perllib/EvilMark.pm"
+rm -f "$tmp/perl-ran"
+pre_input 'http://localhost:6472/' toolu_perl5opt | bash "$PRE" >/dev/null
+post_input 'http://localhost:6472/' toolu_perl5opt | PERL5OPT=-MEvilMark PERL5LIB="$tmp/perllib" PERLLIB="$tmp/perllib" PERL_MARK="$tmp/perl-ran" bash "$ENTRY_POST" >/dev/null 2>&1
+if [ ! -e "$tmp/perl-ran" ]; then ok; else ng "開いた後の入口が、受け取った PERL5OPT で読み込ませたモジュールを動かした"; fi
 printf '%s\n' "require('node:fs').writeFileSync(process.env.NODE_OPTIONS_MARK, '')" >"$tmp/evil.cjs"
 rm -f "$tmp/evil-ran"
 pre_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require $tmp/evil.cjs" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_PRE" >/dev/null 2>&1
