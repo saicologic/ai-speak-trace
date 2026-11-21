@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import App from '../App';
+import appCss from '../App.css?raw';
+import { classesOf, cssFilesSelecting } from '../test/cssRules';
 
 /**
  * トップ画面の左のサイドバーの見た目のテスト
@@ -29,5 +31,32 @@ describe('トップ画面の左のサイドバー', () => {
     const list = container.querySelector('.transcription-list');
     expect(list).not.toBeNull();
     expect(list?.parentElement).toBe(container.querySelector('.app-sidebar'));
+  });
+
+  it('サイドバーは縦に並べ、入りきらないときだけ全体をスクロールする（ふだんは文字起こし履歴の一覧だけがスクロールする）', () => {
+    const { container } = render(<App />);
+
+    // app-sidebar は、文字起こし履歴がサイドバーの直接の子であることを確かめるための目印
+    expect(classesOf(container.querySelector('aside.app-sidebar'))).toEqual(
+      [
+        'app-sidebar',
+        'flex',
+        'w-[280px]',
+        'min-w-[280px]',
+        'flex-col',
+        'overflow-y-auto',
+        'border-r',
+        'border-gray-200',
+        'bg-white',
+        'p-4',
+      ].sort(),
+    );
+  });
+
+  it('CSS ファイルに .app-sidebar の指定を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(cssFilesSelecting('app-sidebar')).toEqual([]);
+    // 探し方がまちがっていないことを、右のサイドバーの指定が見つかることで確かめる
+    expect(cssFilesSelecting('app-sidebar-right')).toEqual(['App.css']);
+    expect(appCss).toContain('.app-sidebar-right');
   });
 });
