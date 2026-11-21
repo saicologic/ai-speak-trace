@@ -158,4 +158,9 @@ describe('index.css', () => {
     // Tailwind の text-* は、行の高さの変数があると行の高さも変える。今の画面に合わせ、行の高さは書かない
     expect(theme).not.toMatch(/--text-[^:\s]+--line-height/);
   });
+
+  it('hover: のクラスは、今までの CSS の :hover と同じく、カーソルを乗せられない環境でも効くようにする', () => {
+    // Tailwind v4 の hover: は、標準では @media (hover: hover) の中でだけ効き、タッチ操作などでは効かない
+    expect(withoutComments(indexCss)).toMatch(/@custom-variant\s+hover\s+\(\s*&:hover\s*\)\s*;/);
+  });
 });
