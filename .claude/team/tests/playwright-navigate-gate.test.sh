@@ -199,11 +199,46 @@ if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '記録を消せません' && !
 
 # 一覧に足すのは、ロックを取ってから（ほかのセッションが足している間は待ち、同じ行を二重に足さない）
 LOCK="$LIST.lock"
+# ロックを取れずに待ち始めたら、印のファイルを作る（テストは決め打ちで sleep せず、この印ができるまで待つ）
+# 印は、一覧のロック（.lock）なら $LOCK_WAIT_MARK、片付けのロック（.lock.reclaim）なら $LOCK_WAIT_MARK.reclaim
+cat >"$tmp/lock-wait-mark.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const original = fs.mkdirSync
+fs.mkdirSync = function (path, ...rest) {
+  try {
+    return original.call(fs, path, ...rest)
+  } catch (error) {
+    const name = String(path)
+    if (error.code === 'EEXIST' && process.env.LOCK_WAIT_MARK && (name.endsWith('.lock') || name.endsWith('.lock.reclaim'))) {
+      fs.writeFileSync(process.env.LOCK_WAIT_MARK + (name.endsWith('.reclaim') ? '.reclaim' : ''), '')
+    }
+    throw error
+  }
+}
+syncBuiltinESMExports()
+JS
+MARK="$tmp/lock-wait-mark"
+# post_waiting <URL> <tool_use_id>: 開いた後の hook を裏で動かす（ロックを待ち始めたら印を作る）。プロセスの番号を waiter に入れる
+post_waiting() {
+  rm -f "$MARK" "$MARK.reclaim"
+  (post_input "$1" "$2" | NODE_OPTIONS="--require $tmp/lock-wait-mark.cjs" LOCK_WAIT_MARK="$MARK" bash "$POST" >/dev/null) &
+  waiter=$!
+}
+# wait_for <ファイル>: ファイルができるまで、0.05 秒ずつ見て待つ（5 秒まで）。できなければ失敗にする
+wait_for() {
+  local i
+  for i in $(seq 100); do
+    [ -e "$1" ] && return 0
+    sleep 0.05
+  done
+  ng "ロックを待ち始めた印（$1）ができない"
+  return 1
+}
 pre_input 'http://localhost:6440/' toolu_lock_a | bash "$PRE" >/dev/null
 mkdir "$LOCK"
-(post_input 'http://localhost:6440/' toolu_lock_a | bash "$POST" >/dev/null) &
-waiter=$!
-sleep 1
+post_waiting 'http://localhost:6440/' toolu_lock_a
+wait_for "$MARK"
 if grep -qx 'http://localhost:6440' "$LIST"; then ng "ロックを取られている間に足した"; else ok; fi
 rmdir "$LOCK"
 wait "$waiter"
@@ -211,9 +246,8 @@ if grep -qx 'http://localhost:6440' "$LIST"; then ok; else ng "ロックが外�
 # ロックを待っている間に、ほかのセッションが同じサイトを足したら、二重に足さない
 pre_input 'http://localhost:6441/' toolu_lock_b | bash "$PRE" >/dev/null
 mkdir "$LOCK"
-(post_input 'http://localhost:6441/' toolu_lock_b | bash "$POST" >/dev/null) &
-waiter=$!
-sleep 1
+post_waiting 'http://localhost:6441/' toolu_lock_b
+wait_for "$MARK"
 printf '%s\n' 'http://localhost:6441' >>"$LIST"
 rmdir "$LOCK"
 wait "$waiter"
@@ -230,9 +264,9 @@ pre_input 'http://localhost:6444/' toolu_lock_reclaim | bash "$PRE" >/dev/null
 mkdir "$LOCK"
 touch -t 202001010000 "$LOCK"
 mkdir "$LOCK.reclaim"
-(post_input 'http://localhost:6444/' toolu_lock_reclaim | bash "$POST" >/dev/null) &
-waiter=$!
-sleep 1
+post_waiting 'http://localhost:6444/' toolu_lock_reclaim
+# 片付けのロックを取ろうとして、取れずに待ち始めるまで待つ
+wait_for "$MARK.reclaim"
 if [ -d "$LOCK" ] && ! grep -qx 'http://localhost:6444' "$LIST"; then ok; else ng "ほかのセッションが片付けている間に、古いロックを消した・足した"; fi
 rmdir "$LOCK.reclaim"
 wait "$waiter"
@@ -310,10 +344,17 @@ fs.mkdirSync = function (path, ...rest) {
 }
 syncBuiltinESMExports()
 JS
+# ロックを待つ上限（5 秒）まで、実際には待たずに進める（Date.now を、呼ぶたびに 1 秒ずつ進むものに差し替える）
+# 30 秒より新しいロックを古いとみなさないよう、上限を過ぎるまでに進めるのは数秒だけにする
+cat >"$tmp/fast-clock.cjs" <<'JS'
+const start = Date.now()
+let calls = 0
+Date.now = () => start + 1000 * calls++
+JS
 pre_input 'http://localhost:6450/' toolu_reacquire | bash "$PRE" >/dev/null
 mkdir "$LOCK"
 touch -t 202001010000 "$LOCK"
-post_input 'http://localhost:6450/' toolu_reacquire | perl -e 'alarm 8; exec @ARGV' node --require "$tmp/reacquire.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+post_input 'http://localhost:6450/' toolu_reacquire | perl -e 'alarm 8; exec @ARGV' node --require "$tmp/fast-clock.cjs" --require "$tmp/reacquire.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
 rc=$?
 if [ "$rc" = 1 ] && [ "$(cat "$LOCK/owner" 2>/dev/null)" = other-session ] && [ ! -e "$LOCK.reclaim" ] && ! grep -qx 'http://localhost:6450' "$LIST"; then ok; else ng "片付けの間に取り直されたロックを消した・足した（rc=$rc。142 は 8 秒の時間切れ）"; fi
 rm -rf "$LOCK" "$LOCK.reclaim"
@@ -324,7 +365,7 @@ rm -rf "$LOCK"
 : >"$LOCK"
 touch -t 202001010000 "$LOCK"
 # 判断のスクリプトを、8 秒の時間切れ（perl の alarm）付きで直接流す（待ち続けても、node ごと止まるように）
-post_input 'http://localhost:6443/' toolu_lock_file | perl -e 'alarm 8; exec @ARGV' node "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+post_input 'http://localhost:6443/' toolu_lock_file | perl -e 'alarm 8; exec @ARGV' node --require "$tmp/fast-clock.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
 rc=$?
 if [ "$rc" = 1 ]; then ok; else ng "古いロックを消せないときに、決めた時間で 1 で終えない（rc=$rc。142 は 8 秒の時間切れ）"; fi
 rm -f "$LOCK"
