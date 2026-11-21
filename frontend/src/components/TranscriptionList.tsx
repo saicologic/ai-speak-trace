@@ -94,9 +94,11 @@ export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: 
   }, []);
 
   return (
-    // サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする（画面が低くても、一覧を見られる高さは保つ）。
+    // サイドバーの残りの高さを使い、音声ファイルの一覧だけをスクロールする。
+    // min-h-0 で、項目が多くても外枠を伸ばさない。画面が低くて一覧の最低の高さ（160px）を保てないときは、
+    // 一覧が外枠からはみ出し、サイドバー全体のスクロールで届く。
     // transcription-list は、サイドバーの直接の子であることをテストで確かめるための目印
-    <div className="transcription-list flex min-h-40 flex-1 flex-col">
+    <div className="transcription-list flex min-h-0 flex-1 flex-col">
       <div className="mb-3 flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold">文字起こし履歴</h2>
         <button
@@ -119,7 +121,8 @@ export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: 
         </p>
       )}
 
-      <ul className="min-h-0 flex-1 list-none overflow-y-auto">
+      {/* 一覧は、エラー文が長くても、見られる高さ（160px）より縮めない */}
+      <ul className="min-h-40 flex-1 list-none overflow-y-auto">
         {items.map((item) => (
           <li key={item.id} className="group relative mb-1">
             <button
