@@ -212,11 +212,25 @@ rm -f "$PENDING"
 # 確かめた呼び出しの記録を消せないときは、足さずに、理由を標準エラーで伝えて 1 で終える
 : >"$LIST"
 PENDING="$HOME/.claude/state/playwright-navigate-pending"
+# （フォルダの権限では、root の権限のある環境で消せてしまうため、記録を消す処理だけを EACCES で失敗させる）
+cat >"$tmp/unlink-fail.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const original = fs.unlinkSync
+fs.unlinkSync = function (path, ...rest) {
+  if (String(path).includes('playwright-navigate-pending')) {
+    const error = new Error('EACCES: permission denied')
+    error.code = 'EACCES'
+    throw error
+  }
+  return original.call(fs, path, ...rest)
+}
+syncBuiltinESMExports()
+JS
 pre_input 'http://localhost:6430/' toolu_locked_record | bash "$PRE" >/dev/null
-chmod 500 "$PENDING"
-err=$(post_input 'http://localhost:6430/' toolu_locked_record | bash "$POST" 2>&1 >/dev/null)
+err=$(post_input 'http://localhost:6430/' toolu_locked_record | NODE_OPTIONS="--require \"$tmp/unlink-fail.cjs\"" bash "$POST" 2>&1 >/dev/null)
 rc=$?
-chmod 700 "$PENDING"
+rm -f "$PENDING/toolu_locked_record"
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '記録を消せません' && ! grep -qx 'http://localhost:6430' "$LIST"; then ok; else ng "記録を消せないときに伝えない・足した（rc=$rc、$err）"; fi
 
 # wait_for <ファイル>: ファイルができるまで、0.05 秒ずつ見て待つ（5 秒まで）。できなければ失敗にする
@@ -294,7 +308,18 @@ hold_flock() {
   holder=$!
   wait_for "$tmp/flock-held"
 }
-# 開いた後の hook がロックのファイルを開いた（ロックを取りに来た）ことを lsof で見てから、まだ node を動かしていないことを確かめる
+# openers_of <ファイル>: そのファイルを開いているプロセスの番号（lsof がなければ、Linux の /proc から調べる）
+openers_of() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -t "$1" 2>/dev/null
+  elif [ -d /proc/self/fd ]; then
+    local fd
+    for fd in /proc/[0-9]*/fd/*; do
+      [ "$(readlink "$fd" 2>/dev/null)" = "$1" ] && { fd=${fd#/proc/}; echo "${fd%%/*}"; }
+    done
+  fi
+}
+# 開いた後の hook がロックのファイルを開いた（ロックを取りに来た）ことを lsof（または /proc）で見てから、まだ node を動かしていないことを確かめる
 # （印を作るのは、一覧に足す post の node だけ。ロックを取る前の確かめ（post-check）の node では作らない）
 cat >"$tmp/node-started.cjs" <<'JS'
 if (process.argv[2] === 'post') require('node:fs').writeFileSync(process.env.NODE_STARTED, '')
@@ -306,7 +331,7 @@ rm -f "$tmp/node-started"
 waiter=$!
 reached=no
 for i in $(seq 100); do
-  if [ "$(lsof -t "$FLOCK" 2>/dev/null | sort -u | wc -l)" -ge 2 ]; then reached=yes; break; fi
+  if [ "$(openers_of "$FLOCK" | sort -u | wc -l)" -ge 2 ]; then reached=yes; break; fi
   sleep 0.05
 done
 if [ "$reached" = yes ]; then ok; else ng "開いた後の hook が、ロック（flock）を取りに来ない"; fi
@@ -626,6 +651,10 @@ check_tabs deny '{"action": "new", "url": "http://localhost:5173@evil.example/"}
 check_tabs deny '{"action": "new", "url": ""}'
 # new 以外の操作に URL を渡したときも、同じように確かめる（Playwright MCP が使わない値でも、開かないとは限らないため）
 check_tabs deny '{"action": "select", "index": 0, "url": "file:///etc/hosts"}'
+# 新しいタブ（new）以外の操作に渡した URL は使われないため、許可したサイトでも開かない（今のタブのサイトを、確かめたサイトとして足さないように）
+check_tabs deny '{"action": "select", "index": 0, "url": "http://localhost:5173/"}'
+check_tabs deny '{"action": "close", "url": "http://localhost:5173/"}'
+check_tabs deny '{"action": "list", "url": "http://localhost:6305/"}'
 # URL が文字列でないときも止める
 check_tabs deny '{"action": "new", "url": 123}'
 check_tabs deny '{"action": "new", "url": false}'

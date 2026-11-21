@@ -145,7 +145,10 @@ for pair in PreToolUse:pre PostToolUse:post; do
   expect "browser_tabs の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
     '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_tabs") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
 done
-expect "リポジトリの設定で browser_tabs を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_tabs")] | length == 0' "$P"
+# Playwright MCP 全体の許可（mcp__playwright・mcp__playwright__*）も、browser_tabs を確認なしで許可するため入れない
+for f in "$P" "$M"; do
+  expect "$(basename "$f") で、browser_tabs・Playwright MCP 全体を確認なしで許可しない" '[(.permissions.allow // [])[] | select(. == "mcp__playwright__browser_tabs" or . == "mcp__playwright" or . == "mcp__playwright__*")] | length == 0' "$f"
+done
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
 # Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）
 expect "Playwright MCP の browser_run_code_unsafe を使わせない（deny）" '.permissions.deny | index("mcp__playwright__browser_run_code_unsafe") != null' "$M"
