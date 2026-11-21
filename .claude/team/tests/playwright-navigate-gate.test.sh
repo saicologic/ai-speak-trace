@@ -272,6 +272,52 @@ rc=$?
 if [ "$rc" = 1 ] && [ "$(cat "$LOCK/owner" 2>/dev/null)" = other-session ] && printf '%s' "$err" | grep -q 'ロック'; then ok; else ng "ほかのセッションのロックを外した・伝えない（rc=$rc、$err）"; fi
 rm -rf "$LOCK"
 
+# 持ち主の印を書けないときは、ロックを消してから失敗にする（取れたままのロックを残さない）
+cat >"$tmp/owner-fail.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const original = fs.writeFileSync
+fs.writeFileSync = function (file, ...rest) {
+  if (String(file).endsWith('.lock/owner')) {
+    const error = new Error('EACCES: permission denied')
+    error.code = 'EACCES'
+    throw error
+  }
+  return original.call(fs, file, ...rest)
+}
+syncBuiltinESMExports()
+JS
+pre_input 'http://localhost:6449/' toolu_owner_fail | bash "$PRE" >/dev/null
+post_input 'http://localhost:6449/' toolu_owner_fail | node --require "$tmp/owner-fail.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+rc=$?
+if [ "$rc" = 1 ] && [ ! -e "$LOCK" ] && ! grep -qx 'http://localhost:6449' "$LIST"; then ok; else ng "持ち主の印を書けないときに、ロックを残した・足した・1 で終えない（rc=$rc）"; fi
+rm -rf "$LOCK"
+# 片付けのロックを取った後に、ほかのセッションが古いロックを片付けて取り直していたら、消さない（片付けのロックの中で、もう一度古いかを確かめる）
+# （片付けのロックを作った直後に、古いロックを新しいロック（ほかのセッションの印）に替えて、判断のスクリプトを流す）
+cat >"$tmp/reacquire.cjs" <<'JS'
+const fs = require('node:fs')
+const { syncBuiltinESMExports } = require('node:module')
+const original = fs.mkdirSync
+fs.mkdirSync = function (path, ...rest) {
+  const result = original.call(fs, path, ...rest)
+  if (String(path).endsWith('.lock.reclaim')) {
+    const lock = String(path).slice(0, -'.reclaim'.length)
+    fs.rmSync(lock, { recursive: true, force: true })
+    original.call(fs, lock)
+    fs.writeFileSync(`${lock}/owner`, 'other-session')
+  }
+  return result
+}
+syncBuiltinESMExports()
+JS
+pre_input 'http://localhost:6450/' toolu_reacquire | bash "$PRE" >/dev/null
+mkdir "$LOCK"
+touch -t 202001010000 "$LOCK"
+post_input 'http://localhost:6450/' toolu_reacquire | perl -e 'alarm 8; exec @ARGV' node --require "$tmp/reacquire.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$HOME/.claude/state" >/dev/null 2>&1
+rc=$?
+if [ "$rc" = 1 ] && [ "$(cat "$LOCK/owner" 2>/dev/null)" = other-session ] && [ ! -e "$LOCK.reclaim" ] && ! grep -qx 'http://localhost:6450' "$LIST"; then ok; else ng "片付けの間に取り直されたロックを消した・足した（rc=$rc。142 は 8 秒の時間切れ）"; fi
+rm -rf "$LOCK" "$LOCK.reclaim"
+
 # 古いロックを消せないとき（ロックがフォルダではなくファイルのときなど）も、待つのは決めた時間までで、理由を伝えて 1 で終える
 pre_input 'http://localhost:6443/' toolu_lock_file | bash "$PRE" >/dev/null
 rm -rf "$LOCK"
@@ -453,6 +499,19 @@ if [ "$got" = deny ] && [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開く�
 rm -f "$tmp/fakenode-ran"
 post_input 'http://localhost:6304/' toolu_fakenode | PATH="$tmp/fakenode:$PATH" bash "$ENTRY_POST" >/dev/null 2>&1
 if [ ! -e "$tmp/fakenode-ran" ]; then ok; else ng "開いた後の入口が、受け取った PATH の node を使った"; fi
+# 入口は、受け取った NODE_OPTIONS を node に渡さない（--require で、ほかのコードを読み込ませないように）
+for f in "$ENTRY_PRE" "$ENTRY_POST"; do
+  name=$(basename "$f")
+  unset_line=$(grep -nE '^unset NODE_OPTIONS$' "$f" | head -1)
+  source_line=$(grep -nE '^\. ' "$f" | head -1)
+  if [ -n "$unset_line" ] && [ "${unset_line%%:*}" -lt "${source_line%%:*}" ]; then ok; else ng "$name で、中身を読む前に NODE_OPTIONS を消していない"; fi
+done
+printf '%s\n' "require('node:fs').writeFileSync(process.env.NODE_OPTIONS_MARK, '')" >"$tmp/evil.cjs"
+rm -f "$tmp/evil-ran"
+pre_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require $tmp/evil.cjs" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_PRE" >/dev/null 2>&1
+post_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require $tmp/evil.cjs" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_POST" >/dev/null 2>&1
+if [ ! -e "$tmp/evil-ran" ]; then ok; else ng "入口が、受け取った NODE_OPTIONS で読み込ませたコードを動かした"; fi
+
 # 入口から中身を正しく呼ぶ（開く前は pre・開いた後は post）。決めた PATH に node があるときは、確かめて開けたサイトを一覧に足す
 # node がないとき（CI など）は、開いた後の入口が 1 で終える（どちらの場面でも、どちらかを必ず確かめる）
 if PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" command -v node >/dev/null 2>&1; then
