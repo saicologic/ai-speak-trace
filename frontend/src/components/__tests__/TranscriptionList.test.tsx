@@ -98,7 +98,7 @@ describe('TranscriptionList の見た目', () => {
     render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
     await screen.findByText('a.mp3');
 
-    // 小さくする指定（.reload-button）は、どこからも読み込まない AudioFileList.css にしかなく、効いていなかった
+    // 小さくする指定（.reload-button）は AudioFileList.css にしかなく、その AudioFileList をどこからも使っていないため、効いていなかった
     expect(classesOf(screen.getByRole('button', { name: '更新' }))).toEqual(
       ['text-xs', 'px-[0.6em]', 'py-[0.3em]'].sort(),
     );
