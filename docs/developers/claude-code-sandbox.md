@@ -113,6 +113,8 @@ for name in managed-settings.json managed-mcp.json; do
 done
 ```
 
+外した後も、動いている Playwright MCP は、起動したときの起動の仕方のまま残ります。上の「入れ直す・起動し直す」の 1・2 と同じ手順で、開いている Claude Code のセッションをすべて終了し、残っている Playwright MCP を止めて、何も残っていないことを確かめてから、Claude Code を起動し直します。
+
 ## GitHub への操作（github.sh）
 
 Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` で行います。リポジトリのフォルダで、先頭に環境変数の代入・`cd`・リダイレクト・`$( )` を付けずに実行します（付けると、サンドボックスの中で動いて GitHub に届きません）。
@@ -207,7 +209,8 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 
 - 一覧は `~/.claude/state/playwright-allowed-origins` です（1 行に 1 つのオリジン。`#` で始まる行は読み飛ばします）
 - Claude Code からは書き換えられません（サンドボックスの中からは書けず、ファイルを書くツールも managed settings の deny で止めます）
-- サイトを外すときは、その行を自分で消します。hook は一覧全体を読み直して書き換えるため、Claude Code がページを開いていないときに直します（足している最中に直すと、直した内容が戻ることがあります）
+- 初めから許可するサイト（`http://localhost:5173`・`http://127.0.0.1:5173`）は、一覧のファイルではなく `.claude/team/bin/lib/playwright-navigate-gate.mjs` で決めているため、一覧の行を消しても外れません（外すときは、そのファイルを変える PR を出します）
+- そのほかのサイトを外すときは、その行を自分で消します。hook は一覧全体を読み直して書き換えるため、Claude Code がページを開いていないときに直します（足している最中に直すと、直した内容が戻ることがあります）
 - 外のサイトは、一覧に足しても開けません（上のプロキシで止まるため）
 - 開いた後の hook は、`perl` の `flock`（`playwright-allowed-origins.flock`）で 1 つずつ順に動きます。`flock` は、hook が落ちても OS が外します。ほかの hook を待つのは 3 秒までで、取れなければ足さずに理由を伝えます
 - 一覧に足すときは、さらにロック（`playwright-allowed-origins.lock`）を取ってから、一覧全体を一時ファイルに書いて入れ替えます。落ちた hook のロックが残っても、30 秒たてば片付けます
