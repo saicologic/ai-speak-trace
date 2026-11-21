@@ -186,6 +186,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 |---|---|---|
 | ページを開く（`browser_navigate`）・URL を渡して新しいタブを開く（`browser_tabs`） | hook（`playwright-navigate-pre.sh`・`playwright-navigate-post.sh`）が URL を見て決める（下の表） | `file://` で手元のファイルを読めるため |
 | URL のない `browser_tabs`（一覧・閉じる・選ぶ） | hook では決めず、ふだんの権限の設定のとおり | ページを開かないため |
+| 一覧・閉じる・選ぶの `browser_tabs` に URL を渡す | 開かない | URL は使われず、今のタブのページが結果に出るため（確かめたサイトとして、ほかのページのサイトを足さないように） |
 | ページで JavaScript を動かす（`browser_evaluate`） | 確かめずに許可する | 画面の確認で何度も使うため（下の「[受け入れた危険](#受け入れた危険)」） |
 | 手元のファイルをページに渡す（`browser_file_upload`・`browser_drop`） | 毎回ユーザーに確かめる | サンドボックスの外から手元のファイルを読むため |
 | Playwright のサーバーの中で任意のコードを動かす（`browser_run_code_unsafe`） | 使えない | サンドボックスの外で、どんなコードでも動かせるため |
