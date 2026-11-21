@@ -237,7 +237,10 @@ function landedOf(response) {
   if (response?.isError === true || texts.some((text) => text.trimStart().startsWith('### Error'))) return { failed: true }
   // 読むのは、最初の「### Page」の節のすぐ次の行だけ（Playwright MCP は、ページの中身（スナップショット・コンソールの出力）をこの節より後に出す。
   // ページの中身に書かれた「- Page URL: 」で、着いたページを読み違えないように）
-  const page = texts.join('\n').match(/^### Page[ \t]*\n- Page URL: (\S+)[ \t]*$/m)
+  // 最初の「### Page」のすぐ次の行が「- Page URL: 」でなければ、後ろの節は探さず、読めないものとする
+  const lines = texts.join('\n').split('\n')
+  const heading = lines.findIndex((line) => /^### Page[ \t]*$/.test(line))
+  const page = heading >= 0 ? (lines[heading + 1] ?? '').match(/^- Page URL: (\S+)[ \t]*$/) : null
   return page ? { origin: originOf(page[1]).origin } : {}
 }
 
