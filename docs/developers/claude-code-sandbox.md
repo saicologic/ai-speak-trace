@@ -44,7 +44,7 @@
   - 2.1.295 より前の版: hook が失敗したときに操作を止める `onFailure` が効きません
   - managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.294 は起動しなくなります。2.1.163 より前の版は、この設定を読まずに起動します
 - `jq`（`brew install jq`）
-- Node.js（`brew install node@24`）。Playwright MCP と、ページを開く hook が使います
+- Node.js（`brew install node@24`）。Playwright MCP と、ページを開く hook が使います。開いた後の hook は `perl`（macOS に入っているもの）も使います
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うためです
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
 
@@ -147,7 +147,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | `block-ai-speak-trace-secrets.sh` | Bash を動かす前 | アプリの API キーを含む設定ファイル・API・項目名に触れるコマンドを止める | `jq` が動かなければ止める |
 | `cr-limit-gate.sh` | Bash を動かす前 | CodeRabbit の枠切れの間、レビューを動かす操作（`gh pr create`・`git push` など）を止める | 枠を調べられなければ止めない |
 | `playwright-navigate-pre.sh` | Playwright MCP でページ・タブを開く前 | URL を見て、確認なしで開く・確かめる・開かない、を決める（下の「[Playwright MCP](#playwright-mcp)」） | 開かない（`onFailure: block`） |
-| `playwright-navigate-post.sh` | Playwright MCP でページ・タブを開いた後 | 確認で許可して開けたサイトを、許可したサイトの一覧に足す | 足さずに理由を伝える（次も確認が出る） |
+| `playwright-navigate-post.sh` | Playwright MCP でページ・タブを開いた後 | 確認で許可して開けたサイトを、許可したサイトの一覧に足す（1 つずつ順に動く） | 足さずに理由を伝える（次も確認が出る） |
 | `watch-pr-checks.sh` | Bash を動かした後 | push・PR の作成の後に、`wait-pr-checks.sh` で CI と CodeRabbit を監視するよう伝える | 何もしない |
 | `reply-language-check.sh` | 返答の終わり（Stop） | 返答の最後のメッセージが英語なら、日本語で書き直させる（下の「[返答の言語の確認](#返答の言語の確認)」） | 止めない |
 
@@ -198,6 +198,9 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 
 - hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
 - 確認で許可したかは、開く前の hook が `tool_use_id` ごとに記録し、開いた後の hook がその呼び出しだけを一覧に足します（確認せずに開いた呼び出しや、URL が変わったときは足しません）
+- 開いた後の hook は、Playwright MCP の結果の `- Page URL:` の行から、実際に着いたページを読みます。足すのは、着いたページが確認したサイトと同じときだけです
+  - リダイレクトで別のサイトに着いたときと、開くのに失敗したとき（結果が `### Error`）は、足しません（次も確認が出ます）
+  - 結果から着いたページを読めないときは、足さずに理由を伝えます
 
 ### 許可したサイトの一覧
 
@@ -205,7 +208,8 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 - Claude Code からは書き換えられません（サンドボックスの中からは書けず、ファイルを書くツールも managed settings の deny で止めます）
 - サイトを外すときは、その行を自分で消します。hook は一覧全体を読み直して書き換えるため、Claude Code がページを開いていないときに直します（足している最中に直すと、直した内容が戻ることがあります）
 - 外のサイトは、一覧に足しても開けません（上のプロキシで止まるため）
-- 一覧に足すときは、ロック（`playwright-allowed-origins.lock`）を取ってから、一覧全体を一時ファイルに書いて入れ替えます。落ちた hook のロックが残っても、30 秒たてば片付けます
+- 開いた後の hook は、`perl` の `flock`（`playwright-allowed-origins.flock`）で 1 つずつ順に動きます。`flock` は、hook が落ちても OS が外します。ほかの hook を待つのは 3 秒までで、取れなければ足さずに理由を伝えます
+- 一覧に足すときは、さらにロック（`playwright-allowed-origins.lock`）を取ってから、一覧全体を一時ファイルに書いて入れ替えます。落ちた hook のロックが残っても、30 秒たてば片付けます
 
 ### 受け入れた危険
 
@@ -248,7 +252,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | `npm ci`・`npm install` が断られる | サンドボックスの中では途中で止まって `node_modules` が壊れるため、managed settings で止めています。開発者が自分のターミナルで実行します |
 | Playwright MCP が起動しない | `/opt/claude-code-team/bin/playwright-mcp.sh` と `managed-mcp.json` を入れたか（`install.sh`）と、Node.js が `/opt/homebrew/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` のどれかにあるかを確かめます（受け取った `PATH` は使いません） |
 | Playwright MCP で、どのページも開けない | ページを開く hook が `node` を見つけられないか、hook を入れていません。上と同じ場所に Node.js があるかと、`install.sh` で入れ直したかを確かめます |
-| 許可したはずのサイトで、毎回確認が出る | 開いた後の hook が一覧に足せていません。hook が伝えた理由を見て、`~/.claude/state/playwright-allowed-origins` の権限を直すか、オリジンの行を自分で足します |
+| 許可したはずのサイトで、毎回確認が出る | 開いた後の hook が一覧に足せていません。リダイレクトで別のサイトに着いていないかと、hook が伝えた理由を見て、`~/.claude/state/playwright-allowed-origins` の権限を直すか、オリジンの行を自分で足します |
 | ElevenLabs・Claude API・Amazon Bedrock につなぐ確認 | サンドボックスからはつながらず、`~/.aws` も読めません。アプリの起動などは開発者が行います（PR の「## 手動確認項目」） |
 
 ## 外にデータを出させない守り
