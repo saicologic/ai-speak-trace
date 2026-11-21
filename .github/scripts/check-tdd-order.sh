@@ -22,9 +22,10 @@ fi
 base=$1
 head=$2
 
+# frontend/e2e は Playwright のブラウザのテスト。.spec.ts でないファイル（mockApi.ts など）は、テストにも実装にも数えない
 is_test() {
   case "$1" in
-    backend/src/*.spec.ts | frontend/src/*.test.ts | frontend/src/*.test.tsx) return 0 ;;
+    backend/src/*.spec.ts | frontend/src/*.test.ts | frontend/src/*.test.tsx | frontend/e2e/*.spec.ts) return 0 ;;
   esac
   return 1
 }
