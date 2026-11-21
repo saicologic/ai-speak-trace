@@ -1,62 +1,177 @@
-:root {
-  font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP',
-    system-ui, sans-serif;
-  line-height: 1.6;
-  font-weight: 400;
-  color: #1a1a2e;
-  background-color: #f5f5f7;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* Tailwind CSS の色・文字の大きさ（theme）とクラス（utilities）を読み込む。
+   Preflight（ブラウザの既定のスタイルを消す部分）は、まだ Tailwind に移していない画面の見た目を変えるため、全部の画面を移し終えるまで読み込まない */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* 使える色と文字の大きさを決める。Tailwind の標準のもの（色は oklch）は消し、今の画面に合わせて決めたものだけを使う。
+   色は、今の画面と同じ 16 進の値（Tailwind v3 の値）にする */
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+
+  /* 文字の大きさ。行の高さは決めない（画面全体の 1.6 を受け継ぐ） */
+  --text-2xs: 0.7rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.85rem;
+  --text-base: 0.9rem; /* 本文（発言・回答） */
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  /* 役割で呼ぶ色 */
+  --color-primary: #3b82f6; /* 主なボタン・選んでいるもの */
+  --color-primary-hover: #2563eb;
+  --color-danger: #dc2626; /* 削除など、取り消せない操作 */
+  --color-danger-hover: #b91c1c;
+  --color-brand: #1a1a2e; /* ヘッダーの紺・本文の文字 */
+  --color-brand-hover: #2d2d4e;
+  --color-brand-muted: #a0a0b8; /* ヘッダーの中の補足の文字 */
+  --color-canvas: #f5f5f7; /* 画面の背景 */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+  --color-amber-900: #78350f;
+
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-200: #bbf7d0;
+  --color-green-300: #86efac;
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+  --color-green-800: #166534;
+  --color-green-900: #14532d;
+
+  --color-violet-50: #f5f3ff;
+  --color-violet-100: #ede9fe;
+  --color-violet-200: #ddd6fe;
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8b5cf6;
+  --color-violet-600: #7c3aed;
+  --color-violet-700: #6d28d9;
+  --color-violet-800: #5b21b6;
+  --color-violet-900: #4c1d95;
+
+  --color-yellow-50: #fefce8;
+  --color-yellow-100: #fef9c3;
+  --color-yellow-200: #fef08a;
+  --color-yellow-300: #fde047;
+  --color-yellow-400: #facc15;
+  --color-yellow-500: #eab308;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-700: #a16207;
+  --color-yellow-800: #854d0e;
+  --color-yellow-900: #713f12;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* 要素に当てる設定は @layer base の中に書く（@layer の外に書くと、Tailwind のクラスより強くなり、クラスが効かない） */
+@layer base {
+  :root {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP',
+      system-ui, sans-serif;
+    line-height: 1.6;
+    font-weight: 400;
+    color: #1a1a2e;
+    background-color: #f5f5f7;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-body {
-  min-width: 320px;
-  min-height: 100vh;
-}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-button {
-  border-radius: 6px;
-  border: 1px solid #d1d5db;
-  padding: 0.5em 1em;
-  font-size: 0.875rem;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #ffffff;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.15s;
-}
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+  }
 
-button:hover {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
-}
+  button {
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    padding: 0.5em 1em;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: inherit;
+    background-color: #ffffff;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+  button:hover {
+    background-color: #f3f4f6;
+    border-color: #9ca3af;
+  }
 
-input[type='text'] {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 0.4em 0.6em;
-  font-size: 0.875rem;
-  font-family: inherit;
-  color: #374151;
-  outline: none;
-  transition: border-color 0.15s;
-}
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-input[type='text']:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  input[type='text'] {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.4em 0.6em;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #374151;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type='text']:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
 }

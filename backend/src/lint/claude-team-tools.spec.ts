@@ -25,6 +25,7 @@ describe('.claude/team のテスト', () => {
         'github.test.sh',
         'managed-settings.test.sh',
         'playwright-mcp.test.sh',
+        'playwright-navigate-gate.test.sh',
         'reply-language-check.test.sh',
         'wait-pr-checks.test.sh',
         'watch-pr-checks.test.sh',

@@ -26,3 +26,13 @@ updates:
     labels:
       - "dependencies"
       - "rust"
+
+  # ワークフローの actions は コミットの SHA で固定している。Dependabot が SHA と後ろのコメント（# v4 など）を更新する
+  # .github/ はビルドに影響しないため、release/deps を通さず main に PR を作る
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"

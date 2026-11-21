@@ -11,13 +11,47 @@ const MIN_JAPANESE_RATIO = 0.2
 /** ファイルの名前とみなす拡張子（/ のない名前は、この拡張子のときだけ除く） */
 const FILE_EXTENSIONS = 'sh|mjs|cjs|js|jsx|ts|tsx|json|md|css|html|yml|yaml|toml|rs|py|txt|lock|log|png|svg|jpg|mp3|m4a|wav|dmg'
 
+/**
+ * 字下げしたコードブロック（空の行の後に、4 つ以上の空白かタブで字下げした行。CommonMark と同じ）を除く
+ * 箇条書きの続き（前の段落が箇条書き・字下げした行）と、空の行のない字下げ（段落の続き）は、日本語を除かないよう、コードブロックとみなさない
+ */
+function removeIndentedCode(text) {
+  const lines = text.split('\n')
+  const blank = (line) => /^[ \t]*$/.test(line)
+  const indented = (line) => /^(?: {4,}|[ ]{0,3}\t)/.test(line) && !blank(line)
+  const listOrIndented = (line) => /^[ \t]/.test(line) || /^(?:[-*+]|\d+[.)])[ \t]/.test(line)
+  const out = []
+  let lastText = null
+  for (let i = 0; i < lines.length; i++) {
+    const startsCode = indented(lines[i]) && (i === 0 || blank(lines[i - 1])) && (lastText === null || !listOrIndented(lastText))
+    if (!startsCode) {
+      out.push(lines[i])
+      if (!blank(lines[i])) lastText = lines[i]
+      continue
+    }
+    // 字下げした行と、その間の空の行（後に字下げした行が続くもの）を、コードブロックとして除く
+    let end = i
+    for (let j = i; j < lines.length; j++) {
+      if (indented(lines[j])) end = j
+      else if (!blank(lines[j])) break
+    }
+    out.push(' ')
+    i = end
+  }
+  return out.join('\n')
+}
+
 /** 言語の判断に関係しない部分（コード・引用・URL・メールアドレス・パス・ファイルの名前）を除く */
-function prose(text) {
+function prose(raw) {
+  // 改行は LF にそろえる（CRLF・CR の返答でも、空の行やコードブロックを LF と同じに読む）
+  const text = raw.replace(/\r\n?/g, '\n')
   return (
-    text
+    // 字下げしたコードブロックは、囲みのコードブロックを除いた後に除く（囲みの中の字下げを、先に読み違えないように）
+    removeIndentedCode(
       // コードブロック（``` と ~~~。字下げした開き・箇条書きの中の開きも。開きと同じ記号だけで、同じ数以上の閉じまで。閉じがなければ最後まで）
       // ``` の開きの行の後ろにバッククォートがあれば、インラインコードなので開きとみなさない（CommonMark と同じ）
-      .replace(/^[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?((`|~)\2{2,})(?:(?<=~)[^\n]*|[^`\n]*)\n[\s\S]*?(?:^[ \t]*\1\2*[ \t]*$|(?![\s\S]))/gm, ' ')
+      text.replace(/^[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?((`|~)\2{2,})(?:(?<=~)[^\n]*|[^`\n]*)\n[\s\S]*?(?:^[ \t]*\1\2*[ \t]*$|(?![\s\S]))/gm, ' '),
+    )
       // 引用の行（英語の指摘・ログをそのまま引くことがあるため）。インラインコードより先に除き、引用をまたいで消さない
       .replace(/^[ \t]*>.*$/gm, ' ')
       // インラインコード（開きと同じ数のバッククォートで閉じるまで。空の行はまたがない）
