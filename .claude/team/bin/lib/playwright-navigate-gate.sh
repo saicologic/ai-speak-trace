@@ -37,7 +37,23 @@ navigate_gate() {
     printf '%s\n' "$out"
     exit 0
   fi
+  # 開いた後の hook は、1 つずつ順に動かす（perl の flock。プロセスが終わると OS が外すため、落ちた hook のロックが残らない）
+  # ロックを持ったまま node を動かす（$^F で、ロックのファイルを exec の後も開いたままにする）。待つのは 3 秒まで
+  local flock_path="$state_dir/playwright-allowed-origins.flock" rc
+  mkdir -p "$state_dir" && chmod 700 "$state_dir" 2>/dev/null
+  printf '%s' "$input" | perl -MFcntl=:flock -MTime::HiRes=time,sleep -e '
+    $^F = 255;
+    open(my $lock, ">>", shift @ARGV) or exit 3;
+    my $deadline = time + 3;
+    until (flock($lock, LOCK_EX | LOCK_NB)) { exit 4 if time > $deadline; sleep 0.05 }
+    exec @ARGV or exit 3;
+  ' "$flock_path" node "$lib_dir/playwright-navigate-gate.mjs" post "$state_dir" >/dev/null
+  rc=$?
+  case $rc in
+    0) exit 0 ;;
+    3) echo "許可したサイトの一覧のロック（$flock_path）を開けませんでした。一覧には足していません。次も確認が出ます" >&2 ;;
+    4) echo "ほかのセッションが許可したサイトの一覧に足していて、ロック（$flock_path）を取れませんでした。一覧には足していません。次も確認が出ます" >&2 ;;
+  esac
   # 開いた後に一覧へ足せなかったときは、標準エラーに理由を書いて 1 で終える（ページを開いたことは取り消さない）
-  printf '%s' "$input" | node "$lib_dir/playwright-navigate-gate.mjs" post "$state_dir" >/dev/null || exit 1
-  exit 0
+  exit 1
 }

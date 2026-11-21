@@ -221,6 +221,27 @@ function appendOrigin(origin) {
   }
 }
 
+/**
+ * 開いた結果（tool_response）から、実際に着いたページを読む。Playwright MCP は、今のタブを「- Page URL: <URL>」の行で返す
+ * 失敗した結果（isError・「### Error」で始まる）は { failed: true }、着いたページを読めなければ {} を返す
+ */
+function landedOf(response) {
+  const texts = []
+  const collect = (value) => {
+    if (typeof value === 'string') texts.push(value)
+    else if (Array.isArray(value)) value.forEach(collect)
+    else if (value && typeof value === 'object' && typeof value.text === 'string') texts.push(value.text)
+    else if (value && typeof value === 'object' && Array.isArray(value.content)) value.content.forEach(collect)
+  }
+  collect(response)
+  if (response?.isError === true || texts.some((text) => text.trimStart().startsWith('### Error'))) return { failed: true }
+  let url
+  for (const text of texts) {
+    for (const match of text.matchAll(/^- Page URL: (\S+)[ \t]*$/gm)) url = match[1]
+  }
+  return url ? { origin: originOf(url).origin } : {}
+}
+
 const decision = (permissionDecision, permissionDecisionReason) =>
   JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason } })
 
@@ -283,7 +304,15 @@ if (noUrlTabs) {
   // 開いた URL のオリジンが記録と違う（ほかの hook が入力を書き換えたなど）ときは、どちらも足さない
   const checked = origin ? originOf(origin).origin : null
   const opened = originOf(input.tool_input?.url).origin
-  if (checked && checked === opened) {
+  // 実際に着いたページ（リダイレクトの後）も、確認したサイトと同じときだけ足す。開くのに失敗したときは足さない
+  const landed = checked && checked === opened ? landedOf(input.tool_response) : { failed: true }
+  if (!landed.failed && !landed.origin) {
+    process.stderr.write(
+      `開いた結果から、着いたページの URL を読めませんでした。${checked} は一覧に足していません。次も確認が出ます\n`,
+    )
+    process.exit(1)
+  }
+  if (!landed.failed && landed.origin === checked) {
     try {
       // 一覧にあるかを確かめてから足すまでを、ロックの中で行う（同じサイトを二重に足さない）
       withListLock(() => {
