@@ -164,14 +164,17 @@ describe('check-tdd-order.sh', () => {
   describe('ブラウザのテスト（frontend/e2e）', () => {
     const E2E = 'frontend/e2e/sidebar.spec.ts';
 
-    it('frontend/e2e の .spec.ts を変えたコミットは、テストを先に変えたことになる', () => {
-      const base = git('rev-parse', 'HEAD');
-      commit('test: ブラウザのテストを足す', {
-        [E2E]: "test('a', async () => {\n  expect(1).toBe(1);\n});\n",
-      });
-      commit('fix: 直す', { 'frontend/src/components/Foo.tsx': 'x\n' });
-      expect(check(base).status).toBe(0);
-    });
+    it.each([E2E, 'frontend/e2e/layout/page.spec.ts'])(
+      'frontend/e2e の .spec.ts（%s）を変えたコミットは、テストを先に変えたことになる',
+      (spec) => {
+        const base = git('rev-parse', 'HEAD');
+        commit('test: ブラウザのテストを足す', {
+          [spec]: "test('a', async () => {\n  expect(1).toBe(1);\n});\n",
+        });
+        commit('fix: 直す', { 'frontend/src/components/Foo.tsx': 'x\n' });
+        expect(check(base).status).toBe(0);
+      },
+    );
 
     it('test: 以外のコミットで frontend/e2e の .spec.ts の expect を減らしたら止める', () => {
       commit('chore: ブラウザのテストを足す', {
@@ -196,6 +199,7 @@ describe('check-tdd-order.sh', () => {
       commit('fix: 直す', { 'frontend/src/components/Foo.tsx': 'x\n' });
       const r = check(base);
       expect(r.status).toBe(1);
+      expect(r.output).toContain('テストより先に実装を変えています');
       expect(r.output).toContain('fix: 直す');
     });
 
