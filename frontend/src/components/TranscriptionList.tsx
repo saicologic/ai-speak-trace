@@ -100,7 +100,7 @@ export function TranscriptionList({ selectedId, onSelect, onDeleted, loading }: 
       <div className="mb-3 flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold">文字起こし履歴</h2>
         <button
-          className="reload-button"
+          className="px-[0.6em] py-[0.3em] text-xs"
           onClick={loadItems}
           disabled={loading}
         >
