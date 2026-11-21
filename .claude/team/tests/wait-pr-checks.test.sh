@@ -5,7 +5,10 @@
 set -u
 BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
 
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/wait-pr-checks-test.XXXXXX")" && pwd -P) || exit 1
+# mktemp が失敗したときは、ここで止める（cd に空の値を渡すと今のフォルダのままになり、終わるときに今のフォルダを消してしまうため）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/wait-pr-checks-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 # gh の代わり: 呼ばれた引数を記録し、チェックはすべて終わった（pass）と答える

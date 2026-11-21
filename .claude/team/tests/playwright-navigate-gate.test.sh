@@ -16,7 +16,10 @@ ng() {
   printf 'FAIL: %s\n' "$1"
 }
 
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/playwright-navigate-gate-test.XXXXXX")" && pwd -P) || exit 1
+# mktemp が失敗したときは、ここで止める（cd に空の値を渡すと今のフォルダのままになり、終わるときに今のフォルダを消してしまうため）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/playwright-navigate-gate-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"

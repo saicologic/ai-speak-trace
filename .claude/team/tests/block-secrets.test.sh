@@ -26,7 +26,10 @@ check allow 'git status'
 check allow 'npm test'
 
 # jq が動かないときは、調べられないので止める（exit 2）
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/block-secrets-test.XXXXXX")" && pwd -P) || exit 1
+# mktemp が失敗したときは、ここで止める（cd に空の値を渡すと今のフォルダのままになり、終わるときに今のフォルダを消してしまうため）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/block-secrets-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 for c in grep cat; do ln -s "$(command -v "$c")" "$tmp/bin/$c"; done
