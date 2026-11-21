@@ -42,7 +42,9 @@ function removeIndentedCode(text) {
 }
 
 /** 言語の判断に関係しない部分（コード・引用・URL・メールアドレス・パス・ファイルの名前）を除く */
-function prose(text) {
+function prose(raw) {
+  // 改行は LF にそろえる（CRLF・CR の返答でも、空の行やコードブロックを LF と同じに読む）
+  const text = raw.replace(/\r\n?/g, '\n')
   return (
     // 字下げしたコードブロックは、囲みのコードブロックを除いた後に除く（囲みの中の字下げを、先に読み違えないように）
     removeIndentedCode(

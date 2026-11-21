@@ -256,7 +256,12 @@ const allowed = () => new Set([...DEFAULT_ORIGINS, ...readList()])
 // 新しいタブを開く操作（browser_tabs）は、URL を渡したときだけ確かめる。URL のない操作（一覧・閉じる・選ぶ）は、hook では決めない
 const noUrlTabs = input.tool_name === 'mcp__playwright__browser_tabs' && input.tool_input?.url == null
 
-if (noUrlTabs) {
+if (mode === 'post-check') {
+  // 開いた後に一覧を変えるかもしれないか（確認した呼び出しの記録があるか）を、ロック（flock）を取る前に調べる
+  // 変えないときは 10 で終え、playwright-navigate-gate.sh はロックを待たずに終える（ロックの中の post で、もう一度確かめる）
+  const file = noUrlTabs ? null : pendingPath(input.tool_use_id)
+  process.exit(file && existsSync(file) ? 0 : 10)
+} else if (noUrlTabs) {
   // 決めないことを playwright-navigate-gate.sh に伝える（.sh は何も出さずに終え、ふだんの確認に任せる）
   if (mode === 'pre') process.stdout.write('NO_DECISION')
 } else if (mode === 'pre') {
@@ -281,7 +286,7 @@ if (noUrlTabs) {
       decision(
         'ask',
         recorded
-          ? `初めて開くサイト（${origin}）です。許可すると一覧（~/.claude/state/playwright-allowed-origins）に足し、次からは確認しません`
+          ? `初めて開くサイト（${origin}）です。許可して、このサイトのページに着いたら一覧（~/.claude/state/playwright-allowed-origins）に足し、次からは確認しません（リダイレクトで別のサイトに着いたときは足しません）`
           : `初めて開くサイト（${origin}）です。確認の記録を残せなかったため、許可すると今回は開けますが、次回も確認します`,
       ),
     )
@@ -292,8 +297,11 @@ if (noUrlTabs) {
   let origin = null
   if (file) {
     try {
+      // 24 時間より古い記録は使わない（消すだけで、一覧には足さない）
+      const expired = Date.now() - statSync(file).mtimeMs > PENDING_TTL_MS
       origin = readFileSync(file, 'utf-8').trim()
       unlinkSync(file)
+      if (expired) origin = null
     } catch (error) {
       // 記録がない（確かめなかった呼び出し）ときは、何もしない。読めない・消せないときは、足さずに伝える
       if (error.code !== 'ENOENT') {

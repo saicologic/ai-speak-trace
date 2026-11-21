@@ -40,6 +40,9 @@ navigate_gate() {
   # 開いた後の hook は、1 つずつ順に動かす（perl の flock。プロセスが終わると OS が外すため、落ちた hook のロックが残らない）
   # ロックを持ったまま node を動かす（$^F で、ロックのファイルを exec の後も開いたままにする）。待つのは 3 秒まで
   local flock_path="$state_dir/playwright-allowed-origins.flock" rc
+  # 一覧を変えない呼び出し（確認していない・URL のない browser_tabs）は、ロックを待たずに終える
+  printf '%s' "$input" | node "$lib_dir/playwright-navigate-gate.mjs" post-check "$state_dir" >/dev/null 2>&1
+  [ "$?" = 10 ] && exit 0
   mkdir -p "$state_dir" && chmod 700 "$state_dir" 2>/dev/null
   printf '%s' "$input" | perl -MFcntl=:flock -MTime::HiRes=time,sleep -e '
     $^F = 255;
