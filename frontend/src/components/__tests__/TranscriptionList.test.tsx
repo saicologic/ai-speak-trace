@@ -75,13 +75,13 @@ describe('TranscriptionList の見た目', () => {
     vi.mocked(confirmDialog).mockReset();
   });
 
-  it('文字起こし履歴は、サイドバーの残りの高さを使い、画面が低くても一覧を見られる高さを保つ', async () => {
+  it('文字起こし履歴は、サイドバーの残りの高さを使う（最低の高さは中身から決まり、入りきらないときはサイドバー全体がスクロールする）', async () => {
     const { container } = render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
     await screen.findByText('a.mp3');
 
     // transcription-list は、サイドバーの直接の子であることを確かめるための目印
     expect(classesOf(container.firstElementChild)).toEqual(
-      ['transcription-list', 'flex', 'min-h-40', 'flex-1', 'flex-col'].sort(),
+      ['transcription-list', 'flex', 'flex-1', 'flex-col'].sort(),
     );
   });
 
@@ -104,12 +104,12 @@ describe('TranscriptionList の見た目', () => {
     );
   });
 
-  it('音声ファイルの一覧だけが、長いときにスクロールする', async () => {
+  it('音声ファイルの一覧だけが、長いときにスクロールし、エラー文が長くても一覧を見られる高さ（160px）を保つ', async () => {
     render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
     await screen.findByText('a.mp3');
 
     expect(classesOf(screen.getByRole('list'))).toEqual(
-      ['min-h-0', 'flex-1', 'list-none', 'overflow-y-auto'].sort(),
+      ['min-h-40', 'flex-1', 'list-none', 'overflow-y-auto'].sort(),
     );
   });
 
