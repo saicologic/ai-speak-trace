@@ -85,15 +85,69 @@ while IFS= read -r name; do
   fi
 done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.hooks[]?.command)] | .[] | select(startswith($p)) | ltrimstr($p) | split(" ")[0]' "$M" | sort -u)
 
+# hook・外で動かすスクリプトが読み込む lib のファイルも、リポジトリの bin/lib にあること（install.sh が bin/lib/* を入れる）
+for f in "$TEAM"/bin/*.sh "$TEAM"/bin/lib/*.sh; do
+  while IFS= read -r lib; do
+    if [ -f "$TEAM/bin/lib/$lib" ]; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      printf 'FAIL: %s が読み込む lib/%s が .claude/team/bin/lib にない\n' "$(basename "$f")" "$lib"
+    fi
+  done < <(grep -oE '(lib/|lib_dir/|\$lib_dir/)[A-Za-z0-9_.-]+\.(sh|mjs)' "$f" | sed -E 's#^.*/##' | sort -u)
+done
+# install.sh は、bin の *.sh と bin/lib の全部を、managed settings より先に入れる（設定だけが先に効いて、hook が見つからなくならないように）
+I="$TEAM/install.sh"
+# コメントの行は数えない（コメントにした install の行で、通ってしまわないように）
+line_of() { grep -nE "$1" "$I" | grep -vE '^[0-9]+:[[:space:]]*#' | head -1 | cut -d: -f1; }
+bin_line=$(line_of 'install .*"\$src"/bin/\*\.sh ')
+lib_line=$(line_of 'install .*"\$src"/bin/lib/\* ')
+settings_line=$(line_of '^for name in managed-settings\.json managed-mcp\.json')
+if [ -n "$bin_line" ] && [ -n "$lib_line" ] && [ -n "$settings_line" ] && [ "$bin_line" -lt "$settings_line" ] && [ "$lib_line" -lt "$settings_line" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL: install.sh が、bin/*.sh・bin/lib/* を managed settings より先に入れていない（%s・%s・%s 行目）\n' "$bin_line" "$lib_line" "$settings_line"
+fi
+
+# 返答の最後のメッセージが英語のときは、止めて日本語で書き直させる（返答は日本語で書く決まりのため）
+expect "Stop で reply-language-check.sh を、command の hook として動かす" \
+  '[.hooks.Stop[]? | .hooks[] | select(.type == "command" and .command == "/opt/claude-code-team/bin/reply-language-check.sh")] | length == 1' "$M"
+
 # 権限
 expect "確認を飛ばす github.sh --skip は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/github.sh --skip *)") != null' "$M"
 expect "レビュー済みにする cr-review.sh --accept は、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --accept*)") != null' "$M"
 expect "レビュー済みにする cr-review.sh --base-branch … --accept も、ユーザーに確かめる（ask）" '.permissions.ask | index("Bash(/opt/claude-code-team/bin/cr-review.sh --base-branch * --accept*)") != null' "$M"
-# Playwright MCP のページを開く操作と、ページで JavaScript を動かす操作は、画面の確認で何度も使うため、確かめずに許可する
+# Playwright MCP のページで JavaScript を動かす操作は、画面の確認で何度も使うため、確かめずに許可する
 # （ask が allow より強いため、ask には入れない。受け入れた危険は docs/developers/claude-code-sandbox.md に書く）
-for tool in mcp__playwright__browser_navigate mcp__playwright__browser_evaluate; do
-  expect "Playwright MCP の $tool は、確かめずに許可する（allow）" --arg t "$tool" '.permissions.allow | index($t) != null' "$M"
-  expect "Playwright MCP の $tool を ask に入れない" --arg t "$tool" '(.permissions.ask | index($t)) == null' "$M"
+expect "Playwright MCP の browser_evaluate は、確かめずに許可する（allow）" '.permissions.allow | index("mcp__playwright__browser_evaluate") != null' "$M"
+expect "Playwright MCP の browser_evaluate を ask に入れない" '(.permissions.ask | index("mcp__playwright__browser_evaluate")) == null' "$M"
+# ページを開く操作は、hook（playwright-navigate-pre.sh・playwright-navigate-post.sh）が URL を見て決める（許可したサイトは allow、初めてのサイトは ask、サイトではない URL は deny）
+# allow・ask のルールに入れると hook の判断より先に決まるため、どちらにも入れない
+expect "Playwright MCP の browser_navigate を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_navigate")) == null' "$M"
+expect "Playwright MCP の browser_navigate を ask に入れない（hook が決める）" '(.permissions.ask | index("mcp__playwright__browser_navigate")) == null' "$M"
+# 開く前の hook が起動できない・時間切れ・失敗したときは、開かない（onFailure: block。Claude Code 2.1.295 から）
+expect "開く前の hook が失敗したときは、ページを開かない（onFailure: block）" \
+  '[.hooks.PreToolUse[]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.command == "/opt/claude-code-team/bin/playwright-navigate-pre.sh") | .onFailure] == ["block"]' "$M"
+expect "Claude Code 2.1.295 より前の版を起動させない（hook の onFailure を使うため）" '(.requiredMinimumVersion // "0") | split(".") | map(tonumber) | . >= [2, 1, 295]' "$M"
+for pair in PreToolUse:pre PostToolUse:post; do
+  event=${pair%%:*} name=playwright-navigate-${pair#*:}.sh
+  expect "browser_navigate の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
+    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_navigate") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
+done
+# 新しいタブを開く操作（browser_tabs）も URL を渡せるため、同じ hook で確かめる（allow・ask に入れない）
+expect "Playwright MCP の browser_tabs を allow に入れない（hook が決める）" '(.permissions.allow // [] | index("mcp__playwright__browser_tabs")) == null' "$M"
+expect "Playwright MCP の browser_tabs を ask に入れない（hook が決める）" '(.permissions.ask // [] | index("mcp__playwright__browser_tabs")) == null' "$M"
+expect "browser_tabs の開く前の hook が失敗したときは、タブを開かない（onFailure: block）" \
+  '[.hooks.PreToolUse[]? | select(.matcher == "mcp__playwright__browser_tabs") | .hooks[] | select(.command == "/opt/claude-code-team/bin/playwright-navigate-pre.sh") | .onFailure] == ["block"]' "$M"
+for pair in PreToolUse:pre PostToolUse:post; do
+  event=${pair%%:*} name=playwright-navigate-${pair#*:}.sh
+  expect "browser_tabs の $event で $name を、command の hook として動かす" --arg e "$event" --arg c "/opt/claude-code-team/bin/$name" \
+    '[.hooks[$e][]? | select(.matcher == "mcp__playwright__browser_tabs") | .hooks[] | select(.type == "command" and .command == $c)] | length == 1' "$M"
+done
+# Playwright MCP 全体の許可（mcp__playwright・mcp__playwright__*）も、browser_tabs を確認なしで許可するため入れない
+for f in "$P" "$M"; do
+  expect "$(basename "$f") で、browser_tabs・Playwright MCP 全体を確認なしで許可しない" '[(.permissions.allow // [])[] | select(. == "mcp__playwright__browser_tabs" or . == "mcp__playwright" or . == "mcp__playwright__*")] | length == 0' "$f"
 done
 expect "リポジトリの設定で browser_navigate・browser_evaluate を確認なしで許可しない" '[.permissions.allow[] | select(. == "mcp__playwright__browser_navigate" or . == "mcp__playwright__browser_evaluate")] | length == 0' "$P"
 # Playwright MCP のうち、Playwright のサーバーの中で任意のコードを動かす操作は使わせない（サンドボックスの外で動くため）

@@ -12,7 +12,7 @@
 # テスト: bash .claude/team/tests/playwright-mcp.test.sh
 set -eu
 
-PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+PATH="/opt/homebrew/opt/node@24/bin:/usr/local/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 export PATH
 user="$(/usr/bin/id -un)"
 home="$(/usr/bin/dscl . -read "/Users/$user" NFSHomeDirectory | /usr/bin/sed -e 's/^NFSHomeDirectory: //' -e 1q)"

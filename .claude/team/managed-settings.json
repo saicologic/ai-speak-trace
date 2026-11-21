@@ -1,8 +1,7 @@
 {
-  "requiredMinimumVersion": "2.1.277",
+  "requiredMinimumVersion": "2.1.295",
   "permissions": {
     "allow": [
-      "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_evaluate"
     ],
     "ask": [
@@ -129,6 +128,28 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-pre.sh",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__playwright__browser_tabs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-pre.sh",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -144,7 +165,38 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/reply-language-check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-post.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__playwright__browser_tabs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/claude-code-team/bin/playwright-navigate-post.sh",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "matcher": "Bash",
         "hooks": [

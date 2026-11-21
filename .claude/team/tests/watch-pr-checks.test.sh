@@ -60,7 +60,10 @@ fi
 
 # 出力に PR がないときは gh で今のブランチの PR を調べる。サンドボックスの外で動くため、
 # リポジトリの git の設定に認めていない項目があれば、gh（中で git を動かす）を動かさずに終わる
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/watch-pr-checks-test.XXXXXX")" && pwd -P) || exit 1
+# mktemp が失敗したときは、ここで止める（cd に空の値を渡すと今のフォルダのままになり、終わるときに今のフォルダを消してしまうため）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/watch-pr-checks-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 cat >"$tmp/bin/gh" <<EOF
