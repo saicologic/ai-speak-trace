@@ -39,7 +39,9 @@ jobs:
               *.md|docs/*|.github/*|.claude/*|eval/*|LICENSE|.gitignore|.coderabbit.yaml|.mcp.json)
                 ;;
               # テストのファイル（backend は tsconfig.build.json で、frontend は画面から import しないため、アプリに入らない。frontend の型の確認は test.yml の frontend-test でする）も、何もしない
-              backend/src/*.spec.ts|frontend/src/*.test.ts|frontend/src/*.test.tsx)
+              # frontend/e2e は Playwright のブラウザのテスト（mockApi.ts も含めて、アプリに入らない）。
+              # tsconfig.e2e.json はアプリのビルドの tsc -b からも読まれるが、test.yml の frontend-test が同じ npx tsc -b で e2e の型を確かめるため、ここでビルドを飛ばしても型の間違いは見落とさない
+              backend/src/*.spec.ts|frontend/src/*.test.ts|frontend/src/*.test.tsx|frontend/e2e/*)
                 ;;
               # それ以外はビルドする
               *)
