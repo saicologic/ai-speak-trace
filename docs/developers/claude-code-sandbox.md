@@ -45,6 +45,8 @@
   - managed settings の `requiredMinimumVersion` で、2.1.163〜2.1.294 は起動しなくなります。2.1.163 より前の版は、この設定を読まずに起動します
 - `jq`（`brew install jq`）
 - Node.js（`brew install node@24`）。Playwright MCP と、ページを開く hook が使います。開いた後の hook は `perl`（macOS に入っているもの）も使います
+  - Playwright MCP と、ページを開く hook は、`brew` の `node@24` の場所を自分で探します
+  - 英語の返答を止める hook（`reply-language-check.sh`）は、`PATH` から `node` を探します。`node@24` は、ふだんの `PATH` に入りません（`brew` が `bin` にリンクしないため）。シェルの設定（`~/.zshrc` など）に `export PATH="$(brew --prefix node@24)/bin:$PATH"` を足し、新しいターミナルで `command -v node` に出ることを確かめてから、Claude Code を起動します
 - `gh` にログインしていること（`gh auth login`）。トークンは、このリポジトリだけに絞った fine-grained personal access token（Contents・Pull requests・Issues の読み書き）を使うことを勧めます。`github.sh` はサンドボックスの外でこのトークンを使うためです
 - 手元の CodeRabbit レビューを使う場合は、CodeRabbit CLI を `~/.local/bin/coderabbit` に入れ、ログインしていること
 
