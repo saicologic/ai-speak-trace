@@ -102,6 +102,9 @@ check none '字下げしたコードブロックの中の空の行' "実行例�
     $LONG_EN
 
     $LONG_EN"
+# 改行が CRLF でも、LF と同じに判断する
+check none 'CRLF の、空の行の後の字下げしたコードブロック' "$(printf '実行例です。\r\n\r\n    %s\r\n' "$LONG_EN")"
+check block 'CRLF の英語の返答' "$(printf '%s\r\n\r\n%s' "$EN" "$EN")"
 # 字下げしたコードブロックの後の、字下げのない英語の文は除かない
 check block '字下げしたコードブロックの後の英語の文' "実行例です。
 

@@ -45,16 +45,15 @@ decision_of() {
   out=$(cat)
   if [ -z "$out" ]; then echo none; else printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "none"'; fi
 }
-# 開く前の判断（tool_use_id は呼ぶたびに変える）
-decide() {
-  n=$((n + 1))
-  pre_input "$1" "toolu_test_$n" | bash "$PRE" | decision_of
-}
-# check <期待> <URL>
+# check <期待> <URL>: 開く前の判断を確かめる（tool_use_id は呼ぶたびに変える。番号は、コマンド置換の外で増やす）
+# hook が 0 以外で終えたときは、判断が期待どおりでも失敗にする
 check() {
-  local want=$1 url=$2 got
-  got=$(decide "$url")
-  if [ "$got" = "$want" ]; then ok; else ng "$url（期待 $want、結果 $got）"; fi
+  local want=$1 url=$2 out rc got
+  n=$((n + 1))
+  out=$(pre_input "$url" "toolu_test_$n" | bash "$PRE")
+  rc=$?
+  got=$(printf '%s' "$out" | decision_of)
+  if [ "$rc" = 0 ] && [ "$got" = "$want" ]; then ok; else ng "$url（期待 $want、結果 $got、rc=$rc）"; fi
 }
 # 開いた後の hook を流し、何も出さず 0 で終えることを確かめる（足さない場面でも、途中で失敗していないこと）
 post_ok() {
@@ -193,6 +192,15 @@ touch -t 202001010000 "$PENDING/toolu_old"
 printf '%s' 'http://localhost:6411' >"$PENDING/toolu_new"
 pre_input 'http://localhost:6412/' toolu_prune | bash "$PRE" >/dev/null
 if [ ! -e "$PENDING/toolu_old" ] && [ -e "$PENDING/toolu_new" ]; then ok; else ng "古い記録を消していない・新しい記録まで消した"; fi
+
+# 開いた後の hook でも、24 時間より古い記録は使わない（消すだけで、一覧には足さない）
+printf '%s' 'http://localhost:6413' >"$PENDING/toolu_expired"
+touch -t 202001010000 "$PENDING/toolu_expired"
+post_ok 'http://localhost:6413/' toolu_expired
+if [ ! -e "$PENDING/toolu_expired" ] && ! grep -qx 'http://localhost:6413' "$LIST"; then ok; else ng "古い記録で一覧に足した・記録を消さない"; fi
+# 確認の文では、確認したサイトのページに着いたときだけ一覧に足すことを伝える
+out=$(pre_input 'http://localhost:6414/' toolu_message | bash "$PRE")
+if printf '%s' "$out" | grep -q 'このサイトのページに着いたら'; then ok; else ng "確認の文で、着いたときだけ足すことを伝えない（$out）"; fi
 
 # 記録できないときは、確認は出すが、次も確認することを伝える（「次からは確認しません」と言わない）
 rm -rf "$PENDING"
@@ -334,11 +342,31 @@ if [ "$rc" = 0 ] && grep -qx 'http://localhost:6471' "$LIST"; then ok; else ng "
 # 待つのは 3 秒まで。取れなければ、足さずに理由を伝えて 1 で終える
 pre_input 'http://localhost:6466/' toolu_flock_timeout | bash "$PRE" >/dev/null
 hold_flock
+started=$(perl -MTime::HiRes=time -e 'printf "%d", time * 1000')
 err=$(post_input 'http://localhost:6466/' toolu_flock_timeout | perl -e 'alarm 8; exec @ARGV' bash "$POST" 2>&1 >/dev/null)
 rc=$?
+elapsed=$(( $(perl -MTime::HiRes=time -e 'printf "%d", time * 1000') - started ))
 kill "$holder"
 wait "$holder" 2>/dev/null
+# 待つのは 3 秒ほど（2.5〜4.5 秒）。8 秒の alarm は、止まったままにならないための守り
+if [ "$elapsed" -ge 2500 ] && [ "$elapsed" -le 4500 ]; then ok; else ng "ロック（flock）を待つのが 3 秒ほどではない（${elapsed} ミリ秒）"; fi
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q 'ロック' && ! grep -qx 'http://localhost:6466' "$LIST"; then ok; else ng "ロック（flock）を取れないときに、決めた時間で 1 で終えない・伝えない（rc=$rc。142 は 8 秒の時間切れ、$err）"; fi
+
+# 一覧を変えない開いた後の hook（URL のない browser_tabs・確認せずに開いた呼び出し）は、ロック（flock）を待たずに 0 で終える
+hold_flock
+for kind in tabs nav; do
+  started=$(perl -MTime::HiRes=time -e 'printf "%d", time * 1000')
+  if [ "$kind" = tabs ]; then
+    out=$(tabs_input PostToolUse toolu_noupdate_tabs '{"action": "list"}' | bash "$POST" 2>&1)
+  else
+    out=$(post_input 'http://localhost:5173/' toolu_noupdate_nav | bash "$POST" 2>&1)
+  fi
+  rc=$?
+  elapsed=$(( $(perl -MTime::HiRes=time -e 'printf "%d", time * 1000') - started ))
+  if [ "$rc" = 0 ] && [ -z "$out" ] && [ "$elapsed" -lt 1500 ]; then ok; else ng "一覧を変えない開いた後の hook（$kind）が、ロックを待った・失敗した（rc=$rc、${elapsed} ミリ秒、$out）"; fi
+done
+kill "$holder"
+wait "$holder" 2>/dev/null
 
 # 一覧に足すのは、ロックを取ってから（ほかのセッションが足している間は待ち、同じ行を二重に足さない）
 LOCK="$LIST.lock"
@@ -579,10 +607,12 @@ rm -rf "$HOME/.claude"
 tabs_input() { jq -n --arg e "$1" --arg id "$2" --argjson i "$3" --argjson r "${4:-null}" '{hook_event_name: $e, tool_name: "mcp__playwright__browser_tabs", tool_use_id: $id, tool_input: $i} + (if $r == null then {} else {tool_response: $r} end)'; }
 # check_tabs <期待> <tool_input の JSON>
 check_tabs() {
-  local got
+  local out rc got
   n=$((n + 1))
-  got=$(tabs_input PreToolUse "toolu_tabs_$n" "$2" | bash "$PRE" | decision_of)
-  if [ "$got" = "$1" ]; then ok; else ng "browser_tabs $2（期待 $1、結果 $got）"; fi
+  out=$(tabs_input PreToolUse "toolu_tabs_$n" "$2" | bash "$PRE")
+  rc=$?
+  got=$(printf '%s' "$out" | decision_of)
+  if [ "$rc" = 0 ] && [ "$got" = "$1" ]; then ok; else ng "browser_tabs $2（期待 $1、結果 $got、rc=$rc）"; fi
 }
 check_tabs allow '{"action": "new", "url": "http://localhost:5173/"}'
 check_tabs ask '{"action": "new", "url": "http://localhost:6301/"}'
@@ -723,8 +753,8 @@ else
 fi
 printf '%s\n' "require('node:fs').writeFileSync(process.env.NODE_OPTIONS_MARK, '')" >"$tmp/evil.cjs"
 rm -f "$tmp/evil-ran"
-pre_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require $tmp/evil.cjs" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_PRE" >/dev/null 2>&1
-post_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require $tmp/evil.cjs" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_POST" >/dev/null 2>&1
+pre_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require \"$tmp/evil.cjs\"" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_PRE" >/dev/null 2>&1
+post_input 'http://localhost:5173/' toolu_node_options | NODE_OPTIONS="--require \"$tmp/evil.cjs\"" NODE_OPTIONS_MARK="$tmp/evil-ran" bash "$ENTRY_POST" >/dev/null 2>&1
 if [ ! -e "$tmp/evil-ran" ]; then ok; else ng "入口が、受け取った NODE_OPTIONS で読み込ませたコードを動かした"; fi
 
 # 入口から中身を正しく呼ぶ（開く前は pre・開いた後は post）。決めた PATH に node があるときは、確かめて開けたサイトを一覧に足す

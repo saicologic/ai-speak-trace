@@ -98,7 +98,8 @@ for f in "$TEAM"/bin/*.sh "$TEAM"/bin/lib/*.sh; do
 done
 # install.sh は、bin の *.sh と bin/lib の全部を、managed settings より先に入れる（設定だけが先に効いて、hook が見つからなくならないように）
 I="$TEAM/install.sh"
-line_of() { grep -nE "$1" "$I" | head -1 | cut -d: -f1; }
+# コメントの行は数えない（コメントにした install の行で、通ってしまわないように）
+line_of() { grep -nE "$1" "$I" | grep -vE '^[0-9]+:[[:space:]]*#' | head -1 | cut -d: -f1; }
 bin_line=$(line_of 'install .*"\$src"/bin/\*\.sh ')
 lib_line=$(line_of 'install .*"\$src"/bin/lib/\* ')
 settings_line=$(line_of '^for name in managed-settings\.json managed-mcp\.json')
