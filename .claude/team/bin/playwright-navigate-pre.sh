@@ -6,6 +6,8 @@
 # （作業ツリーなどに置いた node を動かさない。brew の node@24 はふだんの bin にリンクされないため、その場所も入れる）
 PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 export PATH
+# 受け取った NODE_OPTIONS（--require など）は、node に渡さない
+unset NODE_OPTIONS
 # shellcheck source=lib/playwright-navigate-gate.sh
 . "$(cd "$(dirname "$0")" && pwd)/lib/playwright-navigate-gate.sh"
 navigate_gate pre
