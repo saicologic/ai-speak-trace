@@ -48,10 +48,18 @@
 | `frontend/src/components/__tests__/PageLayoutPages.test.tsx` など | 各画面で、戻るボタン・タイトル・タブが固定する部分に、本文がスクロールする部分にあること |
 | `frontend/src/components/__tests__/TranscriptionList.test.tsx` | 文字起こし履歴の見出しを固定し、一覧だけをスクロールするクラス |
 | `frontend/src/__tests__/App.test.tsx` | 文字起こし履歴がサイドバーの直接の子にあること、サイドバーのスクロールのクラス |
+| `frontend/e2e/page-layout.spec.ts`（ブラウザ） | 本文が長くても、本文だけがスクロールし、ヘッダーが画面の上に残ること |
+| `frontend/e2e/sidebar.spec.ts`（ブラウザ） | 文字起こし履歴の一覧だけのスクロール、画面が低くて長いエラーが出たときの一覧の高さ（160px）、項目にカーソルを乗せたとき・フォーカスしたときの色と削除ボタン |
 
 テストの画面（jsdom）は、CSS を読み込まず、高さも計算しません。そのため、要素に付けた Tailwind のクラスを確かめます。
 
-Tailwind に移した部品では、前の CSS の指定を残さないことも確かめます。`@layer` の外に書いた CSS は Tailwind のクラスより強いため、残っているとクラスが効きません。消した CSS ファイルは `import.meta.glob` で、`App.css` のように残っているファイルの中の指定は `?raw` で文字列として読んで確かめます（`frontend/vitest.config.ts` の `css.include` で、`?raw` で読むときだけ中身を読む）。実際に固定されて見えるかは、画面で確かめます。
+Tailwind に移した部品では、前の CSS の指定を残さないことも確かめます。`@layer` の外に書いた CSS は Tailwind のクラスより強いため、残っているとクラスが効きません。消した CSS ファイルは `import.meta.glob` で、`App.css` のように残っているファイルの中の指定は `?raw` で文字列として読んで確かめます（`frontend/vitest.config.ts` の `css.include` で、`?raw` で読むときだけ中身を読む）。実際の高さ・スクロール・カーソルを乗せたときの表示は、Playwright のテスト（`frontend/e2e`）で、本物のブラウザ（Chromium）を使って確かめます。
+
+- `cd frontend && npm run test:e2e` で流す。テストのための画面を 5174 のポートで起動するので、開発用の画面（5173）を起動したままでも流せる
+- API は各テストで `page.route` でまね、作り物のデータを返す（`frontend/e2e/mockApi.ts`）。まねていない API は全部断り、バックエンドと本物のデータは使わない
+- 初めて流す前に、`npx playwright install chromium` でブラウザを入れる
+- Claude Code のサンドボックスの中では、ローカルのポートで待ち受けられないため、テストのための画面を起動できない。開発者が自分のターミナルで流す
+- CI では、`test.yml` の `frontend-test` で流す
 
 ## 画面で確かめるとき
 
