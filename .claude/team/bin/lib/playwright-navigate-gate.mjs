@@ -21,6 +21,9 @@ const PENDING_TTL_MS = 24 * 60 * 60 * 1000
 function originOf(raw) {
   // 文字列でないもの（文字列にすると URL に見える配列など）は読まない
   if (typeof raw !== 'string') return { reason: '読み取れない URL' }
+  // http:// か https:// で始まるものだけを読む（Playwright MCP は「://」のない URL の前に https:// を付けるため、
+  // 「http:/localhost:5173」のような書き方では、ここで読んだサイトと実際に開くサイトがずれる）
+  if (!/^https?:\/\//i.test(raw)) return { reason: 'http:// か https:// で始まらない URL' }
   let url
   try {
     url = new URL(raw)
