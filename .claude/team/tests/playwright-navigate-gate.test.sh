@@ -30,7 +30,12 @@ n=0
 
 # pre_input <URL> <tool_use_id>・post_input <URL> <tool_use_id>
 pre_input() { jq -n --arg u "$1" --arg id "$2" '{hook_event_name: "PreToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: $id, tool_input: {url: $u}}'; }
-post_input() { jq -n --arg u "$1" --arg id "$2" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: $id, tool_input: {url: $u}}'; }
+# post_input <URL> <tool_use_id> [着いたページの URL]: 開いた後の入力。結果（tool_response）は、Playwright MCP と同じ形（「- Page URL: 」の行）にする
+post_input() {
+  jq -n --arg u "$1" --arg id "$2" --arg landed "${3:-$1}" \
+    '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: $id, tool_input: {url: $u},
+      tool_response: {content: [{type: "text", text: "### Ran Playwright code\n### Page\n- Page URL: \($landed)\n- Page Title: Test"}]}}'
+}
 # 出力から判断（allow / ask / deny）を取り出す。何も出さないときは none
 decision_of() {
   local out
@@ -197,6 +202,71 @@ rc=$?
 chmod 700 "$PENDING"
 if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '記録を消せません' && ! grep -qx 'http://localhost:6430' "$LIST"; then ok; else ng "記録を消せないときに伝えない・足した（rc=$rc、$err）"; fi
 
+# wait_for <ファイル>: ファイルができるまで、0.05 秒ずつ見て待つ（5 秒まで）。できなければ失敗にする
+wait_for() {
+  local i
+  for i in $(seq 100); do
+    [ -e "$1" ] && return 0
+    sleep 0.05
+  done
+  ng "待っていた印（$1）ができない"
+  return 1
+}
+# 一覧に足すのは、実際に着いたページ（結果の「- Page URL: 」）が、確認したサイトと同じときだけ
+# リダイレクトで別のサイトに着いたときは、どちらも足さない
+pre_input 'http://localhost:6460/' toolu_redirect | bash "$PRE" >/dev/null
+post_ok 'http://localhost:6460/' toolu_redirect 'http://localhost:6461/landed'
+if ! grep -qx 'http://localhost:6460' "$LIST" && ! grep -qx 'http://localhost:6461' "$LIST"; then ok; else ng "リダイレクトで別のサイトに着いたのに、一覧に足した"; fi
+# 同じサイトの中で移ったときは足す
+pre_input 'http://localhost:6462/' toolu_same_origin | bash "$PRE" >/dev/null
+post_ok 'http://localhost:6462/' toolu_same_origin 'http://localhost:6462/login?next=%2F'
+if grep -qx 'http://localhost:6462' "$LIST"; then ok; else ng "同じサイトの中で移ったときに、一覧に足さない"; fi
+# 開くのに失敗したとき（isError・### Error）は足さない
+for r in '{"content": [{"type": "text", "text": "### Error\nnet::ERR_CONNECTION_REFUSED at http://localhost:6463/"}], "isError": true}' \
+  '{"content": [{"type": "text", "text": "### Error\n- Page URL: http://localhost:6463/"}]}' \
+  '{"isError": true, "content": [{"type": "text", "text": "- Page URL: http://localhost:6463/"}]}'; do
+  pre_input 'http://localhost:6463/' toolu_failed | bash "$PRE" >/dev/null
+  out=$(jq -n --argjson r "$r" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_failed", tool_input: {url: "http://localhost:6463/"}, tool_response: $r}' | bash "$POST" 2>/dev/null)
+  if [ -z "$out" ] && ! grep -qx 'http://localhost:6463' "$LIST"; then ok; else ng "開くのに失敗したのに、一覧に足した（$r）"; fi
+done
+# 結果から着いたページの URL を読めないときは、足さずに理由を伝えて 1 で終える
+for r in 'null' '{"content": []}' '{"content": [{"type": "text", "text": "### Page\n- Page Title: Test"}]}'; do
+  pre_input 'http://localhost:6464/' toolu_no_landed | bash "$PRE" >/dev/null
+  err=$(jq -n --argjson r "$r" '{hook_event_name: "PostToolUse", tool_name: "mcp__playwright__browser_navigate", tool_use_id: "toolu_no_landed", tool_input: {url: "http://localhost:6464/"}} + (if $r == null then {} else {tool_response: $r} end)' | bash "$POST" 2>&1 >/dev/null)
+  rc=$?
+  if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q '着いたページ' && ! grep -qx 'http://localhost:6464' "$LIST"; then ok; else ng "着いたページの URL を読めないときに、足した・伝えない（$r、rc=$rc、$err）"; fi
+done
+
+# 開いた後の hook は、1 つずつ順に動かす（プロセスが終わると OS が外すロック。古いロックの片付けが重ならないように）
+# （テストがロック（flock）を持っている間は、開いた後の hook が待つことを確かめる）
+FLOCK="$LIST.flock"
+mkdir -p "$(dirname "$LIST")"
+hold_flock() {
+  rm -f "$tmp/flock-held"
+  perl -MFcntl=:flock -e 'open(my $f, ">>", $ARGV[0]) or die; flock($f, LOCK_EX) or die; open(my $m, ">", $ARGV[1]) or die; close $m; sleep 30' "$FLOCK" "$tmp/flock-held" &
+  holder=$!
+  wait_for "$tmp/flock-held"
+}
+pre_input 'http://localhost:6465/' toolu_flock | bash "$PRE" >/dev/null
+hold_flock
+(post_input 'http://localhost:6465/' toolu_flock | bash "$POST" >/dev/null 2>&1) &
+waiter=$!
+sleep 0.5
+if kill -0 "$waiter" 2>/dev/null && ! grep -qx 'http://localhost:6465' "$LIST"; then ok; else ng "ほかの hook がロック（flock）を持っている間に、待たずに進んだ"; fi
+kill "$holder"
+wait "$holder" 2>/dev/null
+wait "$waiter"
+rc=$?
+if [ "$rc" = 0 ] && grep -qx 'http://localhost:6465' "$LIST"; then ok; else ng "ロック（flock）が外れた後に、足していない（rc=$rc）"; fi
+# 待つのは 3 秒まで。取れなければ、足さずに理由を伝えて 1 で終える
+pre_input 'http://localhost:6466/' toolu_flock_timeout | bash "$PRE" >/dev/null
+hold_flock
+err=$(post_input 'http://localhost:6466/' toolu_flock_timeout | perl -e 'alarm 8; exec @ARGV' bash "$POST" 2>&1 >/dev/null)
+rc=$?
+kill "$holder"
+wait "$holder" 2>/dev/null
+if [ "$rc" = 1 ] && printf '%s' "$err" | grep -q 'ロック' && ! grep -qx 'http://localhost:6466' "$LIST"; then ok; else ng "ロック（flock）を取れないときに、決めた時間で 1 で終えない・伝えない（rc=$rc。142 は 8 秒の時間切れ、$err）"; fi
+
 # 一覧に足すのは、ロックを取ってから（ほかのセッションが足している間は待ち、同じ行を二重に足さない）
 LOCK="$LIST.lock"
 # ロックを取れずに待ち始めたら、印のファイルを作る（テストは決め打ちで sleep せず、この印ができるまで待つ）
@@ -224,16 +294,6 @@ post_waiting() {
   rm -f "$MARK" "$MARK.reclaim"
   (post_input "$1" "$2" | NODE_OPTIONS="--require $tmp/lock-wait-mark.cjs" LOCK_WAIT_MARK="$MARK" bash "$POST" >/dev/null) &
   waiter=$!
-}
-# wait_for <ファイル>: ファイルができるまで、0.05 秒ずつ見て待つ（5 秒まで）。できなければ失敗にする
-wait_for() {
-  local i
-  for i in $(seq 100); do
-    [ -e "$1" ] && return 0
-    sleep 0.05
-  done
-  ng "ロックを待ち始めた印（$1）ができない"
-  return 1
 }
 pre_input 'http://localhost:6440/' toolu_lock_a | bash "$PRE" >/dev/null
 mkdir "$LOCK"
@@ -406,7 +466,7 @@ pre_input 'http://localhost:6451/' toolu_partial | bash "$PRE" >/dev/null
 post_input 'http://localhost:6451/' toolu_partial | node --require "$tmp/partial-write.cjs" "$BIN/lib/playwright-navigate-gate.mjs" post "$STATE" >/dev/null 2>&1
 rc=$?
 if [ "$rc" = 1 ] && [ "$(cat "$LIST")" = 'http://localhost:6400' ]; then ok; else ng "書き込みが途中で失敗したときに、一覧を書き換えた・1 で終えない（rc=$rc、$(tr '\n' ' ' <"$LIST")）"; fi
-if ls "$STATE" | grep -vE '^(playwright-allowed-origins|playwright-navigate-pending)$' | grep -q .; then ng "書き込みに失敗した一時ファイルが残った（$(ls "$STATE" | tr '\n' ' ')）"; else ok; fi
+if ls "$STATE" | grep -vE '^(playwright-allowed-origins|playwright-allowed-origins\.flock|playwright-navigate-pending)$' | grep -q .; then ng "書き込みに失敗した一時ファイルが残った（$(ls "$STATE" | tr '\n' ' ')）"; else ok; fi
 if [ ! -e "$LIST.lock" ]; then ok; else ng "書き込みに失敗したときに、ロックが残った"; fi
 
 # 末尾に改行のない一覧に足しても、行がつながらない
@@ -442,7 +502,8 @@ rm -rf "$HOME/.claude"
 
 # 13. 新しいタブを開く操作（browser_tabs）で URL を渡したときも、browser_navigate と同じように決める
 # tabs_input <PreToolUse|PostToolUse> <tool_use_id> <tool_input の JSON>
-tabs_input() { jq -n --arg e "$1" --arg id "$2" --argjson i "$3" '{hook_event_name: $e, tool_name: "mcp__playwright__browser_tabs", tool_use_id: $id, tool_input: $i}'; }
+# tabs_input <PreToolUse|PostToolUse> <tool_use_id> <tool_input の JSON> [tool_response の JSON]
+tabs_input() { jq -n --arg e "$1" --arg id "$2" --argjson i "$3" --argjson r "${4:-null}" '{hook_event_name: $e, tool_name: "mcp__playwright__browser_tabs", tool_use_id: $id, tool_input: $i} + (if $r == null then {} else {tool_response: $r} end)'; }
 # check_tabs <期待> <tool_input の JSON>
 check_tabs() {
   local got
@@ -482,7 +543,7 @@ for i in 'tool_input' 'null'; do
 done
 # 確かめて新しいタブで開けたサイトは一覧に足し、次から確かめない（browser_navigate でも確かめない）
 tabs_input PreToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' | bash "$PRE" >/dev/null
-out=$(tabs_input PostToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' | bash "$POST")
+out=$(tabs_input PostToolUse toolu_tabs_open '{"action": "new", "url": "http://localhost:6302/a"}' '{"content": [{"type": "text", "text": "### Open tabs\n- 0: [Test](http://localhost:6302/a)\n### Page\n- Page URL: http://localhost:6302/a\n"}]}' | bash "$POST")
 rc=$?
 if [ -z "$out" ] && [ "$rc" = 0 ]; then ok; else ng "新しいタブで開いた後の hook が失敗した（rc=$rc、$out）"; fi
 if grep -qx 'http://localhost:6302' "$LIST"; then ok; else ng "確かめて新しいタブで開けたサイトを一覧に足さない"; fi

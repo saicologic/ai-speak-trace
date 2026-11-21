@@ -85,6 +85,30 @@ while IFS= read -r name; do
   fi
 done < <(jq -r --arg p "$PREFIX" '[.sandbox.excludedCommands[], (.hooks[]?[]?.hooks[]?.command)] | .[] | select(startswith($p)) | ltrimstr($p) | split(" ")[0]' "$M" | sort -u)
 
+# hook・外で動かすスクリプトが読み込む lib のファイルも、リポジトリの bin/lib にあること（install.sh が bin/lib/* を入れる）
+for f in "$TEAM"/bin/*.sh "$TEAM"/bin/lib/*.sh; do
+  while IFS= read -r lib; do
+    if [ -f "$TEAM/bin/lib/$lib" ]; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      printf 'FAIL: %s が読み込む lib/%s が .claude/team/bin/lib にない\n' "$(basename "$f")" "$lib"
+    fi
+  done < <(grep -oE '(lib/|lib_dir/|\$lib_dir/)[A-Za-z0-9_.-]+\.(sh|mjs)' "$f" | sed -E 's#^.*/##' | sort -u)
+done
+# install.sh は、bin の *.sh と bin/lib の全部を、managed settings より先に入れる（設定だけが先に効いて、hook が見つからなくならないように）
+I="$TEAM/install.sh"
+line_of() { grep -nE "$1" "$I" | head -1 | cut -d: -f1; }
+bin_line=$(line_of 'install .*"\$src"/bin/\*\.sh ')
+lib_line=$(line_of 'install .*"\$src"/bin/lib/\* ')
+settings_line=$(line_of '^for name in managed-settings\.json managed-mcp\.json')
+if [ -n "$bin_line" ] && [ -n "$lib_line" ] && [ -n "$settings_line" ] && [ "$bin_line" -lt "$settings_line" ] && [ "$lib_line" -lt "$settings_line" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL: install.sh が、bin/*.sh・bin/lib/* を managed settings より先に入れていない（%s・%s・%s 行目）\n' "$bin_line" "$lib_line" "$settings_line"
+fi
+
 # 返答の最後のメッセージが英語のときは、止めて日本語で書き直させる（返答は日本語で書く決まりのため）
 expect "Stop で reply-language-check.sh を、command の hook として動かす" \
   '[.hooks.Stop[]? | .hooks[] | select(.type == "command" and .command == "/opt/claude-code-team/bin/reply-language-check.sh")] | length == 1' "$M"
