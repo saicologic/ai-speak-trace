@@ -75,13 +75,14 @@ describe('TranscriptionList の見た目', () => {
     vi.mocked(confirmDialog).mockReset();
   });
 
-  it('文字起こし履歴は、サイドバーの残りの高さを使う（最低の高さは中身から決まり、入りきらないときはサイドバー全体がスクロールする）', async () => {
+  it('文字起こし履歴は、サイドバーの残りの高さを使い、項目が多くても伸びずに一覧の中でスクロールさせる', async () => {
     const { container } = render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
     await screen.findByText('a.mp3');
 
     // transcription-list は、サイドバーの直接の子であることを確かめるための目印
     expect(classesOf(container.firstElementChild)).toEqual(
-      ['transcription-list', 'flex', 'flex-1', 'flex-col'].sort(),
+      // min-h-0 がないと、外枠が項目の全部の高さまで伸び、一覧ではなくサイドバー全体がスクロールする
+      ['transcription-list', 'flex', 'min-h-0', 'flex-1', 'flex-col'].sort(),
     );
   });
 
