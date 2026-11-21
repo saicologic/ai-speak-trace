@@ -265,7 +265,11 @@ if (mode === 'post-check') {
   // 決めないことを playwright-navigate-gate.sh に伝える（.sh は何も出さずに終え、ふだんの確認に任せる）
   if (mode === 'pre') process.stdout.write('NO_DECISION')
 } else if (mode === 'pre') {
-  const { origin, reason } = originOf(input.tool_input?.url)
+  const { origin, reason } =
+    input.tool_name === 'mcp__playwright__browser_tabs' && input.tool_input?.action !== 'new'
+      ? // 新しいタブ（new）以外の操作では URL は使われず、今のタブのページが結果に出るため、確かめたサイトとして足さないよう開かない
+        { reason: '新しいタブを開く（new）以外の操作に渡した URL' }
+      : originOf(input.tool_input?.url)
   if (!origin) {
     process.stdout.write(decision('deny', `${reason}のため開きません。Playwright MCP では http・https のサイトだけを開きます`))
   } else if (allowed().has(origin)) {
