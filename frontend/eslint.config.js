@@ -33,6 +33,20 @@ export default defineConfig([
     },
   },
   {
+    // ブラウザのテスト（Playwright）でも、テストを外して通ったことにしない
+    // （test.skip・test.only・test.fixme・test.describe.skip など。外すときは、理由を書いて eslint-disable する）
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression > MemberExpression.callee > Identifier.property[name=/^(skip|only|fixme)$/]",
+          message: 'テストを外さないでください',
+        },
+      ],
+    },
+  },
+  {
     // sidecar の API はトークンを付ける apiFetch で呼ぶ（fetch を直接使うと、トークンなしで断られる）
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/**/*.test.{ts,tsx}'],
