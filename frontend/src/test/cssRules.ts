@@ -16,12 +16,17 @@ export const allCss: Record<string, string> = Object.fromEntries(
 /** CSS の文字列から、コメントを除く */
 export const withoutComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
+/** CSS の文字列から、引用符で囲んだ文字列（エスケープした引用符を含む）の中身を空にする */
+const withoutStrings = (css: string): string =>
+  css.replace(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g, '""');
+
 /**
  * CSS の文字列から、ルールのセレクター（{ の前の部分）を取り出す
- * 宣言の値（content の文字・url() など）は、{ } の中にあるため含めない。@media などの条件も、ここでは含む
+ * 宣言の値（content の文字・url() など）は、{ } の中にあるため含めない。@media などの条件も、ここでは含む。
+ * 文字列の中の { } を、ルールの始まりと終わりに見なさないように、先に文字列の中身を空にする
  */
 const selectorsOf = (css: string): string[] =>
-  [...withoutComments(css).matchAll(/([^{};]+)\{/g)].map((m) => m[1].trim());
+  [...withoutStrings(withoutComments(css)).matchAll(/([^{};]+)\{/g)].map((m) => m[1].trim());
 
 /**
  * CSS の文字列が、目印のクラスをセレクターで指定しているか
