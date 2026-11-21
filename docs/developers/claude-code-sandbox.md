@@ -150,7 +150,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 |---|---|---|---|
 | `block-ai-speak-trace-secrets.sh` | Bash を動かす前 | アプリの API キーを含む設定ファイル・API・項目名に触れるコマンドを止める | `jq` が動かなければ止める |
 | `cr-limit-gate.sh` | Bash を動かす前 | CodeRabbit の枠切れの間、レビューを動かす操作（`gh pr create`・`git push` など）を止める | 枠を調べられなければ止めない |
-| `playwright-navigate-pre.sh` | Playwright MCP でページ・タブを開く前 | URL を見て、確認なしで開く・確かめる・開かない、を決める（下の「[Playwright MCP](#playwright-mcp)」） | 開かない（`onFailure: block`） |
+| `playwright-navigate-pre.sh` | Playwright MCP でページ・タブを開く前 | URL を見て、確認を省いて開く（一度許可したサイト）・確かめる・確認も出さずに止める、を決める（下の「[Playwright MCP](#playwright-mcp)」） | 開かない（`onFailure: block`） |
 | `playwright-navigate-post.sh` | Playwright MCP でページ・タブを開いた後 | 確認で許可して開けたサイトを、許可したサイトの一覧に足す（1 つずつ順に動く） | 足さずに理由を伝える（次も確認が出る） |
 | `watch-pr-checks.sh` | Bash を動かした後 | push・PR の作成の後に、`wait-pr-checks.sh` で CI と CodeRabbit を監視するよう伝える | 何もしない |
 | `reply-language-check.sh` | 返答の終わり（Stop） | 返答の最後のメッセージが英語なら、日本語で書き直させる（下の「[返答の言語の確認](#返答の言語の確認)」） | 止めない |
@@ -193,14 +193,16 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 
 ### ページを開くときの判断
 
+確認は残したまま、一度許可したサイトは覚えて、次から確認を省きます。危険な URL は、確認も出さずに止めます。
+
 | URL | 判断 |
 |---|---|
-| 許可したサイト（初めは開発用の画面の `http://localhost:5173`・`http://127.0.0.1:5173`） | 確認なしで開く |
-| 初めてのサイト | 確かめる。確認で許可して開けたら、一覧に足し、次からは確かめない |
-| http・https 以外の URL（`file:`・`data:`・`javascript:` など） | 開かない |
-| `http://`・`https://` で始まらない書き方（`http:/localhost:5173` など。Playwright MCP が前に `https://` を付けるため、判断したサイトと開くサイトがずれる） | 開かない |
-| ユーザー名・パスワードの付いた URL・文字列でない URL | 開かない |
-| URL を確かめられないとき（Node が見つからない・判断のスクリプトが失敗した・hook が起動できない・時間切れ） | 開かない |
+| 覚えたサイト（一度許可したサイト。初めは開発用の画面の `http://localhost:5173`・`http://127.0.0.1:5173`） | 確認を省いて開く |
+| 初めてのサイト | これまでどおり確認する。確認で許可して、そのサイトのページに着いたときだけ覚え（一覧に足し）、次から確認を省く |
+| http・https 以外の URL（`file:`・`data:`・`javascript:` など） | 確認も出さずに止める |
+| `http://`・`https://` で始まらない書き方（`http:/localhost:5173` など。Playwright MCP が前に `https://` を付けるため、判断したサイトと開くサイトがずれる） | 確認も出さずに止める |
+| ユーザー名・パスワードの付いた URL・文字列でない URL | 確認も出さずに止める |
+| URL を確かめられないとき（Node が見つからない・判断のスクリプトが失敗した・hook が起動できない・時間切れ） | 確認も出さずに止める |
 
 - hook はサンドボックスの外で動くため、受け取った `PATH`・`NODE_OPTIONS`・`PERL5OPT`・`PERL5LIB`・`PERLLIB` を使いません。Node は、Playwright MCP と同じ決めた場所（`/opt/homebrew/opt/node@24/bin`・`/usr/local/opt/node@24/bin`・`/opt/homebrew/bin`・`/usr/local/bin` など）から探します
 - 確認で許可したかは、開く前の hook が `tool_use_id` ごとに記録し、開いた後の hook がその呼び出しだけを一覧に足します（確認せずに開いた呼び出しや、URL が変わったときは足しません）
@@ -210,7 +212,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 
 ### 許可したサイトの一覧
 
-- 一覧は `~/.claude/state/playwright-allowed-origins` です（1 行に 1 つのオリジン。`#` で始まる行は読み飛ばします）
+- 一度許可して覚えたサイトの一覧は `~/.claude/state/playwright-allowed-origins` です（1 行に 1 つのオリジン。`#` で始まる行は読み飛ばします）
 - Claude Code からは書き換えられません（サンドボックスの中からは書けず、ファイルを書くツールも managed settings の deny で止めます）
 - 初めから許可するサイト（`http://localhost:5173`・`http://127.0.0.1:5173`）は、一覧のファイルではなく `.claude/team/bin/lib/playwright-navigate-gate.mjs` で決めているため、一覧の行を消しても外れません（外すときは、そのファイルを変える PR を出します）
 - そのほかのサイトを外すときは、その行を自分で消します。hook は一覧全体を読み直して書き換えるため、Claude Code がページを開いていないときに直します（足している最中に直すと、直した内容が戻ることがあります）
@@ -243,7 +245,7 @@ hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、�
 | Claude Code に確認なしで許可するコマンド | `.claude/settings.json` の `permissions.allow` |
 | 禁止するコマンド・読み取り | `.claude/team/managed-settings.json` の `permissions.deny` |
 | `github.sh`・hook などの動き | `.claude/team/bin/`（テストは `.claude/team/tests/`） |
-| Playwright MCP で確認なしで開くサイト | 各自の `~/.claude/state/playwright-allowed-origins`（確認で許可すると足されます。初めから許可するサイトは `.claude/team/bin/lib/playwright-navigate-gate.mjs`） |
+| Playwright MCP で確認を省いて開くサイト（覚えたサイト） | 各自の `~/.claude/state/playwright-allowed-origins`（確認で許可すると足されます。初めから許可するサイトは `.claude/team/bin/lib/playwright-navigate-gate.mjs`） |
 
 どれも PR で変えます（各自の一覧を除く）。`.claude/team/tests/managed-settings.test.sh` が、サンドボックスを切る・通信先に `*` や GitHub を入れる・外で動かすものにインストール先以外を入れる、などの変更を止めます。個人の設定（`~/.claude/settings.json`・`.claude/settings.local.json`）で、守りを弱めないでください（managed settings の項目は上書きできません）。
 
