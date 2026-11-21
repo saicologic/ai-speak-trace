@@ -4,6 +4,17 @@ import { PageLayout } from '../PageLayout';
 /** components のフォルダの CSS ファイル（Tailwind に移した部品の CSS が残っていないかを確かめる） */
 const componentCssFiles = Object.keys(import.meta.glob('../*.css'));
 
+/** src の全部の CSS ファイルの中身（Tailwind に移した部品の指定が、どの CSS ファイルにも残っていないかを確かめる） */
+const allCss = import.meta.glob<string>('../../**/*.css', { query: '?raw', import: 'default', eager: true });
+
+/** 目印のクラスを指定している CSS ファイルを探す（.a.b・.a:hover・a > .b などを含む。.a-b のような別の名前は除く） */
+const cssFilesSelecting = (className: string): string[] => {
+  const pattern = new RegExp(`\\.${className}(?![\\w-])`);
+  return Object.entries(allCss)
+    .filter(([, css]) => pattern.test(css.replace(/\/\*[\s\S]*?\*\//g, '')))
+    .map(([path]) => path);
+};
+
 /** 要素のクラスを、並びを問わない集まりにする */
 const classesOf = (element: Element | null): string[] =>
   element ? Array.from(element.classList).sort() : [];
@@ -64,5 +75,13 @@ describe('PageLayout', () => {
     expect(componentCssFiles).not.toContain('../PageLayout.css');
     // 探し方がまちがっていないことを、ほかの画面の CSS が見つかることで確かめる
     expect(componentCssFiles).toContain('../SettingsPage.css');
+  });
+
+  it('ほかの CSS ファイルでも、目印のクラスに見た目を指定しない', () => {
+    for (const name of ['page-layout', 'page-layout-fixed', 'page-layout-scroll']) {
+      expect(cssFilesSelecting(name)).toEqual([]);
+    }
+    // 探し方がまちがっていないことを、画面の CSS のクラスが見つかることで確かめる
+    expect(cssFilesSelecting('settings-page')).toEqual(['../SettingsPage.css']);
   });
 });

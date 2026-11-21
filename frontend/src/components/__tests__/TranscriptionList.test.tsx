@@ -62,6 +62,17 @@ describe('TranscriptionList の削除', () => {
 /** components のフォルダの CSS ファイル（Tailwind に移した部品の CSS が残っていないかを確かめる） */
 const componentCssFiles = Object.keys(import.meta.glob('../*.css'));
 
+/** src の全部の CSS ファイルの中身（Tailwind に移した部品の指定が、どの CSS ファイルにも残っていないかを確かめる） */
+const allCss = import.meta.glob<string>('../../**/*.css', { query: '?raw', import: 'default', eager: true });
+
+/** 目印のクラスを指定している CSS ファイルを探す（.a.b・.a:hover・a > .b などを含む。.a-b のような別の名前は除く） */
+const cssFilesSelecting = (className: string): string[] => {
+  const pattern = new RegExp(`\\.${className}(?![\\w-])`);
+  return Object.entries(allCss)
+    .filter(([, css]) => pattern.test(css.replace(/\/\*[\s\S]*?\*\//g, '')))
+    .map(([path]) => path);
+};
+
 /** 要素のクラスを、並びを問わない集まりにする */
 const classesOf = (element: Element | null): string[] =>
   element ? Array.from(element.classList).sort() : [];
@@ -138,6 +149,15 @@ describe('TranscriptionList の見た目', () => {
     expect(deleteButton.parentElement).toHaveClass('group', 'relative');
   });
 
+  it('削除ボタンは、項目の右上に重ね、項目の名前と重ならないように名前の右に余白をとる', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    const deleteButton = await screen.findByRole('button', { name: 'a.mp3 の文字起こしを削除' });
+    // li の relative を基準に、項目の右上に置く（absolute がないと、ボタンが項目の下に回り込む）
+    expect(deleteButton).toHaveClass('absolute', 'top-[0.4rem]', 'right-[0.4rem]');
+    expect(screen.getByText('a.mp3')).toHaveClass('pr-10');
+  });
+
   it('削除しているあいだは、削除ボタンを見えたままにする', async () => {
     vi.mocked(confirmDialog).mockResolvedValue(true);
     vi.mocked(deleteTranscription).mockReturnValue(new Promise(() => {}));
@@ -174,5 +194,11 @@ describe('TranscriptionList の見た目', () => {
     expect(componentCssFiles).not.toContain('../TranscriptionList.css');
     // 探し方がまちがっていないことを、ほかの画面の CSS が見つかることで確かめる
     expect(componentCssFiles).toContain('../SettingsPage.css');
+  });
+
+  it('ほかの CSS ファイルでも、目印のクラスに見た目を指定しない', () => {
+    expect(cssFilesSelecting('transcription-list')).toEqual([]);
+    // 探し方がまちがっていないことを、画面の CSS のクラスが見つかることで確かめる
+    expect(cssFilesSelecting('settings-page')).toEqual(['../SettingsPage.css']);
   });
 });
