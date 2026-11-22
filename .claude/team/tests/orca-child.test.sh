@@ -28,16 +28,16 @@ mkdir -p "$children"
 mkdir -p "$tmp/bin"
 # orca の代わり: 呼ばれた引数を1つずつ NUL で区切って記録し、--name の子ワークツリーを作って、その場所を JSON で答える
 #   FAKE_ORCA_RC: その終了コードで終わる（子ワークツリーは作らない）
-#   FAKE_ORCA_OUT: 答える JSON（子ワークツリーの場所を答えない・2つ答えるときに使う）
+#   FAKE_ORCA_OUT: 答える JSON（子ワークツリーの場所を答えない・2つ答えるときに使う）。このときは子ワークツリーを作らない
 cat >"$tmp/bin/orca" <<EOF
 #!/bin/bash
 printf '%s\0' "\$@" >"$tmp/orca-called"
 [ "\${FAKE_ORCA_RC:-0}" = 0 ] || exit "\$FAKE_ORCA_RC"
 name=""
 while [ \$# -gt 0 ]; do [ "\$1" = --name ] && name=\$2; shift; done
+if [ -n "\${FAKE_ORCA_OUT-}" ]; then printf '%s\n' "\$FAKE_ORCA_OUT"; exit 0; fi
 mkdir -p "$children/\$name"
 : >"$children/\$name/.git"
-if [ -n "\${FAKE_ORCA_OUT-}" ]; then printf '%s\n' "\$FAKE_ORCA_OUT"; exit 0; fi
 printf '{"ok":true,"result":{"worktree":{"id":"repo1::%s","path":"%s","branch":"x"}}}\n' "$children/\$name" "$children/\$name"
 EOF
 chmod +x "$tmp/bin/orca"
@@ -196,15 +196,18 @@ rc=$?
 if [ "$rc" -eq 0 ] && [ -e "$tmp/orca-called" ] && [ "$(called_args | head -2 | tr '\n' ' ')" = "worktree create " ]; then ok; else ng "ORCA_CLI_COMMAND（rc=$rc）: $out"; fi
 mv "$tmp/bin/orca.off" "$tmp/bin/orca"
 # ORCA_CLI_COMMAND は1つのコマンドとして扱い、空白で分けて別のコマンドを動かさない
-rm -f "$tmp/injected"
+rm -f "$tmp/injected" "$tmp/orca-called"
 out=$(cd "$repo" && ORCA_CLI_COMMAND="touch $tmp/injected" bash "$BIN/orca-child.sh" fix/x 2>&1)
-if [ ! -e "$tmp/injected" ]; then ok; else ng "ORCA_CLI_COMMAND を空白で分けた: $out"; fi
+rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$tmp/injected" ] && [ ! -e "$tmp/orca-called" ]; then ok; else ng "ORCA_CLI_COMMAND を空白で分けた・orca を代わりに呼んだ（rc=$rc）: $out"; fi
 
 # orca が失敗したら、その終了コードで終わる
 rm -rf "${children:?}"/*
-out=$(cd "$repo" && FAKE_ORCA_RC=3 bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+mkdir -p "$children/x"
+: >"$children/x/.git"
+out=$(cd "$repo" && FAKE_ORCA_RC=3 FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
 rc=$?
-if [ "$rc" -eq 3 ]; then ok; else ng "orca の失敗（rc=$rc）: $out"; fi
+if [ "$rc" -eq 3 ] && [ ! -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "orca の失敗（rc=$rc）: $out"; fi
 
 # orca の答えから子ワークツリーの場所が1つに決まらないときは、写さずに失敗で終わる（作ったことは伝える）
 # （2つの場所は、どちらも実在するワークツリーにする）
@@ -212,10 +215,32 @@ mkdir -p "$tmp/other/x"
 : >"$tmp/other/x/.git"
 for o in '{"ok":true}' "{\"a\":\"$children/x\",\"b\":\"$tmp/other/x\"}" "{\"path\":\"$tmp/none/x\"}"; do
   rm -rf "${children:?}"/*
+  mkdir -p "$children/x"
+  : >"$children/x/.git"
   out=$(cd "$repo" && FAKE_ORCA_OUT="$o" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
   rc=$?
   if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ] && [ ! -e "$tmp/other/x/.claude/briefs/x.md" ]; then ok; else ng "子ワークツリーの場所が決まらない $o（rc=$rc）: $out"; fi
 done
+
+# 子ワークツリーのフォルダはあっても .git がないときは、写さない
+rm -rf "${children:?}"/*
+mkdir -p "$children/x"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude" ]; then ok; else ng ".git のない子ワークツリーに写した（rc=$rc）: $out"; fi
+# orca の答えた場所が、呼び出したワークツリーそのものなら、写さない
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$repo\"}" bash "$BIN/orca-child.sh" fix/repo origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$briefs/repo.md" ]; then ok; else ng "呼び出したワークツリーに写した（rc=$rc）: $out"; fi
+rm -f "$briefs/repo.md"
+# 写す先にふつうのファイルがすでにあれば、上書きしない
+rm -rf "${children:?}"/*
+mkdir -p "$children/x/.claude/briefs"
+: >"$children/x/.git"
+printf '前からある\n' >"$children/x/.claude/briefs/x.md"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ "$(cat "$children/x/.claude/briefs/x.md")" = "前からある" ]; then ok; else ng "写す先のファイルを上書きした（rc=$rc）: $out"; fi
 
 # 子ワークツリーの .claude/briefs がリンクで外を指していたら、写さない
 rm -rf "${children:?}"/*
@@ -294,6 +319,20 @@ rejected "空の依頼文" fix/x origin/main "$briefs/empty.md"
 mkdir -p "$scratch_top/notscratch"
 printf '依頼\n' >"$scratch_top/notscratch/brief.md"
 rejected "スクラッチパッドでない /tmp/claude-<uid>" fix/x origin/main "$scratch_top/notscratch/brief.md"
+# スクラッチパッドは /tmp/claude-<uid>/<プロジェクト>/<セッション>/scratchpad/ の段の数だけ（途中に scratchpad があるだけの深いパスは断る）
+mkdir -p "$scratch_top/a/b/scratchpad"
+printf '依頼\n' >"$scratch_top/a/b/scratchpad/brief.md"
+rejected "段の多いスクラッチパッド" fix/x origin/main "$scratch_top/a/b/scratchpad/brief.md"
+mkdir -p "$scratch_top/scratchpad"
+printf '依頼\n' >"$scratch_top/scratchpad/brief.md"
+rejected "段の少ないスクラッチパッド" fix/x origin/main "$scratch_top/scratchpad/brief.md"
+# スクラッチパッドの中のフォルダは通る
+mkdir -p "$scratch/sub"
+printf 'サブ\n' >"$scratch/sub/brief.md"
+rm -rf "${children:?}"/*
+run fix/x origin/main "$scratch/sub/brief.md"
+if [ "$rc" -eq 0 ] && [ "$(cat "$children/x/.claude/briefs/x.md" 2>/dev/null)" = "サブ" ]; then ok; else ng "スクラッチパッドの中のフォルダ（rc=$rc）: $out"; fi
+
 # uid の違うスクラッチパッドの形（Claude Code のサンドボックスの中では /tmp の直下に作れないため、作れたときだけ確かめる。CI では作れる）
 other="/tmp/claude-$(id -u)-orca-child-test-$$"
 if mkdir -p "$other/a/b/scratchpad" 2>/dev/null; then
@@ -322,9 +361,10 @@ mv "$tmp/dotclaude.real" "$repo/.claude"
 mv "$tmp/briefs.real" "$briefs"
 
 # リポジトリの外（git のワークツリーでない場所）からは、.claude/briefs の依頼文を受け付けない
+rm -f "$tmp/orca-called"
 out=$(cd "$tmp" && bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
 rc=$?
-if [ "$rc" -eq 1 ]; then ok; else ng "ワークツリーの外から（rc=$rc）: $out"; fi
+if [ "$rc" -eq 1 ] && [ ! -e "$tmp/orca-called" ]; then ok; else ng "ワークツリーの外から（rc=$rc）: $out"; fi
 
 # .env* の名前のファイル・フォルダの中のものは、中を読まずに名前で断る
 # （サンドボックスの中では .env* を消せないため、ファイルは作らず、断った理由が .env であることを確かめる）
@@ -348,6 +388,7 @@ done
 # 呼び出すリポジトリの git の設定に、認めていない項目（外でコマンドを動かせるもの）があれば断る
 git -C "$repo" config core.fsmonitor "touch $tmp/fsmonitor-ran"
 rejected "認めていない git の設定" fix/x origin/main "$briefs/brief.md"
+if [ ! -e "$tmp/fsmonitor-ran" ]; then ok; else ng "git の設定のコマンドが動いた"; fi
 git -C "$repo" config --unset core.fsmonitor
 
 # 秘密の情報の形は github.sh の SECRET_RE と同じにする（片方だけ直して、ずれないように）
