@@ -33,10 +33,11 @@ function getIntentClass(intent: string): string {
 /**
  * モーダルの白い箱
  * 今までの画面と同じく、幅は 440px までにし、文字は中央に寄せる。
- * 箱の中の段落（AI が生成した内容の注意・誤りの報告の案内）は、少し大きい灰色の文字にし、下をあける
+ * 画面が低くても見出しと「閉じる」に届くよう、高さは画面の 90% までにし、箱の中をスクロールする。
+ * 中の段落すべてに効く指定は付けない（AI が生成した内容の注意・誤りの報告の案内の見た目を、それぞれの部品に任せる）
  */
 const contentClass =
-  'w-[90%] max-w-[440px] rounded-xl bg-white p-8 text-center shadow-[0_20px_60px] shadow-black/30 [&_p]:mb-6 [&_p]:text-base-plus [&_p]:leading-[1.7] [&_p]:text-gray-700';
+  'max-h-[90vh] w-[90%] max-w-[440px] overflow-y-auto rounded-xl bg-white p-8 text-center shadow-[0_20px_60px] shadow-black/30';
 
 /** 発言の文脈分析結果モーダル */
 export function ContextAnalysisModal({ analysis, speakers, onClose }: Props) {
