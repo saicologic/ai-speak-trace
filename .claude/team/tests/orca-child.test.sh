@@ -207,11 +207,14 @@ rc=$?
 if [ "$rc" -eq 3 ]; then ok; else ng "orca の失敗（rc=$rc）: $out"; fi
 
 # orca の答えから子ワークツリーの場所が1つに決まらないときは、写さずに失敗で終わる（作ったことは伝える）
+# （2つの場所は、どちらも実在するワークツリーにする）
+mkdir -p "$tmp/other/x"
+: >"$tmp/other/x/.git"
 for o in '{"ok":true}' "{\"a\":\"$children/x\",\"b\":\"$tmp/other/x\"}" "{\"path\":\"$tmp/none/x\"}"; do
   rm -rf "${children:?}"/*
   out=$(cd "$repo" && FAKE_ORCA_OUT="$o" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
   rc=$?
-  if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "子ワークツリーの場所が決まらない $o（rc=$rc）: $out"; fi
+  if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ] && [ ! -e "$tmp/other/x/.claude/briefs/x.md" ]; then ok; else ng "子ワークツリーの場所が決まらない $o（rc=$rc）: $out"; fi
 done
 
 # 子ワークツリーの .claude/briefs がリンクで外を指していたら、写さない
