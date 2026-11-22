@@ -11,6 +11,7 @@
 | バックエンドの外への通信の制限を知りたい | [バックエンドの外への通信の制限と記録](network-egress.md)を参照してください |
 | 新しい画面を作りたい | [画面の外枠とスクロール](screen-layout.md)を参照してください（ヘッダーとタブを固定し、本文だけをスクロールする） |
 | Claude Code で開発したい | 最初に [Claude Code のサンドボックスと GitHub への操作](claude-code-sandbox.md)の手順で、チーム共通の設定を入れてください |
+| Dependabot の PR を扱いたい | [Dependabot の PR の対応](dependabot.md)を参照してください（`main` に直接マージせず、`release/vX.Y.Z` を通す） |
 
 ## 前提条件
 

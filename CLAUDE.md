@@ -171,9 +171,30 @@ ai-speak-trace/
 
 `fix/*`・`feature/*` を直接 `main` にマージしない（`release/*` から作成したブランチも同様。PRの宛先が `release/vX.Y.Z` になっていることをマージ前に確認する）。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
 
-ただし、ビルドに影響しないファイル（Markdownファイル・`docs/` 等。下の「ビルド対象ファイルの管理」のビルド不要なファイル）だけを変える場合は、`main` へ直接PRを作ってよい。DMGの中身が変わらないため、`release/*` を経由させると中身が同じリリースが増えるだけになる。ビルドが必要なファイルを1つでも含む場合は、この例外を使わない。
-
 `release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
+
+ただし、Markdownファイルと `docs/` だけを変える場合は、`main` へ直接PRを作ってよい。DMGの中身も作り方も変わらないため、`release/*` を経由させると中身が同じリリースが増えるだけになる。それ以外のファイルを1つでも含む場合は、この例外を使わない。
+
+- `.github/`（ワークフロー・`dependabot.yml`）は、この例外に含めない。DMG の作り方（`release.yml`・`tag-release.yml`）やリリースの流れを変えるため、`main` に直接入れると、新しいワークフローが本番のリリースで初めて動くことになる
+- 下の「ビルド対象ファイルの管理」の「ビルド不要なファイル」は、PR の CI で macOS のビルドを飛ばすかどうかの一覧で、`main` へ直接PRを作ってよいかの一覧ではない（`.github/`・`.claude/` などはビルド不要でも `release/*` を通す）
+
+### Dependabot の PR の対応
+
+詳細は `docs/developers/dependabot.md` に書く。
+
+- エコシステム（npm・cargo・github-actions）に関係なく、Dependabot の PR は `main` に直接マージしない。宛先を `release/vX.Y.Z` に変えてから入れる
+  - DMG に影響するもの: `backend/`・`frontend/`・`src-tauri/` の依存、DMG を作るワークフロー（`release.yml`・`tag-release.yml`）
+  - DMG に影響しないもの（例: `dependabot-comment.yml` だけの更新）も、`.github/` は上の例外に含めないため、同じく `release/*` を通す
+- 手順
+  1. `main` から `release/vX.Y.Z` を作り、`src-tauri/tauri.conf.json` のバージョンを更新する（作成・push はユーザーが行う）
+  2. Claude Code が `github.sh pr edit <番号> --base release/vX.Y.Z` で宛先を変える（PR への書き込みなので、毎回ユーザーに確かめる）
+  3. CI が通ったら `release/vX.Y.Z` にマージする
+  4. `release/vX.Y.Z` → `main` の前に、`release.yml` を `workflow_dispatch` でリリースブランチに対して動かし、DMG の artifact ができることを確かめる
+  5. `release: vX.Y.Z` を `main` にマージする
+- 勧告（GHSA・RUSTSEC）を直す更新はパッチリリースにする。勧告のない版上げは、次のパッチリリースに一緒に入れてよい
+- Dependabot の PR には `no-tdd` ラベルを付ける
+- Actions のメジャー版上げは、マージの前に公式のリリースノートで互換を確かめる。`workflow_run` で動くもの（`dependabot-comment.yml`）は、マージした後でしか確かめられないことを PR に書く
+- セキュリティの更新は、`dependabot.yml` の `target-branch` に関係なく、いつも `main` 宛てに来る（[公式](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)）。そのため、宛先の変更は毎回必要になる
 
 ## CIワークフロー管理
 
@@ -181,7 +202,7 @@ ai-speak-trace/
 
 `build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。`release/*` 宛ての PR では、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。
 
-- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）・Playwright のブラウザのテスト（`frontend/e2e/`・`frontend/playwright.config.ts`・`frontend/tsconfig.e2e.json`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
+- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）・Playwright のブラウザのテスト（`frontend/e2e/`・`frontend/playwright.config.ts`・`frontend/tsconfig.e2e.json`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない（CI のビルドを飛ばすだけで、`main` へ直接PRを作ってよいのは Markdownファイルと `docs/` だけ。上の「リリース手順」の例外を参照）
 - **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` 以外のファイルと、Markdownファイル（`.claude/team/`・`.claude/settings.json`・`.github/scripts/` は `backend/src/lint` のテストが確かめるため、`backend-test` を動かす）
 - 一覧にないファイルはビルドする。ビルド不要なファイルを新しく足す場合だけ、`changes` ジョブの一覧に足す
 
