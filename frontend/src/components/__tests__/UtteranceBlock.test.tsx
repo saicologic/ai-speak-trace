@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { UtteranceBlock } from '../UtteranceBlock';
+import { allCss } from '../../test/cssRules';
 import type { Utterance, Speaker } from '../../types';
 
 vi.mock('../WordSpan', () => ({
@@ -123,5 +124,51 @@ describe('UtteranceBlock', () => {
     render(<UtteranceBlock {...defaultProps} onTimeClick={undefined} />);
     // エラーなく動作すること
     fireEvent.click(screen.getByText('1:05 - 2:05'));
+  });
+});
+
+describe('UtteranceBlock の見た目', () => {
+  it('発話は、白いカードに話者の色の左の線を付け、左右に並べたときは残りの幅を使う', () => {
+    const { container } = render(<UtteranceBlock {...defaultProps} />);
+    // utterance-block は、テストで発話のブロックを探すための目印
+    const block = container.querySelector('.utterance-block');
+    expect(block).toHaveClass(
+      'mb-4',
+      'flex-1',
+      'rounded-r-lg',
+      'border-l-4',
+      'border-l-gray-500',
+      'bg-white',
+      'px-4',
+      'py-3',
+      'shadow-[0_1px_2px]',
+      'shadow-black/4',
+    );
+  });
+
+  it('押せる発話は、カーソルを乗せると薄い灰色にし、押せない発話は変えない', () => {
+    const { container, rerender } = render(<UtteranceBlock {...defaultProps} clickable />);
+    expect(container.querySelector('.utterance-block')).toHaveClass('cursor-pointer', 'hover:bg-gray-50');
+    rerender(<UtteranceBlock {...defaultProps} clickable={false} />);
+    expect(container.querySelector('.utterance-block')).not.toHaveClass('cursor-pointer', 'hover:bg-gray-50');
+  });
+
+  it('押せる時刻は、カーソルを乗せると青くし、押せない時刻は灰色のままにする', () => {
+    const { rerender } = render(<UtteranceBlock {...defaultProps} onTimeClick={vi.fn()} />);
+    expect(screen.getByText('1:05 - 2:05')).toHaveClass('text-xs', 'text-gray-400', 'cursor-pointer', 'hover:bg-blue-50', 'hover:text-blue-500');
+    rerender(<UtteranceBlock {...defaultProps} />);
+    expect(screen.getByText('1:05 - 2:05')).toHaveClass('text-xs', 'text-gray-400');
+    expect(screen.getByText('1:05 - 2:05')).not.toHaveClass('cursor-pointer');
+  });
+
+  it('話者名は太字、本文は少し大きい文字で行の間を広くとる', () => {
+    render(<UtteranceBlock {...defaultProps} />);
+    expect(screen.getByText('Aさん')).toHaveClass('text-md', 'font-semibold');
+    expect(screen.getByTestId('word-こんにちは').parentElement).toHaveClass('text-base-plus', 'leading-[1.8]');
+  });
+
+  it('UtteranceBlock.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(Object.keys(allCss)).not.toContain('components/UtteranceBlock.css');
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });
