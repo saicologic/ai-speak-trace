@@ -129,6 +129,8 @@ describe('TranscribePage の見た目', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(checkAudioFileExists).mockResolvedValue(false);
+    // ほかのテストでブラウザに切り替えたままにしないよう、デスクトップアプリ（Tauri）に戻す
+    vi.mocked(isTauri).mockReturnValue(true);
   });
 
   it('画面の背景は薄い灰色にし、ヘッダーは紺にする', () => {
