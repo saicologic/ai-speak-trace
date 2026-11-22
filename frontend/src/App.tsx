@@ -31,13 +31,15 @@ import {
 import type { Transcription, ContextAnalysisResponse } from './types';
 
 
-/**
- * モーダルの外側と白い箱（ご利用枠の上限・文脈分析中）
- * 箱の中の段落は、今までの CSS（.modal-content p）と同じく、少し大きい灰色の文字にし、下をあける
- */
+/** モーダルの外側と白い箱（ご利用枠の上限・文脈分析中） */
 const modalOverlayClass = 'fixed top-0 left-0 z-[1000] flex size-full items-center justify-center bg-black/50';
 const modalContentClass =
-  'w-[90%] max-w-[440px] rounded-xl bg-white p-8 text-center shadow-[0_20px_60px] shadow-black/30 [&_p]:mb-6 [&_p]:text-base-plus [&_p]:leading-[1.7] [&_p]:text-gray-700';
+  'w-[90%] max-w-[440px] rounded-xl bg-white p-8 text-center shadow-[0_20px_60px] shadow-black/30';
+/**
+ * モーダルの説明の段落：少し大きい灰色の文字にし、下をあける
+ * 箱の中の段落すべてに効く指定にすると、詳しい説明（赤）など、ほかの段落の見た目まで上書きするため、段落ごとに付ける
+ */
+const modalTextClass = 'mb-6 text-base-plus leading-[1.7] text-gray-700';
 /** 読み込み中の丸 */
 const loadingSpinnerClass = 'mb-4 size-10 animate-spin-fast rounded-full border-3 border-gray-200 border-t-primary';
 /** サイドバーのボタン（文字起こし・ジョブ・ディープサーチ）：押せないときは灰色にする */
@@ -388,7 +390,7 @@ function App() {
             {quotaError && (
               <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-md font-medium whitespace-pre-line text-red-800">{quotaError}</p>
             )}
-            <p>
+            <p className={modalTextClass}>
               現在の文字起こしプランの利用枠を超えたため、処理を実行できません。プランの変更が必要です。<br />
               <a href="https://elevenlabs.io/pricing" target="_blank" rel="noopener noreferrer">プランの詳細をご覧ください。</a>
             </p>
@@ -562,7 +564,7 @@ function App() {
         <div className={modalOverlayClass}>
           <div className={modalContentClass}>
             <div className={loadingSpinnerClass} />
-            <p>発言の文脈を分析中...</p>
+            <p className={modalTextClass}>発言の文脈を分析中...</p>
           </div>
         </div>
       )}
