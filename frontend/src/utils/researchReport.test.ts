@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildReport, splitTopics, topicHighlights } from './researchReport';
+import { buildReport, citeClassOf, splitTopics, topicHighlights } from './researchReport';
 import type { ReportCitation } from '../types/research';
 
 const conv: ReportCitation = { sourceKind: 'conversation', sourceId: 't1', title: '前編.mp3', citedText: '原文' };
@@ -43,6 +43,9 @@ describe('buildReport', () => {
     // 会話の根拠は紫、Web の根拠は緑にする
     expect(Array.from(chips[0].classList)).toEqual(expect.arrayContaining(['bg-violet-100', 'text-violet-800']));
     expect(Array.from(chips[1].classList)).toEqual(expect.arrayContaining(['bg-emerald-50', 'text-emerald-800']));
+    expect(Array.from(chips[2].classList)).toEqual(expect.arrayContaining(['bg-violet-100', 'text-violet-800']));
+    expect(Array.from(chips[0].classList)).not.toContain('bg-emerald-50');
+    expect(Array.from(chips[1].classList)).not.toContain('bg-violet-100');
     expect(html).not.toContain('⟦');
   });
 
@@ -105,5 +108,16 @@ describe('topicHighlights', () => {
     ]);
     expect(oneLiner).toBeNull();
     expect(hasDifference).toBe(true);
+  });
+});
+
+describe('citeClassOf', () => {
+  it('話題になった発言の一覧では、左をあけず、少し大きくする（目印と色は本文と同じ）', () => {
+    const inList = citeClassOf('conversation', true).split(' ');
+    expect(inList).toEqual(expect.arrayContaining(['research-cite', 'ml-0', 'text-xs', 'bg-violet-100']));
+    expect(inList).not.toContain('ml-[0.3rem]');
+    const inBody = citeClassOf('conversation').split(' ');
+    expect(inBody).toEqual(expect.arrayContaining(['research-cite', 'ml-[0.3rem]', 'text-2xs']));
+    expect(inBody).not.toContain('ml-0');
   });
 });

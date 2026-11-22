@@ -107,9 +107,13 @@ describe('InterviewPage の見た目', () => {
     expect(container.querySelector('.interview-logs-layout')).toHaveClass('flex', 'min-h-0', 'flex-1', 'overflow-hidden');
     const item = (await screen.findByText('Aさん')).closest('button');
     expect(item).toHaveClass('block', 'w-full', 'border-b', 'border-b-gray-200', 'px-4', 'py-3', 'text-left', 'bg-transparent', 'hover:bg-gray-200');
+    expect(item).not.toHaveClass('border-l-primary');
     expect(item?.parentElement).toHaveClass('flex', 'w-[260px]', 'shrink-0', 'flex-col', 'overflow-y-auto', 'border-r', 'border-gray-200', 'bg-gray-50');
     fireEvent.click(item!);
     expect(item).toHaveClass('border-l-3', 'border-l-primary', 'bg-blue-50');
+    // 選んだ項目は、カーソルを乗せても色を変えない
+    expect(item).not.toHaveClass('bg-transparent');
+    expect(Array.from(item!.classList).filter((c) => c.startsWith('hover:'))).toEqual([]);
 
     const question = await screen.findByRole('heading', { name: 'Q1: 質問その1' });
     expect(question).toHaveClass('mb-3', 'text-base-plus', 'font-semibold', 'text-blue-800');

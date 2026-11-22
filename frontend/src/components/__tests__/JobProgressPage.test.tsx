@@ -200,6 +200,17 @@ describe('JobProgressPage の見た目', () => {
     );
   });
 
+  it('処理中のチャンクは、青い点線の枠にし、読み込み中の丸を回す', async () => {
+    vi.mocked(fetchJobDetail).mockResolvedValue({ ...staleJob, isProcessing: true });
+    render(<JobProgressPage {...defaultProps} />);
+    // 状態の文にも同じ言葉が出るため、チャンクの本文（div）を探す
+    const placeholder = await screen.findByText('文字起こし中...', { selector: 'div' });
+    expect(placeholder).toHaveClass('flex', 'items-center', 'gap-2', 'text-gray-400');
+    expect(placeholder.parentElement).toHaveClass('rounded-lg', 'border', 'border-dashed', 'border-blue-300');
+    expect(placeholder.parentElement).not.toHaveClass('border-gray-200');
+    expect(placeholder.firstElementChild).toHaveClass('animate-spin-fast', 'rounded-full', 'border-t-primary');
+  });
+
   it('JobProgressPage.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
     expect(Object.keys(allCss)).not.toContain('components/JobProgressPage.css');
     expect(Object.keys(allCss)).toContain('index.css');

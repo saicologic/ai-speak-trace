@@ -150,7 +150,8 @@ describe('UtteranceBlock の見た目', () => {
     const { container, rerender } = render(<UtteranceBlock {...defaultProps} clickable />);
     expect(container.querySelector('.utterance-block')).toHaveClass('cursor-pointer', 'hover:bg-gray-50');
     rerender(<UtteranceBlock {...defaultProps} clickable={false} />);
-    expect(container.querySelector('.utterance-block')).not.toHaveClass('cursor-pointer', 'hover:bg-gray-50');
+    expect(container.querySelector('.utterance-block')).not.toHaveClass('cursor-pointer');
+    expect(container.querySelector('.utterance-block')).not.toHaveClass('hover:bg-gray-50');
   });
 
   it('押せる時刻は、カーソルを乗せると青くし、押せない時刻は灰色のままにする', () => {

@@ -267,7 +267,8 @@ describe('TranscriptionView の見た目', () => {
   it('発話を選ばないときは、間をあけず、カーソルを乗せても色を変えない', () => {
     render(<TranscriptionView {...defaultProps} />);
     expect(wrapperOf('Bさん')).toHaveClass('flex', 'items-start');
-    expect(wrapperOf('Bさん')).not.toHaveClass('gap-3', 'hover:bg-purple-50');
+    expect(wrapperOf('Bさん')).not.toHaveClass('gap-3');
+    expect(wrapperOf('Bさん')).not.toHaveClass('hover:bg-purple-50');
   });
 
   it('会話に飛んだ発言は、背景の色を 2 秒で消すアニメーションで目立たせる', () => {
@@ -278,6 +279,8 @@ describe('TranscriptionView の見た目', () => {
       render(<TranscriptionView {...defaultProps} scrollToUtteranceIndex={1} />);
       expect(scrollIntoView).toHaveBeenCalled();
       expect(wrapperOf('Bさん')).toHaveClass('animate-jump-highlight');
+      // 飛んでいない発言は目立たせない
+      expect(screen.getByText('こんにちは').parentElement?.parentElement).not.toHaveClass('animate-jump-highlight');
     } finally {
       delete (Element.prototype as Partial<Element>).scrollIntoView;
     }

@@ -177,7 +177,8 @@ describe('SettingsPage の見た目', () => {
     expect(heading.parentElement).toHaveClass('mb-6', 'rounded-[10px]', 'border', 'border-gray-200', 'bg-white', 'p-6');
     const folder = screen.getByRole('heading', { name: 'データ保存先' });
     expect(folder).toHaveClass('text-lg', 'font-semibold', 'text-gray-800');
-    expect(folder).not.toHaveClass('border-b', 'mb-4');
+    expect(folder).not.toHaveClass('border-b');
+    expect(folder).not.toHaveClass('mb-4');
   });
 
   it('AI 分析の状態は、使えるときは緑、足りない設定があるときは黄色にする', async () => {

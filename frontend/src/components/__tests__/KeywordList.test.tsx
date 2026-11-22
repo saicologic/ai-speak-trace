@@ -85,7 +85,9 @@ describe('KeywordList の見た目', () => {
     const { rerender } = render(<KeywordList {...props({ contextSelectMode: true })} />);
     const context = screen.getByRole('button', { name: '発言の文脈（選択中...）' });
     expect(context).toHaveClass('bg-blue-800');
-    expect(context).not.toHaveClass('bg-primary', 'enabled:hover:bg-primary-hover');
+    // not.toHaveClass は、渡したクラスが全部そろったときだけ失敗するため、1 つずつ確かめる
+    expect(context).not.toHaveClass('bg-primary');
+    expect(context).not.toHaveClass('enabled:hover:bg-primary-hover');
     rerender(<KeywordList {...props({ contextSelectMode: false })} />);
     expect(screen.getByRole('button', { name: '発言の文脈' })).toHaveClass('bg-primary', 'enabled:hover:bg-primary-hover');
   });
@@ -110,10 +112,14 @@ describe('KeywordList の見た目', () => {
     expect(active).toHaveClass('border-yellow-400', 'bg-yellow-100');
     expect(Array.from(active.classList).filter((c) => c.startsWith('hover:'))).toEqual([]);
     expect(screen.getByText('3')).toHaveClass('bg-amber-200', 'text-amber-800');
+    expect(active).not.toHaveClass('bg-white');
+    expect(screen.getByText('3')).not.toHaveClass('bg-gray-100');
 
     const inactive = screen.getByRole('button', { name: '型チェック2' });
     expect(inactive).toHaveClass('border-gray-200', 'bg-white', 'hover:border-amber-200', 'hover:bg-yellow-50');
     expect(screen.getByText('2')).toHaveClass('bg-gray-100', 'text-gray-400');
+    expect(inactive).not.toHaveClass('bg-yellow-100');
+    expect(screen.getByText('2')).not.toHaveClass('bg-amber-200');
   });
 
   it('「フィルター」ボタンは、絞り込んでいる間は青くし、押せないときは薄くする', () => {
@@ -123,6 +129,7 @@ describe('KeywordList の見た目', () => {
     const filter = screen.getByRole('button', { name: 'フィルター' });
     expect(filter).toBeDisabled();
     expect(filter).toHaveClass('bg-white', 'text-gray-500', 'disabled:opacity-40');
+    expect(filter).not.toHaveClass('bg-primary');
   });
 
   it('キーワードの一覧だけがスクロールする', () => {

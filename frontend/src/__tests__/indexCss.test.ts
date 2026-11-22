@@ -1,4 +1,5 @@
 import indexCss from '../index.css?raw';
+import { allCss } from '../test/cssRules';
 
 /** CSS の文字列から、コメントを除く */
 const withoutComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -67,6 +68,12 @@ const steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
  * Tailwind CSS の色・文字の大きさ・クラスを使えるようにする。
  * まだ Tailwind に移していない画面の見た目を変えないように、Preflight（ブラウザの既定のスタイルを消す部分）は読み込まない
  */
+describe('src の CSS', () => {
+  it('画面の見た目は Tailwind のクラスで書き、src に残す CSS は index.css だけにする（@layer の外の CSS は Tailwind のクラスより強いため）', () => {
+    expect(Object.keys(allCss)).toEqual(['index.css']);
+  });
+});
+
 describe('index.css', () => {
   it('Tailwind の theme と utilities を読み込み、Preflight は読み込まない', () => {
     const css = withoutComments(indexCss);
