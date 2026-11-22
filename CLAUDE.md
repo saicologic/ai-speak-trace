@@ -189,7 +189,7 @@ ai-speak-trace/
   1. `main` から `release/vX.Y.Z` を作り、`src-tauri/tauri.conf.json` のバージョンを更新する（作成・push はユーザーが行う）
   2. Claude Code が `github.sh pr edit <番号> --base release/vX.Y.Z` で宛先を変える（PR への書き込みなので、毎回ユーザーに確かめる）
   3. CI が通ったら `release/vX.Y.Z` にマージする
-  4. `release/vX.Y.Z` → `main` の前に、`release.yml` を `workflow_dispatch` でリリースブランチに対して動かし、DMG の artifact ができることを確かめる
+  4. `release/vX.Y.Z` → `main` の PR で、`build`（`build.yml` の署名ありの macOS のビルド）が通ることを確かめる。`release.yml` をリリースブランチから `workflow_dispatch` で動かさない（リリースノートの段で止まる。そこを直すと、`main` へのマージ前にリリースが公開される）
   5. `release: vX.Y.Z` を `main` にマージする
 - 勧告（GHSA・RUSTSEC）を直す更新はパッチリリースにする。勧告のない版上げは、次のパッチリリースに一緒に入れてよい
 - Dependabot の PR には `no-tdd` ラベルを付ける
