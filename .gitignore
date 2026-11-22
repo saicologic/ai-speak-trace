@@ -48,3 +48,6 @@ backend/ginza/
 # ログデータ
 backend/data/analysis-logs/*.json
 backend/data/summary-logs/*.json
+
+# Claude Code が子ワークツリーに渡す依頼文（orca-child.sh）
+.claude/briefs/
