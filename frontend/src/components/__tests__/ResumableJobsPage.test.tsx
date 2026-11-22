@@ -58,6 +58,14 @@ describe('ResumableJobsPage の見た目', () => {
     expect(screen.getByText('failed.mp3')).toHaveClass('truncate', 'text-base-plus', 'font-semibold', 'text-gray-900');
   });
 
+  it('空白のない長いファイル名は、カードを横にはみ出させず、ファイル名を省略する', () => {
+    renderPage([job({ id: 'long', audioFileName: `${'a'.repeat(200)}.mp3` })]);
+    const name = screen.getByText(`${'a'.repeat(200)}.mp3`);
+    expect(name).toHaveClass('truncate');
+    // ボタンは、中身の幅より縮められるようにする（付けないと、truncate が効かずに横にはみ出す）
+    expect(name.closest('button')).toHaveClass('min-w-0');
+  });
+
   it('状態のバッジは、失敗は赤、中断は橙、処理中は青、完了は緑にする', () => {
     renderPage();
     expect(screen.getByText('失敗')).toHaveClass('rounded-sm', 'text-xs', 'font-semibold', 'bg-red-50', 'text-red-600');
