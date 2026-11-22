@@ -4,7 +4,6 @@ import type { ChunkedJobDetail } from '../api/client';
 import { formatTime } from '../utils/transcription';
 import { confirmDialog } from '../utils/platform';
 import { PageLayout } from './PageLayout';
-import './ResumableJobsPage.css';
 
 interface ResumableJobsPageProps {
   jobs: ChunkedJobDetail[];
@@ -12,6 +11,13 @@ interface ResumableJobsPageProps {
   onSelectJob: (jobId: string) => void;
   onJobsDeleted: (deletedIds: string[]) => void;
 }
+
+/** ジョブの状態ごとのバッジの色 */
+const statusColorOf = (job: ChunkedJobDetail): string => {
+  if (job.status === 'completed') return 'bg-green-50 text-green-600';
+  if (job.status === 'failed') return 'bg-red-50 text-red-600';
+  return job.isProcessing ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600';
+};
 
 /** ジョブ進捗確認ページ */
 export function ResumableJobsPage({
@@ -73,28 +79,32 @@ export function ResumableJobsPage({
 
   return (
     <PageLayout
-      className="resumable-jobs-page"
+      className="bg-gray-50"
       header={
-        <div className="resumable-jobs-header">
-          <button className="resumable-jobs-back-button" onClick={onBack}>
+        <div className="flex items-center gap-4 bg-brand px-8 py-4 text-white">
+          <button
+            className="rounded-md border border-white/30 bg-transparent px-[0.8rem] py-[0.4rem] text-md text-white transition-colors duration-150 hover:bg-white/10"
+            onClick={onBack}
+          >
             ← 戻る
           </button>
-          <h1>ジョブ進捗確認</h1>
+          <h1 className="text-xl font-semibold">ジョブ進捗確認</h1>
         </div>
       }
     >
-      <div className="resumable-jobs-content">
+      <div className="mx-auto w-full max-w-[720px] flex-1 p-8">
         {jobs.length === 0 ? (
-          <div className="resumable-jobs-empty">
+          <div className="py-12 text-center text-base-plus text-gray-500">
             <p>進行中のジョブはありません</p>
           </div>
         ) : (
           <>
             {/* 全選択・削除バー */}
-            <div className="resumable-jobs-toolbar">
-              <label className="resumable-jobs-select-all">
+            <div className="mb-4 flex items-center justify-between">
+              <label className="flex cursor-pointer items-center gap-[0.4rem] text-md text-gray-700 select-none">
                 <input
                   type="checkbox"
+                  className="size-4 cursor-pointer"
                   checked={selectedIds.size === jobs.length}
                   onChange={handleToggleAll}
                 />
@@ -102,7 +112,7 @@ export function ResumableJobsPage({
               </label>
               {selectedIds.size > 0 && (
                 <button
-                  className="resumable-jobs-delete-button"
+                  className="rounded-md border-none bg-danger px-4 py-[0.4rem] text-md font-semibold text-white transition-colors duration-150 enabled:hover:bg-danger-hover disabled:cursor-not-allowed disabled:bg-gray-400"
                   onClick={handleDelete}
                   disabled={isDeleting}
                 >
@@ -111,37 +121,30 @@ export function ResumableJobsPage({
               )}
             </div>
 
-            <div className="resumable-jobs-list">
+            <div className="flex flex-col gap-3">
               {jobs.map((job) => (
-                <div key={job.id} className="resumable-job-card-wrapper">
+                <div key={job.id} className="flex items-stretch gap-3">
                   <label
-                    className="resumable-job-checkbox"
+                    className="flex cursor-pointer items-center px-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <input
                       type="checkbox"
+                      className="size-[18px] cursor-pointer"
                       checked={selectedIds.has(job.id)}
                       onChange={() => handleToggle(job.id)}
                     />
                   </label>
                   <button
-                    className="resumable-job-card"
+                    className="flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-gray-200 bg-white px-5 py-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-[0_1px_4px] hover:shadow-blue-500/15"
                     onClick={() => onSelectJob(job.id)}
                   >
-                    <div className="resumable-job-card-header">
-                      <span className="resumable-job-card-name">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-base-plus font-semibold text-gray-900">
                         {job.audioFileName}
                       </span>
                       <span
-                        className={`resumable-job-card-status ${
-                          job.status === 'completed'
-                            ? 'resumable-job-card-status--completed'
-                            : job.status === 'failed'
-                              ? 'resumable-job-card-status--failed'
-                              : job.isProcessing
-                                ? 'resumable-job-card-status--processing'
-                                : 'resumable-job-card-status--interrupted'
-                        }`}
+                        className={`shrink-0 rounded-sm px-2 py-[0.15rem] text-xs font-semibold ${statusColorOf(job)}`}
                       >
                         {job.status === 'completed' ? '完了'
                           : job.status === 'failed' ? '失敗'
@@ -149,10 +152,10 @@ export function ResumableJobsPage({
                           : '中断'}
                       </span>
                     </div>
-                    <div className="resumable-job-card-progress">
-                      <div className="resumable-job-card-progress-bar">
+                    <div className="flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-[3px] bg-gray-200">
                         <div
-                          className="resumable-job-card-progress-fill"
+                          className="h-full rounded-[3px] bg-primary transition-[width] duration-300"
                           style={{
                             width: `${
                               job.totalChunks > 0
@@ -163,11 +166,11 @@ export function ResumableJobsPage({
                           }}
                         />
                       </div>
-                      <span className="resumable-job-card-progress-text">
+                      <span className="shrink-0 text-sm text-gray-500">
                         {job.completedChunks.length}/{job.totalChunks} チャンク完了
                       </span>
                     </div>
-                    <div className="resumable-job-card-meta">
+                    <div className="flex justify-between text-sm text-gray-400">
                       <span>
                         音声の長さ: {formatTime(job.totalDurationSec)}
                       </span>
