@@ -82,3 +82,12 @@ export const logsDetailEmptyClass = 'flex h-full items-center justify-center tex
 export const logsDetailHeaderClass = 'mb-6 border-b border-gray-200 pb-4';
 export const logsDetailMetaClass = 'mb-3 flex items-center gap-4';
 export const logsDetailDateClass = 'text-sm text-gray-400';
+
+/** 過去の結果の一覧の項目に出す、使ったモデル・会話の名前（要約・ディープサーチ） */
+export const logItemModelClass = 'mt-[0.2rem] truncate text-2xs text-gray-400';
+
+/** 実行が終わったことの知らせと、結果へのリンク（要約・ディープサーチ） */
+export const completedClass = 'mt-5 flex items-center gap-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4';
+export const completedMessageClass = 'text-base font-medium text-green-700';
+export const completedLinkClass =
+  'cursor-pointer border-none bg-transparent p-0 text-base text-blue-700 underline hover:text-blue-800';

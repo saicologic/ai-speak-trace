@@ -31,9 +31,13 @@ import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
 import {
+  completedClass,
+  completedLinkClass,
+  completedMessageClass,
   logItemClassOf,
   logItemDateClass,
   logItemKeywordsClass,
+  logItemModelClass,
   logsDetailClass,
   logsDetailEmptyClass,
   logsEmptyClass,
@@ -44,7 +48,6 @@ import {
   tabClassOf,
   tabsClass,
 } from './interviewPageClasses';
-import './SummaryPage.css';
 import './ResearchPage.css';
 
 interface Props {
@@ -560,9 +563,9 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           )}
 
           {job?.status === 'completed' && (
-            <div className="summary-completed">
-              <span className="summary-completed-message">✓ 調査が完了しました。</span>
-              <button className="summary-completed-link" onClick={() => handleShowResult(job)}>
+            <div className={completedClass}>
+              <span className={completedMessageClass}>✓ 調査が完了しました。</span>
+              <button className={completedLinkClass} onClick={() => handleShowResult(job)}>
                 調査結果を見る →
               </button>
             </div>
@@ -608,7 +611,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                       : j.keywords.slice(0, 2).join('・') +
                         (j.keywords.length > 2 ? ` 他${j.keywords.length - 2}件` : '')}
                   </div>
-                  <div className="summary-log-model">
+                  <div className={logItemModelClass}>
                     {j.transcriptionIds.map((id) => j.transcriptionNames[id] ?? id).join('、')}
                   </div>
                 </button>
