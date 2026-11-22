@@ -136,7 +136,7 @@ export function ResumableJobsPage({
                     />
                   </label>
                   <button
-                    className="flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-gray-200 bg-white px-5 py-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-[0_1px_4px] hover:shadow-blue-500/15"
+                    className="flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-gray-200 bg-white px-5 py-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-[0_1px_4px] hover:shadow-blue-500/15"
                     onClick={() => onSelectJob(job.id)}
                   >
                     <div className="flex items-center justify-between gap-2">
