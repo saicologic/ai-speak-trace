@@ -24,6 +24,7 @@ describe('.claude/team のテスト', () => {
         'cr-review.test.sh',
         'github.test.sh',
         'managed-settings.test.sh',
+        'orca-child.test.sh',
         'playwright-mcp.test.sh',
         'playwright-navigate-gate.test.sh',
         'reply-language-check.test.sh',
