@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { TranscriptionWord } from '../types';
-import './WordSpan.css';
 
 interface Props {
   word: TranscriptionWord;
@@ -9,6 +8,11 @@ interface Props {
   onClick: () => void;
   onTimeClick?: (startTime: number) => void;
 }
+
+/** 単語：選んだ単語は濃い青にし、カーソルを乗せても色を変えない */
+const wordClass = 'cursor-pointer rounded-xs py-px transition-colors duration-150';
+const selectedWordClass = 'bg-blue-500/30';
+const unselectedWordClass = 'hover:bg-blue-500/15';
 
 /** 時間を mm:ss 形式に変換 */
 function formatTime(seconds: number): string {
@@ -58,7 +62,7 @@ function renderHighlightedText(
 
   return parts.map((part, i) =>
     expanded.has(part) ? (
-      <mark key={i} className="keyword-highlight">
+      <mark key={i} className="rounded-xs bg-yellow-200 px-px">
         {part}
       </mark>
     ) : (
@@ -86,7 +90,7 @@ export function WordSpan({
 
   if (word.type === 'audio_event') {
     return (
-      <span className="word-audio-event" title={`${formatTime(word.start)}`}>
+      <span className="text-[0.85em] text-gray-400 italic" title={`${formatTime(word.start)}`}>
         {word.text}
       </span>
     );
@@ -94,7 +98,7 @@ export function WordSpan({
 
   return (
     <span
-      className={`word-span ${isSelected ? 'selected' : ''}`}
+      className={`${wordClass} ${isSelected ? selectedWordClass : unselectedWordClass}`}
       onClick={() => {
         onClick();
         onTimeClick?.(word.start);
