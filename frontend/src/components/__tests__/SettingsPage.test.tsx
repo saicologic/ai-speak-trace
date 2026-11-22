@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SettingsPage from '../SettingsPage';
 import { fetchSettings, updateSettings } from '../../api/client';
 import type { AppSettings } from '../../types';
+import { allCss } from '../../test/cssRules';
 
 vi.mock('../../api/client');
 
@@ -151,5 +152,69 @@ describe('SettingsPage', () => {
     expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
     expect(fixed).toContainElement(screen.getByRole('heading', { name: '設定', level: 1 }));
     expect(scroll).toContainElement(await screen.findByText('設定済み（末尾 1234）'));
+  });
+});
+
+describe('SettingsPage の見た目', () => {
+  beforeEach(() => {
+    vi.mocked(fetchSettings).mockReset().mockResolvedValue(settings());
+  });
+
+  it('画面の背景は薄い灰色にし、ヘッダーは紺にする', async () => {
+    const { container } = render(<SettingsPage onBack={vi.fn()} />);
+    await screen.findByText('設定済み（末尾 1234）');
+    expect(container.firstElementChild).toHaveClass('bg-gray-50');
+    const back = screen.getByRole('button', { name: '← 戻る' });
+    expect(back.parentElement).toHaveClass('flex', 'items-center', 'gap-4', 'bg-brand', 'px-8', 'py-4', 'text-white');
+    expect(back).toHaveClass('rounded-md', 'border-white/30', 'bg-transparent', 'text-md', 'text-white', 'hover:bg-white/10');
+    expect(screen.getByRole('heading', { name: '設定', level: 1 })).toHaveClass('text-xl', 'font-semibold');
+  });
+
+  it('設定は白いカードに分け、見出しの下に線を引く（ボタンと並べる見出しは線を引かない）', async () => {
+    render(<SettingsPage onBack={vi.fn()} />);
+    const heading = await screen.findByRole('heading', { name: '文字起こし' });
+    expect(heading).toHaveClass('mb-4', 'border-b', 'border-gray-100', 'pb-3', 'text-lg', 'font-semibold', 'text-gray-800');
+    expect(heading.parentElement).toHaveClass('mb-6', 'rounded-[10px]', 'border', 'border-gray-200', 'bg-white', 'p-6');
+    const folder = screen.getByRole('heading', { name: 'データ保存先' });
+    expect(folder).toHaveClass('text-lg', 'font-semibold', 'text-gray-800');
+    expect(folder).not.toHaveClass('border-b');
+    expect(folder).not.toHaveClass('mb-4');
+  });
+
+  it('AI 分析の状態は、使えるときは緑、足りない設定があるときは黄色にする', async () => {
+    const { unmount } = render(<SettingsPage onBack={vi.fn()} />);
+    expect(await screen.findByRole('status')).toHaveClass('rounded-lg', 'text-md', 'font-semibold', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
+    unmount();
+    vi.mocked(fetchSettings).mockResolvedValue(settings({ guardrail: { id: '', version: '' } }));
+    render(<SettingsPage onBack={vi.fn()} />);
+    expect(await screen.findByRole('status')).toHaveClass('border-amber-200', 'bg-amber-50', 'text-amber-800');
+  });
+
+  it('API キーの入力欄は、表示ボタンの分だけ右をあけ、表示ボタンは入力欄の右に重ねる', async () => {
+    render(<SettingsPage onBack={vi.fn()} />);
+    const input = (await screen.findAllByPlaceholderText('変更する場合だけ、新しいキーを入力'))[0];
+    expect(input).toHaveClass('w-full', 'rounded-lg', 'border-gray-200', 'px-3', 'py-2', 'pr-14', 'text-md', 'focus:border-primary');
+    fireEvent.change(input, { target: { value: 'sk-test' } });
+    expect(screen.getByRole('button', { name: '表示' })).toHaveClass('absolute', 'right-2', 'top-1/2', '-translate-y-1/2', 'border-primary', 'text-primary', 'hover:bg-primary', 'hover:text-white');
+  });
+
+  it('「保存」ボタンは青くし、押せないときは薄くする', async () => {
+    render(<SettingsPage onBack={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: '保存' })).toHaveClass(
+      'rounded-lg',
+      'border-none',
+      'bg-primary',
+      'px-6',
+      'py-[0.6rem]',
+      'text-base',
+      'text-white',
+      'enabled:hover:bg-primary-hover',
+      'disabled:opacity-50',
+    );
+  });
+
+  it('SettingsPage.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(Object.keys(allCss)).not.toContain('components/SettingsPage.css');
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });

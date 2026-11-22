@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FeedbackButton } from '../FeedbackButton';
+import { allCss } from '../../test/cssRules';
 import { fetchFeedback, submitFeedback } from '../../api/client';
 import type { Feedback } from '../../types';
 
@@ -91,5 +92,51 @@ describe('FeedbackButton', () => {
         expect.objectContaining({ feature: 'research', targetId: 'job-1', transcriptionIds: ['t1', 't2'] }),
       ),
     );
+  });
+});
+
+describe('FeedbackButton の見た目', () => {
+  beforeEach(() => {
+    vi.mocked(fetchFeedback).mockReset().mockResolvedValue([]);
+  });
+
+  it('「誤りを報告」は小さい白いボタンにし、報告した誤りは赤い枠で出す', async () => {
+    vi.mocked(fetchFeedback).mockResolvedValue([report()]);
+    render(<FeedbackButton feature="summary" targetId="log-1" transcriptionId="t1" />);
+    const title = await screen.findByText('報告した誤り（1件）');
+    expect(title).toHaveClass('mb-1', 'font-semibold');
+    expect(title.parentElement).toHaveClass('mb-2', 'rounded-md', 'border-red-200', 'bg-red-50', 'text-red-900');
+    expect(screen.getByText('元の会話・出典にない内容')).toHaveClass('mr-[0.4rem]', 'font-semibold');
+    expect(screen.getByRole('button', { name: '誤りを報告' })).toHaveClass(
+      'rounded-md',
+      'border-gray-300',
+      'bg-white',
+      'text-xs',
+      'text-gray-700',
+      'hover:bg-gray-50',
+    );
+  });
+
+  it('報告のフォームは灰色の枠にし、入力欄は小さい文字で、画面と同じ字体にする', () => {
+    render(<FeedbackButton feature="summary" targetId="" transcriptionId="t1" />);
+    fireEvent.click(screen.getByRole('button', { name: '誤りを報告' }));
+    const hint = screen.getByText(/報告はこの Mac にだけ保存し/);
+    expect(hint).toHaveClass('mb-2', 'text-xs', 'text-gray-500');
+    expect(hint.parentElement).toHaveClass('rounded-md', 'border-gray-200', 'bg-gray-50', 'p-3');
+    for (const field of [screen.getByRole('combobox'), screen.getAllByRole('textbox')[0], screen.getAllByRole('textbox')[1]]) {
+      expect(field).toHaveClass('rounded-sm', 'border-gray-300', 'text-sm', '[font-family:inherit]');
+    }
+  });
+
+  it('「報告する」は青く、「キャンセル」は白くする', () => {
+    render(<FeedbackButton feature="summary" targetId="" transcriptionId="t1" />);
+    fireEvent.click(screen.getByRole('button', { name: '誤りを報告' }));
+    expect(screen.getByRole('button', { name: '報告する' })).toHaveClass('border-blue-600', 'bg-blue-600', 'text-white');
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toHaveClass('border-gray-300', 'bg-white', 'disabled:opacity-50');
+  });
+
+  it('FeedbackButton.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(Object.keys(allCss)).not.toContain('components/FeedbackButton.css');
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });

@@ -14,7 +14,6 @@ import type { Transcription } from '../types';
 import { CREDITS_PER_MINUTE, formatTime, formatDuration } from '../utils/transcription';
 import { confirmDialog, isTauri } from '../utils/platform';
 import { PageLayout } from './PageLayout';
-import './TranscribePage.css';
 
 // Podcastキャッシュフォルダの相対パス（HOMEからの相対）
 const PODCAST_CACHE_RELATIVE =
@@ -64,6 +63,17 @@ interface TranscribePageProps {
 }
 
 type Step = 'select' | 'preview' | 'transcribing' | 'done';
+
+/** 手順ごとの白いカードと、その見出し */
+const sectionClass = 'rounded-[10px] border border-gray-200 bg-white p-6';
+const sectionHeadingClass = 'mb-4 text-lg font-semibold text-gray-800';
+/** 文字起こし中の状態の文と、補足 */
+const processingTextClass = 'mb-2 text-lg font-medium text-gray-700';
+const processingHintClass = 'text-center text-sm text-gray-400';
+/** クレジットが足りないときの文（次回リセットの日時も、今までの CSS と同じく同じ見た目にする） */
+const creditWarningTextClass = 'mb-1 text-sm font-medium text-red-800';
+/** 完了の画面のボタンに共通の、余白・文字の大きさ */
+const doneButtonClass = 'rounded-lg px-6 py-[0.6rem] text-base font-medium transition-all duration-150';
 
 /** 音声ファイルの文字起こしページ */
 export function TranscribePage({
@@ -356,23 +366,26 @@ export function TranscribePage({
 
   return (
     <PageLayout
-      className="transcribe-page"
+      className="bg-gray-50"
       header={
-        <div className="transcribe-header">
-          <button className="transcribe-back-button" onClick={onBack}>
+        <div className="flex items-center gap-4 bg-brand px-8 py-4 text-white">
+          <button
+            className="rounded-md border border-white/30 bg-transparent px-[0.8rem] py-[0.4rem] text-md text-white transition-colors duration-150 hover:bg-white/10"
+            onClick={onBack}
+          >
             ← 戻る
           </button>
-          <h1>音声ファイルの文字起こし</h1>
+          <h1 className="text-xl font-semibold">音声ファイルの文字起こし</h1>
         </div>
       }
     >
-      <div className="transcribe-content">
+      <div className="mx-auto w-full max-w-[600px] flex-1 p-8">
         {error && (
-          <div className="transcribe-error">
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 [&_p]:mb-2 [&_p:last-child]:mb-0">
             {isQuotaExceeded ? (
               <>
-                <p className="transcribe-error-title">クレジット不足</p>
-                <p className="transcribe-error-detail">{error}</p>
+                <p className="text-base-plus font-semibold">クレジット不足</p>
+                <p className="rounded-sm bg-black/4 p-2 font-[monospace] text-sm whitespace-pre-wrap">{error}</p>
                 <p>ElevenLabsのクレジットが不足しています。プランをアップグレードするか、クレジットが回復するまでお待ちください。</p>
               </>
             ) : (
@@ -380,7 +393,7 @@ export function TranscribePage({
             )}
             {isApiKeyMissing && (
               <button
-                className="transcribe-settings-link"
+                className="inline-block rounded-md border-none bg-primary px-4 py-[0.4rem] text-md font-medium text-white transition-colors duration-150 hover:bg-primary-hover"
                 onClick={onNavigateSettings}
               >
                 設定画面を開く
@@ -392,10 +405,10 @@ export function TranscribePage({
 
         {/* ステップ1: ファイル選択 */}
         {step === 'select' && (
-          <div className="transcribe-section">
-            <h2>音声ファイルを選択</h2>
+          <div className={sectionClass}>
+            <h2 className={sectionHeadingClass}>音声ファイルを選択</h2>
             <button
-              className="transcribe-select-button"
+              className="mb-3 w-full rounded-xl border-2 border-dashed border-gray-300 bg-[#fafbfc] p-6 text-lg font-medium text-gray-700 transition-all duration-150 hover:border-blue-300 hover:bg-blue-50 hover:text-gray-800"
               onClick={handleSelectClick}
             >
               ファイルを選択
@@ -407,7 +420,7 @@ export function TranscribePage({
               hidden
               onChange={handleBrowserFileChange}
             />
-            <p className="transcribe-formats">
+            <p className="text-center text-xs text-gray-400">
               対応形式: MP3, WAV, M4A, OGG, FLAC, AAC, MP4, WebM
             </p>
           </div>
@@ -415,58 +428,62 @@ export function TranscribePage({
 
         {/* ステップ2: プレビュー再生 + 文字起こし */}
         {step === 'preview' && file && (
-          <div className="transcribe-section">
-            <h2>音声ファイルの確認</h2>
-            <div className="transcribe-file-info">
-              <span className="transcribe-file-name">{file.name}</span>
-              <span className="transcribe-file-size">({formatFileSize(file.size)})</span>
+          <div className={sectionClass}>
+            <h2 className={sectionHeadingClass}>音声ファイルの確認</h2>
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+              <span className="flex-1 text-base font-medium break-all text-green-800">{file.name}</span>
+              <span className="text-sm whitespace-nowrap text-gray-500">({formatFileSize(file.size)})</span>
               <button
-                className="transcribe-file-change"
+                className="rounded-sm border border-gray-300 bg-white px-2 py-1 text-xs text-gray-500 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
                 onClick={handleReset}
               >
                 変更
               </button>
             </div>
             {audioDurationSec !== null && (
-              <p className="transcribe-audio-duration">
+              <p className="mb-2 text-sm text-gray-500">
                 音声の長さ: {formatDuration(audioDurationSec)}
                 （推定処理時間: 約{formatDuration(estimateProcessingTime(audioDurationSec))}）
               </p>
             )}
             {/* クレジット情報 */}
             {creditCheckLoading && (
-              <p className="transcribe-credit-loading">クレジット情報を確認中...</p>
+              <p className="mb-2 text-sm font-medium text-blue-600">クレジット情報を確認中...</p>
             )}
             {creditCheckError && (
-              <p className="transcribe-credit-error">
+              <p className="mb-2 text-sm text-amber-600">
                 クレジット確認エラー: {creditCheckError}
               </p>
             )}
             {creditInfo && (
-              <div className={`transcribe-credit-info ${!isCreditSufficient ? 'transcribe-credit-insufficient' : ''}`}>
-                <div className="transcribe-credit-row">
+              <div
+                className={`mb-4 rounded-lg border px-4 py-3 text-md ${
+                  isCreditSufficient ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                }`}
+              >
+                <div className={`flex justify-between py-[0.2rem] ${isCreditSufficient ? 'text-gray-700' : 'text-red-800'}`}>
                   <span>残りクレジット</span>
                   <span>{creditInfo.remainingCredits.toLocaleString()} / {creditInfo.characterLimit.toLocaleString()}</span>
                 </div>
                 {estimatedCredits !== null && (
-                  <div className="transcribe-credit-row">
+                  <div className={`flex justify-between py-[0.2rem] ${isCreditSufficient ? 'text-gray-700' : 'text-red-800'}`}>
                     <span>推定必要クレジット</span>
                     <span>{estimatedCredits.toLocaleString()}</span>
                   </div>
                 )}
                 {!isCreditSufficient && (
-                  <div className="transcribe-credit-warning">
-                    <p>クレジットが不足しています。</p>
+                  <div className="mt-2 border-t border-red-200 pt-2">
+                    <p className={creditWarningTextClass}>クレジットが不足しています。</p>
                     <a
                       href="https://elevenlabs.io/subscription"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="transcribe-credit-link"
+                      className="mb-1 inline-block text-sm text-primary underline hover:text-primary-hover"
                     >
                       ElevenLabsダッシュボードでプランを確認
                     </a>
                     {creditInfo.nextResetDate && (
-                      <p className="transcribe-credit-reset">
+                      <p className={creditWarningTextClass}>
                         次回リセット: {new Date(creditInfo.nextResetDate).toLocaleDateString('ja-JP', {
                           year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
                         })}
@@ -476,12 +493,13 @@ export function TranscribePage({
                 )}
               </div>
             )}
-            <div className="transcribe-preview-player">
-              <audio controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
+            <div className="mb-4">
+              <audio className="w-full" controls src={previewUrl} onLoadedMetadata={handleLoadedMetadata} />
             </div>
-            <label className="transcribe-consent">
+            <label className="mt-4 mb-3 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left text-md text-gray-700">
               <input
                 type="checkbox"
+                className="mt-[0.2rem] shrink-0"
                 checked={consentConfirmed}
                 onChange={(e) => setConsentConfirmed(e.target.checked)}
               />
@@ -490,7 +508,7 @@ export function TranscribePage({
               </span>
             </label>
             <button
-              className="transcribe-start-button"
+              className="w-full rounded-lg border-none bg-primary p-3 text-lg font-semibold text-white transition-colors duration-150 enabled:hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-gray-400"
               onClick={handleTranscribe}
               disabled={
                 creditCheckLoading ||
@@ -506,12 +524,12 @@ export function TranscribePage({
 
         {/* ステップ3: 文字起こし中 */}
         {step === 'transcribing' && (
-          <div className="transcribe-section">
-            <div className="transcribe-processing">
-              <div className="transcribe-spinner" />
+          <div className={sectionClass}>
+            <div className="flex flex-col items-center px-4 py-12">
+              <div className="mb-4 size-10 animate-spin-fast rounded-full border-3 border-gray-200 border-t-primary" />
               {chunkProgress && chunkProgress.totalChunks > 1 ? (
                 <>
-                  <p className="transcribe-processing-text">
+                  <p className={processingTextClass}>
                     {chunkProgress.status === 'initializing'
                       ? '文字起こしを準備中...'
                       : chunkProgress.status === 'splitting'
@@ -521,29 +539,29 @@ export function TranscribePage({
                           : `チャンク ${chunkProgress.currentChunkIndex + 1}/${chunkProgress.totalChunks} を文字起こし中...`}
                     {' '}{formatTime(elapsedSeconds)} 経過
                   </p>
-                  <div className="transcribe-progress-bar">
+                  <div className="my-3 h-2 w-full overflow-hidden rounded-sm bg-gray-200">
                     <div
-                      className="transcribe-progress-fill"
+                      className="h-full rounded-sm bg-primary transition-[width] duration-500 ease-[ease]"
                       style={{
                         width: `${(chunkProgress.completedChunks.length / chunkProgress.totalChunks) * 100}%`,
                       }}
                     />
                   </div>
-                  <p className="transcribe-processing-hint">
+                  <p className={processingHintClass}>
                     完了: {chunkProgress.completedChunks.length}/{chunkProgress.totalChunks} チャンク
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="transcribe-processing-text">
+                  <p className={processingTextClass}>
                     文字起こし中... {formatTime(elapsedSeconds)} 経過
                   </p>
                   {audioDurationSec !== null ? (
-                    <p className="transcribe-processing-hint">
+                    <p className={processingHintClass}>
                       推定残り時間: 約{formatDuration(Math.max(0, estimateProcessingTime(audioDurationSec) - elapsedSeconds))}
                     </p>
                   ) : (
-                    <p className="transcribe-processing-hint">
+                    <p className={processingHintClass}>
                       音声の長さやファイルサイズにより数分かかる場合があります。
                     </p>
                   )}
@@ -555,22 +573,22 @@ export function TranscribePage({
 
         {/* ステップ4: 完了 */}
         {step === 'done' && (
-          <div className="transcribe-section">
-            <div className="transcribe-done">
-              <div className="transcribe-done-icon">✓</div>
-              <p className="transcribe-done-text">文字起こしが完了しました</p>
-              <p className="transcribe-done-hint">
+          <div className={sectionClass}>
+            <div className="flex flex-col items-center px-4 py-8">
+              <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-green-100 text-2xl font-bold text-green-600">✓</div>
+              <p className="mb-1 text-lg-plus font-semibold text-green-800">文字起こしが完了しました</p>
+              <p className="mb-6 text-md text-gray-500">
                 「履歴」タブから結果を確認できます
               </p>
-              <div className="transcribe-done-actions">
+              <div className="flex gap-3">
                 <button
-                  className="transcribe-back-to-main"
+                  className={`${doneButtonClass} border-none bg-brand text-white hover:bg-brand-hover`}
                   onClick={onBack}
                 >
                   履歴を確認する
                 </button>
                 <button
-                  className="transcribe-another"
+                  className={`${doneButtonClass} border border-gray-300 bg-white text-gray-700 hover:bg-gray-100`}
                   onClick={handleReset}
                 >
                   別のファイルを文字起こし

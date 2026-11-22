@@ -6,12 +6,75 @@ import { keepAvailable } from '../utils/keywordSelection';
 import { useKeywordSource } from '../hooks/useKeywordSource';
 import { KeywordSourceSwitch } from './KeywordSourceSwitch';
 import type { InterviewAnalysis, InterviewAnalysisSummary, Speaker, Utterance } from '../types';
-import './InterviewPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { markdownToSafeHtml } from '../utils/markdownHtml';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
+import {
+  actionsClass,
+  backButtonClass,
+  contentClass,
+  errorClass,
+  headerClass,
+  hintClass,
+  loadingClass,
+  loadingHintClass,
+  loadingSpinnerClass,
+  loadingTextClass,
+  logItemClassOf,
+  logItemDateClass,
+  logItemKeywordsClass,
+  logItemSpeakerClass,
+  logsDetailClass,
+  logsDetailDateClass,
+  logsDetailEmptyClass,
+  logsDetailHeaderClass,
+  logsDetailMetaClass,
+  logsEmptyClass,
+  logsLayoutClass,
+  logsListClass,
+  logsListHeaderClass,
+  logsRefreshClass,
+  pageClass,
+  primaryButtonClass,
+  resultCardClass,
+  resultQuestionClass,
+  resultsClass,
+  secondaryButtonClass,
+  sectionClass,
+  sectionHeadingClass,
+  tabClassOf,
+  tabsClass,
+  titleClass,
+} from './interviewPageClasses';
+
+/** 話者を選ぶ欄 */
+const selectClass =
+  'w-full max-w-[300px] cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-base focus:border-primary focus:shadow-[0_0_0_2px] focus:shadow-blue-500/20 focus:outline-none';
+
+/** キーワードの札：選んだ札は黄色にし、カーソルを乗せても色を変えない */
+const keywordTagClassOf = (selected: boolean): string =>
+  `inline-block cursor-pointer rounded-xl border px-[0.6rem] py-1 text-sm transition-all duration-150 ${
+    selected
+      ? 'border-yellow-400 bg-yellow-100 text-amber-800'
+      : 'border-gray-200 bg-gray-100 text-gray-500 hover:border-amber-200 hover:bg-yellow-50'
+  }`;
+
+/** 回答（Markdown から作った HTML）の見た目 */
+const answerClass = [
+  'text-base leading-[1.7] text-gray-700',
+  '[&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+  '[&_:is(h1,h2,h3,h4)]:mt-4 [&_:is(h1,h2,h3,h4)]:mb-2 [&_:is(h1,h2,h3,h4)]:text-base [&_:is(h1,h2,h3,h4)]:font-semibold [&_:is(h1,h2,h3,h4)]:text-gray-800',
+  '[&_:is(h1,h2,h3):first-child]:mt-0',
+  '[&_:is(ul,ol)]:my-2 [&_:is(ul,ol)]:pl-6 [&_li]:mb-1',
+  '[&_strong]:font-semibold [&_strong]:text-gray-900',
+  '[&_a]:text-primary [&_a]:no-underline [&_a:hover]:underline',
+  '[&_blockquote]:my-2 [&_blockquote]:border-l-3 [&_blockquote]:border-l-gray-200 [&_blockquote]:bg-gray-50 [&_blockquote]:px-4 [&_blockquote]:py-2 [&_blockquote]:text-gray-500',
+  '[&_code]:rounded-[3px] [&_code]:bg-gray-100 [&_code]:px-[0.3rem] [&_code]:py-[0.1rem] [&_code]:text-[0.85em]',
+  '[&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-gray-100 [&_pre]:px-4 [&_pre]:py-3',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
+].join(' ');
 
 interface QuestionItem {
   text: string;
@@ -242,26 +305,26 @@ export function InterviewPage({
 
   return (
     <PageLayout
-      className="interview-page"
+      className={pageClass}
       header={
         <>
-          <header className="interview-header">
-            <button className="interview-back-button" onClick={onBack}>
+          <header className={headerClass}>
+            <button className={backButtonClass} onClick={onBack}>
               ← 戻る
             </button>
-            <h1>会話分析</h1>
+            <h1 className={titleClass}>会話分析</h1>
           </header>
 
           {/* タブ切り替え */}
-          <div className="interview-tabs">
+          <div className={tabsClass}>
             <button
-              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'new')}
               onClick={() => setActiveTab('new')}
             >
               新規分析
             </button>
             <button
-              className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'logs')}
               onClick={() => setActiveTab('logs')}
             >
               過去の分析ログ
@@ -272,14 +335,14 @@ export function InterviewPage({
     >
       {/* 新規分析タブ */}
       {activeTab === 'new' && (
-        <div className="interview-content">
-          {error && <div className="interview-error">{error}</div>}
+        <div className={contentClass}>
+          {error && <div className={errorClass}>{error}</div>}
 
           {/* 話者選択 */}
-          <section className="interview-section">
-            <h2>話者を選択</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>話者を選択</h2>
             <select
-              className="interview-select"
+              className={selectClass}
               value={selectedSpeakerId}
               onChange={(e) => handleSpeakerChange(e.target.value)}
             >
@@ -292,17 +355,17 @@ export function InterviewPage({
           </section>
 
           {/* キーワード選択 */}
-          <section className="interview-section">
-            <h2>分析キーワード</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>分析キーワード</h2>
             {enableGinzaKeywords && <KeywordSourceSwitch state={keywordSource} />}
-            <p className="interview-hint">
+            <p className={hintClass}>
               クリックでキーワードを選択（{selectedKeywords.size}件選択中）
             </p>
-            <div className="interview-keywords">
+            <div className="flex flex-wrap gap-[0.4rem]">
               {keywords.map((kw) => (
                 <button
                   key={kw.text}
-                  className={`interview-keyword-tag ${selectedKeywords.has(kw.text) ? 'selected' : ''}`}
+                  className={keywordTagClassOf(selectedKeywords.has(kw.text))}
                   onClick={() => toggleKeyword(kw.text)}
                 >
                   {kw.text}
@@ -312,12 +375,12 @@ export function InterviewPage({
           </section>
 
           {/* 質問生成・選択 */}
-          <section className="interview-section">
-            <h2>調査質問</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>調査質問</h2>
             {guardrailConfigured === false && <GuardrailMissingNotice />}
-            <div className="interview-actions">
+            <div className={actionsClass}>
               <button
-                className="interview-button secondary"
+                className={secondaryButtonClass}
                 onClick={handleGenerateQuestions}
                 disabled={
                   generatingQuestions ||
@@ -331,36 +394,40 @@ export function InterviewPage({
             </div>
 
             {questions.length > 0 && (
-              <div className="question-list">
-                <div className="question-list-header">
+              <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2">
                   <button
-                    className="question-toggle-all"
+                    className="rounded-sm border border-gray-200 bg-white px-2 py-[0.2rem] text-xs text-gray-500 transition-all duration-150 hover:border-gray-300 hover:bg-gray-100"
                     onClick={toggleAllQuestions}
                   >
                     {questions.every((q) => q.checked) ? '全解除' : '全選択'}
                   </button>
-                  <span className="question-list-count">
+                  <span className="text-xs text-gray-400">
                     {checkedCount}/{questions.length}件 選択中
                   </span>
                 </div>
                 {questions.map((q, i) => (
-                  <label key={i} className="question-checkbox-item">
+                  <label
+                    key={i}
+                    className="flex cursor-pointer items-start gap-3 border-b border-gray-100 px-4 py-3 transition-colors duration-100 last:border-b-0 hover:bg-gray-50"
+                  >
                     <input
                       type="checkbox"
+                      className="mt-1 size-4 shrink-0 cursor-pointer accent-primary"
                       checked={q.checked}
                       onChange={() => toggleQuestion(i)}
                       disabled={analyzing}
                     />
-                    <span className="question-checkbox-text">{q.text}</span>
+                    <span className="text-md leading-[1.6] text-gray-700">{q.text}</span>
                   </label>
                 ))}
               </div>
             )}
 
             {questions.length > 0 && (
-              <div className="interview-actions">
+              <div className={actionsClass}>
                 <button
-                  className="interview-button primary"
+                  className={primaryButtonClass}
                   onClick={handleAnalyze}
                   disabled={
                     analyzing || generatingQuestions || checkedCount === 0 || guardrailConfigured === false
@@ -374,10 +441,10 @@ export function InterviewPage({
 
           {/* ローディング */}
           {analyzing && (
-            <div className="interview-loading">
-              <div className="loading-spinner" />
-              <p>Claude がWeb検索しながら分析中...</p>
-              <p className="interview-loading-hint">
+            <div className={loadingClass}>
+              <div className={loadingSpinnerClass} />
+              <p className={loadingTextClass}>Claude がWeb検索しながら分析中...</p>
+              <p className={loadingHintClass}>
                 質問数に応じて数十秒〜数分かかる場合があります
               </p>
             </div>
@@ -385,8 +452,8 @@ export function InterviewPage({
 
           {/* 分析結果 */}
           {analysis && !analyzing && (
-            <section className="interview-section">
-              <h2>
+            <section className={sectionClass}>
+              <h2 className={sectionHeadingClass}>
                 分析結果 —{' '}
                 <span style={{ color: selectedSpeaker?.color }}>
                   {analysis.speakerName}
@@ -400,13 +467,13 @@ export function InterviewPage({
 
       {/* 過去ログタブ */}
       {activeTab === 'logs' && (
-        <div className="interview-logs-layout">
+        <div className={logsLayoutClass}>
           {/* ログ一覧 */}
-          <div className="interview-logs-list">
-            <div className="interview-logs-list-header">
+          <div className={logsListClass}>
+            <div className={logsListHeaderClass}>
               <span>分析履歴</span>
               <button
-                className="interview-logs-refresh"
+                className={logsRefreshClass}
                 onClick={loadLogs}
                 disabled={logsLoading}
                 title="更新"
@@ -415,26 +482,26 @@ export function InterviewPage({
               </button>
             </div>
             {logsLoading ? (
-              <div className="interview-logs-empty">読み込み中...</div>
+              <div className={logsEmptyClass}>読み込み中...</div>
             ) : logs.length === 0 ? (
-              <div className="interview-logs-empty">
+              <div className={logsEmptyClass}>
                 過去の分析結果がありません
               </div>
             ) : (
               logs.map((log) => (
                 <button
                   key={log.id}
-                  className={`interview-log-item ${selectedLogId === log.id ? 'selected' : ''}`}
+                  className={logItemClassOf(selectedLogId === log.id)}
                   onClick={() => handleSelectLog(log.id)}
                 >
-                  <div className="interview-log-item-speaker">
+                  <div className={logItemSpeakerClass}>
                     {log.speakerName}
                   </div>
-                  <div className="interview-log-item-keywords">
+                  <div className={logItemKeywordsClass}>
                     {log.keywords.slice(0, 3).join('・')}
                     {log.keywords.length > 3 && ` 他${log.keywords.length - 3}件`}
                   </div>
-                  <div className="interview-log-item-date">
+                  <div className={logItemDateClass}>
                     {formatDate(log.createdAt)}
                   </div>
                 </button>
@@ -443,29 +510,32 @@ export function InterviewPage({
           </div>
 
           {/* ログ詳細 */}
-          <div className="interview-logs-detail">
+          <div className={logsDetailClass}>
             {!selectedLogId && (
-              <div className="interview-logs-detail-empty">
+              <div className={logsDetailEmptyClass}>
                 左の一覧から分析結果を選択してください
               </div>
             )}
             {selectedLogId && logDetailLoading && (
-              <div className="interview-logs-detail-empty">読み込み中...</div>
+              <div className={logsDetailEmptyClass}>読み込み中...</div>
             )}
             {selectedLogId && !logDetailLoading && logDetail && (
               <>
-                <div className="interview-logs-detail-header">
-                  <div className="interview-logs-detail-meta">
-                    <span className="interview-logs-detail-speaker">
+                <div className={logsDetailHeaderClass}>
+                  <div className={logsDetailMetaClass}>
+                    <span className="text-lg font-semibold text-gray-800">
                       {logDetail.speakerName}
                     </span>
-                    <span className="interview-logs-detail-date">
+                    <span className={logsDetailDateClass}>
                       {formatDate(logDetail.createdAt)}
                     </span>
                   </div>
-                  <div className="interview-logs-detail-keywords">
+                  <div className="flex flex-wrap gap-[0.4rem]">
                     {logDetail.keywords.map((kw) => (
-                      <span key={kw} className="interview-logs-keyword-tag">
+                      <span
+                        key={kw}
+                        className="inline-block rounded-xl border border-yellow-400 bg-yellow-100 px-[0.55rem] py-[0.2rem] text-xs text-amber-800"
+                      >
                         {kw}
                       </span>
                     ))}
@@ -490,31 +560,31 @@ function AnalysisResultList({
   analysis: InterviewAnalysis;
 }) {
   return (
-    <div className="interview-results">
+    <div className={resultsClass}>
       <AiGeneratedNotice
         basis="出典"
         model={analysis.model}
         warnings={analysis.contentWarnings}
       />
       {results.map((result, i) => (
-        <div key={i} className="interview-result-card">
-          <h3 className="result-question">
+        <div key={i} className={resultCardClass}>
+          <h3 className={resultQuestionClass}>
             Q{i + 1}: {result.question}
           </h3>
           <div
-            className="result-answer"
+            className={answerClass}
             dangerouslySetInnerHTML={{ __html: result.answerHtml }}
           />
           {result.sources.length > 0 && (
-            <div className="result-sources">
-              <span className="result-sources-label">出典:</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+              <span className="text-xs font-medium text-gray-400">出典:</span>
               {result.sources.map((source, j) => (
                 <a
                   key={j}
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="result-source-link"
+                  className="rounded-sm bg-blue-50 px-[0.4rem] py-[0.15rem] text-xs text-primary no-underline hover:bg-blue-100 hover:underline"
                 >
                   {source.title}
                 </a>

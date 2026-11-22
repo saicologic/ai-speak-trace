@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { updateSpeakerNames } from '../api/client';
 import type { Speaker, Transcription } from '../types';
-import './SpeakerNameEditor.css';
 
 interface Props {
   transcriptionId: string;
@@ -40,17 +39,19 @@ export function SpeakerNameEditor({
   };
 
   return (
-    <div className="speaker-name-editor">
-      <h3>話者名</h3>
-      <div className="speaker-name-fields">
+    <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+      <h3 className="mb-3 text-base font-semibold">話者名</h3>
+      <div className="flex flex-wrap items-center gap-4">
         {speakers.map((speaker) => (
-          <div key={speaker.id} className="speaker-name-field">
+          <div key={speaker.id} className="flex items-center gap-2">
+            {/* speaker-color-dot は、テストで色の丸を探すための目印 */}
             <span
-              className="speaker-color-dot"
+              className="speaker-color-dot size-3 shrink-0 rounded-full"
               style={{ backgroundColor: speaker.color }}
             />
             <input
               type="text"
+              className="w-[120px]"
               value={names[speaker.id] || ''}
               onChange={(e) =>
                 setNames((prev) => ({
@@ -62,7 +63,7 @@ export function SpeakerNameEditor({
           </div>
         ))}
         <button
-          className="speaker-name-save"
+          className="border-none bg-primary text-sm text-white hover:bg-primary-hover"
           onClick={handleSave}
           disabled={saving}
         >

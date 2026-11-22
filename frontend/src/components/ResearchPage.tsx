@@ -21,7 +21,7 @@ import type {
   PreSendFinding,
 } from '../types/research';
 import { extractKeywords } from '../utils/keywords';
-import { buildReport, splitTopics, topicHighlights } from '../utils/researchReport';
+import { buildReport, citeClassOf, splitTopics, topicHighlights } from '../utils/researchReport';
 import { selectRelatedLinks } from '../utils/relatedLinks';
 import { finishedStages, resumeLabel } from '../utils/researchResume';
 import type { NumberedCitation } from '../utils/researchReport';
@@ -30,15 +30,123 @@ import { FeedbackButton } from './FeedbackButton';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
-import './InterviewPage.css';
-import './SummaryPage.css';
-import './ResearchPage.css';
+import {
+  backButtonClass,
+  completedClass,
+  completedLinkClass,
+  completedMessageClass,
+  logItemClassOf,
+  logItemDateClass,
+  logItemKeywordsClass,
+  logItemModelClass,
+  logsDetailClass,
+  logsDetailEmptyClass,
+  logsEmptyClass,
+  logsLayoutClass,
+  logsListClass,
+  logsListHeaderClass,
+  logsRefreshClass,
+  headerClass,
+  pageClass,
+  tabClassOf,
+  tabsClass,
+} from './interviewPageClasses';
 
 interface Props {
   onBack: () => void;
   /** 根拠の発言を、元の文字起こしで開く（utteranceIndex がなければ文字起こしの先頭を開く） */
   onOpenTranscription: (transcriptionId: string, utteranceIndex?: number) => void;
 }
+
+/** ドメインの等幅の字体 */
+const domainFontClass = '[font-family:ui-monospace,SFMono-Regular,Menlo,monospace]';
+/** 調査の中の見出し・説明・注意・エラー */
+const sectionClass = 'mb-8';
+const sectionHeadingClass = 'mb-3 text-lg font-semibold text-gray-800';
+const hintClass = 'mb-3 text-md leading-[1.6] text-gray-500';
+const noticeClass = 'my-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800';
+const errorClass = 'mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800';
+/** 青い実行のボタン */
+const primaryButtonClass =
+  'cursor-pointer rounded-lg border-none bg-blue-600 px-5 py-[0.6rem] text-base font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-400';
+/** 進み具合の知らせと、その中の読み込み中の丸 */
+const progressClass = 'mb-6 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-base text-blue-900';
+const spinnerClass = 'size-[1.1rem] shrink-0 animate-spin-fast rounded-full border-2 border-blue-200 border-t-blue-600';
+/** 印を付けない一覧 */
+const plainListClass = 'm-0 list-none p-0';
+/** 確認の一覧（送る前の確認・AI 倫理）：項目を横に並べ、下に線を引く */
+const checksItemClass =
+  '[&_li]:flex [&_li]:flex-wrap [&_li]:gap-[0.4rem] [&_li]:border-b [&_li]:border-gray-100 [&_li]:py-[0.4rem] [&_li]:text-md';
+const checksClass = `${plainListClass} ${checksItemClass} [&_li]:items-baseline`;
+/** 送る前の確認は、項目を上にそろえる */
+const presendChecksClass = `${plainListClass} ${checksItemClass} [&_li]:items-start`;
+/** 確認の印：問題がなければ緑、失敗は赤、注意が必要なら橙にする */
+const checkMarkClassOf = (state: 'passed' | 'failed' | 'warning'): string =>
+  `font-bold ${state === 'passed' ? 'text-emerald-600' : state === 'failed' ? 'text-red-600' : 'text-amber-600'}`;
+const checkDetailClass = 'w-full text-[0.78rem] text-gray-500';
+/** 会話の引用（キーワードの提案では、チェックボックスの分だけ左をあける） */
+const quoteClass = 'mt-[0.3rem] border-l-3 border-l-gray-300 bg-gray-50 px-[0.6rem] py-[0.3rem] text-sm leading-[1.6] text-gray-700';
+/** 提案の理由・公式サイトの理由 */
+const reasonClass = 'mt-[0.4rem] mb-[0.3rem] ml-[1.6rem] text-[0.82rem] leading-[1.6] text-gray-600';
+/** キーワードの提案：選んだ提案は青い枠にする */
+const proposalClassOf = (selected: boolean): string =>
+  `mb-[0.6rem] rounded-lg border px-4 py-3 ${selected ? 'border-primary bg-[#f8fbff]' : 'border-gray-200 bg-white'}`;
+const proposalHeadClass = 'flex cursor-pointer items-center gap-[0.6rem]';
+const proposalKeywordClass = 'flex-1 font-semibold';
+const proposalCountClass = 'rounded-[999px] bg-blue-100 px-2 py-[0.1rem] text-xs text-blue-800';
+/** キーワードと公式サイトを足す欄 */
+const addClass = 'mt-2 flex gap-2';
+const addInputClass = 'flex-1 rounded-md border border-gray-300 px-[0.6rem] py-[0.45rem] text-md';
+const addButtonClass = 'cursor-pointer rounded-md border border-gray-300 bg-white px-[0.9rem] py-[0.45rem] text-md';
+/** 公式サイトの名前と運営者 */
+const domainClass = `font-semibold ${domainFontClass}`;
+const domainOwnerClass = 'text-[0.78rem] text-gray-500';
+/** 灰色の小さい補足（日付・一般のサイト・ドメイン） */
+const mutedSmallClass = 'text-xs text-gray-400';
+/** 「さらに読む」と話題になった発言の見出しの中では、左をあけ、太字にしない */
+const extraMutedSmallClass = `${mutedSmallClass} ml-[0.4rem] font-normal`;
+/** 調査の状態のバッジ */
+const jobStatusClassOf = (status: ResearchStatus): string =>
+  `ml-2 rounded-[999px] px-2 py-[0.1rem] text-[0.68rem] ${
+    status === 'completed' ? 'bg-emerald-100 text-emerald-800' : status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+  }`;
+/** 調査の流れの段階：終わった段階は緑、実行中は青、失敗は赤にする */
+const stepClassOf = (state: 'done' | 'active' | 'failed' | 'pending'): string =>
+  `relative flex flex-col gap-[0.2rem] rounded-lg border bg-white px-[0.7rem] py-[0.6rem] ${
+    {
+      done: 'border-emerald-200 text-gray-700',
+      active: 'border-primary text-blue-900 shadow-[0_0_0_2px] shadow-blue-500/20',
+      failed: 'border-red-400 text-red-800 shadow-[0_0_0_2px] shadow-red-400/20',
+      pending: 'border-gray-200 text-gray-400',
+    }[state]
+  }`;
+const stepNumberClassOf = (state: 'done' | 'active' | 'failed' | 'pending'): string =>
+  `inline-flex size-6 items-center justify-center rounded-full text-sm font-semibold ${
+    { done: 'bg-emerald-500 text-white', active: 'bg-primary text-white', failed: 'bg-red-600 text-white', pending: 'bg-gray-200 text-gray-500' }[state]
+  }`;
+/** キーワードと公式サイトの札 */
+const chipClass = 'rounded-[999px] px-[0.7rem] py-[0.2rem] text-[0.82rem]';
+/** 根拠の種類のバッジ：会話は紫、Web は灰色、公式サイトは緑 */
+const citationKindClassOf = (kind: 'conversation' | 'web', official = false): string =>
+  `rounded-[999px] px-[0.45rem] py-[0.05rem] text-2xs ${
+    kind === 'conversation' ? 'bg-violet-100 text-violet-800' : official ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
+  }`;
+const citationMetaClass = 'flex items-baseline gap-[0.6rem] text-[0.78rem] text-gray-500';
+/** 枠のない青い文字のボタン（引用の続き・根拠を開く） */
+const textButtonClass = 'cursor-pointer border-none bg-transparent p-0 text-[0.78rem] text-blue-700 hover:underline';
+/** 白い地に青い枠の小さいボタン（会話を開く・ページを開く） */
+const actionButtonClass =
+  'cursor-pointer rounded-md border border-blue-600 bg-white px-[10px] py-1 text-[13px] whitespace-nowrap text-blue-600 no-underline hover:bg-blue-50';
+/** タイトルの編集のボタン */
+const titleButtonClass = 'cursor-pointer rounded-md border px-3 py-1.5 text-[13px] disabled:cursor-default disabled:opacity-50';
+/** 表示から除いた文の一覧（評価の詳細） */
+const removedClass =
+  'my-3 text-md [&_summary]:cursor-pointer [&_summary]:text-amber-800 [&_li]:border-b [&_li]:border-gray-100 [&_li]:py-[0.4rem]';
+/** 調査の記録の文 */
+const recordLineClass = 'mb-2 text-[14px] text-gray-700';
+/** 「さらに読む」と話題になった発言の欄（上だけに点線を引く。border-dashed はほかの辺にも線を出すため使わない） */
+const topicExtraClass =
+  'mt-4 [border-top:1px_dashed_var(--color-gray-200)] pt-3 [&_h3]:mt-0 [&_h3]:mb-2 [&_h3]:text-md [&_h3]:font-semibold [&_h3]:text-gray-700';
 
 /** 実行中の状態（この間は結果を定期的に取得する） */
 const RUNNING: ResearchStatus[] = ['proposing', 'researching', 'analyzing', 'evaluating'];
@@ -102,16 +210,16 @@ function StepFlow({ status, failedStage }: { status: ResearchStatus | undefined;
   const { done, active } = stepState(status === 'failed' ? failedStage : status);
   const failed = status === 'failed' ? active : null;
   return (
-    <ol className="research-steps">
+    <ol className="m-0 mb-8 grid list-none grid-cols-5 gap-2 p-0 max-[720px]:grid-cols-1">
       {STEPS.map((step, i) => {
         const state = i === failed ? 'failed' : i === active ? 'active' : i < done ? 'done' : 'pending';
         return (
-          <li key={step.label} className={`research-step ${state}`}>
-            <span className="research-step-number">
+          <li key={step.label} className={stepClassOf(state)}>
+            <span className={stepNumberClassOf(state)}>
               {i === failed ? '✕' : i < done && i !== active ? '✓' : i + 1}
             </span>
-            <span className="research-step-label">{step.label}</span>
-            <span className="research-step-detail">{step.detail}</span>
+            <span className="text-base font-semibold">{step.label}</span>
+            <span className="text-[0.72rem] leading-[1.4]">{step.detail}</span>
           </li>
         );
       })}
@@ -142,20 +250,20 @@ function ResearchFailure({ job, onResumed }: { job: ResearchJob; onResumed: (job
   };
 
   return (
-    <div className="research-error research-failure">
-      <p className="research-failure-title">{info?.title ?? '調査に失敗しました'}</p>
-      {info && <p className="research-failure-hint">解決方法: {info.hint}</p>}
+    <div className={`${errorClass} flex flex-col items-start gap-2`}>
+      <p className="font-semibold">{info?.title ?? '調査に失敗しました'}</p>
+      {info && <p className="text-base leading-[1.6] text-gray-700">解決方法: {info.hint}</p>}
       {finished.length > 0 && (
-        <p className="research-failure-finished">終わっている段階: {finished.join('・')}</p>
+        <p className="text-base leading-[1.6] text-gray-700">終わっている段階: {finished.join('・')}</p>
       )}
       {job.resume && (
-        <button className="research-primary-button" disabled={resuming} onClick={() => void handleResume()}>
+        <button className={`${primaryButtonClass} mt-1`} disabled={resuming} onClick={() => void handleResume()}>
           {resuming ? '再開しています...' : resumeLabel(job.resume)}
         </button>
       )}
-      {resumeError && <p className="research-failure-resume-error">{resumeError}</p>}
+      {resumeError && <p className="text-md">{resumeError}</p>}
       {job.error && (
-        <details className="research-failure-detail">
+        <details className="text-sm text-gray-500 [&_code]:mt-1 [&_code]:block [&_code]:break-all [&_code]:whitespace-pre-wrap">
           <summary>エラーの詳細</summary>
           <code>{job.error}</code>
         </details>
@@ -330,30 +438,30 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
 
   return (
     <PageLayout
-      className="research-page"
+      className={pageClass}
       header={
         <>
-          <header className="research-header">
-            <button className="research-back-button" onClick={onBack}>
+          <header className={headerClass}>
+            <button className={backButtonClass} onClick={onBack}>
               ← 戻る
             </button>
-            <h1>ディープサーチ</h1>
+            <h1 className="flex-1 text-xl font-semibold">ディープサーチ</h1>
             {activeTab === 'new' && job && (
-              <button className="research-new-button" onClick={() => setJob(null)}>
+              <button className={backButtonClass} onClick={() => setJob(null)}>
                 ＋ 新しい調査
               </button>
             )}
           </header>
 
-          <div className="interview-tabs">
+          <div className={tabsClass}>
             <button
-              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'new')}
               onClick={() => setActiveTab('new')}
             >
               新しい調査
             </button>
             <button
-              className={`interview-tab ${activeTab === 'results' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'results')}
               onClick={() => setActiveTab('results')}
             >
               調査結果
@@ -362,21 +470,24 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
         </>
       }
     >
+      {/* research-content は、テストでスクロールする部分の中身を探すための目印 */}
       {activeTab === 'new' && (
-        <div className="research-content">
-          {error && <div className="research-error">{error}</div>}
+        <div className="research-content mx-auto w-full max-w-[880px] flex-1 p-8 max-[720px]:p-4">
+          {error && <div className={errorClass}>{error}</div>}
 
           <StepFlow status={job?.status} failedStage={job?.failedStage ?? job?.resume?.from} />
 
           {/* ① 会話の選択（新しい調査） */}
           {!job && (
             <>
-              <section className="research-section">
-                <h2>① 調べる会話を選ぶ</h2>
-                <p className="research-hint">
+              <section className={sectionClass}>
+                <h2 className={sectionHeadingClass}>① 調べる会話を選ぶ</h2>
+                <p className={hintClass}>
                   選んだ会話の全文をもとに、AIが調べるべきキーワードを提案します。前編・後編のように、関連する会話をまとめて選べます。
                 </p>
-                <ul className="research-transcriptions">
+                <ul
+                  className={`${plainListClass} max-h-[320px] overflow-y-auto rounded-lg border border-gray-200 bg-white [&_li+li]:border-t [&_li+li]:border-gray-100 [&_label]:flex [&_label]:cursor-pointer [&_label]:items-center [&_label]:gap-[0.6rem] [&_label]:px-3 [&_label]:py-[0.55rem] [&_label]:text-md`}
+                >
                   {transcriptions.map((t) => (
                     <li key={t.id}>
                       <label>
@@ -385,15 +496,15 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                           checked={selectedIds.has(t.id)}
                           onChange={() => setSelectedIds((prev) => toggle(prev, t.id))}
                         />
-                        <span className="research-transcription-name">{t.audioFileName}</span>
-                        <span className="research-transcription-date">
+                        <span className="flex-1 wrap-anywhere">{t.audioFileName}</span>
+                        <span className={mutedSmallClass}>
                           {new Date(t.createdAt).toLocaleDateString('ja-JP')}
                         </span>
                       </label>
                     </li>
                   ))}
                 </ul>
-                <p className="research-notice">
+                <p className={noticeClass}>
                   選んだ会話の全文を Anthropic（Claude）に送信します。この後のWeb調査では、確定したキーワードだけを検索に使います。
                 </p>
                 {guardrailConfigured === false && <GuardrailMissingNotice />}
@@ -407,7 +518,7 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                     />
                   ))}
                 <button
-                  className="research-primary-button"
+                  className={primaryButtonClass}
                   disabled={selectedIds.size === 0 || busy || guardrailConfigured === false}
                   onClick={handleStart}
                 >
@@ -419,10 +530,10 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           )}
 
           {job && (
-            <section className="research-section">
-              {job.title && <p className="research-current-title">{job.title}</p>}
-              <h2>調べている会話</h2>
-              <ul className="research-selected-transcriptions">
+            <section className={sectionClass}>
+              {job.title && <p className="mb-3 text-[18px] font-semibold text-gray-800">{job.title}</p>}
+              <h2 className={sectionHeadingClass}>調べている会話</h2>
+              <ul className={`${plainListClass} [&_li]:py-[0.3rem] [&_li]:text-md [&_li]:wrap-anywhere [&_li]:text-gray-700`}>
                 {job.transcriptionIds.map((id, i) => (
                   <li key={id}>
                     会話{i + 1}: {job.transcriptionNames[id] ?? id}
@@ -433,8 +544,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           )}
 
           {job?.preSendChecks && (
-            <section className="research-section">
-              <h2>送る前の確認</h2>
+            <section className={sectionClass}>
+              <h2 className={sectionHeadingClass}>送る前の確認</h2>
               <PreSendChecksView job={job} onOpenTranscription={onOpenTranscription} />
             </section>
           )}
@@ -442,8 +553,8 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           {job?.status === 'failed' && <ResearchFailure job={job} onResumed={setJob} />}
 
           {job?.status === 'proposing' && (
-            <div className="research-progress">
-              <div className="research-spinner" />
+            <div className={progressClass}>
+              <div className={spinnerClass} />
               会話を読み込み、調べるべきキーワードと公式サイトを提案しています...
             </div>
           )}
@@ -451,31 +562,31 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           {/* ② キーワードと公式サイトの確定 */}
           {job?.status === 'awaiting_confirmation' && job.proposal && (
             <>
-              <section className="research-section">
-                <h2>② 調べるキーワードと公式サイトを確定する</h2>
-                <p className="research-hint">
+              <section className={sectionClass}>
+                <h2 className={sectionHeadingClass}>② 調べるキーワードと公式サイトを確定する</h2>
+                <p className={hintClass}>
                   AIが会話から提案したキーワードです。回数は選んだ会話全体での出現回数、引用は会話の原文です。
                   選んだキーワードごとに、調べる公式サイトを選べます。サイトを選ばなかったキーワードや、選んだサイトで十分な情報が見つからなかったキーワードは、一般のサイトも調べます。
                 </p>
-                <ul className="research-proposals">
+                <ul className={plainListClass}>
                   {job.proposal.keywords.map((k) => (
                     <li
                       key={k.keyword}
-                      className={`research-proposal ${selectedKeywords.has(k.keyword) ? 'selected' : ''}`}
+                      className={proposalClassOf(selectedKeywords.has(k.keyword))}
                     >
-                      <label className="research-proposal-head">
+                      <label className={proposalHeadClass}>
                         <input
                           type="checkbox"
                           checked={selectedKeywords.has(k.keyword)}
                           onChange={() => setSelectedKeywords((prev) => toggle(prev, k.keyword))}
                         />
-                        <span className="research-proposal-keyword">{k.keyword}</span>
-                        <span className="research-proposal-count">{k.frequency}回</span>
+                        <span className={proposalKeywordClass}>{k.keyword}</span>
+                        <span className={proposalCountClass}>{k.frequency}回</span>
                       </label>
-                      <p className="research-proposal-reason">{k.reason}</p>
+                      <p className={reasonClass}>{k.reason}</p>
                       {k.quotes.map((q, i) => (
-                        <blockquote key={i} className="research-quote">
-                          <span className="research-quote-speaker">
+                        <blockquote key={i} className={`${quoteClass} ml-[1.6rem]`}>
+                          <span className="block text-[0.72rem] text-gray-400">
                             {job.transcriptionNames[q.transcriptionId] ?? ''} / {q.speakerName}
                           </span>
                           「{q.text}」
@@ -491,15 +602,15 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                     </li>
                   ))}
                   {customKeywords.map((k) => (
-                    <li key={k} className="research-proposal selected">
-                      <label className="research-proposal-head">
+                    <li key={k} className={proposalClassOf(true)}>
+                      <label className={proposalHeadClass}>
                         <input
                           type="checkbox"
                           checked
                           onChange={() => setSelectedKeywords((prev) => toggle(prev, k))}
                         />
-                        <span className="research-proposal-keyword">{k}</span>
-                        <span className="research-proposal-count">追加</span>
+                        <span className={proposalKeywordClass}>{k}</span>
+                        <span className={proposalCountClass}>追加</span>
                       </label>
                       <KeywordSites
                         proposed={[]}
@@ -509,20 +620,23 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
                     </li>
                   ))}
                 </ul>
-                <div className="research-add">
+                <div className={addClass}>
                   <input
+                    className={addInputClass}
                     value={customKeyword}
                     placeholder="キーワードを追加"
                     onChange={(e) => setCustomKeyword(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addCustomKeyword()}
                   />
-                  <button onClick={addCustomKeyword}>追加</button>
+                  <button className={addButtonClass} onClick={addCustomKeyword}>
+                    追加
+                  </button>
                 </div>
-                <p className="research-notice">
+                <p className={noticeClass}>
                   確定したキーワードを Web 検索に使います。会話の本文は検索に使いません。
                 </p>
                 <button
-                  className="research-primary-button"
+                  className={primaryButtonClass}
                   disabled={selectedKeywords.size === 0 || busy}
                   onClick={handleConfirm}
                 >
@@ -533,23 +647,23 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
           )}
 
           {job && ['researching', 'analyzing', 'evaluating'].includes(job.status) && (
-            <div className="research-progress">
-              <div className="research-spinner" />
+            <div className={progressClass}>
+              <div className={spinnerClass} />
               {STATUS_LABELS[job.status]}です。数分かかることがあります。この画面を離れても調査は続きます。
             </div>
           )}
 
           {job?.confirmed && (
-            <section className="research-section">
-              <h2>確定したキーワードと公式サイト</h2>
+            <section className={sectionClass}>
+              <h2 className={sectionHeadingClass}>確定したキーワードと公式サイト</h2>
               <ConfirmedTargets job={job} />
             </section>
           )}
 
           {job?.status === 'completed' && (
-            <div className="summary-completed">
-              <span className="summary-completed-message">✓ 調査が完了しました。</span>
-              <button className="summary-completed-link" onClick={() => handleShowResult(job)}>
+            <div className={completedClass}>
+              <span className={completedMessageClass}>✓ 調査が完了しました。</span>
+              <button className={completedLinkClass} onClick={() => handleShowResult(job)}>
                 調査結果を見る →
               </button>
             </div>
@@ -558,12 +672,12 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
       )}
 
       {activeTab === 'results' && (
-        <div className="interview-logs-layout">
-          <div className="interview-logs-list">
-            <div className="interview-logs-list-header">
+        <div className={logsLayoutClass}>
+          <div className={logsListClass}>
+            <div className={logsListHeaderClass}>
               <span>調査結果</span>
               <button
-                className="interview-logs-refresh"
+                className={logsRefreshClass}
                 onClick={() => void refreshJobs()}
                 disabled={jobsLoading}
                 title="更新"
@@ -572,30 +686,30 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
               </button>
             </div>
             {jobsLoading && jobs.length === 0 ? (
-              <div className="interview-logs-empty">読み込み中...</div>
+              <div className={logsEmptyClass}>読み込み中...</div>
             ) : jobs.length === 0 ? (
-              <div className="interview-logs-empty">調査結果がありません</div>
+              <div className={logsEmptyClass}>調査結果がありません</div>
             ) : (
               jobs.map((j) => (
                 <button
                   key={j.id}
-                  className={`interview-log-item ${selectedResultId === j.id ? 'selected' : ''}`}
+                  className={logItemClassOf(selectedResultId === j.id)}
                   onClick={() => void handleSelectResult(j)}
                 >
-                  {j.title && <div className="research-job-title">{j.title}</div>}
-                  <div className="interview-log-item-date">
+                  {j.title && <div className="mb-1 leading-[1.4] font-semibold text-gray-800">{j.title}</div>}
+                  <div className={logItemDateClass}>
                     {formatDate(j.createdAt)}
-                    <span className={`research-job-status ${j.status}`}>
+                    <span className={jobStatusClassOf(j.status)}>
                       {STATUS_LABELS[j.status]}
                     </span>
                   </div>
-                  <div className="interview-log-item-keywords">
+                  <div className={logItemKeywordsClass}>
                     {j.keywords.length === 0
                       ? 'キーワード未確定'
                       : j.keywords.slice(0, 2).join('・') +
                         (j.keywords.length > 2 ? ` 他${j.keywords.length - 2}件` : '')}
                   </div>
-                  <div className="summary-log-model">
+                  <div className={logItemModelClass}>
                     {j.transcriptionIds.map((id) => j.transcriptionNames[id] ?? id).join('、')}
                   </div>
                 </button>
@@ -603,18 +717,18 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             )}
           </div>
 
-          <div className="interview-logs-detail">
-            {error && <div className="research-error">{error}</div>}
+          <div className={logsDetailClass}>
+            {error && <div className={errorClass}>{error}</div>}
             {!selectedResultId && (
-              <div className="interview-logs-detail-empty">
+              <div className={logsDetailEmptyClass}>
                 左の一覧から調査結果を選択してください
               </div>
             )}
             {selectedResultId && resultLoading && (
-              <div className="interview-logs-detail-empty">読み込み中...</div>
+              <div className={logsDetailEmptyClass}>読み込み中...</div>
             )}
             {selectedResultId && !resultLoading && resultJob && (
-              <div className="research-result">
+              <div className="mx-auto max-w-[880px]">
                 <ResearchResult
                   job={resultJob}
                   onOpenTranscription={onOpenTranscription}
@@ -703,21 +817,21 @@ function PreSendChecksView({
   }
 
   return (
-    <ul className="research-checks research-presend">
+    <ul className={presendChecksClass}>
       {!checks.privacyConfigured && (
-        <li className="failed">
-          <span className="research-check-mark">!</span>
+        <li>
+          <span className={checkMarkClassOf('failed')}>!</span>
           個人情報チェック（Guardrail ID）が設定されていないため、会話は伏せずにそのまま送りました
         </li>
       )}
       {checks.privacyConfigured &&
         checks.privacy.map((p) => (
-          <li key={p.transcriptionId} className={p.scanned && p.needsReview === 0 ? 'passed' : 'warning'}>
-            <span className="research-check-mark">{p.scanned && p.needsReview === 0 ? '✓' : '!'}</span>
-            <div className="research-presend-body">
-              <div className="research-presend-head">
+          <li key={p.transcriptionId}>
+            <span className={checkMarkClassOf(p.scanned && p.needsReview === 0 ? 'passed' : 'warning')}>{p.scanned && p.needsReview === 0 ? '✓' : '!'}</span>
+            <div className="flex-1 [&_p]:mt-1 [&_p]:text-[14px] [&_p]:text-gray-700">
+              <div className="flex flex-wrap items-center gap-2 font-semibold">
                 <span>{conversationLabel(p.transcriptionId)}</span>
-                <button className="research-action-button" onClick={() => onOpenTranscription(p.transcriptionId)}>
+                <button className={actionButtonClass} onClick={() => onOpenTranscription(p.transcriptionId)}>
                   文字起こしを開く
                 </button>
               </div>
@@ -747,8 +861,8 @@ function PreSendChecksView({
           </li>
         ))}
       {others.map((item, i) => (
-        <li key={i} className={item.ok ? 'passed' : 'warning'}>
-          <span className="research-check-mark">{item.ok ? '✓' : '!'}</span>
+        <li key={i}>
+          <span className={checkMarkClassOf(item.ok ? 'passed' : 'warning')}>{item.ok ? '✓' : '!'}</span>
           {item.text}
         </li>
       ))}
@@ -777,38 +891,43 @@ function KeywordSites({
     setInput('');
   };
   return (
-    <div className="research-keyword-sites">
-      <span className="research-keyword-sites-label">調べる公式サイト</span>
-      <ul className="research-domains">
+    <div className="mt-[0.6rem] ml-[1.6rem] rounded-r-md border-l-3 border-l-blue-200 bg-slate-50 px-3 py-[0.6rem]">
+      <span className="mb-[0.3rem] block text-xs font-semibold text-gray-600">調べる公式サイト</span>
+      <ul
+        className={`${plainListClass} [&_li]:border-b [&_li]:border-gray-100 [&_li]:py-2 [&_label]:flex [&_label]:cursor-pointer [&_label]:items-center [&_label]:gap-[0.6rem] [&_label]:text-[0.88rem]`}
+      >
         {proposed.map((d) => (
           <li key={d.domain}>
             <label>
               <input type="checkbox" checked={selected.includes(d.domain)} onChange={() => toggleSite(d.domain)} />
-              <span className="research-domain">{d.domain}</span>
-              <span className="research-domain-owner">{d.owner}</span>
+              <span className={domainClass}>{d.domain}</span>
+              <span className={domainOwnerClass}>{d.owner}</span>
             </label>
-            <p className="research-domain-reason">{d.reason}</p>
+            <p className={reasonClass}>{d.reason}</p>
           </li>
         ))}
         {added.map((d) => (
           <li key={d}>
             <label>
               <input type="checkbox" checked onChange={() => toggleSite(d)} />
-              <span className="research-domain">{d}</span>
-              <span className="research-domain-owner">追加</span>
+              <span className={domainClass}>{d}</span>
+              <span className={domainOwnerClass}>追加</span>
             </label>
           </li>
         ))}
       </ul>
-      {selected.length === 0 && <p className="research-hint">サイトを選ばない場合は、一般のサイトを調べます。</p>}
-      <div className="research-add">
+      {selected.length === 0 && <p className={hintClass}>サイトを選ばない場合は、一般のサイトを調べます。</p>}
+      <div className={addClass}>
         <input
+          className={addInputClass}
           value={input}
           placeholder="サイトを追加（例: anthropic.com）"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && add()}
         />
-        <button onClick={add}>追加</button>
+        <button className={addButtonClass} onClick={add}>
+          追加
+        </button>
       </div>
     </div>
   );
@@ -821,19 +940,19 @@ function ConfirmedTargets({ job }: { job: ResearchJob }) {
   const targets = confirmed.targets ?? confirmed.keywords.map((keyword) => ({ keyword, domains: confirmed.domains }));
   const failed = new Set((job.webResearchFailures ?? []).map((f) => f.keyword));
   return (
-    <ul className="research-targets">
+    <ul className={`${plainListClass} [&_li]:flex [&_li]:flex-wrap [&_li]:items-center [&_li]:gap-[0.35rem] [&_li]:py-[0.2rem]`}>
       {targets.map((t) => (
         <li key={t.keyword}>
-          <span className="research-chip">{t.keyword}</span>
-          {failed.has(t.keyword) && <span className="research-target-failed">Web調査に失敗</span>}
+          <span className={`${chipClass} bg-blue-100 text-blue-800`}>{t.keyword}</span>
+          {failed.has(t.keyword) && <span className="text-[0.72rem] text-red-700">Web調査に失敗</span>}
           {t.domains.length > 0 ? (
             t.domains.map((d) => (
-              <span key={d} className="research-chip domain">
+              <span key={d} className={`${chipClass} bg-gray-100 text-gray-700 ${domainFontClass}`}>
                 {d}
               </span>
             ))
           ) : (
-            <span className="research-web-domain">一般のサイト</span>
+            <span className={mutedSmallClass}>一般のサイト</span>
           )}
         </li>
       ))}
@@ -865,10 +984,10 @@ function CitedText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const long = text.length > QUOTE_PREVIEW_CHARS;
   return (
-    <blockquote className="research-quote">
+    <blockquote className={quoteClass}>
       {long && !expanded ? `${text.slice(0, QUOTE_PREVIEW_CHARS)}…` : text}
       {long && (
-        <button className="research-quote-toggle" onClick={() => setExpanded((v) => !v)}>
+        <button className={`${textButtonClass} ml-[0.4rem]`} onClick={() => setExpanded((v) => !v)}>
           {expanded ? '閉じる' : '続きを読む'}
         </button>
       )}
@@ -944,9 +1063,9 @@ function ResearchTitle({
 
   if (editing) {
     return (
-      <div className="research-title research-title--editing">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
-          className="research-title-input"
+          className="min-w-[240px] flex-1 rounded-md border border-gray-300 px-[10px] py-2 text-[16px]"
           value={draft}
           maxLength={60}
           autoFocus
@@ -958,23 +1077,23 @@ function ResearchTitle({
           }}
         />
         <button
-          className="research-title-button primary"
+          className={`${titleButtonClass} border-blue-600 bg-blue-600 text-white`}
           disabled={saving || !draft.trim()}
           onClick={() => void save()}
         >
           {saving ? '保存中...' : '保存'}
         </button>
-        <button className="research-title-button" disabled={saving} onClick={() => setEditing(false)}>
+        <button className={`${titleButtonClass} border-gray-300 bg-white text-gray-700`} disabled={saving} onClick={() => setEditing(false)}>
           キャンセル
         </button>
-        {error && <div className="research-error">{error}</div>}
+        {error && <div className={errorClass}>{error}</div>}
       </div>
     );
   }
   return (
-    <div className="research-title">
-      <h2 className={job.title ? '' : 'research-title-empty'}>{job.title ?? 'タイトルなし'}</h2>
-      <button className="research-title-button" onClick={() => setEditing(true)}>
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      <h2 className={`m-0 text-[20px] ${job.title ? 'text-gray-800' : 'text-gray-400'}`}>{job.title ?? 'タイトルなし'}</h2>
+      <button className={`${titleButtonClass} border-gray-300 bg-white text-gray-700`} onClick={() => setEditing(true)}>
         {job.title ? 'タイトルを変更' : 'タイトルを付ける'}
       </button>
     </div>
@@ -1087,20 +1206,20 @@ function ResearchResult({
     <>
       <ResearchTitle job={job} onChange={onTitleChange} />
 
-      <p className="research-meta">
+      <p className="-mt-2 mb-4 text-[13px] text-gray-500">
         {formatDate(job.createdAt)} ・ 会話{job.transcriptionIds.length}件
         {job.confirmed && ` ・ キーワード${job.confirmed.keywords.length}つ`}
       </p>
 
       {(job.status === 'awaiting_confirmation' || RUNNING.includes(job.status)) && (
-        <div className="research-unfinished">
+        <div className="mb-4 [&_p]:my-3 [&_p]:text-gray-700">
           <StepFlow status={job.status} />
           <p>
             {job.status === 'awaiting_confirmation'
               ? 'この調査は、キーワードの確定を待っています。'
               : `この調査は進行中です（${STATUS_LABELS[job.status]}）。`}
           </p>
-          <button className="research-action-button" onClick={() => onContinue(job)}>
+          <button className={actionButtonClass} onClick={() => onContinue(job)}>
             {job.status === 'awaiting_confirmation' ? 'キーワードを確定して続ける' : '進み具合を見る'}
           </button>
         </div>
@@ -1119,13 +1238,15 @@ function ResearchResult({
           <AiGeneratedNotice basis="根拠" model={job.models.analysis} />
 
           {/* 要点（キーワードごとの「一言でいうと」。キーワードを押すと解説に移る） */}
-          <section className="research-section research-highlights">
-            <h2>要点</h2>
+          <section
+          className={`${sectionClass} [&_ul]:m-0 [&_ul]:list-none [&_ul]:p-0 [&_li]:grid [&_li]:grid-cols-[200px_1fr] [&_li]:gap-3 [&_li]:border-b [&_li]:border-gray-100 [&_li]:py-2 [&_li]:leading-[1.6] [&_li:last-child]:border-b-0`}
+        >
+            <h2 className={sectionHeadingClass}>要点</h2>
             <ul>
               {topics.map((t, i) =>
                 t.title ? (
                   <li key={i}>
-                    <button className="research-highlight-keyword" onClick={() => scrollToTopic(i)}>
+                    <button className="shrink-0 cursor-pointer border-none bg-transparent p-0 text-left font-semibold text-blue-600 hover:underline" onClick={() => scrollToTopic(i)}>
                       {t.title}
                     </button>
                     <span>
@@ -1141,20 +1262,23 @@ function ResearchResult({
           </section>
 
           {/* 次にできること */}
-          <section className="research-section research-next">
-            <h2>次にできること</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>次にできること</h2>
             {evaluation && (
-              <p className={`research-verdict ${issueCount > 0 ? 'warning' : 'ok'}`}>
+              <p className={`mb-3 font-semibold ${issueCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
                 {issueCount > 0
                   ? `確認するとよいところが${issueCount}件あります`
                   : `✓ ${relevance.length}つのキーワードとも、根拠付きで説明できています`}
-                <span className="research-verdict-detail">
+                <span className="ml-1.5 text-[13px] font-normal text-gray-500">
                   （根拠付き {percent(evaluation.citationCoverage)}・公式の根拠 {percent(evaluation.officialSourceRate)}・AI倫理{' '}
                   {failedEthics.length === 0 ? '問題なし' : `${failedEthics.length}件の問題`}）
                 </span>
               </p>
             )}
-            <ul className="research-actions">
+            <ul
+            // warning は、注意が必要な項目を見分けるための目印（項目の色と左の線を変える）
+            className={`${plainListClass} [&_li]:mb-1.5 [&_li]:flex [&_li]:flex-wrap [&_li]:items-center [&_li]:gap-2 [&_li]:rounded-md [&_li]:bg-gray-50 [&_li]:px-[10px] [&_li]:py-2 [&_li]:leading-normal [&_li.warning]:border-l-3 [&_li.warning]:border-l-amber-500 [&_li.warning]:bg-amber-50 [&_li>span]:min-w-[200px] [&_li>span]:flex-1`}
+          >
               {failedEthics.map((e) => (
                 <li key={e.item} className="warning">
                   <span>AI倫理の確認で問題が見つかりました: {e.item}（{e.detail}）。解説をそのまま使う前に内容を確かめてください。</span>
@@ -1169,7 +1293,7 @@ function ResearchResult({
                 <li key={`thin-${keyword}`} className="warning">
                   <span>「{keyword}」は Web の情報が少なく、説明が不十分です。</span>
                   {topicIndex(keyword) >= 0 && (
-                    <button className="research-action-button" onClick={() => scrollToTopic(topicIndex(keyword))}>
+                    <button className={actionButtonClass} onClick={() => scrollToTopic(topicIndex(keyword))}>
                       解説を見る
                     </button>
                   )}
@@ -1178,12 +1302,12 @@ function ResearchResult({
               {differences.map((t) => (
                 <li key={`diff-${t.title}`}>
                   <span>「{t.title}」は、会話での説明と Web の説明に違いがあります。</span>
-                  <button className="research-action-button" onClick={() => scrollToTopic(topicIndex(t.title!))}>
+                  <button className={actionButtonClass} onClick={() => scrollToTopic(topicIndex(t.title!))}>
                     違いを読む
                   </button>
                   {t.mentions && t.mentions.items.length > 0 && (
                     <button
-                      className="research-action-button"
+                      className={actionButtonClass}
                       onClick={() =>
                         onOpenTranscription(t.mentions!.items[0].transcriptionId, t.mentions!.items[0].utteranceIndex)
                       }
@@ -1198,7 +1322,7 @@ function ResearchResult({
                   <span>
                     「{keyword}」を詳しく知るなら、{page.official ? '公式ページ' : 'この記事'}から読む: {page.title}
                   </span>
-                  <a className="research-action-button" href={page.sourceId} target="_blank" rel="noopener noreferrer">
+                  <a className={actionButtonClass} href={page.sourceId} target="_blank" rel="noopener noreferrer">
                     ページを開く
                   </a>
                 </li>
@@ -1206,28 +1330,30 @@ function ResearchResult({
             </ul>
           </section>
 
-          <p className="research-hint">
+          <p className={hintClass}>
             文の後ろの「langchain.com 公式」などは、その文の根拠です。クリックすると、根拠になったページの抜粋を確かめられます。
           </p>
 
           {/* キーワードごとの解説 */}
-          <div className="research-report-body" ref={bodyRef} onClick={handleReportClick}>
+          <div className="relative" ref={bodyRef} onClick={handleReportClick}>
             {topics.map((t, i) => (
-              <section key={i} id={`research-topic-${i}`} className="research-topic" data-topic={i}>
+              <section key={i} id={`research-topic-${i}`} className="mb-4 scroll-mt-4 rounded-lg border border-gray-200 bg-white px-5 py-4" data-topic={i}>
                 {t.title && notAnswered.includes(t.title) && (
-                  <p className="research-topic-warning">
+                  <p className="mb-2 rounded-md bg-amber-50 px-[10px] py-2 text-[14px] text-amber-800">
                     Web の情報が少なく、この解説は「{t.title}」を十分に説明できていません。
                   </p>
                 )}
-                <div className="research-report" dangerouslySetInnerHTML={{ __html: t.html }} />
+                <div
+                  className="rounded-lg bg-white text-base leading-[1.8] text-gray-800 [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:border-b [&_h2]:border-gray-200 [&_h2]:pb-[0.3rem] [&_h2]:text-[1.05rem] [&_h2:first-child]:mt-0 [&_ul]:pl-5"
+                  dangerouslySetInnerHTML={{ __html: t.html }} />
                 {removedIn(t.title).length > 0 && (
-                  <div className="research-removed-inline">
-                    <p className="research-removed-inline-title">根拠を確認できなかったため、表示から除いた文</p>
+                  <div className="my-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-[10px] [&_ul]:m-0 [&_ul]:pl-[18px]">
+                    <p className="mb-1.5 text-[13px] font-semibold text-gray-500">根拠を確認できなかったため、表示から除いた文</p>
                     <ul>
                       {removedIn(t.title).map((c, j) => (
                         <li key={j}>
-                          <p className="research-removed-claim">{plainClaim(c.claim)}</p>
-                          <p className="research-check-detail">
+                          <p className="m-0 text-gray-500 line-through decoration-gray-300">{plainClaim(c.claim)}</p>
+                          <p className={checkDetailClass}>
                             {removedReason(c)}
                             {t.pages.length > 0 && '正しいかどうかは、下の「さらに読む」のページで確かめてください。'}
                           </p>
@@ -1237,36 +1363,38 @@ function ResearchResult({
                   </div>
                 )}
                 {t.pages.length > 0 && (
-                  <div className="research-topic-extra">
+                  <div className={topicExtraClass}>
                     <h3>さらに読む</h3>
-                    <ul className="research-sources">
+                    <ul
+                      className={`${plainListClass} [&_li]:flex [&_li]:flex-wrap [&_li]:items-baseline [&_li]:gap-2 [&_li]:border-b [&_li]:border-gray-100 [&_li]:py-[0.4rem] [&_li]:text-md [&_li]:wrap-anywhere`}
+                    >
                       {t.pages.map((c) => (
                         <li key={c.sourceId}>
-                          <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                          <span className={citationKindClassOf('web', c.official)}>
                             {c.official ? '公式' : 'Web'}
                           </span>
                           <a href={c.sourceId} target="_blank" rel="noopener noreferrer">
                             {c.title}
                           </a>
-                          <span className="research-web-domain">{siteName(c.sourceId)}</span>
+                          <span className={extraMutedSmallClass}>{siteName(c.sourceId)}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {t.mentions && t.mentions.total > 0 && (
-                  <div className="research-topic-extra">
+                  <div className={topicExtraClass}>
                     <h3>
                       会話で話題になった箇所
                       {t.mentions.total > t.mentions.items.length && (
-                        <span className="research-web-domain">（全{t.mentions.total}か所のうち最初の{t.mentions.items.length}か所）</span>
+                        <span className={extraMutedSmallClass}>（全{t.mentions.total}か所のうち最初の{t.mentions.items.length}か所）</span>
                       )}
                     </h3>
-                    <div className="research-mentions">
+                    <div className="flex flex-wrap gap-[0.4rem]">
                       {t.mentions.items.map((m) => (
                         <button
                           key={`${m.transcriptionId}-${m.utteranceIndex}`}
-                          className="research-cite conversation"
+                          className={citeClassOf('conversation', true)}
                           onClick={() => onOpenTranscription(m.transcriptionId, m.utteranceIndex)}
                           title={`${m.speakerName}の発言を文字起こしで開く`}
                         >
@@ -1280,44 +1408,45 @@ function ResearchResult({
             ))}
             {openCite && (
               <div
-                className="research-cite-popover"
+                // research-cite-popover は、出典の吹き出しを見分けるための目印
+                className="research-cite-popover absolute z-10 max-h-[360px] w-[360px] max-w-full overflow-y-auto rounded-lg border border-gray-300 bg-white p-3 text-[0.82rem] shadow-[0_8px_24px] shadow-black/12"
                 style={{ top: openCite.top, left: openCite.left }}
                 role="dialog"
               >
                 {openCite.numbers.map((n) => {
                   const c = topics[openCite.topic].citations[n - 1];
                   return (
-                    <div key={n} className="research-cite-item">
+                    <div key={n} className="flex flex-col gap-[0.35rem] wrap-anywhere [&+&]:mt-3 [&+&]:border-t [&+&]:border-gray-100 [&+&]:pt-3">
                       {c.sourceKind === 'conversation' ? (
-                        <div className="research-citation-meta">
-                          <span className="research-citation-kind conversation">
+                        <div className={citationMetaClass}>
+                          <span className={citationKindClassOf('conversation')}>
                             会話{conversationNo.get(c.sourceId)}
                           </span>
                           {c.utterance && (
                             <>
-                              <span className="research-citation-time">{formatTime(c.utterance.start)}</span>
-                              <span className="research-citation-speaker">{c.utterance.speakerName}</span>
+                              <span className="text-blue-600 tabular-nums">{formatTime(c.utterance.start)}</span>
+                              <span className="font-semibold text-gray-700">{c.utterance.speakerName}</span>
                             </>
                           )}
                         </div>
                       ) : (
-                        <div className="research-citation-meta">
-                          <span className={`research-citation-kind web ${c.official ? 'official' : ''}`}>
+                        <div className={citationMetaClass}>
+                          <span className={citationKindClassOf('web', c.official)}>
                             {c.official ? 'Web（公式）' : 'Web'}
                           </span>
-                          <span className="research-citation-title">{c.title}</span>
+                          <span className="text-gray-700">{c.title}</span>
                         </div>
                       )}
                       <CitedText text={quoteText(c)} />
                       {c.sourceKind === 'conversation' ? (
                         <button
-                          className="research-citation-open"
+                          className={`${textButtonClass} self-start`}
                           onClick={() => onOpenTranscription(c.sourceId, c.utterance?.index)}
                         >
                           {c.utterance ? '文字起こしのこの発言を見る →' : '文字起こしを開く →'}
                         </button>
                       ) : (
-                        <a className="research-citation-open" href={c.sourceId} target="_blank" rel="noopener noreferrer">
+                        <a className={`${textButtonClass} self-start`} href={c.sourceId} target="_blank" rel="noopener noreferrer">
                           ページを開く →
                         </a>
                       )}
@@ -1340,14 +1469,14 @@ function ResearchResult({
       )}
 
       {/* この調査の記録（普段は開かなくてよい内容） */}
-      <details className="research-section research-record">
+      <details className={`${sectionClass} [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-[15px]`}>
         <summary>この調査の記録</summary>
-        <section className="research-summary-card">
+        <section className="mb-4 rounded-lg border border-gray-200 bg-white px-[1.1rem] py-[0.9rem] text-md [&_dd]:m-0 [&_dd]:wrap-anywhere [&_dd]:text-gray-800 [&_dl]:m-0 [&_dl]:grid [&_dl]:grid-cols-[6rem_1fr] [&_dl]:gap-x-3 [&_dl]:gap-y-[0.45rem] [&_dt]:text-gray-500">
           <dl>
             <dt>日時</dt>
             <dd>
               {formatDate(job.createdAt)}
-              <span className="research-summary-model">{job.models.analysis}</span>
+              <span className="ml-3 text-xs text-gray-400">{job.models.analysis}</span>
             </dd>
             <dt>会話</dt>
             <dd>
@@ -1378,50 +1507,50 @@ function ResearchResult({
         {evaluation && (
           <>
             <h3>評価</h3>
-            <p className="research-record-line">
+            <p className={recordLineClass}>
               根拠付き {percent(evaluation.citationCoverage)}・裏付けあり {percent(evaluation.supportedRate)}・Webの根拠のうち公式{' '}
               {percent(evaluation.officialSourceRate)}・根拠がなく除いた文 {evaluation.removedClaims.length}件
             </p>
-            <ul className="research-checks">
+            <ul className={checksClass}>
               {evaluation.ethics.map((e) => (
-                <li key={e.item} className={e.passed ? 'passed' : 'failed'}>
-                  <span className="research-check-mark">{e.passed ? '✓' : '✕'}</span>
+                <li key={e.item}>
+                  <span className={checkMarkClassOf(e.passed ? 'passed' : 'failed')}>{e.passed ? '✓' : '✕'}</span>
                   {e.item}
                 </li>
               ))}
             </ul>
             {reviewCount > 0 && (
-              <details className="research-removed research-review">
+              <details className={removedClass}>
                 <summary>評価モデルと Guardrails の判定が分かれた文（{reviewCount}件）</summary>
                 <ul>
                   {evaluation.reviewClaims!.map((c, i) => (
                     <li key={i}>
                       <p>{c.claim}</p>
-                      <p className="research-check-detail">{c.reason}</p>
+                      <p className={checkDetailClass}>{c.reason}</p>
                     </li>
                   ))}
                 </ul>
               </details>
             )}
             {removedInTopics > 0 && (
-              <p className="research-record-line">
+              <p className={recordLineClass}>
                 根拠を確認できなかった文 {removedInTopics}件は、各キーワードの解説の中に表示しています。
               </p>
             )}
             {removedWithoutTopic.length > 0 && (
-              <details className="research-removed">
+              <details className={removedClass}>
                 <summary>根拠を確認できなかったため、表示から除いた文（{removedWithoutTopic.length}件）</summary>
                 <ul>
                   {removedWithoutTopic.map((c, i) => (
                     <li key={i}>
                       <p>{plainClaim(c.claim)}</p>
-                      <p className="research-check-detail">{removedReason(c)}</p>
+                      <p className={checkDetailClass}>{removedReason(c)}</p>
                     </li>
                   ))}
                 </ul>
               </details>
             )}
-            <p className="research-hint">
+            <p className={hintClass}>
               評価は、分析とは別のモデル（{evaluation.judgeModel}）が、各文とその根拠を突き合わせて判定しています。評価もAIによるため、重要な判断の前には根拠を確認してください。
             </p>
           </>

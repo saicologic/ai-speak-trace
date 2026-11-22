@@ -186,14 +186,15 @@ describe('TranscriptionList の見た目', () => {
 
   it('TranscriptionList.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
     expect(Object.keys(allCss)).not.toContain('components/TranscriptionList.css');
-    // 探し方がまちがっていないことを、ほかの画面の CSS が見つかることで確かめる
-    expect(Object.keys(allCss)).toContain('components/SettingsPage.css');
+    // 探し方がまちがっていないことを、残す CSS（index.css）が見つかることで確かめる
+    // （画面の CSS は、全部を Tailwind に移すと残らないため、目印に使わない）
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 
   it('ほかの CSS ファイルでも、目印のクラスに見た目を指定しない', () => {
     expect(cssFilesSelecting('transcription-list')).toEqual([]);
-    // 探し方がまちがっていないことを、画面の CSS のクラスが見つかることと、src の直下の CSS も読んでいることで確かめる
-    expect(cssFilesSelecting('settings-page')).toEqual(['components/SettingsPage.css']);
-    expect(Object.keys(allCss)).toEqual(expect.arrayContaining(['App.css', 'index.css']));
+    // 探し方がまちがっていないことを、src の直下の CSS（index.css）も読んでいることで確かめる
+    // （クラスを見つけられることは、src/test/cssRules.test.ts で確かめる）
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });

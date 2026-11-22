@@ -1,5 +1,4 @@
 import type { ContentWarning } from '../types';
-import './AiGeneratedNotice.css';
 
 interface Props {
   /** 根拠として確認してほしいもの（例: 「出典」「元の発言」） */
@@ -19,15 +18,18 @@ const CONTENT_LABELS: Record<string, string> = {
   MISCONDUCT: '不正行為',
 };
 
+/** 注意（黄色）と警告（赤）に共通の、余白・枠・文字の大きさ */
+const boxClass = 'mb-3 rounded-md border px-3 py-2 text-xs';
+
 /** AIが生成した内容であることと、根拠の確認を促す表示 */
 export function AiGeneratedNotice({ basis, model, warnings = [] }: Props) {
   return (
     <>
-      <p className="ai-generated-notice" role="note">
+      <p className={`${boxClass} border-amber-200 bg-amber-50 text-amber-800`} role="note">
         AIが生成した内容です{model && `（モデル: ${model}）`}。誤りを含むことがあるため、{basis}を確認してから使ってください。
       </p>
       {warnings.length > 0 && (
-        <p className="ai-generated-warning" role="alert">
+        <p className={`${boxClass} border-red-200 bg-red-50 text-red-800`} role="alert">
           この結果に、不適切な表現（
           {warnings.map((w) => CONTENT_LABELS[w.type] ?? w.type).join('、')}
           ）が含まれている可能性があります（Amazon Bedrock Guardrails の判定）。内容を確認してから使ってください。

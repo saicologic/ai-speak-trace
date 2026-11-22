@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SpeakerNameEditor } from '../SpeakerNameEditor';
+import { allCss, cssFilesSelecting } from '../../test/cssRules';
 import { updateSpeakerNames } from '../../api/client';
 import type { Speaker, Transcription } from '../../types';
 
@@ -131,5 +132,34 @@ describe('SpeakerNameEditor', () => {
       { id: 'speaker_0', name: '田中さん' },
       { id: 'speaker_1', name: 'Bさん' },
     ]);
+  });
+});
+
+describe('SpeakerNameEditor の見た目', () => {
+  it('話者名の欄は白いカードにし、見出し・色の丸・名前の入力を横に並べる', () => {
+    const { container } = render(<SpeakerNameEditor {...defaultProps} />);
+    expect(container.firstElementChild).toHaveClass('mb-6', 'rounded-lg', 'border', 'border-gray-200', 'bg-white', 'p-4');
+    expect(screen.getByRole('heading', { name: '話者名' })).toHaveClass('mb-3', 'text-base', 'font-semibold');
+    // speaker-color-dot は、テストで色の丸を探すための目印
+    const dot = container.querySelector('.speaker-color-dot');
+    expect(dot).toHaveClass('size-3', 'shrink-0', 'rounded-full');
+    expect(screen.getAllByRole('textbox')[0]).toHaveClass('w-[120px]');
+  });
+
+  it('「保存」ボタンは青くし、カーソルを乗せると濃い青にする', () => {
+    render(<SpeakerNameEditor {...defaultProps} />);
+    expect(screen.getByRole('button', { name: '保存' })).toHaveClass(
+      'border-none',
+      'bg-primary',
+      'text-sm',
+      'text-white',
+      'hover:bg-primary-hover',
+    );
+  });
+
+  it('SpeakerNameEditor.css を残さず、目印のクラスにも見た目を指定しない', () => {
+    expect(Object.keys(allCss)).not.toContain('components/SpeakerNameEditor.css');
+    expect(cssFilesSelecting('speaker-color-dot')).toEqual([]);
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });

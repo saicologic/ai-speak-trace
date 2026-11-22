@@ -32,7 +32,7 @@
 
 ## メイン画面
 
-メイン画面は `PageLayout` を使わず、`frontend/src/App.tsx`（と `frontend/src/App.css`）で同じ作りにしています。上のヘッダーを固定し、左のサイドバー・真ん中の文字起こし・右のキーワードを、それぞれの中でスクロールさせます。
+メイン画面は `PageLayout` を使わず、`frontend/src/App.tsx` の Tailwind のクラスで同じ作りにしています。上のヘッダーを固定し、左のサイドバー・真ん中の文字起こし・右のキーワードを、それぞれの中でスクロールさせます。
 
 左のサイドバーは、3つのボタンと「文字起こし履歴」の見出しを固定し、音声ファイルの一覧だけをスクロールします（`frontend/src/components/TranscriptionList.tsx` の Tailwind のクラス）。一覧には最低の高さ（160px）を持たせ、画面が低くてそれを保てないときだけ、サイドバー全体をスクロールします。どの高さでも、全部のボタンと履歴に届くようにするためです。
 
@@ -53,7 +53,7 @@
 
 テストの画面（jsdom）は、CSS を読み込まず、高さも計算しません。そのため、要素に付けた Tailwind のクラスを確かめます。
 
-Tailwind に移した部品では、前の CSS の指定を残さないことも確かめます。`@layer` の外に書いた CSS は Tailwind のクラスより強いため、残っているとクラスが効きません。消した CSS ファイルは `import.meta.glob` で、`App.css` のように残っているファイルの中の指定は `?raw` で文字列として読んで確かめます（`frontend/vitest.config.ts` の `css.include` で、`?raw` で読むときだけ中身を読む）。実際の高さ・スクロール・カーソルを乗せたときの表示は、Playwright のテスト（`frontend/e2e`）で、本物のブラウザ（Chromium）を使って確かめます。
+画面の CSS は、全部を Tailwind のクラスに移し、`frontend/src` に残る CSS は `index.css`（Tailwind の読み込み・`@theme`・`@layer base` の要素の設定）だけです。前の CSS の指定を残さないことも確かめます。`@layer` の外に書いた CSS は Tailwind のクラスより強いため、残っているとクラスが効きません。`src` の CSS ファイルを `import.meta.glob` の `?raw` で文字列として読み、消した CSS ファイルがないこと・テストで探すための目印のクラスにどの CSS ファイルでも見た目を指定していないことを確かめます（`frontend/src/test/cssRules.ts`。`frontend/vitest.config.ts` の `css.include` で、`?raw` で読むときだけ中身を読む）。実際の高さ・スクロール・カーソルを乗せたときの表示は、Playwright のテスト（`frontend/e2e`）で、本物のブラウザ（Chromium）を使って確かめます。
 
 - `cd frontend && npm run test:e2e` で流す。テストのための画面を 5174 のポートで起動するので、開発用の画面（5173）を起動したままでも流せる
 - API は各テストで `page.route` でまね、作り物のデータを返す（`frontend/e2e/mockApi.ts`）。まねていない API は全部断り、バックエンドと本物のデータは使わない

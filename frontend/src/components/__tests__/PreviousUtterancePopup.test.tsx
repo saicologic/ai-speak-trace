@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { PreviousUtterancePopup } from '../PreviousUtterancePopup';
+import { allCss, cssFilesSelecting } from '../../test/cssRules';
 import type { Speaker, Utterance } from '../../types';
 
 const sampleUtterance: Utterance = {
@@ -94,5 +95,73 @@ describe('PreviousUtterancePopup', () => {
     fireEvent.click(popup!);
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('PreviousUtterancePopup の見た目', () => {
+  it('画面全体を半透明の黒で覆い、ポップアップを真ん中に出す', () => {
+    const { container } = render(<PreviousUtterancePopup {...defaultProps} />);
+    // previous-utterance-overlay・previous-utterance-popup・previous-utterance-popup-content は、テストで探すための目印
+    expect(container.querySelector('.previous-utterance-overlay')).toHaveClass(
+      'fixed',
+      'top-0',
+      'left-0',
+      'z-[1000]',
+      'flex',
+      'size-full',
+      'items-center',
+      'justify-center',
+      'bg-black/30',
+    );
+    expect(container.querySelector('.previous-utterance-popup')).toHaveClass(
+      'relative',
+      'w-[90%]',
+      'max-w-[520px]',
+      'rounded-xl',
+      'bg-white',
+      'p-5',
+      'shadow-[0_8px_32px]',
+      'shadow-black/15',
+    );
+  });
+
+  it('発話は灰色の背景に話者の色の左の線を付け、長い本文はポップアップの中でスクロールする', () => {
+    const { container } = render(<PreviousUtterancePopup {...defaultProps} />);
+    expect(container.querySelector('.previous-utterance-popup-content')).toHaveClass(
+      'rounded-r-lg',
+      'border-l-4',
+      'border-l-gray-500',
+      'bg-gray-50',
+      'px-4',
+      'py-3',
+    );
+    expect(screen.getByText('世界について話しています')).toHaveClass(
+      'max-h-[200px]',
+      'overflow-y-auto',
+      'text-base',
+      'leading-[1.7]',
+      'text-gray-700',
+    );
+  });
+
+  it('閉じるボタンは枠のない灰色の × にし、カーソルを乗せると濃くする', () => {
+    render(<PreviousUtterancePopup {...defaultProps} />);
+    expect(screen.getByRole('button')).toHaveClass(
+      'border-none',
+      'bg-transparent',
+      'text-xl-minus',
+      'leading-none',
+      'text-gray-400',
+      'hover:bg-gray-100',
+      'hover:text-gray-700',
+    );
+  });
+
+  it('PreviousUtterancePopup.css を残さず、目印のクラスにも見た目を指定しない', () => {
+    expect(Object.keys(allCss)).not.toContain('components/PreviousUtterancePopup.css');
+    for (const marker of ['previous-utterance-overlay', 'previous-utterance-popup', 'previous-utterance-popup-content']) {
+      expect(cssFilesSelecting(marker)).toEqual([]);
+    }
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });
