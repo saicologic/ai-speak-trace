@@ -6,7 +6,10 @@ set -u
 HOOK="$(cd "$(dirname "$0")/../bin" && pwd)/cr-limit-gate.sh"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 
-tmp=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/cr-limit-gate-test.XXXXXX")" && pwd -P) || exit 1
+# mktemp が失敗したときは、ここで止める（cd に空の値を渡すと今のフォルダのままになり、終わるときに今のフォルダを消してしまうため）
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/cr-limit-gate-test.XXXXXX") || exit 1
+[ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
+tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
 git init -q -b main "$repo"

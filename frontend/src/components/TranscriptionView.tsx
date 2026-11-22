@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { UtteranceBlock } from './UtteranceBlock';
 import { PreviousUtterancePopup } from './PreviousUtterancePopup';
 import type { Transcription } from '../types';
-import './TranscriptionView.css';
 
 interface Props {
   transcription: Transcription;
@@ -19,6 +18,13 @@ interface Props {
   /** タイムスタンプクリック時のコールバック */
   onTimeClick?: (startTime: number) => void;
 }
+
+/** 会話に飛んだ発言を目立たせるアニメーション（背景の色を 2 秒で消す） */
+const JUMP_HIGHLIGHT_CLASS = 'animate-jump-highlight';
+
+/** 発話を包む箱：発話を選ぶときは、チェックボックスと発話の間をあけ、カーソルを乗せると薄い紫にする */
+const wrapperClass = 'flex items-start';
+const selectableWrapperClass = 'gap-3 rounded-lg p-1 transition-colors duration-150 hover:bg-purple-50';
 
 /** 文字起こし結果表示コンポーネント */
 export function TranscriptionView({
@@ -45,13 +51,13 @@ export function TranscriptionView({
     const el = utteranceRefs.current.get(scrollToUtteranceIndex);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      el.classList.add('jump-highlight');
+      el.classList.add(JUMP_HIGHLIGHT_CLASS);
       // ハイライトを2秒後に消す
-      const timer = setTimeout(() => el.classList.remove('jump-highlight'), 2000);
+      const timer = setTimeout(() => el.classList.remove(JUMP_HIGHLIGHT_CLASS), 2000);
       onScrollComplete?.();
       return () => {
         clearTimeout(timer);
-        el.classList.remove('jump-highlight');
+        el.classList.remove(JUMP_HIGHLIGHT_CLASS);
       };
     }
     onScrollComplete?.();
@@ -135,25 +141,29 @@ export function TranscriptionView({
     : undefined;
 
   return (
-    <div className="transcription-view">
-      <h3>文字起こし結果</h3>
+    <div>
+      <h3 className="mb-4 text-lg font-semibold">文字起こし結果</h3>
 
       {selectedWords.size > 0 && (
-        <div className="selection-info">
+        // selection-info は、テストで選んだ単語の数の表示を探すための目印
+        <div className="selection-info mb-4 flex items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-md text-blue-800">
           <span>{selectedWords.size} 単語を選択中</span>
-          <button onClick={() => setSelectedWords(new Set())}>
+          <button
+            className="border-blue-300 bg-transparent px-[0.5em] py-[0.2em] text-xs text-blue-800"
+            onClick={() => setSelectedWords(new Set())}
+          >
             選択解除
           </button>
         </div>
       )}
 
       {(selectedSpeakerId || (filterActive && highlightedKeywords.size > 0)) && (
-        <div className="filter-info">
+        <div className="mb-4 rounded-md border border-amber-200 bg-yellow-50 px-3 py-[0.4rem] text-sm text-amber-800">
           {displayUtterances.length}件の発話を表示中（全{transcription.utterances.length}件）
         </div>
       )}
 
-      <div className="utterance-list">
+      <div className="flex flex-col">
         {displayUtterances.map(({ utterance, index }) => {
           const speaker = transcription.speakers.find(
             (s) => s.id === utterance.speakerId,
@@ -165,12 +175,12 @@ export function TranscriptionView({
               ref={(el) => {
                 if (el) utteranceRefs.current.set(index, el);
               }}
-              className={`utterance-select-wrapper ${contextSelectMode ? 'selectable' : ''}`}
+              className={contextSelectMode ? `${wrapperClass} ${selectableWrapperClass}` : wrapperClass}
             >
               {contextSelectMode && (
                 <input
                   type="checkbox"
-                  className="utterance-checkbox"
+                  className="mt-4 size-[1.1rem] shrink-0 cursor-pointer accent-violet-500"
                   checked={selectedUtteranceIndices?.has(index) ?? false}
                   onChange={() => onToggleUtteranceSelection?.(index)}
                 />

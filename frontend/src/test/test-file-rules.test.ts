@@ -42,3 +42,42 @@ describe('テストのファイルの lint', () => {
     expect(errors.get(line)).toBeUndefined()
   })
 })
+
+/**
+ * ブラウザのテスト（Playwright の e2e）でも、テストを外す書き方（skip・only・fixme）を lint で止めることを確かめる
+ */
+const e2eLines = [
+  "test.skip('a', async () => {})",
+  "test.only('a', async () => {})",
+  "test.fixme('a', async () => {})",
+  "test.describe.skip('a', () => {})",
+  "test.describe.only('a', () => {})",
+  "test.describe.fixme('a', () => {})",
+  "test('a', async () => {})",
+  "test.describe('a', () => {})",
+  "test.beforeEach(async () => {})",
+]
+
+describe('ブラウザのテストのファイルの lint', () => {
+  let errors: Map<number, string[]>
+
+  beforeAll(async () => {
+    const eslint = new ESLint()
+    const [result] = await eslint.lintText(e2eLines.join('\n') + '\n', {
+      filePath: 'e2e/sample.spec.ts',
+    })
+    errors = new Map()
+    for (const m of result.messages) {
+      if (m.severity !== 2) continue
+      errors.set(m.line, [...(errors.get(m.line) ?? []), m.ruleId ?? ''])
+    }
+  }, 60_000)
+
+  it.each(e2eLines.slice(0, 6).map((code, i) => [code, i + 1] as const))('%s を止める', (_code, line) => {
+    expect(errors.get(line)).toContain('no-restricted-syntax')
+  })
+
+  it.each(e2eLines.slice(6).map((code, i) => [code, i + 7] as const))('%s は止めない', (_code, line) => {
+    expect(errors.get(line)).toBeUndefined()
+  })
+})

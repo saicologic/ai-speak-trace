@@ -133,7 +133,7 @@ ai-speak-trace/
 
 次の仕組みで、この決まりを確かめる。
 
-- **CI の `TDD`**（`.github/workflows/tdd.yml`・`.github/scripts/check-tdd-order.sh`）: `main`・`release/*` 宛ての PR で、コミットを古い順に調べ、実装のファイル（`backend/src` の `.spec.ts` 以外・`frontend/src` の `.test.ts(x)` 以外・`backend/scripts/`）を変えたコミットより前にテストのファイルを変えたコミットがあるか、`test:` 以外のコミットでテストの `expect(` を減らしていないかを確かめる。`refactor:`・`style:` のコミットと、マージで入ったコミットは、順番の確認の対象外。テストを書けない変更だけの PR は、`no-tdd` のラベルを付けて飛ばす
+- **CI の `TDD`**（`.github/workflows/tdd.yml`・`.github/scripts/check-tdd-order.sh`）: `main`・`release/*` 宛ての PR で、コミットを古い順に調べ、実装のファイル（`backend/src` の `.spec.ts` 以外・`frontend/src` の `.test.ts(x)` 以外・`backend/scripts/`）を変えたコミットより前にテストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`・`frontend/e2e` の `.spec.ts`）を変えたコミットがあるか、`test:` 以外のコミットでテストの `expect(` を減らしていないかを確かめる。`refactor:`・`style:` のコミットと、マージで入ったコミットは、順番の確認の対象外。テストを書けない変更だけの PR は、`no-tdd` のラベルを付けて飛ばす
   - その実装を参照している（import している・パスを書いている）テストがすでにあるときは、そのテストのどれかを、実装と同じかそれより前のコミットで変える必要がある（ほかのテストを変えただけでは通らない）。参照しているテストは `.github/scripts/related-tests.mjs` で探す
   - まだテストのない実装は、PR の中でそれより前にどれかのテストを変えていれば通る。テストが実装の動きを確かめているかは、`test-reviewer` とレビューで確かめる
 - **push の前の確認**（`.claude/team/bin/tdd-push-gate.sh`）: Claude Code が `github.sh` で push するときに、PR の宛先と比べて同じ確認を手元で流し、通らなければ止める。PR がまだないときは止めない（CI で確かめる）。急ぎのときは、ユーザーの了承を得て `github.sh` に `--skip SKIP_TDD_CHECK` を付ける
@@ -181,7 +181,7 @@ ai-speak-trace/
 
 `build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。`release/*` 宛ての PR では、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。
 
-- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
+- **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）・Playwright のブラウザのテスト（`frontend/e2e/`・`frontend/playwright.config.ts`・`frontend/tsconfig.e2e.json`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
 - **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` 以外のファイルと、Markdownファイル（`.claude/team/`・`.claude/settings.json`・`.github/scripts/` は `backend/src/lint` のテストが確かめるため、`backend-test` を動かす）
 - 一覧にないファイルはビルドする。ビルド不要なファイルを新しく足す場合だけ、`changes` ジョブの一覧に足す
 

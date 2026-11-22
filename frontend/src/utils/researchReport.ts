@@ -55,6 +55,17 @@ export function splitTopics(segments: ReportSegment[]): { title: string | null; 
 }
 
 /**
+ * 出典の表示（会話1 34:19 など）のボタンのクラス
+ * research-cite は、出典の吹き出しを閉じないボタンを見分けるための目印。会話の根拠は紫、Web の根拠は緑にする。
+ * キーワードが話題になった発言の一覧（inList）では、左をあけず、少し大きくする
+ */
+export function citeClassOf(sourceKind: ReportCitation['sourceKind'], inList = false): string {
+  const color = sourceKind === 'web' ? 'bg-emerald-50 text-emerald-800' : 'bg-violet-100 text-violet-800';
+  const size = inList ? 'ml-0 px-[0.55rem] py-[0.15rem] text-xs' : 'ml-[0.3rem] px-[0.4rem] py-0 text-2xs';
+  return `research-cite cursor-pointer rounded-sm border-none align-[0.1em] leading-[1.6] whitespace-nowrap hover:underline hover:brightness-95 ${size} ${color}`;
+}
+
+/**
  * 統合分析の文と根拠から、出典の表示付きの HTML と、番号付きの根拠を作る
  * 出典は、根拠の付いた文の末尾（改行の前）に「会話1 34:19」のような短い表示で付ける
  * 1つの文に同じ表示の根拠が複数ある場合は、1つの表示にまとめる（クリックすると、まとめた根拠を全部見られる）
@@ -120,7 +131,7 @@ export function buildReport(
         const first = citations[nums[0] - 1];
         const chip = doc.createElement('button');
         chip.type = 'button';
-        chip.className = `research-cite ${first.sourceKind}`;
+        chip.className = citeClassOf(first.sourceKind);
         chip.dataset.citations = group;
         chip.textContent = label(first);
         fragment.append(chip);

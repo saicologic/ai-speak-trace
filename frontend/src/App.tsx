@@ -29,7 +29,22 @@ import {
   type AiAnalysisState,
 } from './utils/aiAnalysis';
 import type { Transcription, ContextAnalysisResponse } from './types';
-import './App.css';
+
+
+/** モーダルの外側と白い箱（ご利用枠の上限・文脈分析中） */
+const modalOverlayClass = 'fixed top-0 left-0 z-[1000] flex size-full items-center justify-center bg-black/50';
+const modalContentClass =
+  'w-[90%] max-w-[440px] rounded-xl bg-white p-8 text-center shadow-[0_20px_60px] shadow-black/30';
+/**
+ * モーダルの説明の段落：少し大きい灰色の文字にし、下をあける
+ * 箱の中の段落すべてに効く指定にすると、詳しい説明（赤）など、ほかの段落の見た目まで上書きするため、段落ごとに付ける
+ */
+const modalTextClass = 'mb-6 text-base-plus leading-[1.7] text-gray-700';
+/** 読み込み中の丸 */
+const loadingSpinnerClass = 'mb-4 size-10 animate-spin-fast rounded-full border-3 border-gray-200 border-t-primary';
+/** サイドバーのボタン（文字起こし・ジョブ・ディープサーチ）：押せないときは灰色にする */
+const sidebarButtonClass =
+  'w-full rounded-lg border-none bg-primary px-4 py-[0.6rem] text-md font-semibold text-white transition-colors duration-150 enabled:hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400';
 
 /** AI 分析を使えないときの表示（使えるときは何も出さない。設定が足りないときは、足りない設定を出す） */
 const AI_STATUS_TEXT: Record<AiAnalysisState, string> = {
@@ -367,20 +382,20 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="flex h-screen flex-col">
       {quotaError && (
-        <div className="modal-overlay" onClick={() => setQuotaError(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>ご利用枠の上限に達しました</h3>
+        <div className={modalOverlayClass} onClick={() => setQuotaError(null)}>
+          <div className={modalContentClass} onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-xl-minus text-red-800">ご利用枠の上限に達しました</h3>
             {quotaError && (
-              <p className="modal-quota-detail">{quotaError}</p>
+              <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-md font-medium whitespace-pre-line text-red-800">{quotaError}</p>
             )}
-            <p>
+            <p className={modalTextClass}>
               現在の文字起こしプランの利用枠を超えたため、処理を実行できません。プランの変更が必要です。<br />
               <a href="https://elevenlabs.io/pricing" target="_blank" rel="noopener noreferrer">プランの詳細をご覧ください。</a>
             </p>
             <button
-              className="modal-close-button"
+              className="rounded-lg border-none bg-brand px-8 py-[0.6rem] text-base text-white transition-colors duration-150 hover:bg-brand-hover"
               onClick={() => setQuotaError(null)}
             >
               閉じる
@@ -388,24 +403,27 @@ function App() {
           </div>
         </div>
       )}
-      <header className="app-header">
-        <div className="app-header-left">
-          <h1>AI Speak Trace</h1>
-          <p>音声データの話者分離・文字起こし</p>
+      <header className="flex items-center justify-between bg-brand px-8 py-4 text-white">
+        <div>
+          <h1 className="mb-1 text-2xl">AI Speak Trace</h1>
+          <p className="text-md text-brand-muted">音声データの話者分離・文字起こし</p>
         </div>
         <button
-          className="app-header-settings-button"
+          className="rounded-lg border-none bg-[#4f6ef7] px-[1.1rem] py-[0.45rem] text-md font-semibold tracking-[0.02em] text-white transition-[background-color,scale] duration-150 hover:bg-[#3b5be0] active:scale-[0.97]"
           onClick={() => setPage('settings')}
           title="設定"
         >
           設定
         </button>
       </header>
-      <main className="app-main">
-        <aside className="app-sidebar">
-          <div className="sidebar-tabs">
+      <main className="flex flex-1 overflow-hidden">
+        {/* ふつうは文字起こし履歴の一覧だけがスクロールする（TranscriptionList）。
+            画面が低くて一覧の最低の高さを保てないときだけ、サイドバー全体をスクロールし、全部のボタンと履歴に届くようにする。
+            app-sidebar は、文字起こし履歴がサイドバーの直接の子であることをテストで確かめるための目印 */}
+        <aside className="app-sidebar flex w-[280px] min-w-[280px] flex-col overflow-y-auto border-r border-gray-200 bg-white p-4">
+          <div className="mb-4">
             <button
-              className="sidebar-tab-action"
+              className={sidebarButtonClass}
               onClick={() => {
                 setPage('transcribe');
               }}
@@ -413,17 +431,17 @@ function App() {
               音声ファイルの文字起こし
             </button>
           </div>
-          <div className="sidebar-tabs">
+          <div className="mb-4">
             <button
-              className="sidebar-tab-action"
+              className={sidebarButtonClass}
               onClick={() => setPage('resumable-jobs')}
             >
               ジョブ進捗確認（{resumableJobs.length}件）
             </button>
           </div>
-          <div className="sidebar-tabs">
+          <div className="mb-4">
             <button
-              className="sidebar-tab-action"
+              className={sidebarButtonClass}
               onClick={() => setPage('deep-search')}
               disabled={!aiReady}
               title={aiReady ? undefined : AI_STATUS_TEXT[aiState]}
@@ -438,29 +456,29 @@ function App() {
             loading={loading}
           />
         </aside>
-        <section className="app-content">
-          {error && <div className="error-message">{error}</div>}
+        <section className="flex flex-1 flex-col overflow-hidden">
+          {error && <div className="mx-8 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">{error}</div>}
           {loading && (
-            <div className="loading">
-              <div className="loading-spinner" />
-              <p>読み込み中...</p>
+            <div className="flex flex-col items-center justify-center px-8 py-16 text-gray-500">
+              <div className={loadingSpinnerClass} />
+              <p className="text-lg font-medium">読み込み中...</p>
             </div>
           )}
           {!loading && !transcription && !error && (
-            <div className="empty-state">
+            <div className="flex items-center justify-center px-8 py-16 text-lg text-gray-400">
               <p>文字起こし履歴を選択してください</p>
             </div>
           )}
           {transcription && !loading && (
             <>
-              <div className="app-content-fixed">
+              <div className="shrink-0 border-b border-gray-200 px-8 pt-4">
                 <AudioPlayer
                   fileName={transcription.audioFileName}
                   ref={audioRef}
                   onJumpToUtterance={handleJumpToUtterance}
                 />
               </div>
-              <div className="app-content-scroll">
+              <div className="flex-1 overflow-y-auto px-8 pt-4 pb-6">
                 <SpeakerNameEditor
                   transcriptionId={transcription.id}
                   speakers={transcription.speakers}
@@ -483,7 +501,7 @@ function App() {
           )}
         </section>
         {transcription && !loading && (
-          <aside className="app-sidebar-right">
+          <aside className="flex w-[240px] min-w-[240px] flex-col overflow-y-auto border-l border-gray-200 bg-white p-4">
             <KeywordList
               keywords={keywords}
               highlightedKeywords={highlightedKeywords}
@@ -496,12 +514,23 @@ function App() {
               aiDisabled={!aiReady}
               aiStatus={
                 aiReady ? undefined : (
-                  <p className={`keyword-ai-status ${aiState}`} role="status">
+                  <p
+                    className={`mb-3 rounded-lg border px-3 py-2 text-xs leading-normal ${
+                      aiState === 'off'
+                        ? 'border-gray-200 bg-gray-50 text-gray-600'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                    }`}
+                    role="status"
+                  >
                     {aiState === 'missing'
                       ? `AI 分析の設定が足りません: ${aiMissing.join('・')}`
                       : AI_STATUS_TEXT[aiState]}
                     {(aiState === 'off' || aiState === 'missing') && (
-                      <button type="button" onClick={() => setPage('settings')}>
+                      <button
+                        type="button"
+                        className="mt-[0.4rem] block rounded-md border-current bg-white px-[0.6rem] py-1 text-xs font-semibold text-inherit"
+                        onClick={() => setPage('settings')}
+                      >
                         設定を開く
                       </button>
                     )}
@@ -523,7 +552,7 @@ function App() {
       {/* 文脈分析：フローティング分析ボタン */}
       {contextSelectActive && selectedUtteranceIndices.size > 0 && (
         <button
-          className="context-floating-button"
+          className="fixed bottom-8 left-1/2 z-[999] -translate-x-1/2 cursor-pointer rounded-3xl border-none bg-violet-500 px-8 py-3 text-lg font-semibold text-white shadow-[0_4px_16px] shadow-violet-500/40 transition-[background-color,box-shadow] duration-150 hover:bg-violet-600 hover:shadow-[0_6px_20px] hover:shadow-violet-500/50"
           onClick={handleAnalyzeContext}
         >
           分析する（{selectedUtteranceIndices.size}件）
@@ -532,10 +561,10 @@ function App() {
 
       {/* 文脈分析：ローディング */}
       {contextAnalyzing && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="loading-spinner" />
-            <p>発言の文脈を分析中...</p>
+        <div className={modalOverlayClass}>
+          <div className={modalContentClass}>
+            <div className={loadingSpinnerClass} />
+            <p className={modalTextClass}>発言の文脈を分析中...</p>
           </div>
         </div>
       )}

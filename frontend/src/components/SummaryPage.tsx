@@ -7,12 +7,48 @@ import type {
   TranscriptionSummaryLog,
   SummaryKeyPoint,
 } from '../types';
-import './InterviewPage.css';
-import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
+import {
+  actionsClass,
+  completedClass,
+  completedLinkClass,
+  completedMessageClass,
+  logItemModelClass,
+  backButtonClass,
+  contentClass,
+  errorClass,
+  headerClass,
+  hintClass,
+  loadingClass,
+  loadingSpinnerClass,
+  loadingTextClass,
+  logItemClassOf,
+  logItemDateClass,
+  logItemKeywordsClass,
+  logsDetailClass,
+  logsDetailDateClass,
+  logsDetailEmptyClass,
+  logsDetailHeaderClass,
+  logsDetailMetaClass,
+  logsEmptyClass,
+  logsLayoutClass,
+  logsListClass,
+  logsListHeaderClass,
+  logsRefreshClass,
+  pageClass,
+  primaryButtonClass,
+  resultCardClass,
+  resultQuestionClass,
+  resultsClass,
+  sectionClass,
+  sectionHeadingClass,
+  tabClassOf,
+  tabsClass,
+  titleClass,
+} from './interviewPageClasses';
 
 interface Props {
   transcriptionId: string;
@@ -20,6 +56,28 @@ interface Props {
   /** 根拠の発言を、元の文字起こしで開く */
   onOpenUtterance?: (utteranceIndex: number) => void;
 }
+
+/** プロンプト・記録の等幅の字体 */
+const monoClass = "[font-family:ui-monospace,SFMono-Regular,'SF_Mono',Consolas,monospace]";
+/** 指示の入力欄（カードの直下に置くときは左右をあけ、項目名と並べるときは幅いっぱいにする） */
+const instructionClass =
+  'rounded-md border border-blue-100 bg-white px-[0.6rem] py-[0.4rem] text-[0.82rem] text-gray-700 transition-colors duration-150 placeholder:text-gray-400 focus:border-primary focus:shadow-[0_0_0_2px] focus:shadow-blue-500/15 focus:outline-none';
+const cardInstructionClass = `${instructionClass} mx-3 my-[0.4rem] w-[calc(100%-1.5rem)]`;
+const subrowInstructionClass = `${instructionClass} w-full`;
+/** 指示のカードと、その項目名 */
+const fieldCardClass = 'overflow-hidden rounded-lg border border-gray-200 bg-white';
+const fieldCardLabelClass = 'block border-b border-gray-100 px-3 pt-2 pb-[0.3rem] text-md font-medium text-gray-700';
+/** 白い地に灰色の枠の小さいボタン：カーソルを乗せると灰色にする */
+const smallButtonClass = 'rounded-md border border-gray-300 bg-white transition-all duration-150 hover:border-gray-400 hover:bg-gray-100';
+/** 長い文を、等幅の字体で折り返して出す（プロンプトのプレビュー・記録） */
+const preformattedClass = `text-[0.78rem] leading-[1.6] [word-break:break-word] whitespace-pre-wrap text-gray-700 ${monoClass}`;
+
+/** 要約の結果のリスト（キーポイント・決定事項）と、その項目の文字 */
+const resultListClass = 'm-0 flex flex-col gap-[0.3rem] pl-5';
+const resultItemTextClass = 'text-base leading-[1.6] text-gray-700';
+/** 根拠のリンクと、リンクにしない根拠 */
+const evidenceLinkClass = 'cursor-pointer border-none bg-transparent p-0 text-xs text-blue-700 underline';
+const evidenceNoteClass = 'text-xs text-gray-400';
 
 /** プロンプト指示フォームの各フィールド設定 */
 interface PromptFieldConfig {
@@ -227,25 +285,25 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
 
   return (
     <PageLayout
-      className="interview-page"
+      className={pageClass}
       header={
         <>
-          <header className="interview-header">
-            <button className="interview-back-button" onClick={onBack}>
+          <header className={headerClass}>
+            <button className={backButtonClass} onClick={onBack}>
               ← 戻る
             </button>
-            <h1>要約</h1>
+            <h1 className={titleClass}>要約</h1>
           </header>
 
-          <div className="interview-tabs">
+          <div className={tabsClass}>
             <button
-              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'new')}
               onClick={() => { setActiveTab('new'); setCompletedId(null); }}
             >
               新規要約
             </button>
             <button
-              className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'logs')}
               onClick={() => setActiveTab('logs')}
             >
               要約結果
@@ -255,15 +313,15 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
       }
     >
       {activeTab === 'new' && (
-        <div className="interview-content">
-          {error && <div className="interview-error">{error}</div>}
+        <div className={contentClass}>
+          {error && <div className={errorClass}>{error}</div>}
 
           {/* モデル選択 */}
-          <section className="interview-section">
-            <h2>モデル</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>モデル</h2>
             {config ? (
               <select
-                className="summary-model-select"
+                className="min-w-[280px] cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-base text-gray-800 transition-colors duration-150 focus:border-primary focus:shadow-[0_0_0_2px] focus:shadow-blue-500/20 focus:outline-none"
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
               >
@@ -274,17 +332,17 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                 ))}
               </select>
             ) : (
-              <p className="interview-hint">読み込み中...</p>
+              <p className={hintClass}>読み込み中...</p>
             )}
           </section>
 
           {/* プロンプト */}
-          <section className="interview-section">
-            <div className="summary-prompt-header">
-              <h2>プロンプト</h2>
+          <section className={sectionClass}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">プロンプト</h2>
               {isFieldsChanged && (
                 <button
-                  className="summary-reset-button"
+                  className={`${smallButtonClass} px-[0.7rem] py-[0.3rem] text-sm text-gray-500 hover:text-gray-700`}
                   onClick={handleResetFields}
                   title="デフォルトに戻す"
                 >
@@ -292,16 +350,16 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                 </button>
               )}
             </div>
-            <p className="interview-hint">
+            <p className={hintClass}>
               各項目の指示を編集できます。空にするとその項目は除外されます。
             </p>
-            <div className="summary-fields-form">
+            <div className="mt-3 flex flex-col gap-2">
               {/* overview */}
-              <div className="summary-field-card">
-                <span className="summary-field-card-label">概要</span>
+              <div className={fieldCardClass}>
+                <span className={fieldCardLabelClass}>概要</span>
                 <input
                   type="text"
-                  className="summary-field-instruction"
+                  className={cardInstructionClass}
                   placeholder={fields.find((f) => f.key === 'overview')!.defaultInstruction}
                   value={fields.find((f) => f.key === 'overview')!.instruction}
                   onChange={(e) => handleFieldInstruction('overview', e.target.value)}
@@ -309,16 +367,19 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
               </div>
 
               {/* key_points（グループ） */}
-              <div className="summary-field-card">
-                <span className="summary-field-card-label">キーポイント</span>
+              <div className={fieldCardClass}>
+                <span className={fieldCardLabelClass}>キーポイント</span>
                 {(['key_points_topic', 'key_points_summary'] as const).map((key) => {
                   const f = fields.find((f) => f.key === key)!;
                   return (
-                    <div key={key} className="summary-field-subrow">
-                      <span className="summary-field-sublabel">{f.subLabel}</span>
+                    <div
+                      key={key}
+                      className="flex items-center gap-3 border-b border-gray-100 px-3 py-[0.4rem] last:border-b-0"
+                    >
+                      <span className={`min-w-16 shrink-0 text-xs font-semibold whitespace-nowrap text-gray-500 ${monoClass}`}>{f.subLabel}</span>
                       <input
                         type="text"
-                        className="summary-field-instruction"
+                        className={subrowInstructionClass}
                         placeholder={f.defaultInstruction}
                         value={f.instruction}
                         onChange={(e) => handleFieldInstruction(key, e.target.value)}
@@ -329,11 +390,11 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
               </div>
 
               {/* decisions */}
-              <div className="summary-field-card">
-                <span className="summary-field-card-label">決定事項</span>
+              <div className={fieldCardClass}>
+                <span className={fieldCardLabelClass}>決定事項</span>
                 <input
                   type="text"
-                  className="summary-field-instruction"
+                  className={cardInstructionClass}
                   placeholder={fields.find((f) => f.key === 'decisions')!.defaultInstruction}
                   value={fields.find((f) => f.key === 'decisions')!.instruction}
                   onChange={(e) => handleFieldInstruction('decisions', e.target.value)}
@@ -342,17 +403,17 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
 
             </div>
             {enabledCount === 0 && (
-              <div className="summary-prompt-warning">
+              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 ⚠ 項目が1つも選択されていません
               </div>
             )}
 
             {/* 生成されるプロンプトのプレビュー */}
-            <div className="summary-prompt-preview">
-              <div className="summary-prompt-preview-header">
-                <p className="summary-prompt-preview-label">Claudeへのインプット</p>
+            <div className="mt-3">
+              <div className="mb-[0.4rem] flex items-center justify-between">
+                <p className="text-sm text-gray-500">Claudeへのインプット</p>
                 <button
-                  className="summary-prompt-update-button"
+                  className={`${smallButtonClass} px-[0.65rem] py-1 text-[0.78rem] text-gray-700`}
                   onClick={() =>
                     setPreviewPrompt(
                       enabledCount > 0
@@ -364,16 +425,16 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                   プロンプトを更新
                 </button>
               </div>
-              <pre className="summary-prompt-preview-content">{previewPrompt}</pre>
+              <pre className={`mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-slate-50 p-3 ${preformattedClass}`}>{previewPrompt}</pre>
             </div>
           </section>
 
           {/* 実行ボタン */}
-          <section className="interview-section">
+          <section className={sectionClass}>
             {guardrailConfigured === false && <GuardrailMissingNotice />}
-            <div className="interview-actions">
+            <div className={actionsClass}>
               <button
-                className="interview-button primary"
+                className={primaryButtonClass}
                 onClick={handleSummarize}
                 disabled={
                   summarizing ||
@@ -388,17 +449,17 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
             </div>
 
             {summarizing && (
-              <div className="interview-loading">
-                <div className="loading-spinner" />
-                <p>Claude が会話を要約中...</p>
+              <div className={loadingClass}>
+                <div className={loadingSpinnerClass} />
+                <p className={loadingTextClass}>Claude が会話を要約中...</p>
               </div>
             )}
 
             {completedId && !summarizing && (
-              <div className="summary-completed">
-                <span className="summary-completed-message">✓ 要約が完了しました。</span>
+              <div className={completedClass}>
+                <span className={completedMessageClass}>✓ 要約が完了しました。</span>
                 <button
-                  className="summary-completed-link"
+                  className={completedLinkClass}
                   onClick={() => {
                     setActiveTab('logs');
                     handleSelectLog(completedId);
@@ -413,12 +474,12 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
       )}
 
       {activeTab === 'logs' && (
-        <div className="interview-logs-layout">
-          <div className="interview-logs-list">
-            <div className="interview-logs-list-header">
+        <div className={logsLayoutClass}>
+          <div className={logsListClass}>
+            <div className={logsListHeaderClass}>
               <span>要約結果</span>
               <button
-                className="interview-logs-refresh"
+                className={logsRefreshClass}
                 onClick={loadLogs}
                 disabled={logsLoading}
                 title="更新"
@@ -427,44 +488,44 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
               </button>
             </div>
             {logsLoading ? (
-              <div className="interview-logs-empty">読み込み中...</div>
+              <div className={logsEmptyClass}>読み込み中...</div>
             ) : logs.length === 0 ? (
-              <div className="interview-logs-empty">要約結果がありません</div>
+              <div className={logsEmptyClass}>要約結果がありません</div>
             ) : (
               logs.map((log) => (
                 <button
                   key={log.id}
-                  className={`interview-log-item ${selectedLogId === log.id ? 'selected' : ''}`}
+                  className={logItemClassOf(selectedLogId === log.id)}
                   onClick={() => handleSelectLog(log.id)}
                 >
-                  <div className="interview-log-item-date">{formatDate(log.createdAt)}</div>
-                  <div className="interview-log-item-keywords">
+                  <div className={logItemDateClass}>{formatDate(log.createdAt)}</div>
+                  <div className={logItemKeywordsClass}>
                     {(log.key_points ?? []).slice(0, 2).map((kp) => kp.topic).join('・')}
                     {(log.key_points?.length ?? 0) > 2 && ` 他${(log.key_points?.length ?? 0) - 2}件`}
                   </div>
-                  <div className="summary-log-model">{log.model}</div>
+                  <div className={logItemModelClass}>{log.model}</div>
                 </button>
               ))
             )}
           </div>
 
-          <div className="interview-logs-detail">
+          <div className={logsDetailClass}>
             {!selectedLogId && (
-              <div className="interview-logs-detail-empty">
+              <div className={logsDetailEmptyClass}>
                 左の一覧から要約結果を選択してください
               </div>
             )}
             {selectedLogId && logDetailLoading && (
-              <div className="interview-logs-detail-empty">読み込み中...</div>
+              <div className={logsDetailEmptyClass}>読み込み中...</div>
             )}
             {selectedLogId && !logDetailLoading && logDetail && (
               <>
-                <div className="interview-logs-detail-header">
-                  <div className="interview-logs-detail-meta">
-                    <span className="interview-logs-detail-date">
+                <div className={logsDetailHeaderClass}>
+                  <div className={logsDetailMetaClass}>
+                    <span className={logsDetailDateClass}>
                       {formatDate(logDetail.createdAt)}
                     </span>
-                    <span className="summary-log-model">{logDetail.model}</span>
+                    <span className={logItemModelClass}>{logDetail.model}</span>
                   </div>
                 </div>
                 <SummaryResult
@@ -472,14 +533,14 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                   formatDate={formatDate}
                   onOpenUtterance={onOpenUtterance}
                 />
-                <div className="summary-log-debug">
-                  <div className="summary-log-debug-row">
-                    <span className="summary-log-debug-label">モデル</span>
-                    <code className="summary-log-debug-value">{logDetail.model}</code>
+                <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 bg-slate-50 p-3">
+                  <div className="flex flex-col gap-[0.3rem]">
+                    <span className="text-[0.72rem] font-semibold tracking-[0.05em] text-gray-400 uppercase">モデル</span>
+                    <code className={`text-[0.82rem] text-gray-700 ${monoClass}`}>{logDetail.model}</code>
                   </div>
-                  <div className="summary-log-debug-row">
-                    <span className="summary-log-debug-label">プロンプト</span>
-                    <pre className="summary-log-debug-prompt">{logDetail.prompt}</pre>
+                  <div className="flex flex-col gap-[0.3rem]">
+                    <span className="text-[0.72rem] font-semibold tracking-[0.05em] text-gray-400 uppercase">プロンプト</span>
+                    <pre className={`m-0 ${preformattedClass}`}>{logDetail.prompt}</pre>
                   </div>
                 </div>
               </>
@@ -502,27 +563,30 @@ function SummaryResult({
   onOpenUtterance?: (utteranceIndex: number) => void;
 }) {
   return (
-    <div className="interview-results">
+    <div className={resultsClass}>
       <AiGeneratedNotice
         basis="元の会話"
         model={summary.model}
         warnings={summary.contentWarnings}
       />
       {summary.overview && (
-        <div className="interview-result-card">
-          <h3 className="result-question">概要</h3>
-          <p className="summary-result-text">{summary.overview}</p>
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>概要</h3>
+          <p className="m-0 text-base leading-[1.7] text-gray-700">{summary.overview}</p>
         </div>
       )}
 
       {(summary.key_points?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">キーポイント</h3>
-          <ul className="summary-result-list summary-key-points">
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>キーポイント</h3>
+          <ul className={resultListClass}>
             {summary.key_points?.map((kp: SummaryKeyPoint, i: number) => (
-              <li key={i}>
-                <span className="summary-key-point-topic">{kp.topic}</span>
-                <span className="summary-key-point-summary">{kp.summary}</span>
+              <li
+                key={i}
+                className={`${resultItemTextClass} flex list-none flex-col gap-[0.15rem] border-l-3 border-l-gray-200 pl-3`}
+              >
+                <span className="text-md font-semibold text-gray-900">{kp.topic}</span>
+                <span className="text-md leading-[1.6] text-gray-500">{kp.summary}</span>
                 {kp.evidence && (
                   <EvidenceList evidence={kp.evidence} onOpenUtterance={onOpenUtterance} />
                 )}
@@ -530,7 +594,7 @@ function SummaryResult({
             ))}
           </ul>
           {(summary.droppedEvidenceCount ?? 0) > 0 && (
-            <p className="summary-evidence-dropped">
+            <p className="mt-2 text-xs text-gray-400">
               会話の中に見つからなかった根拠 {summary.droppedEvidenceCount}件は、表示から除きました。
             </p>
           )}
@@ -538,17 +602,17 @@ function SummaryResult({
       )}
 
       {(summary.decisions?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">決定事項</h3>
-          <ul className="summary-result-list">
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>決定事項</h3>
+          <ul className={resultListClass}>
             {summary.decisions?.map((decision: string, i: number) => (
-              <li key={i}>{decision}</li>
+              <li key={i} className={resultItemTextClass}>{decision}</li>
             ))}
           </ul>
         </div>
       )}
 
-      <div className="summary-result-meta">
+      <div className="pt-2 text-right text-xs text-gray-400">
         生成日時: {formatDate(summary.createdAt)} / モデル: {summary.model}
       </div>
       <FeedbackButton
@@ -577,23 +641,26 @@ function EvidenceList({
   onOpenUtterance?: (utteranceIndex: number) => void;
 }) {
   if (evidence.length === 0) {
-    return <span className="summary-evidence-none">根拠の発言を確認できませんでした</span>;
+    return <span className={evidenceNoteClass}>根拠の発言を確認できませんでした</span>;
   }
   return (
-    <ul className="summary-evidence">
+    <ul className="mt-1 p-0">
       {evidence.map((e, i) => (
-        <li key={i}>
-          <span className="summary-evidence-quote">「{e.quote}」</span>
+        <li
+          key={i}
+          className="flex list-none flex-row flex-wrap items-baseline gap-[0.4rem] text-[0.78rem] leading-[1.6] text-gray-700"
+        >
+          <span className="text-gray-700">「{e.quote}」</span>
           {onOpenUtterance ? (
             <button
               type="button"
-              className="summary-evidence-link"
+              className={evidenceLinkClass}
               onClick={() => onOpenUtterance(e.utteranceIndex)}
             >
               {e.speakerName} {formatTime(e.start)}
             </button>
           ) : (
-            <span className="summary-evidence-source">
+            <span className={evidenceNoteClass}>
               {e.speakerName} {formatTime(e.start)}
             </span>
           )}

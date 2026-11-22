@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TranscriptionList } from '../TranscriptionList';
+import { allCss, classesOf, cssFilesSelecting } from '../../test/cssRules';
 import { deleteTranscription, fetchTranscriptions } from '../../api/client';
 import { confirmDialog } from '../../utils/platform';
 
@@ -56,5 +57,144 @@ describe('TranscriptionList の削除', () => {
 
     expect(await screen.findByText('ログを削除できませんでした')).toBeInTheDocument();
     expect(screen.getByText('a.mp3')).toBeInTheDocument();
+  });
+});
+
+/** 音声ファイルの名前のボタン（項目）を探す */
+const itemButton = (name: string) => screen.getByText(name).closest('button');
+
+/**
+ * トップ画面の左のサイドバーの文字起こし履歴
+ * 「文字起こし履歴」の見出しは固定し、音声ファイルの一覧だけをスクロールする。
+ * 画面が低くても、一覧を見られる高さ（160px）は保つ（保てないときは、サイドバー全体がスクロールする）
+ */
+describe('TranscriptionList の見た目', () => {
+  beforeEach(() => {
+    vi.mocked(fetchTranscriptions).mockReset().mockResolvedValue(items as never);
+    vi.mocked(deleteTranscription).mockReset();
+    vi.mocked(confirmDialog).mockReset();
+  });
+
+  it('文字起こし履歴は、サイドバーの残りの高さを使い、項目が多くても伸びずに一覧の中でスクロールさせる', async () => {
+    const { container } = render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    // transcription-list は、サイドバーの直接の子であることを確かめるための目印
+    expect(classesOf(container.firstElementChild)).toEqual(
+      // min-h-0 がないと、外枠が項目の全部の高さまで伸び、一覧ではなくサイドバー全体がスクロールする
+      ['transcription-list', 'flex', 'min-h-0', 'flex-1', 'flex-col'].sort(),
+    );
+  });
+
+  it('「文字起こし履歴」と更新ボタンの行は、一覧が長くても縮まない', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    const header = screen.getByRole('heading', { name: '文字起こし履歴', level: 2 }).parentElement;
+    expect(header).toHaveClass('shrink-0', 'flex', 'items-center', 'justify-between');
+    expect(header).toContainElement(screen.getByRole('button', { name: '更新' }));
+  });
+
+  it('「更新」ボタンは、見出しの行に合わせて、ふつうのボタンより小さくする', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    // 小さくする指定（.reload-button）は AudioFileList.css にしかなく、その AudioFileList をどこからも使っていないため、効いていなかった
+    expect(classesOf(screen.getByRole('button', { name: '更新' }))).toEqual(
+      ['text-xs', 'px-[0.6em]', 'py-[0.3em]'].sort(),
+    );
+  });
+
+  it('音声ファイルの一覧だけが、長いときにスクロールし、エラー文が長くても一覧を見られる高さ（160px）を保つ', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    expect(classesOf(screen.getByRole('list'))).toEqual(
+      ['min-h-40', 'flex-1', 'list-none', 'overflow-y-auto'].sort(),
+    );
+  });
+
+  it('選んでいない項目は、カーソルを乗せると緑にする', async () => {
+    render(<TranscriptionList selectedId="t1" onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('b.mp3');
+
+    const item = itemButton('b.mp3');
+    expect(item).toHaveClass('border-gray-200', 'bg-white', 'hover:border-green-300', 'hover:bg-green-50');
+    expect(item).not.toHaveClass('border-green-500');
+  });
+
+  it('選んだ項目は濃い緑の枠にし、カーソルを乗せても色を変えない', async () => {
+    render(<TranscriptionList selectedId="t1" onSelect={vi.fn()} loading={false} />);
+    await screen.findByText('a.mp3');
+
+    const item = itemButton('a.mp3');
+    expect(item).toHaveClass('border-green-500', 'bg-green-50');
+    expect(classesOf(item).filter((c) => c.startsWith('hover:') || c === 'border-gray-200' || c === 'bg-white')).toEqual([]);
+  });
+
+  it('削除ボタンは、ふだんは見えず、項目にカーソルを乗せたときとフォーカスしたときに見える', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    const deleteButton = await screen.findByRole('button', { name: 'a.mp3 の文字起こしを削除' });
+    expect(deleteButton).toHaveClass('opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100');
+    expect(deleteButton).not.toHaveClass('opacity-100');
+    // 項目と削除ボタンを入れた li に group を付け、li にカーソルを乗せたときに見えるようにする
+    expect(deleteButton.parentElement?.tagName).toBe('LI');
+    expect(deleteButton.parentElement).toHaveClass('group', 'relative');
+  });
+
+  it('削除ボタンは、項目の右上に重ね、項目の名前と重ならないように名前の右に余白をとる', async () => {
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    const deleteButton = await screen.findByRole('button', { name: 'a.mp3 の文字起こしを削除' });
+    // li の relative を基準に、項目の右上に置く（absolute がないと、ボタンが項目の下に回り込む）
+    expect(deleteButton).toHaveClass('absolute', 'top-[0.4rem]', 'right-[0.4rem]');
+    expect(screen.getByText('a.mp3')).toHaveClass('pr-10');
+  });
+
+  it('削除しているあいだは、削除ボタンを見えたままにする', async () => {
+    vi.mocked(confirmDialog).mockResolvedValue(true);
+    vi.mocked(deleteTranscription).mockReturnValue(new Promise(() => {}));
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'a.mp3 の文字起こしを削除' }));
+
+    const deleting = await screen.findByRole('button', { name: 'a.mp3 の文字起こしを削除' });
+    await waitFor(() => expect(deleting).toHaveTextContent('削除中'));
+    expect(deleting).toHaveClass('opacity-100');
+    expect(deleting).not.toHaveClass('opacity-0');
+    // ほかの項目の削除ボタンは、押せないまま見えない
+    const other = screen.getByRole('button', { name: 'b.mp3 の文字起こしを削除' });
+    expect(other).toBeDisabled();
+    expect(other).toHaveClass('opacity-0', 'disabled:text-gray-400', 'disabled:border-gray-200');
+  });
+
+  it('取得に失敗したときは、赤い背景でエラーを出す', async () => {
+    vi.mocked(fetchTranscriptions).mockRejectedValue(new Error('取得できませんでした'));
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    expect(await screen.findByText('取得できませんでした')).toHaveClass('bg-red-50', 'text-red-800');
+  });
+
+  it('履歴がないときは、灰色の文字で案内を出す', async () => {
+    vi.mocked(fetchTranscriptions).mockResolvedValue([] as never);
+    render(<TranscriptionList selectedId={null} onSelect={vi.fn()} loading={false} />);
+
+    await waitFor(() => expect(fetchTranscriptions).toHaveBeenCalled());
+    expect(screen.getByText(/文字起こし履歴がありません/)).toHaveClass('text-gray-400', 'text-center');
+  });
+
+  it('TranscriptionList.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(Object.keys(allCss)).not.toContain('components/TranscriptionList.css');
+    // 探し方がまちがっていないことを、残す CSS（index.css）が見つかることで確かめる
+    // （画面の CSS は、全部を Tailwind に移すと残らないため、目印に使わない）
+    expect(Object.keys(allCss)).toContain('index.css');
+  });
+
+  it('ほかの CSS ファイルでも、目印のクラスに見た目を指定しない', () => {
+    expect(cssFilesSelecting('transcription-list')).toEqual([]);
+    // 探し方がまちがっていないことを、src の直下の CSS（index.css）も読んでいることで確かめる
+    // （クラスを見つけられることは、src/test/cssRules.test.ts で確かめる）
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });

@@ -1,10 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPrivacy, scanPrivacy, updatePrivacyMasks } from '../api/client';
 import type { PiiFinding, PrivacyStatus } from '../types';
-import './PrivacyPanel.css';
 
 /** チェック中に結果を取得し直す間隔 */
 const POLL_INTERVAL_MS = 3000;
+
+/**
+ * 結果のバッジの色
+ * 今までの CSS と同じく、まだ確認していない（灰色）・要確認がある（黄色）・伏せるものがある（青）の順に優先し、どれでもなければ緑にする
+ */
+const badgeColorOf = ({ scanned, review, masked }: { scanned: boolean; review: boolean; masked: boolean }): string => {
+  if (!scanned) return 'border-gray-200 bg-gray-50 text-gray-500';
+  if (review) return 'border-amber-200 bg-amber-50 text-amber-800';
+  if (masked) return 'border-blue-200 bg-blue-50 text-blue-800';
+  return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+};
+
+/** 説明と確認日時の文 */
+const noteClass = 'mb-3 text-sm leading-[1.6]';
+/** 表の見出しとセル */
+const cellClass = 'border-b border-gray-100 px-2 py-[0.4rem] text-left';
+const headerCellClass = `${cellClass} font-medium text-gray-500`;
 
 const keyOf = (f: { type: string; text: string }) => `${f.type}\u0000${f.text}`;
 
@@ -119,35 +135,35 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
   })();
 
   return (
-    <div className="privacy-panel">
+    <div className="mb-6 rounded-lg border border-gray-200 bg-white">
       <button
         type="button"
-        className="privacy-panel-header"
+        className="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent px-4 py-3 text-left"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="privacy-panel-title">{title ? `個人情報チェック: ${title}` : '個人情報チェック'}</span>
+        <span className="text-base font-semibold text-gray-900">{title ? `個人情報チェック: ${title}` : '個人情報チェック'}</span>
         <span
-          className={`privacy-panel-badge ${
-            findings.some((f) => f.mask) ? 'privacy-panel-badge--masked' : ''
-          } ${reviewCount > 0 ? 'privacy-panel-badge--review' : ''} ${
-            !status.scan ? 'privacy-panel-badge--muted' : ''
-          }`}
+          className={`rounded-[999px] border px-[0.6rem] py-[0.1rem] text-xs ${badgeColorOf({
+            scanned: !!status.scan,
+            review: reviewCount > 0,
+            masked: findings.some((f) => f.mask),
+          })}`}
         >
           {summary}
         </span>
-        <span className="privacy-panel-toggle">{open ? '▲' : '▼'}</span>
+        <span className="ml-auto text-2xs text-gray-500">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <div className="privacy-panel-body">
+        <div className="px-4 pb-4">
           {!status.configured ? (
-            <p className="privacy-panel-hint">
+            <p className={`${noteClass} text-gray-600`}>
               設定画面で Amazon Bedrock Guardrails の ID を設定すると、会話に含まれる個人情報を検出し、
               Claude に送る前に伏せられます。未設定の場合、ディープサーチ・要約・会話分析は使えません。
             </p>
           ) : (
-            <p className="privacy-panel-hint">
+            <p className={`${noteClass} text-gray-600`}>
               Amazon Bedrock Guardrails で検出しました。「伏せる」を選んだ文字列は、ディープサーチ・要約・会話分析で
               Claude に送るときに [氏名] のように置き換えます。元の文字起こしは変わりません。
               電話番号・メールアドレスなどは最初から伏せます。氏名・住所などは製品名や国名も検出されるため「要確認」とし、
@@ -156,23 +172,23 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
           )}
 
           {(error || status.error) && (
-            <div className="privacy-panel-error">{error ?? status.error}</div>
+            <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error ?? status.error}</div>
           )}
 
           {findings.length > 0 && (
-            <table className="privacy-panel-table">
+            <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th>伏せる</th>
-                  <th>種類</th>
-                  <th>検出した文字列</th>
-                  <th>回数</th>
+                  <th className={headerCellClass}>伏せる</th>
+                  <th className={headerCellClass}>種類</th>
+                  <th className={headerCellClass}>検出した文字列</th>
+                  <th className={headerCellClass}>回数</th>
                 </tr>
               </thead>
               <tbody>
                 {findings.map((f: PiiFinding) => (
                   <tr key={keyOf(f)}>
-                    <td>
+                    <td className={cellClass}>
                       <input
                         type="checkbox"
                         aria-label={`${f.text} を伏せる`}
@@ -182,12 +198,12 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
                         }
                       />
                     </td>
-                    <td>
+                    <td className={cellClass}>
                       {f.label}
-                      {f.needsReview && <span className="privacy-panel-review">要確認</span>}
+                      {f.needsReview && <span className="ml-[0.4rem] rounded-sm border border-amber-200 bg-amber-50 px-[0.3rem] text-2xs text-amber-800">要確認</span>}
                     </td>
-                    <td className="privacy-panel-text">{f.text}</td>
-                    <td>{f.count}</td>
+                    <td className={`${cellClass} break-all`}>{f.text}</td>
+                    <td className={cellClass}>{f.count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -195,16 +211,16 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
           )}
 
           {status.scan && (
-            <p className="privacy-panel-meta">
+            <p className={`${noteClass} mt-2 text-gray-500`}>
               確認日時: {new Date(status.scan.scannedAt).toLocaleString('ja-JP')}
             </p>
           )}
 
-          <div className="privacy-panel-actions">
+          <div className="mt-3 flex gap-2">
             {findings.length > 0 && (
               <button
                 type="button"
-                className="privacy-panel-save"
+                className="border-none bg-primary text-sm text-white enabled:hover:bg-primary-hover"
                 disabled={!changed || busy}
                 onClick={handleSave}
               >
@@ -216,7 +232,7 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
             {status.configured && (
               <button
                 type="button"
-                className="privacy-panel-scan"
+                className="text-sm"
                 disabled={busy || status.scanning}
                 onClick={handleScan}
               >
@@ -233,7 +249,7 @@ export function PrivacyPanel({ transcriptionId, title }: PrivacyPanelProps) {
 /** Guardrail ID が設定されていないため、Claude に送れないことを知らせる */
 export function GuardrailMissingNotice() {
   return (
-    <p className="privacy-send-notice privacy-send-notice--warning">
+    <p className="my-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
       個人情報チェック（Guardrail ID）が設定されていないため、Claude に送れません。設定画面で設定してください。
     </p>
   );

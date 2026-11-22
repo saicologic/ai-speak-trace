@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchAudioFiles, uploadAudioFile } from '../api/client';
 import type { AudioFileInfo } from '../types';
-import './AudioFileList.css';
 
 interface Props {
   selectedFile: string | null;
@@ -15,6 +14,11 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** 音声ファイルの項目：選んだ項目は青い枠にし、カーソルを乗せても色を変えない */
+const itemClass = 'flex w-full flex-col gap-[0.15rem] rounded-lg border px-3 py-[0.6rem] text-left transition-all duration-150';
+const selectedItemClass = 'border-blue-500 bg-blue-50';
+const unselectedItemClass = 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50';
 
 /** 音声ファイル一覧コンポーネント */
 export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
@@ -59,11 +63,11 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
   }, []);
 
   return (
-    <div className="audio-file-list">
-      <div className="audio-file-list-header">
-        <h2>音声ファイル</h2>
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">音声ファイル</h2>
         <button
-          className="reload-button"
+          className="px-[0.6em] py-[0.3em] text-xs"
           onClick={loadFiles}
           disabled={loading || uploading}
         >
@@ -71,7 +75,7 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
         </button>
       </div>
 
-      <div className="audio-file-upload">
+      <div className="mb-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -81,7 +85,7 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
           hidden
         />
         <button
-          className="upload-button"
+          className="w-full rounded-lg border-none bg-primary p-2 text-md font-medium text-white transition-colors duration-150 enabled:hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-blue-300"
           onClick={() => fileInputRef.current?.click()}
           disabled={loading || uploading}
         >
@@ -90,19 +94,19 @@ export function AudioFileList({ selectedFile, onFileSelect, loading }: Props) {
       </div>
 
       {fetchError && (
-        <div className="audio-file-list-error">{fetchError}</div>
+        <div className="mb-2 rounded-md bg-red-50 p-2 text-sm text-red-800">{fetchError}</div>
       )}
 
-      <ul className="audio-file-list-items">
+      <ul className="list-none">
         {files.map((file) => (
-          <li key={file.fileName}>
+          <li key={file.fileName} className="mb-1">
             <button
-              className={`audio-file-item ${selectedFile === file.fileName ? 'selected' : ''}`}
+              className={`${itemClass} ${selectedFile === file.fileName ? selectedItemClass : unselectedItemClass}`}
               onClick={() => onFileSelect(file.fileName)}
               disabled={loading}
             >
-              <span className="audio-file-name">{file.fileName}</span>
-              <span className="audio-file-size">
+              <span className="text-md font-medium break-all">{file.fileName}</span>
+              <span className="text-xs text-gray-400">
                 {formatFileSize(file.sizeBytes)}
               </span>
             </button>

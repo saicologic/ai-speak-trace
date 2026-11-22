@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildReport, splitTopics, topicHighlights } from './researchReport';
+import { buildReport, citeClassOf, splitTopics, topicHighlights } from './researchReport';
 import type { ReportCitation } from '../types/research';
 
 const conv: ReportCitation = { sourceKind: 'conversation', sourceId: 't1', title: '前編.mp3', citedText: '原文' };
@@ -29,12 +29,23 @@ describe('buildReport', () => {
       [2, '公式'],
     ]);
     expect(html).toContain('<h2>論点</h2>');
-    expect(html).toContain(
-      '会話ではこう語られた。<button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
-    );
-    expect(html).toContain(
-      '<button type="button" class="research-cite web" data-citations="2">example.com 公式</button><button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
-    );
+    // 出典の表示は、文の直後に、根拠の番号を持つボタンとして置く
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const chips = Array.from(doc.querySelectorAll('button'));
+    expect(chips.map((b) => [b.previousSibling?.textContent ?? '', b.textContent, b.dataset.citations, b.type])).toEqual([
+      ['会話ではこう語られた。', '会話1', '1', 'button'],
+      ['公式でも同じ説明がある。', 'example.com 公式', '2', 'button'],
+      ['example.com 公式', '会話1', '1', 'button'],
+    ]);
+    // research-cite は、出典の吹き出しを閉じないボタンを見分けるための目印
+    // （DOMParser で作った要素は、toHaveClass で確かめられないため、classList で確かめる）
+    for (const chip of chips) expect(Array.from(chip.classList)).toContain('research-cite');
+    // 会話の根拠は紫、Web の根拠は緑にする
+    expect(Array.from(chips[0].classList)).toEqual(expect.arrayContaining(['bg-violet-100', 'text-violet-800']));
+    expect(Array.from(chips[1].classList)).toEqual(expect.arrayContaining(['bg-emerald-50', 'text-emerald-800']));
+    expect(Array.from(chips[2].classList)).toEqual(expect.arrayContaining(['bg-violet-100', 'text-violet-800']));
+    expect(Array.from(chips[0].classList)).not.toContain('bg-emerald-50');
+    expect(Array.from(chips[1].classList)).not.toContain('bg-violet-100');
     expect(html).not.toContain('⟦');
   });
 
@@ -97,5 +108,16 @@ describe('topicHighlights', () => {
     ]);
     expect(oneLiner).toBeNull();
     expect(hasDifference).toBe(true);
+  });
+});
+
+describe('citeClassOf', () => {
+  it('話題になった発言の一覧では、左をあけず、少し大きくする（目印と色は本文と同じ）', () => {
+    const inList = citeClassOf('conversation', true).split(' ');
+    expect(inList).toEqual(expect.arrayContaining(['research-cite', 'ml-0', 'text-xs', 'bg-violet-100']));
+    expect(inList).not.toContain('ml-[0.3rem]');
+    const inBody = citeClassOf('conversation').split(' ');
+    expect(inBody).toEqual(expect.arrayContaining(['research-cite', 'ml-[0.3rem]', 'text-2xs']));
+    expect(inBody).not.toContain('ml-0');
   });
 });

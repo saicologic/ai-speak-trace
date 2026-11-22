@@ -161,6 +161,57 @@ describe('check-tdd-order.sh', () => {
     },
   );
 
+  describe('ブラウザのテスト（frontend/e2e）', () => {
+    const E2E = 'frontend/e2e/sidebar.spec.ts';
+
+    it.each([E2E, 'frontend/e2e/layout/page.spec.ts'])(
+      'frontend/e2e の .spec.ts（%s）を変えたコミットは、テストを先に変えたことになる',
+      (spec) => {
+        const base = git('rev-parse', 'HEAD');
+        commit('test: ブラウザのテストを足す', {
+          [spec]: "test('a', async () => {\n  expect(1).toBe(1);\n});\n",
+        });
+        commit('fix: 直す', { 'frontend/src/components/Foo.tsx': 'x\n' });
+        expect(check(base).status).toBe(0);
+      },
+    );
+
+    it('test: 以外のコミットで frontend/e2e の .spec.ts の expect を減らしたら止める', () => {
+      commit('chore: ブラウザのテストを足す', {
+        [E2E]:
+          "test('a', async () => {\n  expect(1).toBe(1);\n  expect(2).toBe(2);\n});\n",
+      });
+      const base = git('rev-parse', 'HEAD');
+      commit('fix: 通らない expect を消す', {
+        [E2E]: "test('a', async () => {\n  expect(1).toBe(1);\n});\n",
+      });
+      const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain('fix: 通らない expect を消す');
+      expect(r.output).toContain(E2E);
+    });
+
+    it('frontend/e2e の .spec.ts でないファイル（mockApi.ts）は、テストに数えない', () => {
+      const base = git('rev-parse', 'HEAD');
+      commit('test: API のまねを変える', {
+        'frontend/e2e/mockApi.ts': 'export const m = 1;\n',
+      });
+      commit('fix: 直す', { 'frontend/src/components/Foo.tsx': 'x\n' });
+      const r = check(base);
+      expect(r.status).toBe(1);
+      expect(r.output).toContain('テストより先に実装を変えています');
+      expect(r.output).toContain('fix: 直す');
+    });
+
+    it('frontend/e2e の .spec.ts でないファイル（mockApi.ts）は、実装にも数えない', () => {
+      const base = git('rev-parse', 'HEAD');
+      commit('fix: API のまねを変える', {
+        'frontend/e2e/mockApi.ts': 'export const m = 1;\n',
+      });
+      expect(check(base).status).toBe(0);
+    });
+  });
+
   it('ほかのブランチからマージしたコミットは調べない', () => {
     const base = git('rev-parse', 'HEAD');
     git('switch', '-q', '-c', 'other');
