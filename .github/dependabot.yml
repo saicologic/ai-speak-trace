@@ -1,10 +1,11 @@
 version: 2
+# どのエコシステムも main 宛てに PR を作る（セキュリティの更新は target-branch に関係なく main 宛てに来るため、揃える）
+# Dependabot の PR は main に直接マージせず、宛先を release/vX.Y.Z に変えてから入れる（docs/developers/dependabot.md）
 updates:
   - package-ecosystem: "npm"
     directory: "/backend"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "backend"
@@ -13,7 +14,6 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "frontend"
@@ -22,13 +22,13 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "rust"
 
   # ワークフローの actions は コミットの SHA で固定している。Dependabot が SHA と後ろのコメント（# v4 など）を更新する
-  # .github/ はビルドに影響しないため、release/deps を通さず main に PR を作る
+  # .github/ は DMG の作り方（release.yml・tag-release.yml）を変えるため、ほかのエコシステムと同じく release/vX.Y.Z を通す
+  # 更新は1つの PR にまとめる
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -36,3 +36,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
