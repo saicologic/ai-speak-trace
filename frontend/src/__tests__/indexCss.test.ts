@@ -56,6 +56,9 @@ const v3Palette: Record<string, string[]> = {
   green: ['#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d'],
   violet: ['#f5f3ff', '#ede9fe', '#ddd6fe', '#c4b5fd', '#a78bfa', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95'],
   yellow: ['#fefce8', '#fef9c3', '#fef08a', '#fde047', '#facc15', '#eab308', '#ca8a04', '#a16207', '#854d0e', '#713f12'],
+  emerald: ['#ecfdf5', '#d1fae5', '#a7f3d0', '#6ee7b7', '#34d399', '#10b981', '#059669', '#047857', '#065f46', '#064e3b'],
+  sky: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#075985', '#0c4a6e'],
+  purple: ['#faf5ff', '#f3e8ff', '#e9d5ff', '#d8b4fe', '#c084fc', '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', '#581c87'],
 };
 const steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
 
@@ -131,11 +134,13 @@ describe('index.css', () => {
       ),
     );
     expect(colors).toMatchObject(palette);
+    // 1 段階だけ使う色（要約・ディープサーチの背景など）
+    expect(colors).toMatchObject({ 'color-slate-50': '#f8fafc', 'color-neutral-50': '#fafafa' });
     // どの色も 16 進で書く（oklch などで書いた色を混ぜない）
     expect(Object.entries(colors).filter(([, value]) => !/^#[0-9a-f]{6}$/.test(value))).toEqual([]);
   });
 
-  it('文字の大きさは、標準の段階を消して決めた 8 段階だけにし、行の高さは決めない（画面全体の 1.6 を受け継ぐ）', () => {
+  it('文字の大きさは、標準の段階を消して決めた 11 段階だけにし、行の高さは決めない（画面全体の 1.6 を受け継ぐ）', () => {
     const theme = themeOf(indexCss);
     // 標準の段階を消す指定は、自分で決めた大きさより前に書く
     const reset = theme.indexOf('--text-*: initial;');
@@ -151,12 +156,29 @@ describe('index.css', () => {
       'text-sm': '0.8rem',
       'text-md': '0.85rem',
       'text-base': '0.9rem',
+      'text-base-plus': '0.95rem',
       'text-lg': '1rem',
+      'text-lg-plus': '1.1rem',
+      'text-xl-minus': '1.2rem',
       'text-xl': '1.25rem',
       'text-2xl': '1.5rem',
     });
     // Tailwind の text-* は、行の高さの変数があると行の高さも変える。今の画面に合わせ、行の高さは書かない
     expect(theme).not.toMatch(/--text-[^:\s]+--line-height/);
+  });
+
+  it('回るアニメーションは、今の画面と同じ 0.8 秒で 1 回転にする（Tailwind の animate-spin は 1 秒）', () => {
+    const theme = themeOf(indexCss);
+    expect(theme).toMatch(/--animate-spin-fast:\s*spin 0\.8s linear infinite;/);
+  });
+
+  it('会話に飛んだ発言は、薄い青から 2 秒で背景の色を消す', () => {
+    const theme = themeOf(indexCss);
+    expect(theme).toMatch(/--animate-jump-highlight:\s*jump-highlight-fade 2s ease-out;/);
+    // @keyframes は @theme の中に書く（使ったときだけ CSS に出る）
+    const keyframes = splitBlocks(theme, /@keyframes\s+jump-highlight-fade/).inside.replace(/\s+/g, ' ');
+    expect(keyframes).toMatch(/0% \{ background-color: #bfdbfe; \}/);
+    expect(keyframes).toMatch(/100% \{ background-color: transparent; \}/);
   });
 
   it('hover: のクラスは、今までの CSS の :hover と同じく、カーソルを乗せられない環境でも効くようにする', () => {
