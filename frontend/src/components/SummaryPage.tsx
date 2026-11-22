@@ -7,12 +7,45 @@ import type {
   TranscriptionSummaryLog,
   SummaryKeyPoint,
 } from '../types';
-import './InterviewPage.css';
 import './SummaryPage.css';
 import { AiGeneratedNotice } from './AiGeneratedNotice';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
+import {
+  actionsClass,
+  backButtonClass,
+  contentClass,
+  errorClass,
+  headerClass,
+  hintClass,
+  loadingClass,
+  loadingSpinnerClass,
+  loadingTextClass,
+  logItemClassOf,
+  logItemDateClass,
+  logItemKeywordsClass,
+  logsDetailClass,
+  logsDetailDateClass,
+  logsDetailEmptyClass,
+  logsDetailHeaderClass,
+  logsDetailMetaClass,
+  logsEmptyClass,
+  logsLayoutClass,
+  logsListClass,
+  logsListHeaderClass,
+  logsRefreshClass,
+  pageClass,
+  primaryButtonClass,
+  resultCardClass,
+  resultQuestionClass,
+  resultsClass,
+  sectionClass,
+  sectionHeadingClass,
+  tabClassOf,
+  tabsClass,
+  titleClass,
+} from './interviewPageClasses';
 
 interface Props {
   transcriptionId: string;
@@ -227,25 +260,25 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
 
   return (
     <PageLayout
-      className="interview-page"
+      className={pageClass}
       header={
         <>
-          <header className="interview-header">
-            <button className="interview-back-button" onClick={onBack}>
+          <header className={headerClass}>
+            <button className={backButtonClass} onClick={onBack}>
               ← 戻る
             </button>
-            <h1>要約</h1>
+            <h1 className={titleClass}>要約</h1>
           </header>
 
-          <div className="interview-tabs">
+          <div className={tabsClass}>
             <button
-              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'new')}
               onClick={() => { setActiveTab('new'); setCompletedId(null); }}
             >
               新規要約
             </button>
             <button
-              className={`interview-tab ${activeTab === 'logs' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'logs')}
               onClick={() => setActiveTab('logs')}
             >
               要約結果
@@ -255,12 +288,12 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
       }
     >
       {activeTab === 'new' && (
-        <div className="interview-content">
-          {error && <div className="interview-error">{error}</div>}
+        <div className={contentClass}>
+          {error && <div className={errorClass}>{error}</div>}
 
           {/* モデル選択 */}
-          <section className="interview-section">
-            <h2>モデル</h2>
+          <section className={sectionClass}>
+            <h2 className={sectionHeadingClass}>モデル</h2>
             {config ? (
               <select
                 className="summary-model-select"
@@ -274,14 +307,14 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                 ))}
               </select>
             ) : (
-              <p className="interview-hint">読み込み中...</p>
+              <p className={hintClass}>読み込み中...</p>
             )}
           </section>
 
           {/* プロンプト */}
-          <section className="interview-section">
+          <section className={sectionClass}>
             <div className="summary-prompt-header">
-              <h2>プロンプト</h2>
+              <h2 className={sectionHeadingClass}>プロンプト</h2>
               {isFieldsChanged && (
                 <button
                   className="summary-reset-button"
@@ -292,7 +325,7 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
                 </button>
               )}
             </div>
-            <p className="interview-hint">
+            <p className={hintClass}>
               各項目の指示を編集できます。空にするとその項目は除外されます。
             </p>
             <div className="summary-fields-form">
@@ -369,11 +402,11 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
           </section>
 
           {/* 実行ボタン */}
-          <section className="interview-section">
+          <section className={sectionClass}>
             {guardrailConfigured === false && <GuardrailMissingNotice />}
-            <div className="interview-actions">
+            <div className={actionsClass}>
               <button
-                className="interview-button primary"
+                className={primaryButtonClass}
                 onClick={handleSummarize}
                 disabled={
                   summarizing ||
@@ -388,9 +421,9 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
             </div>
 
             {summarizing && (
-              <div className="interview-loading">
-                <div className="loading-spinner" />
-                <p>Claude が会話を要約中...</p>
+              <div className={loadingClass}>
+                <div className={loadingSpinnerClass} />
+                <p className={loadingTextClass}>Claude が会話を要約中...</p>
               </div>
             )}
 
@@ -413,12 +446,12 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
       )}
 
       {activeTab === 'logs' && (
-        <div className="interview-logs-layout">
-          <div className="interview-logs-list">
-            <div className="interview-logs-list-header">
+        <div className={logsLayoutClass}>
+          <div className={logsListClass}>
+            <div className={logsListHeaderClass}>
               <span>要約結果</span>
               <button
-                className="interview-logs-refresh"
+                className={logsRefreshClass}
                 onClick={loadLogs}
                 disabled={logsLoading}
                 title="更新"
@@ -427,18 +460,18 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
               </button>
             </div>
             {logsLoading ? (
-              <div className="interview-logs-empty">読み込み中...</div>
+              <div className={logsEmptyClass}>読み込み中...</div>
             ) : logs.length === 0 ? (
-              <div className="interview-logs-empty">要約結果がありません</div>
+              <div className={logsEmptyClass}>要約結果がありません</div>
             ) : (
               logs.map((log) => (
                 <button
                   key={log.id}
-                  className={`interview-log-item ${selectedLogId === log.id ? 'selected' : ''}`}
+                  className={logItemClassOf(selectedLogId === log.id)}
                   onClick={() => handleSelectLog(log.id)}
                 >
-                  <div className="interview-log-item-date">{formatDate(log.createdAt)}</div>
-                  <div className="interview-log-item-keywords">
+                  <div className={logItemDateClass}>{formatDate(log.createdAt)}</div>
+                  <div className={logItemKeywordsClass}>
                     {(log.key_points ?? []).slice(0, 2).map((kp) => kp.topic).join('・')}
                     {(log.key_points?.length ?? 0) > 2 && ` 他${(log.key_points?.length ?? 0) - 2}件`}
                   </div>
@@ -448,20 +481,20 @@ export function SummaryPage({ transcriptionId, onBack, onOpenUtterance }: Props)
             )}
           </div>
 
-          <div className="interview-logs-detail">
+          <div className={logsDetailClass}>
             {!selectedLogId && (
-              <div className="interview-logs-detail-empty">
+              <div className={logsDetailEmptyClass}>
                 左の一覧から要約結果を選択してください
               </div>
             )}
             {selectedLogId && logDetailLoading && (
-              <div className="interview-logs-detail-empty">読み込み中...</div>
+              <div className={logsDetailEmptyClass}>読み込み中...</div>
             )}
             {selectedLogId && !logDetailLoading && logDetail && (
               <>
-                <div className="interview-logs-detail-header">
-                  <div className="interview-logs-detail-meta">
-                    <span className="interview-logs-detail-date">
+                <div className={logsDetailHeaderClass}>
+                  <div className={logsDetailMetaClass}>
+                    <span className={logsDetailDateClass}>
                       {formatDate(logDetail.createdAt)}
                     </span>
                     <span className="summary-log-model">{logDetail.model}</span>
@@ -502,22 +535,22 @@ function SummaryResult({
   onOpenUtterance?: (utteranceIndex: number) => void;
 }) {
   return (
-    <div className="interview-results">
+    <div className={resultsClass}>
       <AiGeneratedNotice
         basis="元の会話"
         model={summary.model}
         warnings={summary.contentWarnings}
       />
       {summary.overview && (
-        <div className="interview-result-card">
-          <h3 className="result-question">概要</h3>
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>概要</h3>
           <p className="summary-result-text">{summary.overview}</p>
         </div>
       )}
 
       {(summary.key_points?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">キーポイント</h3>
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>キーポイント</h3>
           <ul className="summary-result-list summary-key-points">
             {summary.key_points?.map((kp: SummaryKeyPoint, i: number) => (
               <li key={i}>
@@ -538,8 +571,8 @@ function SummaryResult({
       )}
 
       {(summary.decisions?.length ?? 0) > 0 && (
-        <div className="interview-result-card">
-          <h3 className="result-question">決定事項</h3>
+        <div className={resultCardClass}>
+          <h3 className={resultQuestionClass}>決定事項</h3>
           <ul className="summary-result-list">
             {summary.decisions?.map((decision: string, i: number) => (
               <li key={i}>{decision}</li>

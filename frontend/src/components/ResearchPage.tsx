@@ -30,7 +30,20 @@ import { FeedbackButton } from './FeedbackButton';
 import { useGuardrailConfigured } from '../hooks/usePrivacyStatuses';
 import { GuardrailMissingNotice, PrivacyPanel } from './PrivacyPanel';
 import { PageLayout } from './PageLayout';
-import './InterviewPage.css';
+import {
+  logItemClassOf,
+  logItemDateClass,
+  logItemKeywordsClass,
+  logsDetailClass,
+  logsDetailEmptyClass,
+  logsEmptyClass,
+  logsLayoutClass,
+  logsListClass,
+  logsListHeaderClass,
+  logsRefreshClass,
+  tabClassOf,
+  tabsClass,
+} from './interviewPageClasses';
 import './SummaryPage.css';
 import './ResearchPage.css';
 
@@ -345,15 +358,15 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             )}
           </header>
 
-          <div className="interview-tabs">
+          <div className={tabsClass}>
             <button
-              className={`interview-tab ${activeTab === 'new' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'new')}
               onClick={() => setActiveTab('new')}
             >
               新しい調査
             </button>
             <button
-              className={`interview-tab ${activeTab === 'results' ? 'active' : ''}`}
+              className={tabClassOf(activeTab === 'results')}
               onClick={() => setActiveTab('results')}
             >
               調査結果
@@ -558,12 +571,12 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
       )}
 
       {activeTab === 'results' && (
-        <div className="interview-logs-layout">
-          <div className="interview-logs-list">
-            <div className="interview-logs-list-header">
+        <div className={logsLayoutClass}>
+          <div className={logsListClass}>
+            <div className={logsListHeaderClass}>
               <span>調査結果</span>
               <button
-                className="interview-logs-refresh"
+                className={logsRefreshClass}
                 onClick={() => void refreshJobs()}
                 disabled={jobsLoading}
                 title="更新"
@@ -572,24 +585,24 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
               </button>
             </div>
             {jobsLoading && jobs.length === 0 ? (
-              <div className="interview-logs-empty">読み込み中...</div>
+              <div className={logsEmptyClass}>読み込み中...</div>
             ) : jobs.length === 0 ? (
-              <div className="interview-logs-empty">調査結果がありません</div>
+              <div className={logsEmptyClass}>調査結果がありません</div>
             ) : (
               jobs.map((j) => (
                 <button
                   key={j.id}
-                  className={`interview-log-item ${selectedResultId === j.id ? 'selected' : ''}`}
+                  className={logItemClassOf(selectedResultId === j.id)}
                   onClick={() => void handleSelectResult(j)}
                 >
                   {j.title && <div className="research-job-title">{j.title}</div>}
-                  <div className="interview-log-item-date">
+                  <div className={logItemDateClass}>
                     {formatDate(j.createdAt)}
                     <span className={`research-job-status ${j.status}`}>
                       {STATUS_LABELS[j.status]}
                     </span>
                   </div>
-                  <div className="interview-log-item-keywords">
+                  <div className={logItemKeywordsClass}>
                     {j.keywords.length === 0
                       ? 'キーワード未確定'
                       : j.keywords.slice(0, 2).join('・') +
@@ -603,15 +616,15 @@ export function ResearchPage({ onBack, onOpenTranscription }: Props) {
             )}
           </div>
 
-          <div className="interview-logs-detail">
+          <div className={logsDetailClass}>
             {error && <div className="research-error">{error}</div>}
             {!selectedResultId && (
-              <div className="interview-logs-detail-empty">
+              <div className={logsDetailEmptyClass}>
                 左の一覧から調査結果を選択してください
               </div>
             )}
             {selectedResultId && resultLoading && (
-              <div className="interview-logs-detail-empty">読み込み中...</div>
+              <div className={logsDetailEmptyClass}>読み込み中...</div>
             )}
             {selectedResultId && !resultLoading && resultJob && (
               <div className="research-result">
