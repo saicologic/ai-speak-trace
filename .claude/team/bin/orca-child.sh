@@ -12,7 +12,7 @@
 #   ワークツリーの名前は、ブランチの / の後ろ
 # - 元のブランチは origin/main・origin/release/vX.Y.Z だけ
 # - 依頼文のファイルは、呼び出したワークツリーの .claude/briefs/（git に入れない）か、Claude Code のスクラッチパッド
-#   （/private/tmp/claude-<uid>/*/*/scratchpad/）の中の普通のファイルだけ。/tmp/claude/ は再起動で消えるため使わない。
+#   （/private/tmp/claude-<uid>/<プロジェクト>/<セッション>/scratchpad/）の中の普通のファイルだけ。/tmp/claude/ は再起動で消えるため使わない。
 #   シンボリックリンク・ハードリンク・.env* の名前のもの・秘密の情報の形を含むものは断る
 # - 依頼文は、作った子ワークツリーの .claude/briefs/<ワークツリーの名前>.md にも写す（子のセッションが後から読み直せるように）
 # - ORCA_CLI_COMMAND があればそれを、なければ orca を動かす
@@ -86,7 +86,8 @@ read_brief() {
       case "$real" in "$briefs_real"/*) inside=1 ;; esac
     fi
   fi
-  case "$real" in /private/tmp/claude-"$(id -u)"/*/*/scratchpad/* | /tmp/claude-"$(id -u)"/*/*/scratchpad/*) inside=1 ;; esac
+  # case の * は / にも合うため、段の数を正規表現で決める（/tmp/claude-<uid>/<プロジェクト>/<セッション>/scratchpad/ の中）
+  [[ "$real" =~ ^/(private/)?tmp/claude-$(id -u)/[^/]+/[^/]+/scratchpad/ ]] && inside=1
   [ -n "$inside" ] || die "依頼文のファイルは、呼び出したワークツリーの .claude/briefs/ か、スクラッチパッドの中に置いてください: $f"
   exec 3<"$real" || die "依頼文のファイルを開けません: $f"
   # 確かめてから開くまでの間に、リンクなどに差し替えられていないか
