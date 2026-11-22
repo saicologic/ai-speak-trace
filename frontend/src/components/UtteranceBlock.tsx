@@ -1,6 +1,5 @@
 import { WordSpan } from './WordSpan';
 import type { Speaker, Utterance } from '../types';
-import './UtteranceBlock.css';
 
 interface Props {
   utterance: Utterance;
@@ -13,6 +12,20 @@ interface Props {
   onBlockClick?: () => void;
   onTimeClick?: (startTime: number) => void;
 }
+
+/**
+ * 発話のカード：話者の色の左の線を付ける（色は style で渡す）。左右に並べたときは残りの幅を使う
+ * utterance-block は、テストで発話のブロックを探すための目印
+ */
+const blockClass =
+  'utterance-block mb-4 flex-1 rounded-r-lg border-l-4 border-l-gray-500 bg-white px-4 py-3 shadow-[0_1px_2px] shadow-black/4';
+/** 押せる発話（話者で絞り込んだとき）：カーソルを乗せると薄い灰色にする */
+const clickableBlockClass = 'cursor-pointer transition-colors duration-150 hover:bg-gray-50';
+
+/** 時刻：押せるときは、カーソルを乗せると青くする */
+const timeClass = 'text-xs text-gray-400';
+const clickableTimeClass =
+  'cursor-pointer rounded-sm px-[0.3rem] py-[0.1rem] transition-colors duration-150 hover:bg-blue-50 hover:text-blue-500';
 
 /** 時間を mm:ss 形式に変換 */
 function formatTime(seconds: number): string {
@@ -37,19 +50,19 @@ export function UtteranceBlock({
 
   return (
     <div
-      className={`utterance-block ${clickable ? 'clickable' : ''}`}
+      className={clickable ? `${blockClass} ${clickableBlockClass}` : blockClass}
       style={{ borderLeftColor: borderColor }}
       onClick={clickable ? onBlockClick : undefined}
     >
-      <div className="utterance-header">
+      <div className="mb-2 flex items-center gap-3">
         <span
-          className="utterance-speaker-name"
+          className="text-md font-semibold"
           style={{ color: borderColor }}
         >
           {utterance.speakerName}
         </span>
         <span
-          className={`utterance-time ${onTimeClick ? 'clickable-time' : ''}`}
+          className={onTimeClick ? `${timeClass} ${clickableTimeClass}` : timeClass}
           onClick={onTimeClick ? (e) => {
             e.stopPropagation();
             onTimeClick(utterance.start);
@@ -59,7 +72,7 @@ export function UtteranceBlock({
           {formatTime(utterance.start)} - {formatTime(utterance.end)}
         </span>
       </div>
-      <div className="utterance-text">
+      <div className="text-base-plus leading-[1.8]">
         {utterance.words.map((word, i) => {
           const globalIndex = wordIndexOffset + i;
           return (
