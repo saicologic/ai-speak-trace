@@ -50,14 +50,24 @@ describe('ContextAnalysisModal の見た目', () => {
     );
   });
 
-  it('箱の中の段落（AI が生成した内容の注意など）は、少し大きい灰色の文字にし、下をあける', () => {
-    const { container } = render(<ContextAnalysisModal analysis={analysis} speakers={speakers} onClose={() => {}} />);
-    expect(container.firstElementChild?.firstElementChild).toHaveClass(
-      '[&_p]:mb-6',
-      '[&_p]:text-base-plus',
-      '[&_p]:leading-[1.7]',
-      '[&_p]:text-gray-700',
+  it('AI が生成した内容の注意と警告は、ほかの画面と同じ小さい黄色・赤の文字にする（モーダルの段落の指定で上書きしない）', () => {
+    const { container } = render(
+      <ContextAnalysisModal
+        analysis={{ ...analysis, contentWarnings: [{ type: 'INSULTS', confidence: 'MEDIUM' }] }}
+        speakers={speakers}
+        onClose={() => {}}
+      />,
     );
+    const box = container.firstElementChild?.firstElementChild;
+    // 中の段落すべてに効く指定は、注意の部品の文字の大きさ・色・余白より強いため、付けない
+    expect(Array.from(box!.classList).filter((c) => c.startsWith('[&_p]'))).toEqual([]);
+    expect(screen.getByRole('note')).toHaveClass('text-xs', 'text-amber-800');
+    expect(screen.getByRole('alert')).toHaveClass('text-xs', 'text-red-800');
+  });
+
+  it('画面が低くても全部に届くよう、箱の高さを画面の 90% までにし、箱の中をスクロールする', () => {
+    const { container } = render(<ContextAnalysisModal analysis={analysis} speakers={speakers} onClose={() => {}} />);
+    expect(container.firstElementChild?.firstElementChild).toHaveClass('max-h-[90vh]', 'overflow-y-auto');
   });
 
   it('見出しは赤い大きい文字にし、件数は紫のバッジにする', () => {
