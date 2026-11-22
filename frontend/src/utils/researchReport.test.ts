@@ -29,12 +29,20 @@ describe('buildReport', () => {
       [2, '公式'],
     ]);
     expect(html).toContain('<h2>論点</h2>');
-    expect(html).toContain(
-      '会話ではこう語られた。<button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
-    );
-    expect(html).toContain(
-      '<button type="button" class="research-cite web" data-citations="2">example.com 公式</button><button type="button" class="research-cite conversation" data-citations="1">会話1</button>',
-    );
+    // 出典の表示は、文の直後に、根拠の番号を持つボタンとして置く
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const chips = Array.from(doc.querySelectorAll('button'));
+    expect(chips.map((b) => [b.previousSibling?.textContent ?? '', b.textContent, b.dataset.citations, b.type])).toEqual([
+      ['会話ではこう語られた。', '会話1', '1', 'button'],
+      ['公式でも同じ説明がある。', 'example.com 公式', '2', 'button'],
+      ['example.com 公式', '会話1', '1', 'button'],
+    ]);
+    // research-cite は、出典の吹き出しを閉じないボタンを見分けるための目印
+    // （DOMParser で作った要素は、toHaveClass で確かめられないため、classList で確かめる）
+    for (const chip of chips) expect(Array.from(chip.classList)).toContain('research-cite');
+    // 会話の根拠は紫、Web の根拠は緑にする
+    expect(Array.from(chips[0].classList)).toEqual(expect.arrayContaining(['bg-violet-100', 'text-violet-800']));
+    expect(Array.from(chips[1].classList)).toEqual(expect.arrayContaining(['bg-emerald-50', 'text-emerald-800']));
     expect(html).not.toContain('⟦');
   });
 
