@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { InterviewPage } from '../InterviewPage';
-import { fetchAnalysisLog, fetchAnalysisLogs, fetchPrivacy, generateQuestions } from '../../api/client';
+import { fetchAnalysisLog, fetchAnalysisLogs, fetchFeedback, fetchPrivacy, generateQuestions } from '../../api/client';
 import { allCss, cssFilesSelecting } from '../../test/cssRules';
 import type { InterviewAnalysis, PrivacyStatus, Utterance } from '../../types';
 
@@ -48,6 +48,8 @@ describe('InterviewPage の見た目', () => {
     vi.mocked(fetchAnalysisLogs).mockResolvedValue([log]);
     vi.mocked(fetchAnalysisLog).mockResolvedValue(log);
     vi.mocked(generateQuestions).mockResolvedValue(['生成した質問']);
+    // 結果の下の「誤りを報告」が、報告した誤りを読み込む
+    vi.mocked(fetchFeedback).mockResolvedValue([]);
   });
 
   it('画面の背景は薄い灰色にし、ヘッダーは紺、タブは選んでいるほうを白くして青い下線を引く', () => {
