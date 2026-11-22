@@ -291,10 +291,15 @@ rejected "空の依頼文" fix/x origin/main "$briefs/empty.md"
 mkdir -p "$scratch_top/notscratch"
 printf '依頼\n' >"$scratch_top/notscratch/brief.md"
 rejected "スクラッチパッドでない /tmp/claude-<uid>" fix/x origin/main "$scratch_top/notscratch/brief.md"
-mkdir -p "/tmp/claude-$(id -u)-x/a/b/scratchpad"
-printf '依頼\n' >"/tmp/claude-$(id -u)-x/a/b/scratchpad/brief.md"
-rejected "uid の違うスクラッチパッド" fix/x origin/main "/tmp/claude-$(id -u)-x/a/b/scratchpad/brief.md"
-rm -rf "/tmp/claude-$(id -u)-x"
+# uid の違うスクラッチパッドの形（Claude Code のサンドボックスの中では /tmp の直下に作れないため、作れたときだけ確かめる。CI では作れる）
+other="/tmp/claude-$(id -u)-orca-child-test-$$"
+if mkdir -p "$other/a/b/scratchpad" 2>/dev/null; then
+  printf '依頼\n' >"$other/a/b/scratchpad/brief.md"
+  rejected "uid の違うスクラッチパッド" fix/x origin/main "$other/a/b/scratchpad/brief.md"
+  rm -rf "$other"
+else
+  echo "SKIP: uid の違うスクラッチパッド（$other を作れない）"
+fi
 
 # 呼び出すワークツリーの .claude/briefs そのものが、リンクで外を指していたら断る
 mv "$briefs" "$tmp/briefs.real"
