@@ -3,11 +3,28 @@ import { fetchSettings, updateSettings, openDataFolder } from '../api/client';
 import type { ApiKeyStatus, AppSettings } from '../types';
 import { missingAiSettings } from '../utils/aiAnalysis';
 import { PageLayout } from './PageLayout';
-import './SettingsPage.css';
 
 interface SettingsPageProps {
   onBack: () => void;
 }
+
+/** パスと API キーの状態の字体（等幅） */
+const monoClass = "[font-family:'SF_Mono','Menlo',monospace]";
+/** 入力欄の項目名 */
+const fieldLabelClass = 'mb-[0.4rem] flex items-center gap-2 text-md font-medium text-gray-700';
+/** 入力欄：フォーカスすると青い枠にする */
+const inputClass =
+  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-md focus:border-primary focus:shadow-[0_0_0_2px] focus:shadow-blue-500/20 focus:outline-none';
+/** チェックボックスと入力欄の説明 */
+const hintClass = 'mt-[0.4rem] ml-6 text-xs text-gray-500';
+/** 設定のカードと、その見出し（見出しの下に線を引く） */
+const sectionClass = 'mb-6 rounded-[10px] border border-gray-200 bg-white p-6';
+const sectionHeadingClass = 'mb-4 border-b border-gray-100 pb-3 text-lg font-semibold text-gray-800';
+/** チェックボックスと、その項目名 */
+const checkboxLabelClass = 'flex cursor-pointer items-center gap-2 text-md text-gray-700';
+const checkboxClass = 'size-4 cursor-pointer';
+/** 白い地に青い枠のボタン：カーソルを乗せると青く塗る */
+const outlineButtonClass = 'border-primary bg-white text-primary transition-all duration-150 hover:bg-primary hover:text-white';
 
 /** API キーの入力欄（保存済みのキーの値は画面に返らないため、状態と末尾4文字だけを表示する） */
 function ApiKeyInput({
@@ -30,11 +47,11 @@ function ApiKeyInput({
   const [show, setShow] = useState(false);
   const configured = status?.configured ?? false;
   return (
-    <div className="settings-input-group">
-      <label>
+    <div className="mb-4">
+      <label className={fieldLabelClass}>
         {label}
         <a
-          className="settings-api-key-link"
+          className="text-xs font-normal text-primary no-underline hover:underline"
           href={link}
           target="_blank"
           rel="noopener noreferrer"
@@ -42,7 +59,7 @@ function ApiKeyInput({
           APIキーを取得
         </a>
       </label>
-      <div className="settings-api-key-status">
+      <div className={`mt-[0.3rem] mb-[0.35rem] flex items-center gap-2 text-sm text-gray-500 ${monoClass}`}>
         {removing
           ? '保存すると削除します'
           : configured
@@ -51,17 +68,18 @@ function ApiKeyInput({
         {configured && (
           <button
             type="button"
-            className="settings-api-key-remove"
+            className="rounded-sm border border-red-200 bg-white px-2 py-[0.1rem] text-xs text-red-700"
             onClick={onToggleRemove}
           >
             {removing ? '削除を取り消す' : '削除'}
           </button>
         )}
       </div>
-      <div className="settings-input-with-toggle">
+      <div className="relative">
         <input
           type={show ? 'text' : 'password'}
-          className="settings-input"
+          // 表示ボタンの分だけ右をあける
+          className={`${inputClass} pr-14`}
           value={value}
           disabled={removing}
           autoComplete="off"
@@ -73,7 +91,7 @@ function ApiKeyInput({
         {value && (
           <button
             type="button"
-            className="settings-toggle-visibility"
+            className={`absolute top-1/2 right-2 z-[1] -translate-y-1/2 rounded-sm border px-[0.6rem] py-1 text-xs ${outlineButtonClass}`}
             onClick={() => setShow((v) => !v)}
           >
             {show ? '隠す' : '表示'}
@@ -225,31 +243,34 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
 
   return (
     <PageLayout
-      className="settings-page"
+      className="bg-gray-50"
       header={
-        <div className="settings-header">
-          <button className="settings-back-button" onClick={onBack}>
+        <div className="flex items-center gap-4 bg-brand px-8 py-4 text-white">
+          <button
+            className="rounded-md border border-white/30 bg-transparent px-[0.8rem] py-[0.4rem] text-md text-white transition-colors duration-150 hover:bg-white/10"
+            onClick={onBack}
+          >
             ← 戻る
           </button>
-          <h1>設定</h1>
+          <h1 className="text-xl font-semibold">設定</h1>
         </div>
       }
     >
-      <div className="settings-content">
-        {loading && <div className="settings-loading">読み込み中...</div>}
+      <div className="mx-auto w-full max-w-[700px] flex-1 p-8">
+        {loading && <div className="p-12 text-center text-gray-500">読み込み中...</div>}
 
-        {error && <div className="settings-error">{error}</div>}
+        {error && <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">{error}</div>}
 
         {showSuccess && (
-          <div className="settings-success">設定を保存しました。</div>
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-md text-green-800">設定を保存しました。</div>
         )}
 
         {settings && (
           <>
             {/* 文字起こし */}
-            <div className="settings-section">
-              <h2>文字起こし</h2>
-              <p className="settings-checkbox-hint">{apiKeyStorageHint}</p>
+            <div className={sectionClass}>
+              <h2 className={sectionHeadingClass}>文字起こし</h2>
+              <p className={hintClass}>{apiKeyStorageHint}</p>
 
               <ApiKeyInput
                 label="ElevenLabs APIキー"
@@ -270,11 +291,12 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
             </div>
 
             {/* AI 分析（Claude と AWS） */}
-            <div className="settings-section">
-              <h2>AI 分析（Claude と AWS）</h2>
-              <label className="settings-checkbox-label">
+            <div className={sectionClass}>
+              <h2 className={sectionHeadingClass}>AI 分析（Claude と AWS）</h2>
+              <label className={checkboxLabelClass}>
                 <input
                   type="checkbox"
+                  className={checkboxClass}
                   checked={enableAiAnalysis}
                   onChange={(e) => {
                     setEnableAiAnalysis(e.target.checked);
@@ -283,7 +305,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                 />
                 AI 分析を使う
               </label>
-              <p className="settings-checkbox-hint">
+              <p className={hintClass}>
                 ON にすると、要約・会話分析・発言の文脈・ディープサーチを使えます。Anthropic の API キーと Amazon Bedrock Guardrails（AWS）の両方が必要です。
                 Claude に送る内容と Claude の応答は、毎回 Guardrails で確認します（個人情報・プロンプト攻撃など）。
                 会話の本文は AWS（APAC リージョン内）でも処理されます。AWS の認証情報は、この Mac の AWS CLI の設定を使います。
@@ -292,7 +314,11 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               {enableAiAnalysis && (
                 <>
                   <div
-                    className={`settings-ai-status ${aiMissing.length === 0 ? 'ready' : 'missing'}`}
+                    className={`mt-2 mb-3 rounded-lg border px-3 py-2 text-md font-semibold ${
+                      aiMissing.length === 0
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                    }`}
                     role="status"
                   >
                     {aiMissing.length > 0
@@ -319,16 +345,16 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                   }}
                 />
 
-                <h3 className="settings-subheading">Amazon Bedrock Guardrails（AWS）</h3>
-                <p className="settings-checkbox-hint">
+                <h3 className="mt-6 mb-2 text-base-plus font-semibold text-gray-700">Amazon Bedrock Guardrails（AWS）</h3>
+                <p className={hintClass}>
                   ディープサーチで会話を選んだときは、会話に含まれる個人情報（氏名・電話番号など）も検出します。
                   ディープサーチ・要約・会話分析で Claude に送る前に、検出した文字列を伏せられます。
                 </p>
-                <div className="settings-input-group">
-                  <label>Guardrail ID</label>
+                <div className="mb-4">
+                  <label className={fieldLabelClass}>Guardrail ID</label>
                   <input
                     type="text"
-                    className="settings-input"
+                    className={inputClass}
                     value={guardrailId}
                     onChange={(e) => {
                       setGuardrailId(e.target.value);
@@ -337,11 +363,11 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     placeholder="未設定の場合、Claude を使う機能は使えません"
                   />
                 </div>
-                <div className="settings-input-group">
-                  <label>バージョン</label>
+                <div className="mb-4">
+                  <label className={fieldLabelClass}>バージョン</label>
                   <input
                     type="text"
-                    className="settings-input"
+                    className={inputClass}
                     value={guardrailVersion}
                     onChange={(e) => {
                       setGuardrailVersion(e.target.value);
@@ -349,18 +375,18 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     }}
                     placeholder="DRAFT"
                   />
-                  <p className="settings-checkbox-hint">
+                  <p className={hintClass}>
                     空の場合は DRAFT を使います。DRAFT は AWS のコンソールで編集するとすぐに変わるため、
                     Guardrail のバージョンを作成し、その番号（1 など）を指定することを勧めます。
                     保存する前に、指定したバージョンで確認できることを確かめます。
                     どのバージョンで確認したかは、Claude の呼び出しの記録（claude-audit-logs/）に残ります。
                   </p>
                 </div>
-                <div className="settings-input-group">
-                  <label>AWS プロファイル</label>
+                <div className="mb-4">
+                  <label className={fieldLabelClass}>AWS プロファイル</label>
                   <input
                     type="text"
-                    className="settings-input"
+                    className={inputClass}
                     value={awsProfile}
                     onChange={(e) => {
                       setAwsProfile(e.target.value);
@@ -368,7 +394,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                     }}
                     placeholder="default"
                   />
-                  <p className="settings-checkbox-hint">
+                  <p className={hintClass}>
                     AWS の認証情報に使う、~/.aws/credentials のプロファイル名です。空の場合は default を使います。
                     アプリはターミナルの環境変数（AWS_PROFILE など）を使えないため、default 以外を使う場合はここで指定してください。
                     アクセスキーで設定したプロファイルに対応します（SSO などには対応していません）。
@@ -380,11 +406,12 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
             </div>
 
             {/* キーワード */}
-            <div className="settings-section">
-              <h2>キーワード</h2>
-              <label className="settings-checkbox-label">
+            <div className={sectionClass}>
+              <h2 className={sectionHeadingClass}>キーワード</h2>
+              <label className={checkboxLabelClass}>
                 <input
                   type="checkbox"
+                  className={checkboxClass}
                   checked={enableGinzaKeywords}
                   onChange={(e) => {
                     setEnableGinzaKeywords(e.target.checked);
@@ -393,7 +420,7 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
                 />
                 GiNZA のキーワード抽出を有効にする（ベータ）
               </label>
-              <p className="settings-checkbox-hint">
+              <p className={hintClass}>
                 有効にすると、キーワードの一覧と会話分析で「標準」と「GiNZA」を切り替えられます。
                 GiNZA は日本語を解析して、評価・型チェックのような漢字の語も取り出します。
                 初めて使うときに Python と GiNZA（約 500MB）をダウンロードします。解析は手元で行い、会話を外部に送りません。AWS は使いません。
@@ -401,38 +428,38 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
             </div>
 
             {/* データ保存先 */}
-            <div className="settings-section">
-              <div className="settings-section-header">
-                <h2>データ保存先</h2>
+            <div className={sectionClass}>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800">データ保存先</h2>
                 <button
                   type="button"
-                  className="settings-open-folder-button"
+                  className={`shrink-0 rounded-md border px-[0.8rem] py-[0.3rem] text-sm font-medium ${outlineButtonClass}`}
                   onClick={() => openDataFolder()}
                 >
                   フォルダを表示
                 </button>
               </div>
 
-              <div className="settings-datadir-path">
+              <div className={`rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm break-all text-gray-700 ${monoClass}`}>
                 {settings.paths.dataDir}
               </div>
 
-              <div className="settings-subdirs">
-                <div className="settings-subdirs-title">
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <div className="mb-2 text-sm text-gray-500">
                   以下のフォルダに保存されます:
                 </div>
                 {subDirs.map((dir) => (
-                  <div key={dir.label} className="settings-subdir-item">
-                    <span className="settings-subdir-label">{dir.label}</span>
-                    <span className="settings-subdir-path">{dir.path}</span>
+                  <div key={dir.label} className="flex items-center py-[0.3rem]">
+                    <span className="w-[140px] shrink-0 text-sm text-gray-500">{dir.label}</span>
+                    <span className={`truncate text-sm text-gray-700 ${monoClass}`}>{dir.path}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="settings-actions">
+            <div className="mt-6 flex items-center gap-4">
               <button
-                className="settings-save-button"
+                className="rounded-lg border-none bg-primary px-6 py-[0.6rem] text-base font-medium text-white transition-all duration-150 enabled:hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleSave}
                 disabled={saving || !hasChanges}
               >
