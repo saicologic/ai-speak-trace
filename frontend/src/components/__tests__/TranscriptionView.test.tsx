@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TranscriptionView } from '../TranscriptionView';
+import { allCss, cssFilesSelecting } from '../../test/cssRules';
 import type { Transcription } from '../../types';
 
 vi.mock('../UtteranceBlock', () => ({
@@ -231,5 +232,61 @@ describe('TranscriptionView', () => {
 
       expect(onTimeClick).toHaveBeenCalledWith(0);
     });
+  });
+});
+
+describe('TranscriptionView の見た目', () => {
+  /** 発話を包む箱（チェックボックスと発話を横に並べる） */
+  const wrapperOf = (speakerName: string) => screen.getAllByTestId(`utterance-${speakerName}`)[0].parentElement;
+
+  it('見出しは太字にし、絞り込んだ件数は黄色の枠で出す', () => {
+    render(<TranscriptionView {...defaultProps} selectedSpeakerId="speaker_0" />);
+    expect(screen.getByRole('heading', { name: '文字起こし結果' })).toHaveClass('mb-4', 'text-lg', 'font-semibold');
+    expect(screen.getByText(/2件の発話を表示中/)).toHaveClass(
+      'rounded-md',
+      'border-amber-200',
+      'bg-yellow-50',
+      'text-sm',
+      'text-amber-800',
+    );
+  });
+
+  it('発話を選ぶときは、チェックボックスと発話の間をあけ、カーソルを乗せると薄い紫にする', () => {
+    render(
+      <TranscriptionView
+        {...defaultProps}
+        contextSelectMode={true}
+        selectedUtteranceIndices={new Set()}
+        onToggleUtteranceSelection={vi.fn()}
+      />,
+    );
+    expect(wrapperOf('Bさん')).toHaveClass('flex', 'items-start', 'gap-3', 'rounded-lg', 'p-1', 'hover:bg-purple-50');
+    expect(screen.getAllByRole('checkbox')[0]).toHaveClass('mt-4', 'size-[1.1rem]', 'shrink-0', 'cursor-pointer', 'accent-violet-500');
+  });
+
+  it('発話を選ばないときは、間をあけず、カーソルを乗せても色を変えない', () => {
+    render(<TranscriptionView {...defaultProps} />);
+    expect(wrapperOf('Bさん')).toHaveClass('flex', 'items-start');
+    expect(wrapperOf('Bさん')).not.toHaveClass('gap-3', 'hover:bg-purple-50');
+  });
+
+  it('会話に飛んだ発言は、背景の色を 2 秒で消すアニメーションで目立たせる', () => {
+    // テストの画面（jsdom）には scrollIntoView がないため、このテストの間だけ足す
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<TranscriptionView {...defaultProps} scrollToUtteranceIndex={1} />);
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(wrapperOf('Bさん')).toHaveClass('animate-jump-highlight');
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+
+  it('TranscriptionView.css を残さず、ほかの CSS でも発話のブロックに見た目を指定しない', () => {
+    expect(Object.keys(allCss)).not.toContain('components/TranscriptionView.css');
+    expect(cssFilesSelecting('utterance-block')).toEqual([]);
+    expect(cssFilesSelecting('selection-info')).toEqual([]);
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });
