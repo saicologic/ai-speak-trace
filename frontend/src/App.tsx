@@ -499,12 +499,23 @@ function App() {
               aiDisabled={!aiReady}
               aiStatus={
                 aiReady ? undefined : (
-                  <p className={`keyword-ai-status ${aiState}`} role="status">
+                  <p
+                    className={`mb-3 rounded-lg border px-3 py-2 text-xs leading-normal ${
+                      aiState === 'off'
+                        ? 'border-gray-200 bg-gray-50 text-gray-600'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                    }`}
+                    role="status"
+                  >
                     {aiState === 'missing'
                       ? `AI 分析の設定が足りません: ${aiMissing.join('・')}`
                       : AI_STATUS_TEXT[aiState]}
                     {(aiState === 'off' || aiState === 'missing') && (
-                      <button type="button" onClick={() => setPage('settings')}>
+                      <button
+                        type="button"
+                        className="mt-[0.4rem] block rounded-md border-current bg-white px-[0.6rem] py-1 text-xs font-semibold text-inherit"
+                        onClick={() => setPage('settings')}
+                      >
                         設定を開く
                       </button>
                     )}
