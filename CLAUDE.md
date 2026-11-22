@@ -196,6 +196,15 @@ ai-speak-trace/
 - Playwright MCP はプロフィールを保存しない（`--isolated`）。ログイン状態は引き継がれない
 - Playwright MCP での作業が終わったら `browser_close` でブラウザを閉じる
 
+## 子ワークツリーでの作業（Claude Code）
+
+- サンドボックスからは Orca に届かず、セッションは自分のワークツリーにしか書けない。別のブランチの作業は、Orca の子ワークツリーで新しく起動した Claude Code に渡す
+- Claude Code は依頼文を自分のワークツリーの `.claude/briefs/<名前>.md`（git に入れない）に書き、ユーザーに `! /opt/claude-code-team/bin/orca-child.sh <ブランチ> <元のブランチ> .claude/briefs/<名前>.md` の1行を渡す。`/tmp/claude/` は再起動で消えるため使わない
+  - ブランチは `fix/*`・`feature/*`・`test/*`、元のブランチは `origin/main`・`origin/release/vX.Y.Z` だけ
+  - `orca-child.sh` は子ワークツリーを作って Claude Code を起動し、依頼文を子ワークツリーの `.claude/briefs/<ワークツリーの名前>.md` にも写す
+- Claude Code が自分で Orca を動かせるようにはしない（`orca-child.sh` を `sandbox.excludedCommands` に入れない）
+- 詳しくは `docs/developers/claude-code-sandbox.md` の「子ワークツリーで作業する」。`orca-child.sh` を変えたら、マージの後に `install.sh` で入れ直す
+
 ## CodeRabbit の枠切れ（Claude Code）
 
 - CodeRabbit の枠切れの間は、レビューを動かす操作をしない。枠切れのまま投稿すると、レビューされないまま CodeRabbit のチェックが通ってしまうため

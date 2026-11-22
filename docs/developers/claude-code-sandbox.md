@@ -142,6 +142,32 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 - 本文のファイルは、リポジトリの中か、Claude Code のスクラッチパッドの中に置きます。`github.sh` は、ファイルを開いてからほかのファイルのハードリンクでないことを確かめ、中身を読んで `--body` で渡します
 - ブラウザを開く `--web`（`-w`）は使えません
 
+## 子ワークツリーで作業する（orca-child.sh）
+
+Claude Code のサンドボックスからは Orca に届かず（`orca worktree create` は `runtime_access_denied`）、セッションは自分のワークツリーにしか書けません。別のブランチの作業は、Orca の子ワークツリーを作り、そこで新しく起動した Claude Code に渡します。
+
+1. Claude Code が、依頼文を自分のワークツリーの `.claude/briefs/<名前>.md` に書きます（`.gitignore` に入れてあり、git には入りません。`/tmp/claude/` は再起動で消えるため使いません）
+2. Claude Code が、ユーザーに次の1行を渡します。ユーザーは Claude Code の入力欄で、そのまま実行します（`!` を付けると、サンドボックスの外で動きます）
+
+   ```text
+   ! /opt/claude-code-team/bin/orca-child.sh <ブランチ> <元のブランチ> .claude/briefs/<名前>.md
+   ```
+
+3. `orca-child.sh` が子ワークツリーを作り（`--parent-worktree active`・`--setup skip`）、そこで Claude Code を起動して依頼文を渡します。依頼文は、子ワークツリーの `.claude/briefs/<ワークツリーの名前>.md` にも写します（子のセッションが後から読み直せるように。子ワークツリーを消すまで残ります）
+
+| 引数 | 使えるもの |
+|---|---|
+| ブランチ | `fix/<名前>`・`feature/<名前>`・`test/<名前>`（`github.sh` が push できるもの。`/` は1つだけ）。ワークツリーの名前は `<名前>` |
+| 元のブランチ | `origin/main`（省いたとき）・`origin/release/vX.Y.Z` |
+| 依頼文のファイル | 呼び出したワークツリーの `.claude/briefs/` か、Claude Code のスクラッチパッドの中の普通のファイル。省くと、子ワークツリーを作るだけで Claude Code は起動しません |
+
+- シンボリックリンク・ハードリンクの依頼文、`.claude`・`.claude/briefs` がリンクでほかの場所を指しているもの、`.env*` の名前のもの、秘密の情報（API キー・トークン・秘密鍵）の形を含むもの（`github.sh` と同じ形）は断ります
+- 子ワークツリーの `.claude/briefs` がリンクでほかの場所を指しているときや、写す先のファイルがすでにあるときは、写さずに失敗で終わります（子ワークツリーと Claude Code の起動は済んでいます）
+- 呼び出したリポジトリの git の設定に、認めていない項目があれば断ります（`github.sh` と同じ `lib/git-safety.sh`）
+- `ORCA_CLI_COMMAND` があればそのコマンドを、なければ `orca` を動かします
+- Claude Code が自分で Orca を動かせるようにはしません（サンドボックスを広げないため、`sandbox.excludedCommands` には入れません）
+- `.claude/team/bin/orca-child.sh` を足した・変えた PR がマージされたら、「[入れ直す・起動し直す](#入れ直す起動し直す)」の手順で入れ直します。入れ直すまでは、`/opt/claude-code-team/bin/orca-child.sh` がないか、前の版のままです
+
 ## hook の一覧
 
 hook は managed settings からだけ動かし（`allowManagedHooksOnly`）、どれもインストール先（`/opt/claude-code-team/bin`）のものです。テストは `.claude/team/tests/` にあります。
