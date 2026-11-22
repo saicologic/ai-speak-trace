@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchFeedback, submitFeedback } from '../api/client';
 import type { Feedback, FeedbackCategory, FeedbackFeature } from '../types';
-import './FeedbackButton.css';
 
 interface Props {
   feature: FeedbackFeature;
@@ -19,6 +18,11 @@ const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
   { value: 'inappropriate', label: '不適切な表現' },
   { value: 'other', label: 'その他' },
 ];
+
+/** 種類・箇所・コメントの入力欄（select と textarea も、画面と同じ字体にする） */
+const fieldControlClass = 'rounded-sm border border-gray-300 px-2 py-[0.35rem] text-sm [font-family:inherit]';
+/** 「キャンセル」「報告する」に共通の、枠・余白・文字の大きさ */
+const actionButtonClass = 'rounded-md border px-[0.8rem] py-[0.3rem] text-sm disabled:cursor-not-allowed disabled:opacity-50';
 
 const categoryLabel = (value: FeedbackCategory) =>
   CATEGORIES.find((c) => c.value === value)?.label ?? value;
@@ -77,33 +81,34 @@ export function FeedbackButton({ feature, targetId, transcriptionId, transcripti
   };
 
   return (
-    <div className="feedback">
+    <div className="mt-3 text-sm">
       {reports.length > 0 && (
-        <div className="feedback-reports">
-          <div className="feedback-reports-title">報告した誤り（{reports.length}件）</div>
-          <ul>
+        <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900">
+          <div className="mb-1 font-semibold">報告した誤り（{reports.length}件）</div>
+          <ul className="m-0 pl-[1.1rem]">
             {reports.map((r) => (
-              <li key={r.id}>
-                <span className="feedback-category">{categoryLabel(r.category)}</span>
-                {r.quote && <span className="feedback-quote">「{r.quote}」</span>}
-                {r.comment && <span className="feedback-comment">{r.comment}</span>}
+              <li key={r.id} className="my-[0.15rem]">
+                <span className="mr-[0.4rem] font-semibold">{categoryLabel(r.category)}</span>
+                {r.quote && <span className="mr-[0.4rem]">「{r.quote}」</span>}
+                {r.comment && <span className="text-gray-500">{r.comment}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
       {!open ? (
-        <button type="button" className="feedback-open" onClick={() => setOpen(true)}>
+        <button type="button" className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50" onClick={() => setOpen(true)}>
           誤りを報告
         </button>
       ) : (
-        <div className="feedback-form">
-          <p className="feedback-hint">
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+          <p className="mb-2 text-xs text-gray-500">
             報告はこの Mac にだけ保存し、外部には送りません。結果を見直すときに、報告した内容を一緒に表示します。
           </p>
-          <label className="feedback-field">
+          <label className="mb-2 flex flex-col gap-1">
             <span>種類</span>
             <select
+              className={fieldControlClass}
               value={category}
               onChange={(e) => setCategory(e.target.value as FeedbackCategory)}
             >
@@ -114,32 +119,39 @@ export function FeedbackButton({ feature, targetId, transcriptionId, transcripti
               ))}
             </select>
           </label>
-          <label className="feedback-field">
+          <label className="mb-2 flex flex-col gap-1">
             <span>誤りだと思った箇所（任意）</span>
             <input
               type="text"
+              className={fieldControlClass}
               value={quote}
               maxLength={1000}
               onChange={(e) => setQuote(e.target.value)}
             />
           </label>
-          <label className="feedback-field">
+          <label className="mb-2 flex flex-col gap-1">
             <span>コメント（任意）</span>
             <textarea
+              className={fieldControlClass}
               value={comment}
               maxLength={2000}
               rows={3}
               onChange={(e) => setComment(e.target.value)}
             />
           </label>
-          {error && <div className="feedback-error">{error}</div>}
-          <div className="feedback-actions">
-            <button type="button" onClick={() => setOpen(false)} disabled={saving}>
+          {error && <div className="mb-2 text-red-700">{error}</div>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className={`${actionButtonClass} border-gray-300 bg-white`}
+              onClick={() => setOpen(false)}
+              disabled={saving}
+            >
               キャンセル
             </button>
             <button
               type="button"
-              className="primary"
+              className={`${actionButtonClass} border-blue-600 bg-blue-600 text-white`}
               onClick={handleSubmit}
               disabled={saving || (category === 'other' && !quote.trim() && !comment.trim())}
             >
