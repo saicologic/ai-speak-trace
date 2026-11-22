@@ -73,7 +73,8 @@ describe('PrivacyPanel の見た目', () => {
     const s = status(true);
     return { ...s, scan: { ...s.scan!, findings } };
   };
-  const badgeOf = async () => (await screen.findByRole('button', { expanded: false })).children[1];
+  // 取得した結果のバッジの文字が出るまで待ってから、バッジを確かめる
+  const badgeOf = (text: string) => screen.findByText(text);
 
   it('白いカードにし、見出しの行を押すと開く', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(scanned([]));
@@ -87,31 +88,32 @@ describe('PrivacyPanel の見た目', () => {
   it('結果のバッジは、伏せるものがなければ緑にする', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(scanned([finding()]));
     render(<PrivacyPanel transcriptionId="t1" />);
-    expect(await badgeOf()).toHaveClass('rounded-[999px]', 'border', 'text-xs', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-800');
+    expect(await badgeOf('1件を検出（0件を伏せて送ります）')).toHaveClass('rounded-[999px]', 'border', 'text-xs', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-800');
   });
 
   it('伏せるものがあれば青、要確認があれば黄色、まだ確認していなければ灰色にする（後のものを優先する）', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(scanned([finding({ mask: true })]));
     const { unmount } = render(<PrivacyPanel transcriptionId="t1" />);
-    expect(await badgeOf()).toHaveClass('border-blue-200', 'bg-blue-50', 'text-blue-800');
+    expect(await badgeOf('1件を検出（1件を伏せて送ります）')).toHaveClass('border-blue-200', 'bg-blue-50', 'text-blue-800');
     unmount();
 
     vi.mocked(fetchPrivacy).mockResolvedValue(scanned([finding({ mask: true }), finding({ text: '佐藤', needsReview: true })]));
     const second = render(<PrivacyPanel transcriptionId="t1" />);
-    const review = await badgeOf();
+    const review = await badgeOf('2件を検出（1件を伏せる・要確認1件）');
     expect(review).toHaveClass('border-amber-200', 'bg-amber-50', 'text-amber-800');
     expect(review).not.toHaveClass('bg-blue-50');
     second.unmount();
 
     vi.mocked(fetchPrivacy).mockResolvedValue(status(false, false));
     render(<PrivacyPanel transcriptionId="t1" />);
-    expect(await badgeOf()).toHaveClass('border-gray-200', 'bg-gray-50', 'text-gray-500');
+    expect(await badgeOf('未設定')).toHaveClass('border-gray-200', 'bg-gray-50', 'text-gray-500');
   });
 
   it('開くと、検出した文字列の表と、青い保存ボタンを出す', async () => {
     vi.mocked(fetchPrivacy).mockResolvedValue(scanned([finding({ needsReview: true })]));
     render(<PrivacyPanel transcriptionId="t1" />);
-    fireEvent.click(await screen.findByRole('button', { expanded: false }));
+    await screen.findByText('1件を検出（0件を伏せる・要確認1件）');
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
     expect(screen.getByRole('table')).toHaveClass('w-full', 'border-collapse', 'text-sm');
     expect(screen.getByRole('columnheader', { name: '種類' })).toHaveClass('border-b', 'border-gray-100', 'text-left', 'font-medium', 'text-gray-500');
     expect(screen.getByRole('cell', { name: '山田' })).toHaveClass('border-b', 'border-gray-100', 'break-all');

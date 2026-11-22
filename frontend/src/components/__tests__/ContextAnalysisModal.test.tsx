@@ -60,7 +60,8 @@ describe('ContextAnalysisModal の見た目', () => {
     );
     const box = container.firstElementChild?.firstElementChild;
     // 中の段落すべてに効く指定は、注意の部品の文字の大きさ・色・余白より強いため、付けない
-    expect(Array.from(box!.classList).filter((c) => c.startsWith('[&_p]'))).toEqual([]);
+    // （[&_p]・[&>p] のような子孫・子を指定する書き方と、*:・**: のような全部の子・子孫に効く書き方を弾く）
+    expect(Array.from(box!.classList).filter((c) => /^(\[&|\*{1,2}:)/.test(c))).toEqual([]);
     expect(screen.getByRole('note')).toHaveClass('text-xs', 'text-amber-800');
     expect(screen.getByRole('alert')).toHaveClass('text-xs', 'text-red-800');
   });

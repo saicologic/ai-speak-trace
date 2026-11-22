@@ -108,14 +108,14 @@ describe('KeywordList の見た目', () => {
 
   it('選んだキーワードは黄色にし、件数のバッジも黄色にする', () => {
     render(<KeywordList {...props()} />);
-    const active = screen.getByRole('button', { name: '評価3' });
+    const active = screen.getByRole('button', { name: /^評価\s*3$/ });
     expect(active).toHaveClass('border-yellow-400', 'bg-yellow-100');
     expect(Array.from(active.classList).filter((c) => c.startsWith('hover:'))).toEqual([]);
     expect(screen.getByText('3')).toHaveClass('bg-amber-200', 'text-amber-800');
     expect(active).not.toHaveClass('bg-white');
     expect(screen.getByText('3')).not.toHaveClass('bg-gray-100');
 
-    const inactive = screen.getByRole('button', { name: '型チェック2' });
+    const inactive = screen.getByRole('button', { name: /^型チェック\s*2$/ });
     expect(inactive).toHaveClass('border-gray-200', 'bg-white', 'hover:border-amber-200', 'hover:bg-yellow-50');
     expect(screen.getByText('2')).toHaveClass('bg-gray-100', 'text-gray-400');
     expect(inactive).not.toHaveClass('bg-yellow-100');
