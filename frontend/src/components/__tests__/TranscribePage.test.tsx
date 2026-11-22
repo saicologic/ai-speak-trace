@@ -8,6 +8,7 @@ import {
 } from '../../api/client';
 import type { CreditInfo } from '../../api/client';
 import { isTauri } from '../../utils/platform';
+import { allCss } from '../../test/cssRules';
 
 vi.mock('../../api/client');
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -121,5 +122,77 @@ describe('TranscribePage', () => {
     expect(fixed).toContainElement(screen.getByRole('button', { name: '← 戻る' }));
     expect(fixed).toContainElement(screen.getByRole('heading', { name: '音声ファイルの文字起こし' }));
     expect(scroll).toContainElement(screen.getByRole('heading', { name: '音声ファイルを選択' }));
+  });
+});
+
+describe('TranscribePage の見た目', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(checkAudioFileExists).mockResolvedValue(false);
+  });
+
+  it('画面の背景は薄い灰色にし、ヘッダーは紺にする', () => {
+    vi.mocked(checkCredits).mockReturnValue(new Promise(() => {}));
+    const { container } = render(<TranscribePage {...defaultProps} />);
+    expect(container.firstElementChild).toHaveClass('bg-gray-50');
+    const back = screen.getByRole('button', { name: '← 戻る' });
+    expect(back.parentElement).toHaveClass('flex', 'items-center', 'gap-4', 'bg-brand', 'px-8', 'py-4', 'text-white');
+    expect(back).toHaveClass('rounded-md', 'border-white/30', 'bg-transparent', 'text-md', 'text-white', 'hover:bg-white/10');
+  });
+
+  it('ファイルの選択は、白いカードの中の点線の大きいボタンにする', () => {
+    vi.mocked(checkCredits).mockReturnValue(new Promise(() => {}));
+    render(<TranscribePage {...defaultProps} />);
+    const heading = screen.getByRole('heading', { name: '音声ファイルを選択' });
+    expect(heading).toHaveClass('mb-4', 'text-lg', 'font-semibold', 'text-gray-800');
+    expect(heading.parentElement).toHaveClass('rounded-[10px]', 'border', 'border-gray-200', 'bg-white', 'p-6');
+    expect(screen.getByRole('button', { name: 'ファイルを選択' })).toHaveClass(
+      'mb-3',
+      'w-full',
+      'rounded-xl',
+      'border-2',
+      'border-dashed',
+      'border-gray-300',
+      'bg-[#fafbfc]',
+      'p-6',
+      'text-lg',
+      'hover:border-blue-300',
+      'hover:bg-blue-50',
+    );
+  });
+
+  it('ファイルを選ぶと、緑の枠でファイル名とクレジットを出し、同意の確認と実行のボタンを出す', async () => {
+    vi.mocked(checkCredits).mockResolvedValue(sufficientCredit);
+    await goToPreviewStep();
+    expect(screen.getByText('test.mp3').parentElement).toHaveClass('flex', 'items-center', 'gap-2', 'rounded-lg', 'border-green-200', 'bg-green-50');
+    const credit = await screen.findByText('残りクレジット');
+    expect(credit.parentElement).toHaveClass('flex', 'justify-between', 'text-gray-700');
+    expect(credit.parentElement?.parentElement).toHaveClass('rounded-lg', 'border-green-200', 'bg-green-50', 'text-md');
+    expect(screen.getByRole('checkbox', { name: /同意を得ています/ }).parentElement).toHaveClass(
+      'flex',
+      'cursor-pointer',
+      'items-start',
+      'rounded-lg',
+      'border-gray-200',
+      'bg-gray-50',
+      'text-md',
+    );
+    expect(screen.getByRole('button', { name: '文字起こしを実行' })).toHaveClass(
+      'w-full',
+      'rounded-lg',
+      'border-none',
+      'bg-primary',
+      'p-3',
+      'text-lg',
+      'font-semibold',
+      'text-white',
+      'enabled:hover:bg-primary-hover',
+      'disabled:bg-gray-400',
+    );
+  });
+
+  it('TranscribePage.css を残さない（@layer の外の CSS は Tailwind のクラスより強く、クラスが効かなくなる）', () => {
+    expect(Object.keys(allCss)).not.toContain('components/TranscribePage.css');
+    expect(Object.keys(allCss)).toContain('index.css');
   });
 });
