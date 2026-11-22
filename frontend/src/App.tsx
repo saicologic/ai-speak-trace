@@ -402,7 +402,10 @@ function App() {
         </button>
       </header>
       <main className="app-main">
-        <aside className="app-sidebar">
+        {/* ふつうは文字起こし履歴の一覧だけがスクロールする（TranscriptionList）。
+            画面が低くて一覧の最低の高さを保てないときだけ、サイドバー全体をスクロールし、全部のボタンと履歴に届くようにする。
+            app-sidebar は、文字起こし履歴がサイドバーの直接の子であることをテストで確かめるための目印 */}
+        <aside className="app-sidebar flex w-[280px] min-w-[280px] flex-col overflow-y-auto border-r border-gray-200 bg-white p-4">
           <div className="sidebar-tabs">
             <button
               className="sidebar-tab-action"

@@ -4,6 +4,10 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* hover: のクラスを、今までの CSS の :hover と同じく、カーソルを乗せられない環境（タッチ操作など）でも効かせる。
+   Tailwind v4 の標準の hover: は @media (hover: hover) の中でだけ効くため、変えずに移すと見た目が変わる */
+@custom-variant hover (&:hover);
+
 /* 使える色と文字の大きさを決める。Tailwind の標準のもの（色は oklch）は消し、今の画面に合わせて決めたものだけを使う。
    色は、今の画面と同じ 16 進の値（Tailwind v3 の値）にする */
 @theme {
