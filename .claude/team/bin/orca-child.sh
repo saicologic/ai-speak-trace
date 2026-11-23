@@ -138,11 +138,11 @@ if [ -e "./$name.md" ] || [ -L "./$name.md" ]; then fail_copy "$dest がすで�
 # 上書きしない（確かめた後にリンクを置かれても、その先に書かない）
 set -C
 # 子ワークツリーの元のブランチの .gitignore に .claude/briefs/ がなくても、git に入れないようにする。
-# すでに .gitignore があるときは、全部を無視する * の行があることを確かめ、なければ依頼文を書かない
+# すでに .gitignore があるときは、全部を無視する * の行があり、! で無視をやめる行がないことを確かめ、違えば依頼文を書かない
 if [ ! -e ./.gitignore ] && [ ! -L ./.gitignore ]; then
   printf '*\n' >./.gitignore 2>/dev/null || fail_copy "$dir/.gitignore に書けません"
-elif [ -L ./.gitignore ] || ! grep -qx '\*' ./.gitignore 2>/dev/null; then
-  fail_copy "$dir/.gitignore に、全部を無視する * の行がありません（依頼文が git に入るおそれがあります）"
+elif [ -L ./.gitignore ] || ! grep -qx '\*' ./.gitignore 2>/dev/null || grep -q '^!' ./.gitignore 2>/dev/null; then
+  fail_copy "$dir/.gitignore が、全部を無視していません（* の行がないか、! で無視をやめる行があります。依頼文が git に入るおそれがあります）"
 fi
 printf '%s\n' "$prompt" >"./$name.md" 2>/dev/null || fail_copy "$dest に書けません"
 printf 'orca-child.sh: 依頼文を %s に写しました\n' "$dest" >&2
