@@ -99,7 +99,8 @@ read_brief() {
   prompt=$(cat <&3)
   exec 3<&-
   [ -n "$prompt" ] || die "依頼文のファイルが空です: $f"
-  if printf '%s' "$prompt" | grep -aEq -- "$SECRET_RE"; then
+  # パイプで渡すと、grep が先に終わったときに送る側が SIGPIPE で失敗し、pipefail で検査をすり抜けるため、ヒアストリングで渡す
+  if grep -aEq -- "$SECRET_RE" <<<"$prompt"; then
     die "依頼文に、秘密の情報（API キー・トークン・秘密鍵）の形があります: $f"
   fi
 }
@@ -128,11 +129,17 @@ child=$(realpath "$candidates" 2>/dev/null) || fail_copy "子ワークツリー�
 [ -d "$child" ] && [ -e "$child/.git" ] || fail_copy "子ワークツリーがありません: $candidates"
 if [ -n "$top" ] && [ "$child" = "$(realpath "$top")" ]; then fail_copy "子ワークツリーが、呼び出したワークツリーと同じです"; fi
 dir="$child/.claude/briefs"
-mkdir -p "$dir" 2>/dev/null || fail_copy "$dir を作れません"
-# 確かめたフォルダに入り、以後は相対パスで書く（確かめた後に、子のセッションが .claude/briefs をリンクに差し替えても、外に書かない）
-cd "$dir" 2>/dev/null || fail_copy "$dir に入れません"
-# .claude・.claude/briefs が、リンクでほかの場所を指していないこと
-[ "$(pwd -P)" = "$dir" ] || fail_copy "$dir が、リンクでほかの場所を指しています"
+# 1段ずつフォルダに入り、リンクでほかの場所を指していないことを確かめてから、次の段を相対パスで作る
+# （.claude がリンクのとき、その先に briefs を作らない。確かめた後に、子のセッションがリンクに差し替えても、外に書かない）
+cd "$child" 2>/dev/null || fail_copy "$child に入れません"
+here_dir=$child
+for part in .claude briefs; do
+  here_dir="$here_dir/$part"
+  if [ -L "./$part" ]; then fail_copy "$here_dir が、リンクでほかの場所を指しています"; fi
+  [ -d "./$part" ] || mkdir "./$part" 2>/dev/null || fail_copy "$here_dir を作れません"
+  cd "./$part" 2>/dev/null || fail_copy "$here_dir に入れません"
+  [ "$(pwd -P)" = "$here_dir" ] || fail_copy "$here_dir が、リンクでほかの場所を指しています"
+done
 dest="$dir/$name.md"
 if [ -e "./$name.md" ] || [ -L "./$name.md" ]; then fail_copy "$dest がすでにあります"; fi
 # 上書きしない（確かめた後にリンクを置かれても、その先に書かない）
