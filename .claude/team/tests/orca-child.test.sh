@@ -27,12 +27,12 @@ mkdir -p "$children"
 
 mkdir -p "$tmp/bin"
 # orca の代わり: 呼ばれた引数を1つずつ NUL で区切って記録し、--name の子ワークツリーを作って、その場所を JSON で答える
-#   FAKE_ORCA_RC: その終了コードで終わる（子ワークツリーは作らない）
+#   FAKE_ORCA_RC: FAKE_ORCA_OUT を出してから、その終了コードで終わる（子ワークツリーは作らない）
 #   FAKE_ORCA_OUT: 答える JSON（子ワークツリーの場所を答えない・2つ答えるときに使う）。このときは子ワークツリーを作らない
 cat >"$tmp/bin/orca" <<EOF
 #!/bin/bash
 printf '%s\0' "\$@" >"$tmp/orca-called"
-[ "\${FAKE_ORCA_RC:-0}" = 0 ] || exit "\$FAKE_ORCA_RC"
+if [ "\${FAKE_ORCA_RC:-0}" != 0 ]; then printf '%s\n' "\${FAKE_ORCA_OUT-}"; exit "\$FAKE_ORCA_RC"; fi
 name=""
 while [ \$# -gt 0 ]; do [ "\$1" = --name ] && name=\$2; shift; done
 if [ -n "\${FAKE_ORCA_OUT-}" ]; then printf '%s\n' "\$FAKE_ORCA_OUT"; exit 0; fi
@@ -241,6 +241,21 @@ printf '前からある\n' >"$children/x/.claude/briefs/x.md"
 out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
 rc=$?
 if [ "$rc" -ne 0 ] && [ "$(cat "$children/x/.claude/briefs/x.md")" = "前からある" ]; then ok; else ng "写す先のファイルを上書きした（rc=$rc）: $out"; fi
+
+# 子ワークツリーの .claude/briefs/.gitignore がすでにあって、全部を無視する * の行がなければ、依頼文を書かない
+rm -rf "${children:?}"/*
+mkdir -p "$children/x/.claude/briefs"
+: >"$children/x/.git"
+printf '*.tmp\n' >"$children/x/.claude/briefs/.gitignore"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "無視しない .gitignore のまま写した（rc=$rc）: $out"; fi
+# * の行がある .gitignore なら、そのまま写す
+rm -f "$children/x/.claude/briefs/x.md"
+printf '# 依頼文\n*\n' >"$children/x/.claude/briefs/.gitignore"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "* のある .gitignore（rc=$rc）: $out"; fi
 
 # 子ワークツリーの .claude/briefs がリンクで外を指していたら、写さない
 rm -rf "${children:?}"/*
