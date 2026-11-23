@@ -129,15 +129,20 @@ child=$(realpath "$candidates" 2>/dev/null) || fail_copy "子ワークツリー�
 if [ -n "$top" ] && [ "$child" = "$(realpath "$top")" ]; then fail_copy "子ワークツリーが、呼び出したワークツリーと同じです"; fi
 dir="$child/.claude/briefs"
 mkdir -p "$dir" 2>/dev/null || fail_copy "$dir を作れません"
+# 確かめたフォルダに入り、以後は相対パスで書く（確かめた後に、子のセッションが .claude/briefs をリンクに差し替えても、外に書かない）
+cd "$dir" 2>/dev/null || fail_copy "$dir に入れません"
 # .claude・.claude/briefs が、リンクでほかの場所を指していないこと
-[ "$(realpath "$dir")" = "$dir" ] || fail_copy "$dir が、リンクでほかの場所を指しています"
+[ "$(pwd -P)" = "$dir" ] || fail_copy "$dir が、リンクでほかの場所を指しています"
 dest="$dir/$name.md"
-if [ -e "$dest" ] || [ -L "$dest" ]; then fail_copy "$dest がすでにあります"; fi
+if [ -e "./$name.md" ] || [ -L "./$name.md" ]; then fail_copy "$dest がすでにあります"; fi
 # 上書きしない（確かめた後にリンクを置かれても、その先に書かない）
 set -C
-printf '%s\n' "$prompt" >"$dest" 2>/dev/null || fail_copy "$dest に書けません"
-# 子ワークツリーの元のブランチの .gitignore に .claude/briefs/ がなくても、git に入れないようにする
-if [ ! -e "$dir/.gitignore" ] && [ ! -L "$dir/.gitignore" ]; then
-  printf '*\n' >"$dir/.gitignore" 2>/dev/null || fail_copy "$dir/.gitignore に書けません"
+# 子ワークツリーの元のブランチの .gitignore に .claude/briefs/ がなくても、git に入れないようにする。
+# すでに .gitignore があるときは、全部を無視する * の行があることを確かめ、なければ依頼文を書かない
+if [ ! -e ./.gitignore ] && [ ! -L ./.gitignore ]; then
+  printf '*\n' >./.gitignore 2>/dev/null || fail_copy "$dir/.gitignore に書けません"
+elif [ -L ./.gitignore ] || ! grep -qx '\*' ./.gitignore 2>/dev/null; then
+  fail_copy "$dir/.gitignore に、全部を無視する * の行がありません（依頼文が git に入るおそれがあります）"
 fi
+printf '%s\n' "$prompt" >"./$name.md" 2>/dev/null || fail_copy "$dest に書けません"
 printf 'orca-child.sh: 依頼文を %s に写しました\n' "$dest" >&2
