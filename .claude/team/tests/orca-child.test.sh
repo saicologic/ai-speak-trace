@@ -270,6 +270,14 @@ ln -s "$tmp/outside" "$children/x/.claude/briefs"
 out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
 rc=$?
 if [ "$rc" -ne 0 ] && [ -z "$(ls -A "$tmp/outside")" ]; then ok; else ng "子ワークツリーのリンクの先に写した（rc=$rc）: $out"; fi
+# 子ワークツリーの .claude がリンクで外を指していたら、リンクの先に briefs を作らない
+rm -rf "${children:?}"/* "$tmp/outside-dot"
+mkdir -p "$children/x" "$tmp/outside-dot"
+: >"$children/x/.git"
+ln -s "$tmp/outside-dot" "$children/x/.claude"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$(ls -A "$tmp/outside-dot")" ]; then ok; else ng "子ワークツリーの .claude のリンクの先に作った（rc=$rc）: $out"; fi
 # 写す先のファイルがリンクで外を指していたら、写さない
 rm -rf "${children:?}"/*
 mkdir -p "$children/x/.claude/briefs"
@@ -410,6 +418,10 @@ git -C "$repo" config core.fsmonitor "touch $tmp/fsmonitor-ran"
 rejected "認めていない git の設定" fix/x origin/main "$briefs/brief.md"
 if [ ! -e "$tmp/fsmonitor-ran" ]; then ok; else ng "git の設定のコマンドが動いた"; fi
 git -C "$repo" config --unset core.fsmonitor
+
+# 長い依頼文の先頭に秘密の情報の形があっても断る（grep が先に終わっても、検査をすり抜けない）
+{ printf '鍵: %s\n' "$k_anthropic"; for _ in $(seq 1 4000); do printf '%0100d\n' 0; done; } >"$briefs/secret-long.md"
+rejected "長い依頼文の先頭の秘密の情報の形" fix/x origin/main "$briefs/secret-long.md"
 
 # 秘密の情報の形は github.sh の SECRET_RE と同じにする（片方だけ直して、ずれないように）
 want=$(grep -E "^SECRET_RE=" "$TEAM/bin/github.sh")
