@@ -250,6 +250,11 @@ printf '*.tmp\n' >"$children/x/.claude/briefs/.gitignore"
 out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
 rc=$?
 if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "無視しない .gitignore のまま写した（rc=$rc）: $out"; fi
+# * の行があっても、! で無視をやめる行があれば、依頼文を書かない
+printf '*\n!x.md\n' >"$children/x/.claude/briefs/.gitignore"
+out=$(cd "$repo" && FAKE_ORCA_OUT="{\"path\":\"$children/x\"}" bash "$BIN/orca-child.sh" fix/x origin/main "$briefs/brief.md" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$children/x/.claude/briefs/x.md" ]; then ok; else ng "! のある .gitignore のまま写した（rc=$rc）: $out"; fi
 # * の行がある .gitignore なら、そのまま写す
 rm -f "$children/x/.claude/briefs/x.md"
 printf '# 依頼文\n*\n' >"$children/x/.claude/briefs/.gitignore"
