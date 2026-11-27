@@ -15,15 +15,22 @@ tmp=$(cd "$tmp" && pwd -P) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 # gh の代わり: 呼ばれた引数を1つずつ記録し、answers の行を上から順に答える（行がなくなったら最後の行を繰り返す）。
-# 行が FAIL なら、エラーを出して 1 で終わる
+# 行が FAIL なら、エラーを出して 1 で終わる。answers.<--head の / を + にしたもの> があれば、そのブランチにはそちらを答える
+# （2つのプロセスを同時に動かす場面で、答えが混ざらないように）
 cat >"$tmp/bin/gh" <<EOF
 #!/bin/bash
 for a in "\$@"; do printf '[%s]' "\$a"; done >>"$tmp/gh-called"
 echo >>"$tmp/gh-called"
+answers="$tmp/answers"
+prev=""
+for a in "\$@"; do
+  if [ "\$prev" = --head ] && [ -e "$tmp/answers.\${a//\//+}" ]; then answers="$tmp/answers.\${a//\//+}"; fi
+  prev="\$a"
+done
 n=\$(wc -l <"$tmp/gh-called" | tr -d ' ')
-total=\$(wc -l <"$tmp/answers" | tr -d ' ')
+total=\$(wc -l <"\$answers" | tr -d ' ')
 [ "\$n" -gt "\$total" ] && n=\$total
-line=\$(sed -n "\${n}p" "$tmp/answers")
+line=\$(sed -n "\${n}p" "\$answers")
 if [ "\$line" = FAIL ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
 printf '%s\n' "\$line"
 EOF
@@ -156,18 +163,25 @@ rm -f "$lock"
 sh -c 'exit 0' &
 dead=$!
 wait "$dead"
-for content in "$dead" abc dir; do
+# ディレクトリを指すシンボリックリンク（todir）は、たどった先に目印を作らず、リンクだけを消して見張る
+mkdir -p "$tmp/somedir"
+for content in "$dead" abc dir todir; do
   echo "$FOUND" >"$tmp/answers"
-  if [ "$content" = dir ]; then mkdir -p "$lock"; echo "$dead" >"$lock/pid"; else ln -s "$content" "$lock"; fi
+  case "$content" in
+    dir) mkdir -p "$lock"; echo "$dead" >"$lock/pid" ;;
+    todir) ln -s "$tmp/somedir" "$lock" ;;
+    *) ln -s "$content" "$lock" ;;
+  esac
   out=$(bash "$RUN" o/r feature/a/b 2>&1)
   rc=$?
-  if [ "$rc" -eq 0 ] && found "$out" && [ ! -e "$lock" ] && [ ! -L "$lock" ]; then ok; else ng "残った目印 $content（rc=$rc）: $out"; fi
+  if [ "$rc" -eq 0 ] && found "$out" && [ ! -e "$lock" ] && [ ! -L "$lock" ] && [ -z "$(ls -A "$tmp/somedir")" ]; then ok; else ng "残った目印 $content（rc=$rc）: $out / somedir: $(ls -A "$tmp/somedir")"; fi
   rm -rf "$lock"
 done
+rm -rf "$tmp/somedir"
 
 # 見張っている間は、目印が自分の番号を指す。終わるときは、自分の番号の目印だけを消す
 # （別のプロセスが目印を取り直していたら、それを消さない）
-echo '[]' >"$tmp/answers"
+echo '[]' >"$tmp/answers.fix+a+b"
 touch "$tmp/slow"
 WAIT_PR_CREATED_TIMEOUT=3 bash "$RUN" o/r fix/a/b >/dev/null 2>&1 &
 bg=$!
@@ -183,17 +197,20 @@ if [ -L "$bglock" ] && kill -0 "$bg" 2>/dev/null; then
   out=$(bash "$RUN" o/r fix/a_b 2>&1)
   rc=$?
   if [ "$rc" -eq 0 ] && found "$out"; then ok; else ng "/ と _ の違うブランチ（rc=$rc）: $out"; fi
-  echo '[]' >"$tmp/answers"
 else
   ng "/ と _ の違うブランチ: 後ろで fix/a/b を見張れていない"
 fi
-# 別のプロセスが目印を取り直した形にして、後ろの側が終わるのを待つ
-rm -f "$bglock"
-ln -s "$$" "$bglock"
-wait "$bg"
-rm -f "$tmp/slow"
-if [ "$(readlink "$bglock" 2>/dev/null)" = "$$" ]; then ok; else ng "別のプロセスの目印を消した"; fi
-rm -f "$bglock"
+# 別のプロセスが目印を取り直した形にして、後ろの側が終わるのを待つ（後ろの側がまだ動いていないと、確かめにならない）
+if kill -0 "$bg" 2>/dev/null; then
+  rm -f "$bglock"
+  ln -s "$$" "$bglock"
+  wait "$bg"
+  if [ "$(readlink "$bglock" 2>/dev/null)" = "$$" ]; then ok; else ng "別のプロセスの目印を消した"; fi
+else
+  wait "$bg"
+  ng "目印を取り直す前に、後ろの側が終わった"
+fi
+rm -f "$tmp/slow" "$bglock" "$tmp/answers.fix+a+b"
 
 # とても長いブランチ名でも、目印を作って見張れる（名前の長さの上限を超えない）
 long="feature/$(printf 'a%.0s' $(seq 1 240))"
@@ -213,16 +230,47 @@ echo '[]' >"$tmp/answers"
 WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x >/dev/null 2>&1
 if ! ls "$tmp"/wait-pr-created-*.lock >/dev/null 2>&1; then ok; else ng "時間切れの後に目印が残った"; fi
 
-# 10. 入口は、受け取った PATH を使わない（作業ツリーなどに置いた gh・jq を、サンドボックスの外で動かさない）。
-# playwright-mcp.sh と同じ決めた PATH にしてから、中身を読む
+# 10. 入口は、受け取った環境を中身に渡さない（作業ツリーなどに置いた gh・jq、PERL5OPT・exported function などで、
+# サンドボックスの外の処理を動かさせない）。PATH は playwright-mcp.sh と同じ決めた値にし、env -i で中身を動かす
 entry="$BIN/wait-pr-created.sh"
 mcp_path=$(grep -E '^PATH="?/' "$BIN/playwright-mcp.sh")
-path_line=$(grep -nE '^PATH="?/' "$entry" | head -1)
-source_line=$(grep -nE '^\. .*lib/wait-pr-created\.sh' "$entry" | head -1)
-if [ -n "$mcp_path" ] && [ "${path_line#*:}" = "$mcp_path" ]; then ok; else ng "入口の PATH が playwright-mcp.sh と同じでない（${path_line#*:}）"; fi
-if [ -n "$path_line" ] && [ -n "$source_line" ] && [ "${path_line%%:*}" -lt "${source_line%%:*}" ] &&
-  grep -qx 'export PATH' "$entry"; then ok; else ng "入口で、中身を読む前に PATH を決めていない"; fi
-# 入口でも、引数の形を確かめる（中身に渡る）。偽の gh を PATH の前に置いても、断るときは何も呼ばない
+path_lines=$(grep -cE '(^|[^A-Za-z_])PATH=' "$entry")
+path_line=$(grep -E '^PATH="?/' "$entry" | head -1)
+if [ -n "$mcp_path" ] && [ "$path_line" = "$mcp_path" ] && [ "$path_lines" -ge 1 ]; then ok; else ng "入口の PATH が playwright-mcp.sh と同じでない（$path_line）"; fi
+if grep -qE '^exec /usr/bin/env -i .*/bin/bash --noprofile --norc "\$lib" "\$@"$' "$entry"; then ok; else ng "入口で、env -i を通して中身を動かしていない"; fi
+# 入口を写し、受け取った環境を書き出すだけの偽の中身と並べて動かす（入口は、自分の隣の lib/ を読む）
+mkdir -p "$tmp/entry/lib"
+cp "$entry" "$tmp/entry/wait-pr-created.sh"
+cat >"$tmp/entry/lib/wait-pr-created.sh" <<EOF
+printf 'ARGS:'; printf '[%s]' "\$@"; echo
+env | LC_ALL=C sort
+declare -F
+pwd
+EOF
+mkdir -p "$tmp/perl"
+cat >"$tmp/perl/Evil.pm" <<EOF
+package Evil; open(my \$f, '>', '$tmp/perl-ran'); 1;
+EOF
+gh() { echo evil; }
+export -f gh
+out=$(cd "$tmp" && PERL5OPT=-MEvil PERL5LIB="$tmp/perl" NODE_OPTIONS=--require=x BASH_ENV="$tmp/x" GH_TOKEN=leak \
+  WAIT_PR_CREATED_TIMEOUT=5 bash "$tmp/entry/wait-pr-created.sh" o/r "fix/a b" 2>&1)
+unset -f gh
+want_path="${mcp_path#PATH=}"
+want_path="${want_path//\"/}"
+if printf '%s' "$out" | grep -qxF 'ARGS:[o/r][fix/a b]'; then ok; else ng "入口が引数をそのまま渡していない: $out"; fi
+if printf '%s' "$out" | grep -qxF "PATH=$want_path"; then ok; else ng "中身の PATH が決めた値でない: $out"; fi
+if printf '%s' "$out" | grep -qxF "TMPDIR=$tmp" && printf '%s' "$out" | grep -qx 'WAIT_PR_CREATED_TIMEOUT=5' &&
+  printf '%s' "$out" | grep -q '^HOME=/'; then ok; else ng "中身に TMPDIR・WAIT_PR_CREATED_TIMEOUT・HOME を渡していない: $out"; fi
+if ! printf '%s' "$out" | grep -qE '^(PERL5OPT|PERL5LIB|NODE_OPTIONS|BASH_ENV|GH_TOKEN|BASH_FUNC_)' &&
+  ! printf '%s' "$out" | grep -q 'declare -f'; then ok; else ng "受け取った環境が中身に渡った: $out"; fi
+if printf '%s' "$out" | grep -qx '/'; then ok; else ng "中身を / で動かしていない: $out"; fi
+# 入口が呼ぶコマンドで Perl が動いても、受け取った PERL5OPT を使わない
+if [ ! -e "$tmp/perl-ran" ]; then ok; else ng "受け取った PERL5OPT で Perl のコードが動いた"; fi
+# TMPDIR が / で始まるフォルダでなければ、/tmp を使う
+out=$(TMPDIR="relative" bash "$tmp/entry/wait-pr-created.sh" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'TMPDIR=/tmp'; then ok; else ng "TMPDIR が正しくないときに /tmp にしていない: $out"; fi
+# 本物の中身でも、入口から引数を断る（断るときは gh を呼ばない）
 rm -f "$tmp/gh-called"
 out=$(bash "$entry" o/r main 2>&1)
 rc=$?
