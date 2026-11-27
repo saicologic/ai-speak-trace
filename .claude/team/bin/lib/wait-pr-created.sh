@@ -41,13 +41,17 @@ timeout_sec=$((10#$timeout_sec))
 # 止める役は /bin/sleep で待つ（テストで差し替える sleep を使わない）。出力は /dev/null にして、$( ) の終わりを待たせない
 run_gh() {
   local limit=$1 pid watcher rc
-  gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName &
+  gh pr list -R "$repo" --head "$branch" --state all --json "$pr_fields" &
   pid=$!
-  # 止める役が止められたときは、待っている sleep も止める（gh が先に終わるたびに、長い sleep を残さない）
-  ( /bin/sleep "$limit" &
+  # 止める役が止められたときは、待っている sleep も止める（gh が先に終わるたびに、長い sleep を残さない）。
+  # trap は sleep を動かす前に置き、sleep の番号が決まる前に止められたときは、決まった後に止める
+  ( stop=0
+    trap 'stop=1; [ -z "${s-}" ] || kill "$s" 2>/dev/null' TERM
+    /bin/sleep "$limit" &
     s=$!
-    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    if [ "$stop" = 1 ]; then kill "$s" 2>/dev/null; exit 0; fi
     wait "$s"
+    [ "$stop" = 1 ] && exit 0
     kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
   watcher=$!
   wait "$pid"
@@ -57,6 +61,17 @@ run_gh() {
   return "$rc"
 }
 
+pr_fields="number,url,title,state,isDraft,baseRefName,headRepository,headRepositoryOwner"
+# 配列で、PR ごとに決めた型の項目があることを確かめ（isDraft の false も正しい値）、head のリポジトリが見張るリポジトリのものだけを残す
+pr_filter='if type != "array" then error("配列ではありません") else . end
+  | map(if type == "object" and (.number | type) == "number" and (.url | type) == "string" and (.title | type) == "string"
+      and (.state | type) == "string" and (.isDraft | type) == "boolean" and (.baseRefName | type) == "string"
+      and (.headRepository.name? | type) == "string" and (.headRepositoryOwner.login? | type) == "string"
+    then . else error("PR の項目が足りないか、型が違います") end)
+  | map(select((.headRepositoryOwner.login + "/" + .headRepository.name | ascii_downcase) == $want))'
+want=$(printf '%s' "$repo" | tr 'A-Z' 'a-z')
+# 見張り始めたときにすでに閉じていた PR の番号（JSON の配列。最初に読めた答えで決める）
+known_closed=""
 start=$SECONDS
 # gh が失敗し続けたときに、PR がないのと区別できるよう、最後の失敗を覚えておく（成功したら消す）
 gh_error=""
@@ -74,19 +89,23 @@ while :; do
     (printf '\0%s\0%s\0' "$(run_gh "$limit")" "$?" 1>&2) 2>&1
   )
   if [ "$rc" = 0 ]; then
-    # PR の数を数え、見つかったら出す内容を先に作る。どちらかで jq が失敗したら、PR がないのと区別してエラーにする
-    if count=$(printf '%s' "$json" | jq -e 'if type == "array" then length else error("配列ではありません") end' 2>&1); then
+    # 答えの形（配列で、PR ごとに決めた型の項目がある）を確かめ、見張るリポジトリの PR だけにする
+    # （別のフォークの同じ名前のブランチから開いた PR を除く。owner/repo の大文字・小文字は区別しない）。
+    # jq が失敗したら、PR がないのと区別してエラーにする
+    if prs=$(printf '%s' "$json" | jq -c --arg want "$want" "$pr_filter" 2>&1); then
       gh_error=""
-      if [ "$count" -gt 0 ] && info=$(printf '%s' "$json" | jq -er '.[0] | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"' 2>&1); then
+      # 見張り始めて最初に読めた答えで、すでに閉じていた（MERGED・CLOSED）PR の番号を覚え、前の作業の PR として除く。
+      # 開いている PR と、その後にできた PR（すぐマージされたものも）を見つける
+      [ -n "$known_closed" ] || known_closed=$(printf '%s' "$prs" | jq -c '[.[] | select(.state != "OPEN") | .number]')
+      if info=$(printf '%s' "$prs" | jq -er --argjson known "$known_closed" \
+        '[.[] | select(.state == "OPEN" or (.number as $n | any($known[]; . == $n) | not))] | .[0] // empty
+        | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"' 2>/dev/null); then
         echo "STATUS: FOUND"
         printf '%s\n' "$info"
         exit 0
-      elif [ "$count" -gt 0 ]; then
-        gh_error="gh pr list の答えを読めません: ${info}"
       fi
     else
-      [ "$count" = 0 ] && count=""
-      gh_error="gh pr list の答えを読めません: ${count}"
+      gh_error="gh pr list の答えを読めません: ${prs}"
     fi
   elif [ "$rc" = 143 ] || [ "$rc" = 137 ]; then
     gh_error="gh pr list が時間内に終わりませんでした（${limit} 秒）"
