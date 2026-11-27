@@ -113,7 +113,8 @@
       "/opt/claude-code-team/bin/github.sh *",
       "/opt/claude-code-team/bin/cr-review.sh",
       "/opt/claude-code-team/bin/cr-review.sh *",
-      "/opt/claude-code-team/bin/wait-pr-checks.sh *"
+      "/opt/claude-code-team/bin/wait-pr-checks.sh *",
+      "/opt/claude-code-team/bin/wait-pr-created.sh *"
     ],
     "network": {
       "allowedDomains": [

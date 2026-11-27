@@ -31,6 +31,7 @@
       "Bash(/opt/claude-code-team/bin/cr-review.sh)",
       "Bash(/opt/claude-code-team/bin/cr-review.sh *)",
       "Bash(/opt/claude-code-team/bin/wait-pr-checks.sh *)",
+      "Bash(/opt/claude-code-team/bin/wait-pr-created.sh *)",
       "Read(//private/tmp/claude-*/**)",
       "WebSearch",
       "WebFetch(domain:code.claude.com)",
