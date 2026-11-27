@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -p
 # ブランチの PR ができるまで待ち、見つけた PR を出力する。
 # 使い方: wait-pr-created.sh <owner/repo> <ブランチ>
 # 子ワークツリーに渡した作業の PR を、元の session から見張るため、Claude が Bash の run_in_background で実行する。
@@ -7,7 +7,9 @@
 # テスト: bash .claude/team/tests/wait-pr-created.test.sh
 # サンドボックスの外で動くため、受け取った環境は中身に渡さない（作業ツリーなどに置いた gh・jq、PERL5OPT・exported function などで、
 # 外の処理を動かさせない）。PATH は Playwright MCP（playwright-mcp.sh）と同じ決めた値にし、HOME はアカウントの情報から求め、
-# env -i で中身を動かす。この入口で呼ぶコマンドも、絶対パスで呼ぶ
+# env -i で中身を動かす。この入口で呼ぶコマンドも、絶対パスで呼ぶ。
+# shebang の -p（privileged mode）で、入口そのものも受け取った BASH_ENV を読まず、exported function を取り込まない
+# （exec・cd などを関数で上書きさせない。excludedCommands のとおりパスを書いて直接動かすときに効く）
 PATH="/opt/homebrew/opt/node@24/bin:/usr/local/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 export PATH
 user="$(/usr/bin/id -un)"
