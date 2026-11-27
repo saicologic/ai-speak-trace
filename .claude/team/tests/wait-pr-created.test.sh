@@ -35,12 +35,12 @@ if [ "\$line" = FAIL ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
 printf '%s\n' "\$line"
 EOF
 chmod +x "$tmp/bin/gh"
-# sleep の代わり: 待つ秒数を記録して、すぐ終わる（slow があるときだけ 1 秒待つ）。
+# sleep の代わり: 待つ秒数を記録して、すぐ終わる（slow があるときは 1 秒、realsleep があるときは渡された秒数だけ待つ）。
 # 待つ間隔は環境変数で変えられない（外で動くため、0 にして gh を休みなく呼ばせない）ので、テストでは sleep を差し替える
 cat >"$tmp/bin/sleep" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >>"$tmp/sleep-called"
-if [ -e "$tmp/slow" ]; then /bin/sleep 1; fi
+if [ -e "$tmp/realsleep" ]; then /bin/sleep "\$1"; elif [ -e "$tmp/slow" ]; then /bin/sleep 1; fi
 EOF
 chmod +x "$tmp/bin/sleep"
 # 待つ間隔を 0 にしようとしても、効かないことを確かめるため、わざと渡しておく
@@ -142,23 +142,31 @@ out=$(bash "$RUN" o/r fix/x 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && found "$out" && ! printf '%s' "$out" | grep -q '^GH_ERROR:'; then ok; else ng "失敗の後に見つかる（rc=$rc）: $out"; fi
 
-# 時間切れが近いときは、残り時間より長く待たない（WAIT_PR_CREATED_TIMEOUT=2 で、60 秒待たない）
+# 時間切れが近いときは、残り時間より長く待たない（WAIT_PR_CREATED_TIMEOUT=3 で、60 秒待たない）。
+# 偽の sleep は渡された秒数だけ本当に待つので、1回目の gh が遅くても、待つ秒数は残り時間以下になる
 echo '[]' >"$tmp/answers"
 rm -f "$tmp/sleep-called"
-touch "$tmp/slow"
-out=$(WAIT_PR_CREATED_TIMEOUT=2 bash "$RUN" o/r fix/x 2>&1)
-rm -f "$tmp/slow"
+touch "$tmp/realsleep"
+out=$(WAIT_PR_CREATED_TIMEOUT=3 bash "$RUN" o/r fix/x 2>&1)
+rm -f "$tmp/realsleep"
 waits=$(tr '\n' ' ' <"$tmp/sleep-called" 2>/dev/null)
-if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && [ -n "$waits" ] &&
-  ! awk '$1 > 2 || $1 < 1 { bad = 1 } END { exit !bad }' "$tmp/sleep-called"; then ok; else ng "残り時間より長く待った（待った秒数: $waits）: $out"; fi
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' &&
+  ! awk '$1 > 3 || $1 < 1 { bad = 1 } END { exit !bad }' "$tmp/sleep-called" 2>/dev/null; then ok; else ng "残り時間より長く待った（待った秒数: $waits）: $out"; fi
+# 先頭が 0 の秒数（08）も 10 進数として読む（8 進数として読んで、計算のエラーで止まらない）
+printf '%s\n%s\n' '[]' "$FOUND" >"$tmp/answers"
+rm -f "$tmp/sleep-called" "$tmp/gh-called"
+out=$(WAIT_PR_CREATED_TIMEOUT=08 bash "$RUN" o/r fix/x 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && found "$out" && [ "$(cat "$tmp/sleep-called" 2>/dev/null)" = 8 ]; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=08（rc=$rc）: $out / 待った秒数: $(cat "$tmp/sleep-called" 2>/dev/null)"; fi
 
 # 1回失敗した後に成功して（PR はまだない）時間切れになったときは、前の失敗を GH_ERROR で出さない
+# 偽の sleep が残り時間だけ本当に待つので、2回目の gh（成功）の後に時間切れになる
 printf '%s\n%s\n' 'FAIL' '[]' >"$tmp/answers"
 rm -f "$tmp/gh-called"
-touch "$tmp/slow"
-out=$(WAIT_PR_CREATED_TIMEOUT=1 bash "$RUN" o/r fix/x 2>&1)
+touch "$tmp/realsleep"
+out=$(WAIT_PR_CREATED_TIMEOUT=3 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
-rm -f "$tmp/slow"
+rm -f "$tmp/realsleep"
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q '^GH_ERROR:' &&
   [ "$(wc -l <"$tmp/gh-called" | tr -d ' ')" -ge 2 ]; then ok; else ng "失敗の後に成功して時間切れ（rc=$rc）: $out"; fi
 
@@ -223,12 +231,13 @@ rm -rf "$lock" "$lock.reclaim"
 
 # 見張っている間は、目印が自分の番号を指す。終わるときは、自分の番号の目印だけを消す
 # （別のプロセスが目印を取り直していたら、それを消さない）
+# 後ろの側は時間切れを長くし、確かめ終わった後に答えを FOUND に変えて終わらせる（時間で終わるのを待たない）
 echo '[]' >"$tmp/answers.fix+a+b"
 touch "$tmp/slow"
-WAIT_PR_CREATED_TIMEOUT=3 bash "$RUN" o/r fix/a/b >/dev/null 2>&1 &
+WAIT_PR_CREATED_TIMEOUT=600 bash "$RUN" o/r fix/a/b >/dev/null 2>&1 &
 bg=$!
 bglock="$tmp/wait-pr-created-$(lockname o/r fix/a/b).lock"
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 50); do
   [ -L "$bglock" ] && break
   /bin/sleep 0.2
 done
@@ -246,6 +255,7 @@ fi
 if kill -0 "$bg" 2>/dev/null; then
   rm -f "$bglock"
   ln -s "$$" "$bglock"
+  echo "$FOUND" >"$tmp/answers.fix+a+b"
   wait "$bg"
   if [ "$(readlink "$bglock" 2>/dev/null)" = "$$" ]; then ok; else ng "別のプロセスの目印を消した"; fi
 else
