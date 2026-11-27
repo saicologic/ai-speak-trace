@@ -42,7 +42,12 @@ chmod +x "$tmp/bin/sleep"
 # 待つ間隔を 0 にしようとしても、効かないことを確かめるため、わざと渡しておく
 # 中身の TMPDIR は、テストの答えとは別の空のフォルダにする（中身が何も作らないことを確かめるため）
 export PATH="$tmp/bin:$PATH" WAIT_PR_CREATED_INTERVAL=0 TMPDIR="$tmp/scratch"
-FOUND='[{"number":12,"url":"https://github.com/o/r/pull/12","title":"t","state":"OPEN","isDraft":true,"baseRefName":"main"}]'
+# pr <番号> <状態> [<head の owner>]: gh pr list --json が返す PR を1つ作る（head の owner の既定は o。repo は r）
+pr() {
+  printf '{"number":%s,"url":"https://github.com/o/r/pull/%s","title":"t","state":"%s","isDraft":true,"baseRefName":"main","headRepository":{"name":"r"},"headRepositoryOwner":{"login":"%s"}}' \
+    "$1" "$1" "$2" "${3:-o}"
+}
+FOUND="[$(pr 12 OPEN)]"
 
 pass=0
 fail=0
@@ -97,7 +102,7 @@ echo "$FOUND" >"$tmp/answers"
 out=$(bash "$RUN" o/r fix/x 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && found "$out" &&
-  grep -qx '\[pr\]\[list\]\[-R\]\[o/r\]\[--head\]\[fix/x\]\[--state\]\[all\]\[--json\]\[number,url,title,state,isDraft,baseRefName\]' "$tmp/gh-called" &&
+  grep -qx '\[pr\]\[list\]\[-R\]\[o/r\]\[--head\]\[fix/x\]\[--state\]\[all\]\[--json\]\[number,url,title,state,isDraft,baseRefName,headRepository,headRepositoryOwner\]' "$tmp/gh-called" &&
   [ "$(wc -l <"$tmp/gh-called" | tr -d ' ')" -eq 1 ]; then ok; else ng "PR が最初からある（rc=$rc）: $out / $(cat "$tmp/gh-called" 2>/dev/null)"; fi
 
 # 6. 1回目は空、2回目で見つかる
@@ -154,14 +159,20 @@ rm -f "$tmp/realsleep"
 waits=$(tr '\n' ' ' <"$tmp/sleep-called" 2>/dev/null)
 if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && [ -n "$waits" ] &&
   ! awk '$1 > 3 || $1 < 1 { bad = 1 } END { exit !bad }' "$tmp/sleep-called" 2>/dev/null; then ok; else ng "残り時間より長く待った（待った秒数: $waits）: $out"; fi
-# 先頭が 0 の秒数（08）も 10 進数として読む（8 進数として読んで、計算のエラーで止まらない）
+# 先頭が 0 の秒数も 10 進数として読む（08 を 8 進数として読むと、計算のエラーで止まる）
 printf '%s\n%s\n' '[]' "$FOUND" >"$tmp/answers"
 rm -f "$tmp/sleep-called" "$tmp/gh-called"
 out=$(WAIT_PR_CREATED_TIMEOUT=08 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
-# 1回目の gh の間に秒の境目をまたぐと、残りは 7 秒になる。8 進数のエラーでもなく、いつもの 60 秒でもないことを確かめる
 w=$(cat "$tmp/sleep-called" 2>/dev/null)
-if [ "$rc" -eq 0 ] && found "$out" && { [ "$w" = 8 ] || [ "$w" = 7 ]; }; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=08（rc=$rc）: $out / 待った秒数: $(cat "$tmp/sleep-called" 2>/dev/null)"; fi
+if [ "$rc" -eq 0 ] && found "$out" && [ -n "$w" ] && [ "$w" -le 8 ]; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=08（rc=$rc）: $out / 待った秒数: $w"; fi
+# 030 は 10 進数なら 30 秒、8 進数なら 24 秒。1回目の gh が数秒かかっても、25 秒以上なら 10 進数として読んでいる
+printf '%s\n%s\n' '[]' "$FOUND" >"$tmp/answers"
+rm -f "$tmp/sleep-called" "$tmp/gh-called"
+out=$(WAIT_PR_CREATED_TIMEOUT=030 bash "$RUN" o/r fix/x 2>&1)
+rc=$?
+w=$(cat "$tmp/sleep-called" 2>/dev/null)
+if [ "$rc" -eq 0 ] && found "$out" && [ -n "$w" ] && [ "$w" -ge 25 ] && [ "$w" -le 30 ]; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=030（rc=$rc）: $out / 待った秒数: $w"; fi
 
 # 1回失敗した後に成功して（PR はまだない）時間切れになったときは、前の失敗を GH_ERROR で出さない
 # 偽の sleep が残り時間だけ本当に待つので、2回目の gh（成功）の後に時間切れになる
@@ -186,20 +197,57 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && printf 
 
 # gh が答えた後に、止める役（/bin/sleep）を残さない。残ると、受け継いだ 3 番を開いたままにするので、
 # 3 番を $( ) につないで動かすと、sleep が終わる（15 秒）まで戻らない
+# 出力は別のファイルに書き、FOUND で終わったことも確かめる（gh を呼ぶ前に終わっても通ってしまわないように）
 echo "$FOUND" >"$tmp/answers"
 t0=$SECONDS
-x=$(WAIT_PR_CREATED_TIMEOUT=15 bash "$RUN" o/r fix/x 3>&1 >/dev/null 2>&1)
+x=$(WAIT_PR_CREATED_TIMEOUT=15 bash "$RUN" o/r fix/x 3>&1 >"$tmp/fd3-out" 2>&1; echo "rc=$?" >>"$tmp/fd3-out")
 took=$((SECONDS - t0))
-if [ "$took" -lt 8 ]; then ok; else ng "止める役の sleep が残った（${took} 秒）"; fi
+if found "$(cat "$tmp/fd3-out")" && grep -qx 'rc=0' "$tmp/fd3-out" && [ "$took" -lt 8 ]; then ok; else ng "止める役の sleep が残った（${took} 秒）: $(cat "$tmp/fd3-out")"; fi
 
 # gh の答えが JSON でない・形が違う（PR の情報を出せない）ときは、PR がないのと区別して GH_ERROR を出す。FOUND は出さない
-for bad in 'not json' '[1]' '{"a":1}'; do
+for bad in 'not json' '[1]' '{"a":1}' '[{}]' '[{"number":"12","url":"u","title":"t","state":"OPEN","isDraft":true,"baseRefName":"main","headRepository":{"name":"r"},"headRepositoryOwner":{"login":"o"}}]'; do
   echo "$bad" >"$tmp/answers"
   out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
   rc=$?
   if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && printf '%s' "$out" | grep -q '^GH_ERROR: .*答えを読めません' &&
     ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "gh の答えが $bad（rc=$rc）: $out"; fi
 done
+
+# isDraft が false の PR も見つける
+echo "[$(pr 12 OPEN | sed 's/"isDraft":true/"isDraft":false/')]" >"$tmp/answers"
+out=$(bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: FOUND' && printf '%s' "$out" | grep -qx 'DRAFT: false'; then ok; else ng "isDraft が false: $out"; fi
+
+# 別のフォークの同じ名前のブランチから開いた PR は、見張るリポジトリの PR ではないので見つけない
+echo "[$(pr 30 OPEN fork)]" >"$tmp/answers"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "フォークの PR だけ: $out"; fi
+# フォークの PR が先に並んでいても、見張るリポジトリの PR を見つける。owner の大文字・小文字は区別しない
+echo "[$(pr 30 OPEN fork),$(pr 12 OPEN)]" >"$tmp/answers"
+out=$(bash "$RUN" O/r fix/x 2>&1)
+if found "$out"; then ok; else ng "フォークの PR と混ざっている: $out"; fi
+
+# 見張り始めたときにすでに閉じていた（MERGED・CLOSED）PR は、前の作業の PR なので見つけない
+echo "[$(pr 5 MERGED),$(pr 4 CLOSED)]" >"$tmp/answers"
+rm -f "$tmp/gh-called"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "最初に閉じていた PR だけ: $out"; fi
+# その後に新しくできた PR は見つける（すぐマージされて MERGED になっていても）
+printf '%s\n%s\n' "[$(pr 5 MERGED)]" "[$(pr 13 MERGED),$(pr 5 MERGED)]" >"$tmp/answers"
+rm -f "$tmp/gh-called"
+out=$(bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: FOUND' && printf '%s' "$out" | grep -qx 'NUMBER: 13' && printf '%s' "$out" | grep -qx 'STATE: MERGED'; then ok; else ng "後からできてすぐマージされた PR: $out"; fi
+# 開いている PR は、最初からあっても見つける（閉じた PR と並んでいても）
+echo "[$(pr 5 MERGED),$(pr 12 OPEN)]" >"$tmp/answers"
+out=$(bash "$RUN" o/r fix/x 2>&1)
+if found "$out"; then ok; else ng "閉じた PR と開いている PR: $out"; fi
+# 1回目の gh が失敗したときは、成功した最初の答えで、閉じていた PR を覚える
+printf '%s\n%s\n%s\n' FAIL "[$(pr 5 MERGED)]" "[$(pr 5 MERGED)]" >"$tmp/answers"
+rm -f "$tmp/gh-called"
+touch "$tmp/realsleep"
+out=$(WAIT_PR_CREATED_TIMEOUT=2 bash "$RUN" o/r fix/x 2>&1)
+rm -f "$tmp/realsleep"
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "1回目が失敗した後の閉じていた PR: $out"; fi
 
 # 9. 同じブランチを二重に見張っても止めない（目印を作らない）。とても長いブランチ名でも見張れる
 long="feature/$(printf 'a%.0s' $(seq 1 240))"
