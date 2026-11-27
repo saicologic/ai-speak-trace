@@ -20,8 +20,10 @@ if ! [[ "$repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || [[ "$repo" == */.* ]]; 
   usage
 fi
 # ブランチは決めた頭で始まり、git のブランチ名として正しい形だけ（.. ・ // ・ .lock で終わるものは断る）
+# git で作れない名前（/ ・ . で終わる、. で始まる部分、.lock で終わる部分）も断る
 if ! [[ "$branch" =~ ^(fix|feature|test|release|dependabot)/[A-Za-z0-9._/-]+$ ]] ||
-  [[ "$branch" == *..* ]] || [[ "$branch" == *//* ]] || [[ "$branch" == *.lock ]]; then
+  [[ "$branch" == *..* ]] || [[ "$branch" == *//* ]] || [[ "$branch" == *.lock ]] ||
+  [[ "$branch" == */ ]] || [[ "$branch" == *. ]] || [[ "$branch" == */.* ]] || [[ "$branch" == *.lock/* ]]; then
   usage
 fi
 # 待つ間隔は環境変数で変えない（外でユーザーの gh の認証を使って動くため、0 にして gh を休みなく呼ばせない）
@@ -50,9 +52,27 @@ if ! ln -sn "$$" "$lock" 2>/dev/null; then
   fi
   pid=$(readlink "$lock" 2>/dev/null)
   if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then already; fi
-  # 見張っていたプロセスがもういない。消す直前に、別のプロセスが取り直していない（中身が同じ）ことを確かめる
-  [ "$(readlink "$lock" 2>/dev/null)" = "$pid" ] && rm -f "$lock"
-  ln -sn "$$" "$lock" 2>/dev/null || already
+  # 見張っていたプロセスがもういない。残った目印を消すのは、消す役の目印（<目印>.reclaim）を持つ1つのプロセスだけにする
+  # （2つのプロセスが同じ残りものを見て、片方が取り直した目印を、もう片方が消さないように）。
+  # 消す役の目印も残りもの（プロセスがいない）なら、それを消してから取る
+  reclaim="${lock}.reclaim"
+  if ! ln -sn "$$" "$reclaim" 2>/dev/null; then
+    rpid=$(readlink "$reclaim" 2>/dev/null)
+    if [[ "$rpid" =~ ^[0-9]+$ ]] && kill -0 "$rpid" 2>/dev/null; then already; fi
+    [ "$(readlink "$reclaim" 2>/dev/null)" = "$rpid" ] && rm -f "$reclaim"
+    ln -sn "$$" "$reclaim" 2>/dev/null || already
+  fi
+  # 消す役を持った後に、もう一度確かめる（待つ間に、別のプロセスが取り直しているかもしれないため）
+  pid=$(readlink "$lock" 2>/dev/null)
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    rm -f "$reclaim"
+    already
+  fi
+  rm -f "$lock"
+  got=0
+  ln -sn "$$" "$lock" 2>/dev/null && got=1
+  rm -f "$reclaim"
+  [ "$got" -eq 1 ] || already
 fi
 # 終わるときは、自分の番号の目印だけを消す
 trap '[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && rm -f "$lock"; rm -f "${err_file-}"' EXIT
@@ -83,5 +103,8 @@ while :; do
     [ -z "$gh_error" ] || echo "GH_ERROR: ${gh_error}"
     exit 0
   fi
-  sleep "$interval"
+  # 残り時間より長く待たない
+  wait_sec=$((timeout_sec - (SECONDS - start)))
+  [ "$wait_sec" -le "$interval" ] || wait_sec=$interval
+  sleep "$wait_sec"
 done
