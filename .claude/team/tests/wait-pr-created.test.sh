@@ -264,6 +264,17 @@ printf '%s\n%s\n' "[$(pr 5 MERGED)]" "[$(pr 13 MERGED o "$NEW"),$(pr 5 MERGED)]"
 rm -f "$tmp/gh-called"
 out=$(bash "$RUN" o/r fix/x 2>&1)
 if printf '%s' "$out" | grep -qx 'STATUS: FOUND' && printf '%s' "$out" | grep -qx 'NUMBER: 13' && printf '%s' "$out" | grep -qx 'STATE: MERGED'; then ok; else ng "後からできてすぐマージされた PR: $out"; fi
+# GitHub と手元の時計のずれを見込み、見張り始める 30 秒前に作られた PR も、見張り始めた後の PR として見つける
+ago=$(( $(date +%s) - 30 ))
+recent=$(date -u -r "$ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "@$ago" +%Y-%m-%dT%H:%M:%SZ)
+echo "[$(pr 14 MERGED o "$recent")]" >"$tmp/answers"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: FOUND' && printf '%s' "$out" | grep -qx 'NUMBER: 14'; then ok; else ng "30 秒前に作られた PR（$recent）: $out"; fi
+# 作った時刻がない閉じた PR は、前の作業の PR として除く
+echo "[$(pr 15 MERGED | sed 's/,"createdAt":"[^"]*"//')]" >"$tmp/answers"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "作った時刻がない閉じた PR: $out"; fi
+
 # 開いている PR は、最初からあっても見つける（閉じた PR と並んでいても）
 echo "[$(pr 5 MERGED),$(pr 12 OPEN)]" >"$tmp/answers"
 out=$(bash "$RUN" o/r fix/x 2>&1)
