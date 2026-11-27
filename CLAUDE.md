@@ -189,7 +189,7 @@ ai-speak-trace/
 
 ### ビルド対象ファイルの管理
 
-`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。PR はふだん `main` 宛てに出す。例外の急ぎのパッチで `release/*` 宛ての PR を出すときは、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。
+`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。PR はふだん `main` 宛てに出す。例外の急ぎのパッチで `release/*` 宛ての PR を出すときは、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。そのため、`release/*` のルールでは `backend-test`・`frontend-test` を必須にしない（必須にすると、Rust だけの修正などで報告されず、マージできなくなる）。
 
 - **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）・Playwright のブラウザのテスト（`frontend/e2e/`・`frontend/playwright.config.ts`・`frontend/tsconfig.e2e.json`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
 - **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` 以外のファイルと、Markdownファイル（`.claude/team/`・`.claude/settings.json`・`.github/scripts/` は `backend/src/lint` のテストが確かめるため、`backend-test` を動かす）
