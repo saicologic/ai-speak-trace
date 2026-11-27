@@ -28,6 +28,7 @@ describe('.claude/team のテスト', () => {
         'playwright-navigate-gate.test.sh',
         'reply-language-check.test.sh',
         'wait-pr-checks.test.sh',
+        'wait-pr-created.test.sh',
         'watch-pr-checks.test.sh',
       ]),
     );
