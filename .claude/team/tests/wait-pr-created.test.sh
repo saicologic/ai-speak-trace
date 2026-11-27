@@ -184,6 +184,14 @@ took=$((SECONDS - t0))
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && printf '%s' "$out" | grep -q '^GH_ERROR: .*時間内に終わりませんでした' &&
   [ "$took" -lt 20 ]; then ok; else ng "gh が答えない（rc=$rc、${took} 秒）: $out"; fi
 
+# gh が答えた後に、止める役（/bin/sleep）を残さない。残ると、受け継いだ 3 番を開いたままにするので、
+# 3 番を $( ) につないで動かすと、sleep が終わる（15 秒）まで戻らない
+echo "$FOUND" >"$tmp/answers"
+t0=$SECONDS
+x=$(WAIT_PR_CREATED_TIMEOUT=15 bash "$RUN" o/r fix/x 3>&1 >/dev/null 2>&1)
+took=$((SECONDS - t0))
+if [ "$took" -lt 8 ]; then ok; else ng "止める役の sleep が残った（${took} 秒）"; fi
+
 # gh の答えが JSON でない・形が違う（PR の情報を出せない）ときは、PR がないのと区別して GH_ERROR を出す。FOUND は出さない
 for bad in 'not json' '[1]' '{"a":1}'; do
   echo "$bad" >"$tmp/answers"
