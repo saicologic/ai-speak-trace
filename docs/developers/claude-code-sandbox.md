@@ -16,7 +16,7 @@
 |---|---|---|
 | GitHub の設定 | ブランチ保護・必須チェック（`tdd-order` など） | Claude Code を使うかどうかに関係なく、全員に効く最後の守り |
 | managed settings | `.claude/team/managed-settings.json`・`managed-mcp.json` → `/Library/Application Support/ClaudeCode/` | サンドボックスを必ず使う・通信先を固定する・bypassPermissions モードを使えなくする。個人の設定・リポジトリの設定では上書きできない |
-| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`）・hook（下の「[hook の一覧](#hook-の一覧)」）・Playwright MCP の起動（`playwright-mcp.sh`） |
+| サンドボックスの外で動くスクリプト | `.claude/team/bin/` → `/opt/claude-code-team/bin/`（root の持ち物） | GitHub への操作（`github.sh`）・手元の CodeRabbit レビュー（`cr-review.sh`）・PR の監視（`wait-pr-checks.sh`）・PR ができるまでの監視（`wait-pr-created.sh`）・push の前の確認（`cr-gate-push.sh`・`tdd-push-gate.sh`）・hook（下の「[hook の一覧](#hook-の一覧)」）・Playwright MCP の起動（`playwright-mcp.sh`） |
 | リポジトリの設定 | `.claude/settings.json` | 許可するコマンド（hook は書かない） |
 
 ### サンドボックスの外で動かすものを、インストール先だけにする理由
