@@ -12,31 +12,22 @@ RUN="$BIN/lib/wait-pr-created.sh"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/wait-pr-created-test.XXXXXX") || exit 1
 [ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
 tmp=$(cd "$tmp" && pwd -P) || exit 1
-# 途中で止まっても、後ろで見張らせたプロセスを残さない（偽の gh が消えた後に、本物の gh を呼ばないように）
-trap '[ -n "${bg-}" ] && kill "$bg" 2>/dev/null; rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/bin"
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/bin" "$tmp/scratch"
 # gh の代わり: 呼ばれた引数を1つずつ記録し、answers の行を上から順に答える（行がなくなったら最後の行を繰り返す）。
-# 行が FAIL なら、エラーを出して 1 で終わる。answers.<--head の / を + にしたもの> があれば、そのブランチにはそちらを答える
-# （2つのプロセスを同時に動かす場面で、答えが混ざらないように）
+# 行が FAIL なら、エラーを出して 1 で終わる。HANG なら、何も答えずに 30 秒止まる（exec で、子のプロセスを残さない）
 cat >"$tmp/bin/gh" <<EOF
 #!/bin/bash
 for a in "\$@"; do printf '[%s]' "\$a"; done >>"$tmp/gh-called"
 echo >>"$tmp/gh-called"
-# 呼ばれている間に、目印（.lock・.reclaim）でない一時ファイルが TMPDIR にあれば記録する
-for f in "\${TMPDIR:-/tmp}"/wait-pr-created-*; do
-  case "\${f##*/}" in *.lock | *.lock.reclaim | "wait-pr-created-*") ;; *) [ -e "\$f" ] && echo "\$f" >>"$tmp/tmpfile-seen" ;; esac
-done
-answers="$tmp/answers"
-prev=""
-for a in "\$@"; do
-  if [ "\$prev" = --head ] && [ -e "$tmp/answers.\${a//\//+}" ]; then answers="$tmp/answers.\${a//\//+}"; fi
-  prev="\$a"
-done
+# 呼ばれている間に、中身に渡した TMPDIR（テストの答えとは別のフォルダ）に何かあれば記録する
+if [ -n "\$(ls -A "\${TMPDIR:-/nonexistent}" 2>/dev/null)" ]; then ls -A "\$TMPDIR" >>"$tmp/tmpfile-seen"; fi
 n=\$(wc -l <"$tmp/gh-called" | tr -d ' ')
-total=\$(wc -l <"\$answers" | tr -d ' ')
+total=\$(wc -l <"$tmp/answers" | tr -d ' ')
 [ "\$n" -gt "\$total" ] && n=\$total
-line=\$(sed -n "\${n}p" "\$answers")
+line=\$(sed -n "\${n}p" "$tmp/answers")
 if [ "\$line" = FAIL ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
+if [ "\$line" = HANG ]; then exec /bin/sleep 30; fi
 printf '%s\n' "\$line"
 EOF
 chmod +x "$tmp/bin/gh"
@@ -49,7 +40,8 @@ if [ -e "$tmp/realsleep" ]; then /bin/sleep "\$1"; elif [ -e "$tmp/slow" ]; then
 EOF
 chmod +x "$tmp/bin/sleep"
 # 待つ間隔を 0 にしようとしても、効かないことを確かめるため、わざと渡しておく
-export PATH="$tmp/bin:$PATH" WAIT_PR_CREATED_INTERVAL=0 TMPDIR="$tmp"
+# 中身の TMPDIR は、テストの答えとは別の空のフォルダにする（中身が何も作らないことを確かめるため）
+export PATH="$tmp/bin:$PATH" WAIT_PR_CREATED_INTERVAL=0 TMPDIR="$tmp/scratch"
 FOUND='[{"number":12,"url":"https://github.com/o/r/pull/12","title":"t","state":"OPEN","isDraft":true,"baseRefName":"main"}]'
 
 pass=0
@@ -139,9 +131,9 @@ out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' &&
   printf '%s' "$out" | grep -qx 'GH_ERROR: HTTP 401: Bad credentials'; then ok; else ng "gh が失敗し続けて時間切れ（rc=$rc）: $out"; fi
-# gh のエラーは、TMPDIR の一時ファイルを通さずに受け取る（TMPDIR はサンドボックスの中から書けるため、
-# 作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに書いてしまう）
-if [ ! -e "$tmp/tmpfile-seen" ]; then ok; else ng "gh を呼ぶ間に TMPDIR に一時ファイルを作った: $(cat "$tmp/tmpfile-seen")"; fi
+# gh の出力・エラーは、TMPDIR の一時ファイルを通さずに受け取る（TMPDIR はサンドボックスの中から書けるため、
+# 作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに書いてしまう）。目印（ロック）も作らない
+if [ ! -e "$tmp/tmpfile-seen" ] && [ -z "$(ls -A "$tmp/scratch")" ]; then ok; else ng "TMPDIR にファイルを作った: $(cat "$tmp/tmpfile-seen" 2>/dev/null) $(ls -A "$tmp/scratch")"; fi
 # here-string（<<<）・here-document（<<）は bash 3.2 で TMPDIR に一時ファイルを作るため、中身で使わない（コメントは除く）
 if ! grep -v '^[[:space:]]*#' "$RUN" | grep -qE '<<'; then ok; else ng "中身で <<< か << を使っている: $(grep -nv '^[[:space:]]*#' "$RUN" | grep -E '<<')"; fi
 
@@ -167,7 +159,9 @@ printf '%s\n%s\n' '[]' "$FOUND" >"$tmp/answers"
 rm -f "$tmp/sleep-called" "$tmp/gh-called"
 out=$(WAIT_PR_CREATED_TIMEOUT=08 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
-if [ "$rc" -eq 0 ] && found "$out" && [ "$(cat "$tmp/sleep-called" 2>/dev/null)" = 8 ]; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=08（rc=$rc）: $out / 待った秒数: $(cat "$tmp/sleep-called" 2>/dev/null)"; fi
+# 1回目の gh の間に秒の境目をまたぐと、残りは 7 秒になる。8 進数のエラーでもなく、いつもの 60 秒でもないことを確かめる
+w=$(cat "$tmp/sleep-called" 2>/dev/null)
+if [ "$rc" -eq 0 ] && found "$out" && { [ "$w" = 8 ] || [ "$w" = 7 ]; }; then ok; else ng "WAIT_PR_CREATED_TIMEOUT=08（rc=$rc）: $out / 待った秒数: $(cat "$tmp/sleep-called" 2>/dev/null)"; fi
 
 # 1回失敗した後に成功して（PR はまだない）時間切れになったときは、前の失敗を GH_ERROR で出さない
 # 偽の sleep が残り時間だけ本当に待つので、2回目の gh（成功）の後に時間切れになる
@@ -180,117 +174,31 @@ rm -f "$tmp/realsleep"
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && ! printf '%s' "$out" | grep -q '^GH_ERROR:' &&
   [ "$(wc -l <"$tmp/gh-called" | tr -d ' ')" -ge 2 ]; then ok; else ng "失敗の後に成功して時間切れ（rc=$rc）: $out"; fi
 
-# 9. 見張っているプロセスがいるときは、二重に見張らない
-# 目印（ロック）は、見張るプロセスの番号を中身に持つシンボリックリンク。名前は repo とブランチのハッシュ（長さを決めるため）
-lockname() { printf '%s\n%s' "$1" "$2" | shasum -a 256 | cut -c1-32; }
-lock="$tmp/wait-pr-created-$(lockname o/r feature/a/b).lock"
-echo "$FOUND" >"$tmp/answers"
-ln -s "$$" "$lock"
+# gh が答えないまま時間切れになったら、gh を止めて TIMEOUT を返す（gh を待ち続けない）
+echo 'HANG' >"$tmp/answers"
 rm -f "$tmp/gh-called"
-out=$(bash "$RUN" o/r feature/a/b 2>&1)
+t0=$SECONDS
+out=$(WAIT_PR_CREATED_TIMEOUT=2 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
-if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'ALREADY_WATCHING o/r feature/a/b' && [ ! -e "$tmp/gh-called" ] &&
-  [ "$(readlink "$lock")" = "$$" ]; then ok; else ng "見張っているプロセスがいる（rc=$rc）: $out"; fi
-rm -f "$lock"
-# 目印だけ残っていてプロセスがいない・中身が数字でない・前の形（フォルダ）の目印が残っているときは、消して見張る。終わったら目印を消す
-sh -c 'exit 0' &
-dead=$!
-wait "$dead"
-# ディレクトリを指すシンボリックリンク（todir）は、たどった先に目印を作らず、リンクだけを消して見張る
-mkdir -p "$tmp/somedir"
-for content in "$dead" abc dir todir; do
-  echo "$FOUND" >"$tmp/answers"
-  case "$content" in
-    dir) mkdir -p "$lock"; echo "$dead" >"$lock/pid" ;;
-    todir) ln -s "$tmp/somedir" "$lock" ;;
-    *) ln -s "$content" "$lock" ;;
-  esac
-  out=$(bash "$RUN" o/r feature/a/b 2>&1)
+took=$((SECONDS - t0))
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && printf '%s' "$out" | grep -q '^GH_ERROR: .*時間内に終わりませんでした' &&
+  [ "$took" -lt 20 ]; then ok; else ng "gh が答えない（rc=$rc、${took} 秒）: $out"; fi
+
+# gh の答えが JSON でない・形が違う（PR の情報を出せない）ときは、PR がないのと区別して GH_ERROR を出す。FOUND は出さない
+for bad in 'not json' '[1]' '{"a":1}'; do
+  echo "$bad" >"$tmp/answers"
+  out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
   rc=$?
-  if [ "$rc" -eq 0 ] && found "$out" && [ ! -e "$lock" ] && [ ! -L "$lock" ] && [ -z "$(ls -A "$tmp/somedir")" ]; then ok; else ng "残った目印 $content（rc=$rc）: $out / somedir: $(ls -A "$tmp/somedir")"; fi
-  rm -rf "$lock"
+  if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && printf '%s' "$out" | grep -q '^GH_ERROR: .*答えを読めません' &&
+    ! printf '%s' "$out" | grep -q 'STATUS: FOUND'; then ok; else ng "gh の答えが $bad（rc=$rc）: $out"; fi
 done
-rm -rf "$tmp/somedir"
 
-# 残った目印を消すのは、1つのプロセスだけ（<目印>.reclaim の目印を持つもの）。
-# 別の生きたプロセスが消している途中なら、目印に触らずに ALREADY_WATCHING で終わる
-# （2つのプロセスが同じ残りものを見て、片方が取り直した目印を、もう片方が消さないように）
-ln -s "$dead" "$lock"
-ln -s "$$" "$lock.reclaim"
-rm -f "$tmp/gh-called"
-out=$(bash "$RUN" o/r feature/a/b 2>&1)
-rc=$?
-if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'ALREADY_WATCHING o/r feature/a/b' && [ "$(readlink "$lock")" = "$dead" ] &&
-  [ "$(readlink "$lock.reclaim")" = "$$" ] && [ ! -e "$tmp/gh-called" ]; then ok; else ng "別のプロセスが目印を消している途中（rc=$rc）: $out"; fi
-# 消す役の目印も残りもの（プロセスがいない）なら、それも消して見張る。終わったら、どちらの目印も残さない
-rm -f "$lock.reclaim"
-ln -s "$dead" "$lock.reclaim"
-echo "$FOUND" >"$tmp/answers"
-out=$(bash "$RUN" o/r feature/a/b 2>&1)
-rc=$?
-if [ "$rc" -eq 0 ] && found "$out" && [ ! -L "$lock" ] && [ ! -L "$lock.reclaim" ]; then ok; else ng "残った消す役の目印（rc=$rc）: $out"; fi
-rm -f "$lock" "$lock.reclaim"
-# 消す役の目印が、シンボリックリンクでなくフォルダ（中身あり）で置かれていても、止まり続けずに消して見張る
-ln -s "$dead" "$lock"
-mkdir -p "$lock.reclaim/x"
-echo "$FOUND" >"$tmp/answers"
-out=$(bash "$RUN" o/r feature/a/b 2>&1)
-rc=$?
-if [ "$rc" -eq 0 ] && found "$out" && [ ! -e "$lock.reclaim" ]; then ok; else ng "フォルダの消す役の目印（rc=$rc）: $out"; fi
-rm -rf "$lock" "$lock.reclaim"
-
-# 見張っている間は、目印が自分の番号を指す。終わるときは、自分の番号の目印だけを消す
-# （別のプロセスが目印を取り直していたら、それを消さない）
-# 後ろの側は時間切れを長くし、確かめ終わった後に答えを FOUND に変えて終わらせる（時間で終わるのを待たない）
-echo '[]' >"$tmp/answers.fix+a+b"
-touch "$tmp/slow"
-WAIT_PR_CREATED_TIMEOUT=600 bash "$RUN" o/r fix/a/b >/dev/null 2>&1 &
-bg=$!
-bglock="$tmp/wait-pr-created-$(lockname o/r fix/a/b).lock"
-for _ in $(seq 1 50); do
-  [ -L "$bglock" ] && break
-  /bin/sleep 0.2
-done
-if [ "$(readlink "$bglock" 2>/dev/null)" = "$bg" ] && kill -0 "$bg" 2>/dev/null; then ok; else ng "見張っている間の目印: $(readlink "$bglock" 2>&1)"; fi
-# / と _ の違うブランチは、別の目印にする（fix/a/b を見張っている間も、fix/a_b は見張れる）
-if [ -L "$bglock" ] && kill -0 "$bg" 2>/dev/null; then
-  echo "$FOUND" >"$tmp/answers"
-  out=$(bash "$RUN" o/r fix/a_b 2>&1)
-  rc=$?
-  if [ "$rc" -eq 0 ] && found "$out"; then ok; else ng "/ と _ の違うブランチ（rc=$rc）: $out"; fi
-else
-  ng "/ と _ の違うブランチ: 後ろで fix/a/b を見張れていない"
-fi
-# 別のプロセスが目印を取り直した形にして、後ろの側が終わるのを待つ（後ろの側がまだ動いていないと、確かめにならない）
-if kill -0 "$bg" 2>/dev/null; then
-  rm -f "$bglock"
-  ln -s "$$" "$bglock"
-  echo "$FOUND" >"$tmp/answers.fix+a+b"
-  wait "$bg"
-  if [ "$(readlink "$bglock" 2>/dev/null)" = "$$" ]; then ok; else ng "別のプロセスの目印を消した"; fi
-else
-  wait "$bg"
-  ng "目印を取り直す前に、後ろの側が終わった"
-fi
-rm -f "$tmp/slow" "$bglock" "$tmp/answers.fix+a+b"
-
-# とても長いブランチ名でも、目印を作って見張れる（名前の長さの上限を超えない）
+# 9. 同じブランチを二重に見張っても止めない（目印を作らない）。とても長いブランチ名でも見張れる
 long="feature/$(printf 'a%.0s' $(seq 1 240))"
 echo "$FOUND" >"$tmp/answers"
 out=$(bash "$RUN" o/r "$long" 2>&1)
 rc=$?
-if [ "$rc" -eq 0 ] && found "$out"; then ok; else ng "長いブランチ名（rc=$rc）: $out"; fi
-# 目印を作れない（置き場所がない）ときは、ALREADY_WATCHING と取り違えず、エラーで 1 を返す
-rm -f "$tmp/gh-called"
-out=$(TMPDIR="$tmp/nodir" bash "$RUN" o/r fix/x 2>&1)
-rc=$?
-if [ "$rc" -eq 1 ] && ! printf '%s' "$out" | grep -q 'ALREADY_WATCHING' && printf '%s' "$out" | grep -q '目印を作れません' &&
-  [ ! -e "$tmp/gh-called" ]; then ok; else ng "目印を作れない（rc=$rc）: $out"; fi
-
-# 見張り終わった後は、目印を残さない
-echo '[]' >"$tmp/answers"
-WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x >/dev/null 2>&1
-if ! ls "$tmp"/wait-pr-created-*.lock >/dev/null 2>&1; then ok; else ng "時間切れの後に目印が残った"; fi
+if [ "$rc" -eq 0 ] && found "$out" && ! printf '%s' "$out" | grep -q 'ALREADY_WATCHING' && [ -z "$(ls -A "$tmp/scratch")" ]; then ok; else ng "長いブランチ名（rc=$rc）: $out"; fi
 
 # 10. 入口は、受け取った環境を中身に渡さない（作業ツリーなどに置いた gh・jq、PERL5OPT・exported function などで、
 # サンドボックスの外の処理を動かさせない）。PATH は playwright-mcp.sh と同じ決めた値にし、env -i で中身を動かす
@@ -333,16 +241,14 @@ want_path="${mcp_path#PATH=}"
 want_path="${want_path//\"/}"
 if printf '%s' "$out" | grep -qxF 'ARGS:[o/r][fix/a b]'; then ok; else ng "入口が引数をそのまま渡していない: $out"; fi
 if printf '%s' "$out" | grep -qxF "PATH=$want_path"; then ok; else ng "中身の PATH が決めた値でない: $out"; fi
-if printf '%s' "$out" | grep -qxF "TMPDIR=$tmp" && printf '%s' "$out" | grep -qx 'WAIT_PR_CREATED_TIMEOUT=5' &&
-  printf '%s' "$out" | grep -q '^HOME=/'; then ok; else ng "中身に TMPDIR・WAIT_PR_CREATED_TIMEOUT・HOME を渡していない: $out"; fi
+if printf '%s' "$out" | grep -qx 'WAIT_PR_CREATED_TIMEOUT=5' && printf '%s' "$out" | grep -q '^HOME=/'; then ok; else ng "中身に WAIT_PR_CREATED_TIMEOUT・HOME を渡していない: $out"; fi
+# 中身は TMPDIR を使わないので、受け取った TMPDIR も渡さない
+if ! printf '%s' "$out" | grep -q '^TMPDIR='; then ok; else ng "中身に TMPDIR を渡した: $out"; fi
 if ! printf '%s' "$out" | grep -qE '^(PERL5OPT|PERL5LIB|NODE_OPTIONS|BASH_ENV|GH_TOKEN|BASH_FUNC_)' &&
   ! printf '%s' "$out" | grep -q 'declare -f'; then ok; else ng "受け取った環境が中身に渡った: $out"; fi
 if printf '%s' "$out" | grep -qx '/'; then ok; else ng "中身を / で動かしていない: $out"; fi
 # 入口が呼ぶコマンドで Perl が動いても、受け取った PERL5OPT を使わない
 if [ ! -e "$tmp/perl-ran" ]; then ok; else ng "受け取った PERL5OPT で Perl のコードが動いた"; fi
-# TMPDIR が / で始まるフォルダでなければ、/tmp を使う
-out=$(TMPDIR="relative" "$tmp/entry/wait-pr-created.sh" o/r fix/x 2>&1)
-if printf '%s' "$out" | grep -qx 'TMPDIR=/tmp'; then ok; else ng "TMPDIR が正しくないときに /tmp にしていない: $out"; fi
 # 本物の中身でも、入口から引数を断る（断るときは gh を呼ばない）
 rm -f "$tmp/gh-called"
 out=$("$entry" o/r main 2>&1)
