@@ -173,12 +173,17 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   ls "$tmp"/wait-pr-created-*.lock/pid >/dev/null 2>&1 && break
   /bin/sleep 0.2
 done
-echo "$FOUND" >"$tmp/answers"
-out=$(bash "$BIN/wait-pr-created.sh" o/r fix/a_b 2>&1)
-rc=$?
+# 後ろの側が目印を持って見張っていることを確かめてから、前の側を動かす（確かめられないと、目印が重なっても通ってしまう）
+if [ -e "$tmp/wait-pr-created-o+r-fix+a+b.lock/pid" ] && kill -0 "$bg" 2>/dev/null; then
+  echo "$FOUND" >"$tmp/answers"
+  out=$(bash "$BIN/wait-pr-created.sh" o/r fix/a_b 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ] && found "$out"; then ok; else ng "/ と _ の違うブランチ（rc=$rc）: $out"; fi
+else
+  ng "/ と _ の違うブランチ: 後ろで fix/a/b を見張れていない"
+fi
 wait "$bg"
 rm -f "$tmp/slow"
-if [ "$rc" -eq 0 ] && found "$out"; then ok; else ng "/ と _ の違うブランチ（rc=$rc）: $out"; fi
 # 見張り終わった後は、目印を残さない
 echo '[]' >"$tmp/answers"
 WAIT_PR_CREATED_TIMEOUT=0 bash "$BIN/wait-pr-created.sh" o/r fix/x >/dev/null 2>&1
