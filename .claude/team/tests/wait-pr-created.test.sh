@@ -12,7 +12,8 @@ RUN="$BIN/lib/wait-pr-created.sh"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/wait-pr-created-test.XXXXXX") || exit 1
 [ -n "$tmp" ] && [ -d "$tmp" ] || exit 1
 tmp=$(cd "$tmp" && pwd -P) || exit 1
-trap 'rm -rf "$tmp"' EXIT
+# 途中で止まっても、後ろで見張らせたプロセスを残さない（偽の gh が消えた後に、本物の gh を呼ばないように）
+trap '[ -n "${bg-}" ] && kill "$bg" 2>/dev/null; rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 # gh の代わり: 呼ばれた引数を1つずつ記録し、answers の行を上から順に答える（行がなくなったら最後の行を繰り返す）。
 # 行が FAIL なら、エラーを出して 1 で終わる。answers.<--head の / を + にしたもの> があれば、そのブランチにはそちらを答える
@@ -141,6 +142,8 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' &&
 # gh のエラーは、TMPDIR の一時ファイルを通さずに受け取る（TMPDIR はサンドボックスの中から書けるため、
 # 作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに書いてしまう）
 if [ ! -e "$tmp/tmpfile-seen" ]; then ok; else ng "gh を呼ぶ間に TMPDIR に一時ファイルを作った: $(cat "$tmp/tmpfile-seen")"; fi
+# here-string（<<<）・here-document（<<）は bash 3.2 で TMPDIR に一時ファイルを作るため、中身で使わない（コメントは除く）
+if ! grep -v '^[[:space:]]*#' "$RUN" | grep -qE '<<'; then ok; else ng "中身で <<< か << を使っている: $(grep -nv '^[[:space:]]*#' "$RUN" | grep -E '<<')"; fi
 
 # 1回失敗した後に見つかったときは、見つけた PR を出す（失敗は途中で消えた）
 printf '%s\n%s\n' 'FAIL' "$FOUND" >"$tmp/answers"
@@ -157,7 +160,7 @@ touch "$tmp/realsleep"
 out=$(WAIT_PR_CREATED_TIMEOUT=3 bash "$RUN" o/r fix/x 2>&1)
 rm -f "$tmp/realsleep"
 waits=$(tr '\n' ' ' <"$tmp/sleep-called" 2>/dev/null)
-if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' &&
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && [ -n "$waits" ] &&
   ! awk '$1 > 3 || $1 < 1 { bad = 1 } END { exit !bad }' "$tmp/sleep-called" 2>/dev/null; then ok; else ng "残り時間より長く待った（待った秒数: $waits）: $out"; fi
 # 先頭が 0 の秒数（08）も 10 進数として読む（8 進数として読んで、計算のエラーで止まらない）
 printf '%s\n%s\n' '[]' "$FOUND" >"$tmp/answers"
