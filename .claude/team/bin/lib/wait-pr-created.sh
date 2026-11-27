@@ -41,18 +41,21 @@ timeout_sec=$((10#$timeout_sec))
 # 止める役は /bin/sleep で待つ（テストで差し替える sleep を使わない）。出力は /dev/null にして、$( ) の終わりを待たせない
 run_gh() {
   local limit=$1 pid watcher rc
-  gh pr list -R "$repo" --head "$branch" --state all --json "$pr_fields" &
+  gh pr list -R "$repo" --head "$branch" --state all --limit 100 --json "$pr_fields" &
   pid=$!
   # 止める役が止められたときは、待っている sleep も止める（gh が先に終わるたびに、長い sleep を残さない）。
-  # trap は sleep を動かす前に置き、sleep の番号が決まる前に止められたときは、決まった後に止める
+  # trap は sleep を動かす前に置き、sleep の番号が決まる前に止められたときは、決まった後に止める。
+  # SIGTERM で止まらない gh（無視する設定を受け継いだものなど）は、5 秒待ってから SIGKILL で止める
   ( stop=0
     trap 'stop=1; [ -z "${s-}" ] || kill "$s" 2>/dev/null' TERM
-    /bin/sleep "$limit" &
-    s=$!
-    if [ "$stop" = 1 ]; then kill "$s" 2>/dev/null; exit 0; fi
-    wait "$s"
-    [ "$stop" = 1 ] && exit 0
-    kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    for step in "$limit" 5; do
+      /bin/sleep "$step" &
+      s=$!
+      if [ "$stop" = 1 ]; then kill "$s" 2>/dev/null; exit 0; fi
+      wait "$s"
+      [ "$stop" = 1 ] && exit 0
+      if [ "$step" = 5 ]; then kill -9 "$pid" 2>/dev/null; else kill "$pid" 2>/dev/null; fi
+    done ) >/dev/null 2>&1 &
   watcher=$!
   wait "$pid"
   rc=$?
@@ -61,7 +64,8 @@ run_gh() {
   return "$rc"
 }
 
-pr_fields="number,url,title,state,isDraft,baseRefName,headRepository,headRepositoryOwner"
+# --limit 100: 既定の 30 件では、別のフォークの同じ名前のブランチの PR が多いと、見張るリポジトリの PR が入らないため
+pr_fields="number,url,title,state,isDraft,baseRefName,headRepository,headRepositoryOwner,createdAt"
 # 配列で、PR ごとに出す項目が決めた型であることを確かめ（isDraft の false も正しい値）、head のリポジトリが見張るリポジトリのものだけを残す。
 # head のリポジトリがわからない PR（フォークが消されて headRepository が null など）は、エラーにせず除く
 pr_filter='if type != "array" then error("配列ではありません") else . end
@@ -71,8 +75,10 @@ pr_filter='if type != "array" then error("配列ではありません") else . e
   | map(select((.headRepository.name? | type) == "string" and (.headRepositoryOwner.login? | type) == "string"
       and ((.headRepositoryOwner.login + "/" + .headRepository.name | ascii_downcase) == $want)))'
 want=$(printf '%s' "$repo" | tr 'A-Z' 'a-z')
-# 見張り始めたときにすでに閉じていた PR の番号（JSON の配列。最初に読めた答えで決める）
-known_closed=""
+# 見張り始めた時刻（UNIX 時刻）。これより前に作られて閉じていた PR は、前の作業の PR として除く
+# （1回目の gh が失敗している間に作られてマージされた PR は見つけるよう、答えを読んだ時刻ではなく、最初に決める）。
+# GitHub と手元の時計のずれを見込んで、60 秒前からを見張り始めた後とする
+watch_start=$(( $(date +%s) - 60 ))
 start=$SECONDS
 # gh が失敗し続けたときに、PR がないのと区別できるよう、最後の失敗を覚えておく（成功したら消す）
 gh_error=""
@@ -94,13 +100,13 @@ while :; do
     # 答えの形（配列で、PR ごとに決めた型の項目がある）を確かめ、見張るリポジトリの PR だけにする
     # （別のフォークの同じ名前のブランチから開いた PR を除く。owner/repo の大文字・小文字は区別しない）。
     # jq が失敗したら、PR がないのと区別してエラーにする
-    if prs=$(printf '%s' "$json" | jq -c --arg want "$want" "$pr_filter" 2>&1); then
+    # 何も答えない（標準出力が空）ときも、-e で失敗にする（[] は正しい答え）
+    if prs=$(printf '%s' "$json" | jq -ce --arg want "$want" "$pr_filter" 2>&1); then
       gh_error=""
-      # 見張り始めて最初に読めた答えで、すでに閉じていた（MERGED・CLOSED）PR の番号を覚え、前の作業の PR として除く。
-      # 開いている PR と、その後にできた PR（すぐマージされたものも）を見つける
-      [ -n "$known_closed" ] || known_closed=$(printf '%s' "$prs" | jq -c '[.[] | select(.state != "OPEN") | .number]')
-      if info=$(printf '%s' "$prs" | jq -er --argjson known "$known_closed" \
-        '[.[] | select(.state == "OPEN" or (.number as $n | any($known[]; . == $n) | not))] | .[0] // empty
+      # 開いている PR と、見張り始めた後に作られた PR（すぐマージされたものも）を見つける。
+      # 作った時刻が読めない閉じた PR は、前の作業の PR として除く
+      if info=$(printf '%s' "$prs" | jq -er --argjson start "$watch_start" \
+        '[.[] | select(.state == "OPEN" or ((.createdAt | type) == "string" and ((.createdAt | fromdateiso8601?) // 0) >= $start))] | .[0] // empty
         | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"' 2>/dev/null); then
         echo "STATUS: FOUND"
         printf '%s\n' "$info"
