@@ -227,6 +227,15 @@ echo "[$(pr 30 OPEN fork),$(pr 12 OPEN)]" >"$tmp/answers"
 out=$(bash "$RUN" O/r fix/x 2>&1)
 if found "$out"; then ok; else ng "フォークの PR と混ざっている: $out"; fi
 
+# 答えの側の owner が大文字でも見つける
+echo "[$(pr 12 OPEN O)]" >"$tmp/answers"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if found "$out"; then ok; else ng "答えの owner が大文字: $out"; fi
+# head のフォークが消された PR（headRepository が null）は、エラーにせず除く。見張るリポジトリの PR は見つける
+echo "[$(pr 31 OPEN | sed 's/"headRepository":{"name":"r"}/"headRepository":null/'),$(pr 12 OPEN)]" >"$tmp/answers"
+out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
+if found "$out"; then ok; else ng "フォークが消された PR と混ざっている: $out"; fi
+
 # 見張り始めたときにすでに閉じていた（MERGED・CLOSED）PR は、前の作業の PR なので見つけない
 echo "[$(pr 5 MERGED),$(pr 4 CLOSED)]" >"$tmp/answers"
 rm -f "$tmp/gh-called"
