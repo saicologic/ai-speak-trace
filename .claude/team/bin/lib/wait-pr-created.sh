@@ -33,78 +33,65 @@ timeout_sec="${WAIT_PR_CREATED_TIMEOUT:-3600}"
 [[ "$timeout_sec" =~ ^[0-9]{1,7}$ ]] || timeout_sec=3600
 timeout_sec=$((10#$timeout_sec))
 
-# 同じブランチを二重に見張らない。目印（ロック）は、見張るプロセスの番号を中身に持つシンボリックリンクで、
-# ln -s の1回で作る（作ってから番号を書くまでの間に、別のプロセスが中身のない目印を残りものと取り違えないように）。
-# 名前は repo とブランチのハッシュにして長さを決める（長いブランチ名で名前の長さの上限を超えないように。
-# 改行はどちらの引数にも入らないため、区切りに使う）
-key=$(printf '%s\n%s' "$repo" "$branch" | shasum -a 256 | cut -c1-32)
-[[ "$key" =~ ^[0-9a-f]{32}$ ]] || { echo "目印の名前を作れません" >&2; exit 1; }
-lock="${TMPDIR:-/tmp}/wait-pr-created-${key}.lock"
-already() {
-  echo "ALREADY_WATCHING ${repo} ${branch}"
-  exit 0
+# 同じブランチを二重に見張っても止めない（1分に1回 gh pr list を余分に呼ぶだけのため）。
+# 目印（ロック）などのファイルは TMPDIR に作らない（TMPDIR はサンドボックスの中から書けるため、
+# 名前をリンクに差し替えられると、サンドボックスの外のファイルに書いてしまう）
+
+# gh は、決めた秒数のうちに終わらなければ止める（答えない gh を待ち続けない）。
+# 止める役は /bin/sleep で待つ（テストで差し替える sleep を使わない）。出力は /dev/null にして、$( ) の終わりを待たせない
+run_gh() {
+  local limit=$1 pid watcher rc
+  gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName &
+  pid=$!
+  ( /bin/sleep "$limit"; kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+  watcher=$!
+  wait "$pid"
+  rc=$?
+  kill "$watcher" 2>/dev/null
+  wait "$watcher" 2>/dev/null
+  return "$rc"
 }
-# 前の形（フォルダ）の目印が残っていると、ln -s がその中にリンクを作ってしまうため、先に消す
-if [ -d "$lock" ] && [ ! -L "$lock" ]; then rm -rf "$lock"; fi
-if ! ln -sn "$$" "$lock" 2>/dev/null; then
-  # 置き場所がないなど、目印がないのに作れないときは、見張っている人がいると取り違えずに止まる
-  if [ ! -L "$lock" ]; then
-    echo "目印を作れません: ${lock}" >&2
-    exit 1
-  fi
-  pid=$(readlink "$lock" 2>/dev/null)
-  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then already; fi
-  # 見張っていたプロセスがもういない。残った目印を消すのは、消す役の目印（<目印>.reclaim）を持つ1つのプロセスだけにする
-  # （2つのプロセスが同じ残りものを見て、片方が取り直した目印を、もう片方が消さないように）。
-  # 消す役の目印も残りもの（プロセスがいない）なら、それを消してから取る
-  reclaim="${lock}.reclaim"
-  # フォルダで置かれていると、rm -f で消せず ln -sn も失敗し続けるため、先に消す
-  if [ -d "$reclaim" ] && [ ! -L "$reclaim" ]; then rm -rf "$reclaim"; fi
-  if ! ln -sn "$$" "$reclaim" 2>/dev/null; then
-    rpid=$(readlink "$reclaim" 2>/dev/null)
-    if [[ "$rpid" =~ ^[0-9]+$ ]] && kill -0 "$rpid" 2>/dev/null; then already; fi
-    [ "$(readlink "$reclaim" 2>/dev/null)" = "$rpid" ] && rm -f "$reclaim"
-    ln -sn "$$" "$reclaim" 2>/dev/null || already
-  fi
-  # 消す役を持った後に、もう一度確かめる（待つ間に、別のプロセスが取り直しているかもしれないため）
-  pid=$(readlink "$lock" 2>/dev/null)
-  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-    rm -f "$reclaim"
-    already
-  fi
-  rm -f "$lock"
-  got=0
-  ln -sn "$$" "$lock" 2>/dev/null && got=1
-  rm -f "$reclaim"
-  [ "$got" -eq 1 ] || already
-fi
-# 終わるときは、自分の番号の目印だけを消す
-trap '[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && rm -f "$lock"' EXIT
 
 start=$SECONDS
 # gh が失敗し続けたときに、PR がないのと区別できるよう、最後の失敗を覚えておく（成功したら消す）
 gh_error=""
 # gh の標準出力・標準エラー・終了コードは、TMPDIR の一時ファイルを通さず、パイプだけで受け取る
-# （TMPDIR はサンドボックスの中から書けるため、作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに
-# 書いてしまう。here-string（<<<）も bash 3.2 では一時ファイルを作るため使わない）。
+# （here-string（<<<）も bash 3.2 では一時ファイルを作るため使わない）。
 # 標準エラー → NUL → 標準出力 → NUL → 終了コード → NUL の順に流れる（JSON とエラーの文には NUL が入らない）
 while :; do
+  # gh に使える秒数は残り時間。ただし、最後の確かめでも gh が終われるよう、10 秒は使える。
+  # 時間切れ 0（1回だけ確かめる）のときは 30 秒
+  limit=$((timeout_sec - (SECONDS - start)))
+  [ "$limit" -ge 10 ] || limit=10
+  [ "$timeout_sec" -ne 0 ] || limit=30
+  err="" json="" rc=""
   { IFS= read -r -d '' err; IFS= read -r -d '' json; IFS= read -r -d '' rc; } < <(
-    (printf '\0%s\0%s\0' "$(gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName)" "$?" 1>&2) 2>&1
+    (printf '\0%s\0%s\0' "$(run_gh "$limit")" "$?" 1>&2) 2>&1
   )
-  if [ "${rc-}" = 0 ]; then
-    gh_error=""
-    if printf '%s' "$json" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
-      echo "STATUS: FOUND"
-      printf '%s' "$json" | jq -r '.[0] | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"'
-      exit 0
+  if [ "$rc" = 0 ]; then
+    # PR の数を数え、見つかったら出す内容を先に作る。どちらかで jq が失敗したら、PR がないのと区別してエラーにする
+    if count=$(printf '%s' "$json" | jq -e 'if type == "array" then length else error("配列ではありません") end' 2>&1); then
+      gh_error=""
+      if [ "$count" -gt 0 ] && info=$(printf '%s' "$json" | jq -er '.[0] | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"' 2>&1); then
+        echo "STATUS: FOUND"
+        printf '%s\n' "$info"
+        exit 0
+      elif [ "$count" -gt 0 ]; then
+        gh_error="gh pr list の答えを読めません: ${info}"
+      fi
+    else
+      [ "$count" = 0 ] && count=""
+      gh_error="gh pr list の答えを読めません: ${count}"
     fi
+  elif [ "$rc" = 143 ] || [ "$rc" = 137 ]; then
+    gh_error="gh pr list が時間内に終わりませんでした（${limit} 秒）"
   else
-    # 1行にまとめて、長すぎるときは切る
-    gh_error=$(printf '%s' "${err-}" | tr '\n' ' ' | cut -c1-500)
-    gh_error="${gh_error% }"
-    [ -n "$gh_error" ] || gh_error="gh pr list が失敗しました"
+    gh_error="${err}"
+    [ -n "$gh_error" ] || gh_error="gh pr list が失敗しました（終了コード ${rc}）"
   fi
+  # 1行にまとめて、長すぎるときは切る
+  gh_error=$(printf '%s' "$gh_error" | tr '\n' ' ' | cut -c1-500)
+  gh_error="${gh_error% }"
   if [ $((SECONDS - start)) -ge "$timeout_sec" ]; then
     echo "STATUS: TIMEOUT"
     echo "BRANCH: ${repo} ${branch}"

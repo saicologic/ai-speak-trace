@@ -7,7 +7,7 @@
 # テスト: bash .claude/team/tests/wait-pr-created.test.sh
 # サンドボックスの外で動くため、受け取った環境は中身に渡さない（作業ツリーなどに置いた gh・jq、PERL5OPT・exported function などで、
 # 外の処理を動かさせない）。PATH は Playwright MCP（playwright-mcp.sh）と同じ決めた値にし、HOME はアカウントの情報から求め、
-# env -i で中身を動かす。この入口で呼ぶコマンドも、絶対パスで呼ぶ。
+# env -i で中身を動かす（中身はファイルを作らないため、TMPDIR も渡さない）。この入口で呼ぶコマンドも、絶対パスで呼ぶ。
 # shebang の -p（privileged mode）で、入口そのものも受け取った BASH_ENV を読まず、exported function を取り込まない
 # （exec・cd などを関数で上書きさせない。excludedCommands のとおりパスを書いて直接動かすときに効く）
 PATH="/opt/homebrew/opt/node@24/bin:/usr/local/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -20,12 +20,8 @@ else
   home="$(/usr/bin/getent passwd "$user" | /usr/bin/cut -d: -f6)"
 fi
 [ -d "$home" ] || { echo "ホームフォルダが見つかりません" >&2; exit 1; }
-# 目印の置き場所。/ で始まるフォルダでなければ /tmp にする
-tmpdir="${TMPDIR:-/tmp}"
-case "$tmpdir" in /*) ;; *) tmpdir=/tmp ;; esac
-[ -d "$tmpdir" ] || tmpdir=/tmp
 # 待つ時間の上限（数字かどうかは中身で確かめる）
 timeout="${WAIT_PR_CREATED_TIMEOUT:-3600}"
 lib="$(builtin cd "$(/usr/bin/dirname "$0")" && builtin pwd)/lib/wait-pr-created.sh"
 builtin cd / || exit 1
-exec /usr/bin/env -i PATH="$PATH" HOME="$home" USER="$user" LOGNAME="$user" TMPDIR="$tmpdir" WAIT_PR_CREATED_TIMEOUT="$timeout" /bin/bash --noprofile --norc "$lib" "$@"
+exec /usr/bin/env -i PATH="$PATH" HOME="$home" USER="$user" LOGNAME="$user" WAIT_PR_CREATED_TIMEOUT="$timeout" /bin/bash --noprofile --norc "$lib" "$@"
