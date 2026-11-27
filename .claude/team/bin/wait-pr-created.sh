@@ -23,14 +23,15 @@ if ! [[ "$branch" =~ ^(fix|feature|test|release|dependabot)/[A-Za-z0-9._/-]+$ ]]
   [[ "$branch" == *..* ]] || [[ "$branch" == *//* ]] || [[ "$branch" == *.lock ]]; then
   usage
 fi
+# 待つ間隔は環境変数で変えない（外でユーザーの gh の認証を使って動くため、0 にして gh を休みなく呼ばせない）
+interval=60
 timeout_sec="${WAIT_PR_CREATED_TIMEOUT:-3600}"
-interval="${WAIT_PR_CREATED_INTERVAL:-60}"
 [[ "$timeout_sec" =~ ^[0-9]+$ ]] || timeout_sec=3600
-[[ "$interval" =~ ^[0-9]+$ ]] || interval=60
 
 # 同じブランチを二重に見張らない。目印（ロック）に見張るプロセスの番号を書き、強制終了で目印が残っても、
-# そのプロセスがもういなければ消して見張る
-lock="${TMPDIR:-/tmp}/wait-pr-created-${repo//\//_}-${branch//\//_}.lock"
+# そのプロセスがもういなければ消して見張る。名前の / は、どちらの引数にも使えない + に変える
+# （_ に変えると、fix/a/b と fix/a_b が同じ目印になるため）
+lock="${TMPDIR:-/tmp}/wait-pr-created-${repo//\//+}-${branch//\//+}.lock"
 if ! mkdir "$lock" 2>/dev/null; then
   pid=$(cat "$lock/pid" 2>/dev/null)
   if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
