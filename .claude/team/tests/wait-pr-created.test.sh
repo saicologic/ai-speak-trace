@@ -21,6 +21,10 @@ cat >"$tmp/bin/gh" <<EOF
 #!/bin/bash
 for a in "\$@"; do printf '[%s]' "\$a"; done >>"$tmp/gh-called"
 echo >>"$tmp/gh-called"
+# 呼ばれている間に、目印（.lock・.reclaim）でない一時ファイルが TMPDIR にあれば記録する
+for f in "\${TMPDIR:-/tmp}"/wait-pr-created-*; do
+  case "\${f##*/}" in *.lock | *.lock.reclaim | "wait-pr-created-*") ;; *) [ -e "\$f" ] && echo "\$f" >>"$tmp/tmpfile-seen" ;; esac
+done
 answers="$tmp/answers"
 prev=""
 for a in "\$@"; do
@@ -134,6 +138,9 @@ out=$(WAIT_PR_CREATED_TIMEOUT=0 bash "$RUN" o/r fix/x 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' &&
   printf '%s' "$out" | grep -qx 'GH_ERROR: HTTP 401: Bad credentials'; then ok; else ng "gh が失敗し続けて時間切れ（rc=$rc）: $out"; fi
+# gh のエラーは、TMPDIR の一時ファイルを通さずに受け取る（TMPDIR はサンドボックスの中から書けるため、
+# 作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに書いてしまう）
+if [ ! -e "$tmp/tmpfile-seen" ]; then ok; else ng "gh を呼ぶ間に TMPDIR に一時ファイルを作った: $(cat "$tmp/tmpfile-seen")"; fi
 
 # 1回失敗した後に見つかったときは、見つけた PR を出す（失敗は途中で消えた）
 printf '%s\n%s\n' 'FAIL' "$FOUND" >"$tmp/answers"
