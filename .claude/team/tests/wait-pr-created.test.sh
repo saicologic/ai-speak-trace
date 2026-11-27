@@ -234,15 +234,17 @@ if ! ls "$tmp"/wait-pr-created-*.lock >/dev/null 2>&1; then ok; else ng "時間�
 # サンドボックスの外の処理を動かさせない）。PATH は playwright-mcp.sh と同じ決めた値にし、env -i で中身を動かす
 entry="$BIN/wait-pr-created.sh"
 mcp_path=$(grep -E '^PATH="?/' "$BIN/playwright-mcp.sh")
-path_lines=$(grep -cE '(^|[^A-Za-z_])PATH=' "$entry")
+path_lines=$(grep -cE '^PATH=' "$entry")
 path_line=$(grep -E '^PATH="?/' "$entry" | head -1)
-if [ -n "$mcp_path" ] && [ "$path_line" = "$mcp_path" ] && [ "$path_lines" -ge 1 ]; then ok; else ng "入口の PATH が playwright-mcp.sh と同じでない（$path_line）"; fi
+if [ -n "$mcp_path" ] && [ "$path_line" = "$mcp_path" ] && [ "$path_lines" -eq 1 ]; then ok; else ng "入口の PATH が playwright-mcp.sh と同じでない（$path_line）"; fi
 if grep -qE '^exec /usr/bin/env -i .*/bin/bash --noprofile --norc "\$lib" "\$@"$' "$entry"; then ok; else ng "入口で、env -i を通して中身を動かしていない"; fi
 # 入口を写し、受け取った環境を書き出すだけの偽の中身と並べて動かす（入口は、自分の隣の lib/ を読む）
 mkdir -p "$tmp/entry/lib"
 cp "$entry" "$tmp/entry/wait-pr-created.sh"
 cat >"$tmp/entry/lib/wait-pr-created.sh" <<EOF
 printf 'ARGS:'; printf '[%s]' "\$@"; echo
+# Perl のスクリプト（shasum）を1回動かし、受け取った PERL5OPT で Perl のコードが動かないことを確かめる
+shasum -a 256 </dev/null >/dev/null
 env | LC_ALL=C sort
 declare -F
 pwd
@@ -251,11 +253,20 @@ mkdir -p "$tmp/perl"
 cat >"$tmp/perl/Evil.pm" <<EOF
 package Evil; open(my \$f, '>', '$tmp/perl-ran'); 1;
 EOF
+# 入口は、excludedCommands のとおりパスを書いて直接動かす（shebang が効く形）。
+# 入口そのものも、受け取った BASH_ENV を読まず、exported function（exec・gh の上書き）を取り込まない
+printf 'touch "%s/bashenv-ran"\n' "$tmp" >"$tmp/bashenv"
+chmod +x "$tmp/entry/wait-pr-created.sh"
 gh() { echo evil; }
-export -f gh
-out=$(cd "$tmp" && PERL5OPT=-MEvil PERL5LIB="$tmp/perl" NODE_OPTIONS=--require=x BASH_ENV="$tmp/x" GH_TOKEN=leak \
-  WAIT_PR_CREATED_TIMEOUT=5 bash "$tmp/entry/wait-pr-created.sh" o/r "fix/a b" 2>&1)
-unset -f gh
+exec() { echo HIJACKED; }
+export -f gh exec
+out=$(cd "$tmp" && PERL5OPT=-MEvil PERL5LIB="$tmp/perl" NODE_OPTIONS=--require=x BASH_ENV="$tmp/bashenv" GH_TOKEN=leak \
+  HOME="$tmp/fakehome" WAIT_PR_CREATED_TIMEOUT=5 "$tmp/entry/wait-pr-created.sh" o/r "fix/a b" 2>&1)
+unset -f gh exec
+if [ ! -e "$tmp/bashenv-ran" ]; then ok; else ng "入口が受け取った BASH_ENV を読んだ"; fi
+if ! printf '%s' "$out" | grep -q 'HIJACKED'; then ok; else ng "入口が exported function の exec を使った: $out"; fi
+# HOME は受け取った値ではなく、アカウントの情報から求める（gh の設定の場所を差し替えさせない）
+if printf '%s' "$out" | grep -q '^HOME=/' && ! printf '%s' "$out" | grep -qxF "HOME=$tmp/fakehome"; then ok; else ng "受け取った HOME を中身に渡した: $out"; fi
 want_path="${mcp_path#PATH=}"
 want_path="${want_path//\"/}"
 if printf '%s' "$out" | grep -qxF 'ARGS:[o/r][fix/a b]'; then ok; else ng "入口が引数をそのまま渡していない: $out"; fi
@@ -268,11 +279,11 @@ if printf '%s' "$out" | grep -qx '/'; then ok; else ng "中身を / で動かし
 # 入口が呼ぶコマンドで Perl が動いても、受け取った PERL5OPT を使わない
 if [ ! -e "$tmp/perl-ran" ]; then ok; else ng "受け取った PERL5OPT で Perl のコードが動いた"; fi
 # TMPDIR が / で始まるフォルダでなければ、/tmp を使う
-out=$(TMPDIR="relative" bash "$tmp/entry/wait-pr-created.sh" o/r fix/x 2>&1)
+out=$(TMPDIR="relative" "$tmp/entry/wait-pr-created.sh" o/r fix/x 2>&1)
 if printf '%s' "$out" | grep -qx 'TMPDIR=/tmp'; then ok; else ng "TMPDIR が正しくないときに /tmp にしていない: $out"; fi
 # 本物の中身でも、入口から引数を断る（断るときは gh を呼ばない）
 rm -f "$tmp/gh-called"
-out=$(bash "$entry" o/r main 2>&1)
+out=$("$entry" o/r main 2>&1)
 rc=$?
 if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '使い方' && [ ! -e "$tmp/gh-called" ]; then ok; else ng "入口で引数を断る（rc=$rc）: $out"; fi
 
