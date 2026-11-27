@@ -1,6 +1,6 @@
 ---
 name: release
-description: 版上げのPR作成。main に tauri.conf.json の version を上げる PR（題は release: vX.Y.Z）を作る際に使用
+description: "版上げのPR作成。main に tauri.conf.json の version を上げる PR（題は release: vX.Y.Z）を作る際に使用"
 disable-model-invocation: true
 argument-hint: <version>
 allowed-tools: Bash(git *)
@@ -19,7 +19,9 @@ allowed-tools: Bash(git *)
 
 1. `/opt/claude-code-team/bin/github.sh fetch origin main 'refs/tags/*:refs/tags/*'` で `main` とタグを取り、`origin/main` から `fix/release-v$ARGUMENTS` を作る
 2. `src-tauri/tauri.conf.json` の `version` を `$ARGUMENTS` にし、`release: v$ARGUMENTS` でコミットする
-3. fetch した後に、`git describe --tags --abbrev=0 origin/main` で前のタグを取り、`git log --oneline <前のタグ>..origin/main` で、リリースに入る変更を一覧にし、思わぬコミットがないかを確かめる
+3. fetch した後に、`git describe --tags --abbrev=0 origin/main` で前のタグを取り、`git log --oneline <前のタグ>..origin/main` で、前のタグから入ったコミットを出す
+   - `git tag --list 'v*' --sort=-v:refname | head -1` の一番新しいタグが、前のタグと違うとき（例外の急ぎのパッチで、`main` から届かないタグを出したとき）は、`git log --oneline --cherry-pick --right-only <一番新しいタグ>...origin/main` で、出したパッチに cherry-pick した修正を除いた一覧も見て、もう出した修正を変更内容に書かない
+   - その上で、リリースに入る変更を一覧にし、思わぬコミットがないかを確かめる
    - 新機能が入っていればマイナー、修正だけならパッチの番号になっているかを確かめる（違えばユーザーに伝える）
 4. 変更内容をカテゴリ別に整理（機能追加、バグ修正、CI/CD、ドキュメントなど）し、下のテンプレートで本文をスクラッチパッドのファイルに書く
 5. 本文をユーザーに見せて確かめてから、push と PR の作成をする
