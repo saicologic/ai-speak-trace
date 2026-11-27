@@ -56,6 +56,8 @@ if ! ln -sn "$$" "$lock" 2>/dev/null; then
   # （2つのプロセスが同じ残りものを見て、片方が取り直した目印を、もう片方が消さないように）。
   # 消す役の目印も残りもの（プロセスがいない）なら、それを消してから取る
   reclaim="${lock}.reclaim"
+  # フォルダで置かれていると、rm -f で消せず ln -sn も失敗し続けるため、先に消す
+  if [ -d "$reclaim" ] && [ ! -L "$reclaim" ]; then rm -rf "$reclaim"; fi
   if ! ln -sn "$$" "$reclaim" 2>/dev/null; then
     rpid=$(readlink "$reclaim" 2>/dev/null)
     if [[ "$rpid" =~ ^[0-9]+$ ]] && kill -0 "$rpid" 2>/dev/null; then already; fi
