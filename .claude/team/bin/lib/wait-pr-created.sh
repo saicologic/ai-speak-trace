@@ -43,7 +43,12 @@ run_gh() {
   local limit=$1 pid watcher rc
   gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName &
   pid=$!
-  ( /bin/sleep "$limit"; kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+  # 止める役が止められたときは、待っている sleep も止める（gh が先に終わるたびに、長い sleep を残さない）
+  ( /bin/sleep "$limit" &
+    s=$!
+    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    wait "$s"
+    kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
   watcher=$!
   wait "$pid"
   rc=$?
