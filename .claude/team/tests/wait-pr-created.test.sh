@@ -80,6 +80,11 @@ rejected "ブランチに空白を含む" o/r "fix/a b"
 rejected "ブランチが - で始まる" o/r -fix/x
 rejected "ブランチが .lock で終わる" o/r fix/x.lock
 rejected "ブランチが --web" o/r --web
+# git で作れないブランチ名（/ で終わる・. で終わる・. で始まる部分・.lock で終わる部分）
+rejected "ブランチが / で終わる" o/r fix/x/
+rejected "ブランチが . で終わる" o/r fix/x.
+rejected "ブランチの部分が . で始まる" o/r fix/.x
+rejected "ブランチの途中の部分が .lock で終わる" o/r fix/a.lock/x
 rejected "引数が多い" o/r fix/x --web
 
 # found <出力>: 見つけた PR の情報を出している
@@ -137,6 +142,16 @@ out=$(bash "$RUN" o/r fix/x 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && found "$out" && ! printf '%s' "$out" | grep -q '^GH_ERROR:'; then ok; else ng "失敗の後に見つかる（rc=$rc）: $out"; fi
 
+# 時間切れが近いときは、残り時間より長く待たない（WAIT_PR_CREATED_TIMEOUT=2 で、60 秒待たない）
+echo '[]' >"$tmp/answers"
+rm -f "$tmp/sleep-called"
+touch "$tmp/slow"
+out=$(WAIT_PR_CREATED_TIMEOUT=2 bash "$RUN" o/r fix/x 2>&1)
+rm -f "$tmp/slow"
+waits=$(tr '\n' ' ' <"$tmp/sleep-called" 2>/dev/null)
+if printf '%s' "$out" | grep -qx 'STATUS: TIMEOUT' && [ -n "$waits" ] &&
+  ! awk '$1 > 2 || $1 < 1 { bad = 1 } END { exit !bad }' "$tmp/sleep-called"; then ok; else ng "残り時間より長く待った（待った秒数: $waits）: $out"; fi
+
 # 1回失敗した後に成功して（PR はまだない）時間切れになったときは、前の失敗を GH_ERROR で出さない
 printf '%s\n%s\n' 'FAIL' '[]' >"$tmp/answers"
 rm -f "$tmp/gh-called"
@@ -178,6 +193,25 @@ for content in "$dead" abc dir todir; do
   rm -rf "$lock"
 done
 rm -rf "$tmp/somedir"
+
+# 残った目印を消すのは、1つのプロセスだけ（<目印>.reclaim の目印を持つもの）。
+# 別の生きたプロセスが消している途中なら、目印に触らずに ALREADY_WATCHING で終わる
+# （2つのプロセスが同じ残りものを見て、片方が取り直した目印を、もう片方が消さないように）
+ln -s "$dead" "$lock"
+ln -s "$$" "$lock.reclaim"
+rm -f "$tmp/gh-called"
+out=$(bash "$RUN" o/r feature/a/b 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx 'ALREADY_WATCHING o/r feature/a/b' && [ "$(readlink "$lock")" = "$dead" ] &&
+  [ "$(readlink "$lock.reclaim")" = "$$" ] && [ ! -e "$tmp/gh-called" ]; then ok; else ng "別のプロセスが目印を消している途中（rc=$rc）: $out"; fi
+# 消す役の目印も残りもの（プロセスがいない）なら、それも消して見張る。終わったら、どちらの目印も残さない
+rm -f "$lock.reclaim"
+ln -s "$dead" "$lock.reclaim"
+echo "$FOUND" >"$tmp/answers"
+out=$(bash "$RUN" o/r feature/a/b 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && found "$out" && [ ! -L "$lock" ] && [ ! -L "$lock.reclaim" ]; then ok; else ng "残った消す役の目印（rc=$rc）: $out"; fi
+rm -f "$lock" "$lock.reclaim"
 
 # 見張っている間は、目印が自分の番号を指す。終わるときは、自分の番号の目印だけを消す
 # （別のプロセスが目印を取り直していたら、それを消さない）
