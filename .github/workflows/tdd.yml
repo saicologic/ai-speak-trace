@@ -3,7 +3,7 @@ name: TDD
 # PR のコミットの並びから、テストが実装より先か・テストの expect を減らしていないかを確かめる
 # （中身は .github/scripts/check-tdd-order.sh。テストは backend/src/lint/check-tdd-order.spec.ts）
 # テストを書けない変更だけの PR は、no-tdd のラベルを付けると飛ばす
-# fix/* などは release/* 宛てに PR を作るため、main と release/* の両方で動かす
+# fix/* などは main 宛てに PR を作る。例外（前のタグから切った release/* へ cherry-pick する）のため release/* でも動かす
 
 on:
   pull_request:

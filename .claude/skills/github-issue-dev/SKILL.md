@@ -41,8 +41,8 @@ GitHub には、サンドボックスの外で動く `/opt/claude-code-team/bin/
 5. `test-reviewer` サブエージェントに、変えたファイルと確かめたい場面の一覧を渡して確かめてもらい、正しさにかかわる指摘があれば 4 に戻る
 6. 以下のルールに従ってPRを作成する
    - push は `/opt/claude-code-team/bin/github.sh push -u origin HEAD:refs/heads/<ブランチ名>`（cr-loop Skill の手順で手元レビューを通してから）
-   - PR は、本文をスクラッチパッドのファイルに Write で書き、`/opt/claude-code-team/bin/github.sh pr create --draft --title "<タイトル>" --body-file <ファイル>` で Draft として作る
-   - `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ。`release/*` のブランチが要るときは、ユーザーに作ってもらう
+   - PR は、本文をスクラッチパッドのファイルに Write で書き、`/opt/claude-code-team/bin/github.sh pr create --draft --base main --title "<タイトル>" --body-file <ファイル>` で Draft として作る（`fix/*`・`feature/*` も `main` 宛て）
+   - `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ。リリースは、`main` にマージした後に `release` Skill で版上げの PR を作る（`release/*` はユーザーが `main` から切る）
 
 ## ブランチ名の決定
 
@@ -50,7 +50,6 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 
 - バグ修正 → `fix/issue-$ARGUMENTS`
 - 新機能 → `feature/issue-$ARGUMENTS`
-- リリース → `release/issue-$ARGUMENTS`（`github.sh` では push できないため、ブランチはユーザーに作ってもらう）
 
 ## PRテンプレート
 
@@ -72,23 +71,4 @@ Issueの内容・ラベルから種別を判定し、ブランチ名を決定す
 
 ### 手動確認
 - [ ] （変更内容に応じた確認項目を記載）
-```
-
-### release/* の場合
-
-```markdown
-## Summary
-- （変更内容をカテゴリ別に箇条書き）
-- Closes #$ARGUMENTS
-
-## Test plan
-
-### CI自動チェック（PRのChecksタブで確認）
-- [ ] `backend-test` がパスしていること
-- [ ] `frontend-test` がパスしていること
-- [ ] `tdd-order` がパスしていること
-
-### 手動確認
-- [ ] `npm run build` でビルドが成功すること
-- [ ] リリースに含まれる変更が正しいこと
 ```

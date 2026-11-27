@@ -4,7 +4,6 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "backend"
@@ -13,7 +12,6 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "frontend"
@@ -22,13 +20,12 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: "weekly"
-    target-branch: "release/deps"
     labels:
       - "dependencies"
       - "rust"
 
   # ワークフローの actions は コミットの SHA で固定している。Dependabot が SHA と後ろのコメント（# v4 など）を更新する
-  # .github/ はビルドに影響しないため、release/deps を通さず main に PR を作る
+  # ほかの依存と同じく main に PR を作る
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
