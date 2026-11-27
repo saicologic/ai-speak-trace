@@ -62,13 +62,14 @@ run_gh() {
 }
 
 pr_fields="number,url,title,state,isDraft,baseRefName,headRepository,headRepositoryOwner"
-# 配列で、PR ごとに決めた型の項目があることを確かめ（isDraft の false も正しい値）、head のリポジトリが見張るリポジトリのものだけを残す
+# 配列で、PR ごとに出す項目が決めた型であることを確かめ（isDraft の false も正しい値）、head のリポジトリが見張るリポジトリのものだけを残す。
+# head のリポジトリがわからない PR（フォークが消されて headRepository が null など）は、エラーにせず除く
 pr_filter='if type != "array" then error("配列ではありません") else . end
   | map(if type == "object" and (.number | type) == "number" and (.url | type) == "string" and (.title | type) == "string"
       and (.state | type) == "string" and (.isDraft | type) == "boolean" and (.baseRefName | type) == "string"
-      and (.headRepository.name? | type) == "string" and (.headRepositoryOwner.login? | type) == "string"
     then . else error("PR の項目が足りないか、型が違います") end)
-  | map(select((.headRepositoryOwner.login + "/" + .headRepository.name | ascii_downcase) == $want))'
+  | map(select((.headRepository.name? | type) == "string" and (.headRepositoryOwner.login? | type) == "string"
+      and ((.headRepositoryOwner.login + "/" + .headRepository.name | ascii_downcase) == $want)))'
 want=$(printf '%s' "$repo" | tr 'A-Z' 'a-z')
 # 見張り始めたときにすでに閉じていた PR の番号（JSON の配列。最初に読めた答えで決める）
 known_closed=""
@@ -79,9 +80,10 @@ gh_error=""
 # （here-string（<<<）も bash 3.2 では一時ファイルを作るため使わない）。
 # 標準エラー → NUL → 標準出力 → NUL → 終了コード → NUL の順に流れる（JSON とエラーの文には NUL が入らない）
 while :; do
-  # gh に使える秒数は残り時間。ただし、最後の確かめでも gh が終われるよう、10 秒は使える。
-  # 時間切れ 0（1回だけ確かめる）のときは 30 秒
+  # gh に使える秒数は残り時間で、1回あたり 120 秒まで（答えない gh で残り時間を使い切らず、次の回で確かめ直す）。
+  # 最後の確かめでも gh が終われるよう、10 秒は使える。時間切れ 0（1回だけ確かめる）のときは 30 秒
   limit=$((timeout_sec - (SECONDS - start)))
+  [ "$limit" -le 120 ] || limit=120
   [ "$limit" -ge 10 ] || limit=10
   [ "$timeout_sec" -ne 0 ] || limit=30
   err="" json="" rc=""
