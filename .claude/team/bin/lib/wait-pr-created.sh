@@ -42,7 +42,7 @@ already() {
 }
 # 前の形（フォルダ）の目印が残っていると、ln -s がその中にリンクを作ってしまうため、先に消す
 if [ -d "$lock" ] && [ ! -L "$lock" ]; then rm -rf "$lock"; fi
-if ! ln -s "$$" "$lock" 2>/dev/null; then
+if ! ln -sn "$$" "$lock" 2>/dev/null; then
   # 置き場所がないなど、目印がないのに作れないときは、見張っている人がいると取り違えずに止まる
   if [ ! -L "$lock" ]; then
     echo "目印を作れません: ${lock}" >&2
@@ -52,7 +52,7 @@ if ! ln -s "$$" "$lock" 2>/dev/null; then
   if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then already; fi
   # 見張っていたプロセスがもういない。消す直前に、別のプロセスが取り直していない（中身が同じ）ことを確かめる
   [ "$(readlink "$lock" 2>/dev/null)" = "$pid" ] && rm -f "$lock"
-  ln -s "$$" "$lock" 2>/dev/null || already
+  ln -sn "$$" "$lock" 2>/dev/null || already
 fi
 # 終わるときは、自分の番号の目印だけを消す
 trap '[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && rm -f "$lock"; rm -f "${err_file-}"' EXIT
