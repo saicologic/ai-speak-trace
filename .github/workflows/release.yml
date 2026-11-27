@@ -53,7 +53,7 @@ jobs:
         working-directory: backend
 
       # main にマージした版上げの PR（題は release: vX.Y.Z）の「変更内容」セクションをリリースノートに使用
-      # ドラフトの本文は GitHub の画面で直さず、版上げの PR の本文を直して動かし直す（tauri-action が name・body を上書きするため）
+      # tauri-action（v1）は既存のドラフトの name・body を上書きしないため、後で本文を直すときは GitHub の画面でドラフトを直す
       - name: リリースノート生成
         id: release_notes
         env:
@@ -103,7 +103,7 @@ jobs:
           releaseName: 'v__VERSION__'
           releaseBody: ${{ steps.release_notes.outputs.body }}
           # ドラフトで作り、DMG を確かめてから GitHub の画面で公開する
-          # 公開した後に動かし直すと、tauri-action（v1）はドラフトでない既存のリリースで失敗する（公開済みのものを書き換えない守り）
+          # 公開した後に動かし直すと、tauri-action（v1）は公開済みのリリースを使わず同じタグで作り直そうとするため、失敗する見込み（公開済みのものを書き換えない守り）
           releaseDraft: true
           prerelease: false
           args: '--target aarch64-apple-darwin'

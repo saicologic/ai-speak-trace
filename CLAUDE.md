@@ -172,8 +172,8 @@ ai-speak-trace/
 6. ユーザーがドラフトの DMG を確かめて、GitHub の画面で公開する
 
 - 急ぎのパッチも同じ流れにする。修正の PR を `main` にマージした後、すぐにパッチ版の版上げの PR を出す
-- ドラフトの本文は GitHub の画面で直さない。`tauri-action` が動くたびに、リリースの name・body を上書きするため、版上げの PR の本文を直して `release.yml` を動かし直す
-- 公開した後に `release.yml` を動かし直すと、`tauri-action` はドラフトでない既存のリリースで失敗する（公開したものを書き換えない守りのため、そのままにする）
+- ドラフトの本文は、最初に `release.yml` が動いたときに版上げの PR から作る。後で直すときは、ドラフトの本文を GitHub の画面で直す（`tauri-action` は既存のドラフトをそのまま使い、name・body を上書きしないため、動かし直しても本文は変わらない）
+- 公開した後に `release.yml` を動かし直すと、`tauri-action` は公開済みのリリースを使わずに同じタグで作り直そうとするため、失敗する見込み（公開したものを書き換えない守りになるため、そのままにする）
 - `release/*` ブランチには直接コミットしない
 
 #### 例外: `main` に出せないものが入っているときの急ぎのパッチ
@@ -182,7 +182,7 @@ ai-speak-trace/
 
 1. 修正は、いつもどおり `fix/*` の PR で `main` に入れる
 2. ユーザーが、前のタグ `vX.Y.Z` から `release/vX.Y.(Z+1)` を作って push する（このときは `tauri.conf.json` がまだ `X.Y.Z` のため、`tag-release.yml` は失敗し、タグは作られない）
-3. 前のタグから `fix/*` を作り、`main` に入れた修正を cherry-pick して、`tauri.conf.json` の version を `X.Y.(Z+1)` にし、`release/vX.Y.(Z+1)` 宛ての PR（題は `release: vX.Y.(Z+1)`）でマージする。マージの push で、タグとドラフトのリリースができる
+3. 前のタグから `fix/*` を作り、`main` に入れた修正を cherry-pick して、前のタグの `.github/workflows/tag-release.yml` が `release/v*` への push で動く形でなければ（この流れに移る前のタグ）、`tag-release.yml`・`release.yml` も `main` のものにして、`tauri.conf.json` の version を `X.Y.(Z+1)` にし、`release/vX.Y.(Z+1)` 宛ての PR（題は `release: vX.Y.(Z+1)`）でマージする。マージの push で、タグとドラフトのリリースができる
 4. `main` の版上げは、次のリリースの版上げの PR で行う（`main` の `tauri.conf.json` を、出した版より大きくする）
 
 ## CIワークフロー管理

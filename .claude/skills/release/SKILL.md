@@ -14,13 +14,12 @@ allowed-tools: Bash(git *)
 ## 事前情報
 
 - 現在のブランチ: !`git branch --show-current`
-- 前のタグ: !`git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "タグなし"`
 
 ## 手順
 
-1. `/opt/claude-code-team/bin/github.sh fetch origin main` で `main` を取り、`origin/main` から `fix/release-v$ARGUMENTS` を作る
+1. `/opt/claude-code-team/bin/github.sh fetch origin main 'refs/tags/*:refs/tags/*'` で `main` とタグを取り、`origin/main` から `fix/release-v$ARGUMENTS` を作る
 2. `src-tauri/tauri.conf.json` の `version` を `$ARGUMENTS` にし、`release: v$ARGUMENTS` でコミットする
-3. `git log --oneline <前のタグ>..origin/main` で、リリースに入る変更を一覧にし、思わぬコミットがないかを確かめる
+3. fetch した後に、`git describe --tags --abbrev=0 origin/main` で前のタグを取り、`git log --oneline <前のタグ>..origin/main` で、リリースに入る変更を一覧にし、思わぬコミットがないかを確かめる
    - 新機能が入っていればマイナー、修正だけならパッチの番号になっているかを確かめる（違えばユーザーに伝える）
 4. 変更内容をカテゴリ別に整理（機能追加、バグ修正、CI/CD、ドキュメントなど）し、下のテンプレートで本文をスクラッチパッドのファイルに書く
 5. 本文をユーザーに見せて確かめてから、push と PR の作成をする
@@ -32,7 +31,7 @@ allowed-tools: Bash(git *)
 ## PRテンプレート
 
 `## 変更内容` はリリースノートに使われる（`release.yml` が題 `release: vX.Y.Z` の PR から読む）。
-リリースの後に本文を直すときは、ドラフトの本文ではなく、この PR の本文を直して `release.yml` を動かし直す。
+リリースノートは、最初に `release.yml` が動いたときだけこの PR から作る。後で直すときは、ドラフトの本文を GitHub の画面で直す（動かし直しても本文は変わらない）。
 
 ```markdown
 ## 変更内容
