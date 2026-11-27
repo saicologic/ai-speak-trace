@@ -212,6 +212,14 @@ out=$(bash "$RUN" o/r feature/a/b 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && found "$out" && [ ! -L "$lock" ] && [ ! -L "$lock.reclaim" ]; then ok; else ng "残った消す役の目印（rc=$rc）: $out"; fi
 rm -f "$lock" "$lock.reclaim"
+# 消す役の目印が、シンボリックリンクでなくフォルダ（中身あり）で置かれていても、止まり続けずに消して見張る
+ln -s "$dead" "$lock"
+mkdir -p "$lock.reclaim/x"
+echo "$FOUND" >"$tmp/answers"
+out=$(bash "$RUN" o/r feature/a/b 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && found "$out" && [ ! -e "$lock.reclaim" ]; then ok; else ng "フォルダの消す役の目印（rc=$rc）: $out"; fi
+rm -rf "$lock" "$lock.reclaim"
 
 # 見張っている間は、目印が自分の番号を指す。終わるときは、自分の番号の目印だけを消す
 # （別のプロセスが目印を取り直していたら、それを消さない）
