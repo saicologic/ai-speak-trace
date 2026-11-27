@@ -109,7 +109,7 @@ ai-speak-trace/
 - コードおよびコメントは日本語で記述する
 - コミットメッセージは日本語で記述する
 - mainブランチはブランチ保護（PR必須）が有効。直接プッシュ不可
-- main以外のブランチ（release/*, fix/* など）は直接プッシュ可能。ただし Claude Code が `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ（`release/*` はユーザーが push する）
+- `fix/*`・`feature/*` などは直接プッシュ可能。ただし Claude Code が `github.sh` で push できるのは `fix/*`・`feature/*`・`test/*` だけ（`release/*` はユーザーが `main` から切って push する。作った後は中身を変える push をしない）
 - ブランチが保護されていてプッシュできない場合、新しいブランチを作成せず、ユーザーに報告する
 
 ### テスト駆動開発（TDD）
@@ -142,44 +142,54 @@ ai-speak-trace/
 
 ## ブランチ管理とリリースポリシー
 
+リリースのブランチは、毎回 `main` から切る（Microsoft の Release Flow と同じ形）。マイナー・パッチ・急ぎのパッチで、同じ流れにする。
+
 ### ブランチ命名規則
 
 | ブランチ名 | 用途 |
 |-----------|------|
-| `release/vX.Y.Z` | バージョンアップ・リリース |
-| `fix/*` | バグ修正・セキュリティパッチ |
-| `feature/*` | 新機能追加 |
+| `fix/*` | バグ修正・セキュリティパッチ（`main` 宛て） |
+| `feature/*` | 新機能追加（`main` 宛て） |
+| `release/vX.Y.Z` | リリース。`main` から切り、push するとタグとドラフトのリリースができる（ユーザーが作る） |
 
-### セキュリティパッチのリリース方針
+### 版の番号とセキュリティパッチ
 
+- 版の番号は、入る中身で決める。新機能が入ればマイナー（X.**Y**.0）、修正だけならパッチ（X.Y.**Z**）を上げる
 - セキュリティパッチは必ずバージョンを上げてリリースする
 - DMGファイルはビルド時の依存関係が焼き込まれるため、パッチ適用済みバージョンを配布しないとユーザーが脆弱なバイナリを使い続けることになる
-- パッチリリースはパッチバージョン（X.Y.**Z**）を上げる（例: v0.5.7 → v0.5.8）
-- セキュリティ対応はパッチリリース（例: v0.8.x）に、新機能はマイナーリリース（例: v0.9.0）に分ける
-- セキュリティ対応の `fix/*` は、出ている中で一番新しいパッチの `release/vX.Y.Z` から作る。新機能の `release/*` から作らない（新機能のバージョン更新などが混ざり、パッチリリースに入れられなくなる）
-- パッチリリースを `main` にマージしたら、新機能の `release/*` から `fix/sync-main-into-release-vX.Y.Z` を作って `main` をマージし、新機能の `release/*` へPRを作る（`tauri.conf.json` のバージョンは新機能の側を残す）
+- 毎回 `main` から切るため、`main` はいつでも出せる状態にする。途中の機能は `feature/*` のまま置くか、画面に出ない形で入れる
 
 ### リリース手順
 
-1. `fix/*` または `feature/*` ブランチで修正・実装する
-2. `main` から `release/vX.Y.Z` ブランチを作成し `src-tauri/tauri.conf.json` のバージョンを更新（`main` にはリリース済みの内容だけがあるため、パッチリリースもマイナーリリースも `main` から作る）
-3. `fix/*` または `feature/*` → `release/vX.Y.Z` へPR作成・マージ（新機能の `feature/*` は新機能の `release/*` へ）
-4. `release/vX.Y.Z` → `main` へPR作成・マージ（PRタイトルは `release: vX.Y.Z`、本文に `## Summary` または `## 変更内容` を書く。リリースノートに使われる）
-5. タグ自動作成・CI自動ビルド・DMG自動アップロードが実行される
-   - `tag-release.yml` がマージコミットに `vX.Y.Z` タグを作成し、`release.yml` を起動する
-   - ブランチ名（`release/vX.Y.Z`）と `tauri.conf.json` のバージョンが一致しない場合、タグは作成されない
+1. 機能・修正・Dependabot の更新は、全部 `main` に PR でマージする（`fix/*`・`feature/*` も `main` 宛て）
+2. 出すものが揃ったら、`main` に版上げの PR を出す（題は `release: vX.Y.Z`。`src-tauri/tauri.conf.json` の version を `X.Y.Z` にする。本文に `## 変更内容`（または `## Summary`）を書く。リリースノートに使われる）
+3. 版上げの PR をマージしたら、ユーザーが `main` から `release/vX.Y.Z` を切って push する（cherry-pick はしない）
+4. `release/v*` への push で `tag-release.yml` が動き、タグとドラフトのリリースができる
+   - ブランチ名（`release/vX.Y.Z`）と `tauri.conf.json` のバージョンが一致しない場合、失敗にしてタグは作らない
+   - 同じタグが同じコミットにあれば、動かし直しとして続ける。別のコミットにあれば失敗にする
+   - タグを作った後、`release.yml` を起動し、ビルド・公証した DMG を載せたドラフトのリリースを作る
+5. 出す前に、前に出したタグとの差（`<前に出したタグ>...release/vX.Y.Z`。前に出したタグは、公開した最新のリリースのタグ: `gh api repos/saicologic/ai-speak-trace/releases/latest --jq .tag_name`。ドラフトのまま公開していないタグは含まれない）を見て、思わぬコミットがないかを確かめる
+6. `release.yml` が終わってから、ユーザーがドラフトの DMG を確かめて、GitHub の画面で公開する（動いている途中に公開すると、`tauri-action` が公開したリリースの DMG を差し替えるおそれがある）
 
-`fix/*`・`feature/*` を直接 `main` にマージしない（`release/*` から作成したブランチも同様。PRの宛先が `release/vX.Y.Z` になっていることをマージ前に確認する）。DMGはビルド時に依存関係が焼き込まれるため、必ず `release/*` 経由でバージョン付きリリースとセットにする。
+- 急ぎのパッチも同じ流れにする。修正の PR を `main` にマージした後、すぐにパッチ版の版上げの PR を出す
+- ドラフトの本文は、最初に `release.yml` が動いたときに版上げの PR から作る。後で直すときは、ドラフトの本文を GitHub の画面で直す（`tauri-action` は既存のドラフトをそのまま使い、name・body を上書きしないため、動かし直しても本文は変わらない）
+- 公開した後に `release.yml` を動かし直すと、`tauri-action` は公開済みのリリースを使わずに同じタグで作り直そうとするため、失敗する見込み（公開したものを書き換えない守りになるため、そのままにする）
+- `release/*` ブランチには直接コミットしない
 
-ただし、ビルドに影響しないファイル（Markdownファイル・`docs/` 等。下の「ビルド対象ファイルの管理」のビルド不要なファイル）だけを変える場合は、`main` へ直接PRを作ってよい。DMGの中身が変わらないため、`release/*` を経由させると中身が同じリリースが増えるだけになる。ビルドが必要なファイルを1つでも含む場合は、この例外を使わない。
+#### 例外: `main` に出せないものが入っているときの急ぎのパッチ
 
-`release/*` ブランチには直接コミットしない。必ず `fix/*` または `feature/*` ブランチを作成してPR経由でマージする。
+`main` に出せないものがもう入っていて、急ぎのパッチを出すときだけ、次のようにする。
+
+1. 修正は、いつもどおり `fix/*` の PR で `main` に入れる
+2. ユーザーが、前のタグ `vX.Y.Z` から `release/vX.Y.(Z+1)` を作って push する（このときは `tauri.conf.json` がまだ `X.Y.Z` のため、`tag-release.yml` は失敗し、タグは作られない）
+3. 前のタグから `fix/*` を作り、`main` に入れた修正を cherry-pick して、前のタグの `.github/workflows/tag-release.yml` が `release/v*` への push で動く形でなければ（この流れに移る前のタグ）、`tag-release.yml`・`release.yml` も `main` のものにして、`tauri.conf.json` の version を `X.Y.(Z+1)` にし、`release/vX.Y.(Z+1)` 宛ての PR（題は `release: vX.Y.(Z+1)`）でマージする。マージの push で、タグとドラフトのリリースができる
+4. `main` の版上げは、次のリリースの版上げの PR で行う（`main` の `tauri.conf.json` を、出した版より大きくする）
 
 ## CIワークフロー管理
 
 ### ビルド対象ファイルの管理
 
-`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。`release/*` 宛ての PR では、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。
+`build.yml`（`main`・`release/*` 宛ての PR）と `test.yml`（`main` 宛ての PR）は、PR のたびに実行し、最初の `changes` ジョブで変更したファイルを調べて、必要なときだけビルド・テストする。必須チェック（`build`・`backend-test`・`frontend-test`）は、不要なときも成功として報告する。PR はふだん `main` 宛てに出す。例外の急ぎのパッチで `release/*` 宛ての PR を出すときは、`test.yml` は PR では動かず、`backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` を変えた push のときに動く。そのため、`release/*` のルールでは `backend-test`・`frontend-test` を必須にしない（必須にすると、Rust だけの修正などで報告されず、マージできなくなる）。
 
 - **ビルド不要なファイル**: `build.yml` の `changes` ジョブの一覧（Markdownファイル・`docs/`・`.github/`・`.claude/`・テストのファイル（`backend/src` の `.spec.ts`・`frontend/src` の `.test.ts(x)`）・Playwright のブラウザのテスト（`frontend/e2e/`・`frontend/playwright.config.ts`・`frontend/tsconfig.e2e.json`）等）。これらのファイルだけを変えた PR では、macOS のビルドをしない
 - **テスト不要なファイル**: `backend/`・`frontend/`・`.nvmrc`・`.claude/team/`・`.claude/settings.json`・`.github/scripts/` 以外のファイルと、Markdownファイル（`.claude/team/`・`.claude/settings.json`・`.github/scripts/` は `backend/src/lint` のテストが確かめるため、`backend-test` を動かす）

@@ -52,7 +52,8 @@ jobs:
           "
         working-directory: backend
 
-      # release/vX.Y.Z PRの「変更内容」セクションをリリースノートに使用
+      # main にマージした版上げの PR（題は release: vX.Y.Z）の「変更内容」セクションをリリースノートに使用
+      # tauri-action（v1）は既存のドラフトの name・body を上書きしないため、後で本文を直すときは GitHub の画面でドラフトを直す
       - name: リリースノート生成
         id: release_notes
         env:
@@ -61,13 +62,13 @@ jobs:
           TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
 
-          # release/vX.Y.Z にマージされたPRを検索
+          # 題が release: vX.Y.Z の版上げの PR を検索（検索はあいまいなため、題が完全に一致するものだけを使う）
           PR_BODY=$(gh pr list \
             --repo ${{ github.repository }} \
             --state merged \
             --search "release: v${VERSION} in:title" \
-            --json body \
-            --jq '.[0].body // ""')
+            --json title,body \
+            --jq "map(select(.title == \"release: v${VERSION}\")) | .[0].body // \"\"")
 
           # "## 変更内容" または "## Summary" セクションを抽出し "## " で始まる次のセクションの直前まで取得
           CHANGES=$(echo "$PR_BODY" | awk '/^## (変更内容|Summary)/{found=1; next} found && /^## /{exit} found{print}')
@@ -101,7 +102,9 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
           releaseBody: ${{ steps.release_notes.outputs.body }}
-          releaseDraft: false
+          # ドラフトで作り、DMG を確かめてから GitHub の画面で公開する
+          # 公開した後に動かし直すと、tauri-action（v1）は公開済みのリリースを使わず同じタグで作り直そうとするため、失敗する見込み（公開済みのものを書き換えない守り）
+          releaseDraft: true
           prerelease: false
           args: '--target aarch64-apple-darwin'
 

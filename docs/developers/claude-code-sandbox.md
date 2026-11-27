@@ -126,14 +126,14 @@ Claude Code は、GitHub への操作を `/opt/claude-code-team/bin/github.sh` �
 | push | `github.sh push -u origin HEAD:refs/heads/fix/xxx` |
 | fetch | `github.sh fetch origin main` |
 | PR を読む | `github.sh pr view 123`・`pr diff`・`pr checks`・`pr list` |
-| PR を作る（Draft だけ） | `github.sh pr create --draft --base release/vX.Y.Z --title "..." --body-file <ファイル>` |
+| PR を作る（Draft だけ） | `github.sh pr create --draft --base main --title "..." --body-file <ファイル>` |
 | PR の本文・タイトル・ラベル | `github.sh pr edit 123 --body-file <ファイル>` |
 | PR のコメント・閉じる | `github.sh pr comment 123 --body-file <ファイル>`・`pr close 123 --comment "..."` |
 | Issue | `github.sh issue view 7`・`issue comment 7 --body-file <ファイル>`・`issue create --title "..." --body-file <ファイル>` |
 | CI | `github.sh run list`・`run view <id>` |
 | API（読むだけ） | `github.sh api repos/<owner>/<repo>/pulls/123/comments --paginate --jq ...` |
 
-- push できるのは、`.claude/team/etc/github-repos` に書いたリポジトリの、`fix/*`・`feature/*`・`test/*` のブランチだけです。`main`・`release/*` へは PR で入れます
+- push できるのは、`.claude/team/etc/github-repos` に書いたリポジトリの、`fix/*`・`feature/*`・`test/*` のブランチだけです。`main` へは PR で入れます（`release/*` はユーザーが `main` から切って push します）
   - force push・ブランチの削除・タグはできません
   - 送り元は今の HEAD と同じコミットだけです（push の前の確認は HEAD を見るため。`github.sh push -u origin HEAD:refs/heads/<ブランチ>` の形で送ります）
 - push と PR・Issue への書き込みの前に、手元の CodeRabbit レビュー（`cr-gate-push.sh`）・TDD の順番（`tdd-push-gate.sh`）・CodeRabbit の枠（`cr-limit-gate.sh`）を流し、通らなければ止めます。急ぎで飛ばすときは、ユーザーの了承を得て `--skip SKIP_CR_LOOP`・`--skip SKIP_TDD_CHECK`・`--skip SKIP_CR_LIMIT` を付けます
