@@ -79,28 +79,32 @@ if ! ln -sn "$$" "$lock" 2>/dev/null; then
   [ "$got" -eq 1 ] || already
 fi
 # 終わるときは、自分の番号の目印だけを消す
-trap '[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && rm -f "$lock"; rm -f "${err_file-}"' EXIT
+trap '[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && rm -f "$lock"' EXIT
 
 start=$SECONDS
 # gh が失敗し続けたときに、PR がないのと区別できるよう、最後の失敗を覚えておく（成功したら消す）
 gh_error=""
+# gh の標準出力・標準エラー・終了コードは、TMPDIR の一時ファイルを通さず、パイプだけで受け取る
+# （TMPDIR はサンドボックスの中から書けるため、作った後に名前をリンクに差し替えられると、サンドボックスの外のファイルに
+# 書いてしまう。here-string（<<<）も bash 3.2 では一時ファイルを作るため使わない）。
+# 標準エラー → NUL → 標準出力 → NUL → 終了コード → NUL の順に流れる（JSON とエラーの文には NUL が入らない）
 while :; do
-  err_file=$(mktemp "${TMPDIR:-/tmp}/wait-pr-created-err.XXXXXX") || exit 1
-  if json=$(gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName 2>"$err_file"); then
+  { IFS= read -r -d '' err; IFS= read -r -d '' json; IFS= read -r -d '' rc; } < <(
+    (printf '\0%s\0%s\0' "$(gh pr list -R "$repo" --head "$branch" --state all --json number,url,title,state,isDraft,baseRefName)" "$?" 1>&2) 2>&1
+  )
+  if [ "${rc-}" = 0 ]; then
     gh_error=""
-    if jq -e 'type == "array" and length > 0' <<<"$json" >/dev/null 2>&1; then
-      rm -f "$err_file"
+    if printf '%s' "$json" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
       echo "STATUS: FOUND"
-      jq -r '.[0] | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"' <<<"$json"
+      printf '%s' "$json" | jq -r '.[0] | "PR: \(.url) \(.title)", "NUMBER: \(.number)", "STATE: \(.state)", "DRAFT: \(.isDraft)", "BASE: \(.baseRefName)"'
       exit 0
     fi
   else
     # 1行にまとめて、長すぎるときは切る
-    gh_error=$(tr '\n' ' ' <"$err_file" | cut -c1-500)
+    gh_error=$(printf '%s' "${err-}" | tr '\n' ' ' | cut -c1-500)
     gh_error="${gh_error% }"
     [ -n "$gh_error" ] || gh_error="gh pr list が失敗しました"
   fi
-  rm -f "$err_file"
   if [ $((SECONDS - start)) -ge "$timeout_sec" ]; then
     echo "STATUS: TIMEOUT"
     echo "BRANCH: ${repo} ${branch}"
