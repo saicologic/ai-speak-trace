@@ -81,18 +81,16 @@ rm -f "$installer"
 
 ### 入れ直す・起動し直す
 
-`.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
-
-入れ直すきっかけになるのは、`install.sh` がインストール先に入れるものを変えたときです。
+`install.sh` がインストール先に入れるもの（下の表）を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
 
 | 変えたもの | 入るところ |
 |-----------|-----------|
 | `.claude/team/bin/*.sh`・`.claude/team/bin/lib/*`（足す・消すも含む） | `/opt/claude-code-team/bin`・`/opt/claude-code-team/bin/lib` |
-| `.claude/team/etc/*` | `/opt/claude-code-team/etc` |
+| `.claude/team/etc/github-repos`・`.claude/team/etc/playwright-mcp.json` | `/opt/claude-code-team/etc` |
 | `.github/scripts/check-tdd-order.sh`・`.github/scripts/related-tests.mjs` | `/opt/claude-code-team/bin/ci` |
 | `.claude/team/managed-settings.json`・`.claude/team/managed-mcp.json` | `/Library/Application Support/ClaudeCode` |
 
-`.claude/team/tests/` などのテストだけを変えた PR では、入れ直さなくてかまいません。
+`.claude/team/tests/` などのテストだけを変えた PR では、入れ直さなくてかまいません。`.claude/team/etc`・`.github/scripts` は、表の名前のファイルだけが入ります（ほかのファイルを足しても入りません）。
 
 今の Mac に入っている版は、`/opt/claude-code-team/etc/installed-from` で確かめられます。`main <SHA>`（`main` から入れたとき）か `<SHA> <SHA>`（SHA を指定したとき）の形で、入れたコミットが書かれています。この SHA の履歴に、マージした PR のコミットが入っていなければ（マージより前の版なら）、入れ直します。
 
