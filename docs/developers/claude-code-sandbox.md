@@ -83,6 +83,23 @@ rm -f "$installer"
 
 `.claude/team/` か `.github/scripts/` を変える PR がマージされたら、同じ手順でもう一度入れます。入れ直すまでは、前に入れた設定のままです（たとえば `managed-mcp.json` を入れていない Mac では、プロジェクトの `.mcp.json` やプラグインの MCP サーバーが動きます）。
 
+入れ直すきっかけになるのは、`install.sh` がインストール先に入れるものを変えたときです。
+
+| 変えたもの | 入るところ |
+|-----------|-----------|
+| `.claude/team/bin/*.sh`・`.claude/team/bin/lib/*`（足す・消すも含む） | `/opt/claude-code-team/bin`・`/opt/claude-code-team/bin/lib` |
+| `.claude/team/etc/*` | `/opt/claude-code-team/etc` |
+| `.github/scripts/check-tdd-order.sh`・`.github/scripts/related-tests.mjs` | `/opt/claude-code-team/bin/ci` |
+| `.claude/team/managed-settings.json`・`.claude/team/managed-mcp.json` | `/Library/Application Support/ClaudeCode` |
+
+`.claude/team/tests/` などのテストだけを変えた PR では、入れ直さなくてかまいません。
+
+今の Mac に入っている版は、`/opt/claude-code-team/etc/installed-from` で確かめられます。`main <SHA>`（`main` から入れたとき）か `<SHA> <SHA>`（SHA を指定したとき）の形で、入れたコミットが書かれています。この SHA の履歴に、マージした PR のコミットが入っていなければ（マージより前の版なら）、入れ直します。
+
+```bash
+cat /opt/claude-code-team/etc/installed-from
+```
+
 入れた後（入れ直した後も）は、次の手順で Claude Code を起動し直します。managed settings はファイルを変えるとその場で読み直されますが、MCP サーバー（Playwright MCP）は、起動したときのプロセスが動き続けるため、起動し直すまで前の起動の仕方（前の守り）のままです。ほかのセッション（Orca のほかのタブなど）が動かしているものや、終わったセッションに残ったものもあります。
 
 1. 開いている Claude Code のセッションを、すべて終了します（`/exit`）

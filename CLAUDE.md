@@ -214,6 +214,7 @@ ai-speak-trace/
 - 手元の CodeRabbit レビューは `/opt/claude-code-team/bin/cr-review.sh`、PR の監視は `/opt/claude-code-team/bin/wait-pr-checks.sh` で行う（cr-loop Skill）
 - サンドボックスの外で動くものは、`/opt/claude-code-team`（root の持ち物）に入れたものだけにする。hook もサンドボックスの外で動くため、リポジトリの `.claude/settings.json` には hook を書かず、managed settings からインストール先のものだけを動かす（作業ツリーのファイルは、サンドボックスの中から書き換えられるため）。`install.sh` も、インストーラーそのものと入れるものの両方を、作業ツリーではなく GitHub のブランチのコミットから取る
 - 設定・スクリプトを変えるときは `.claude/team/` を変え、`.claude/team/tests/` のテスト（`backend/src/lint/claude-team-tools.spec.ts` から流す）を通す。サンドボックスを弱める変更（サンドボックスを切る・通信先を広げる・外で動かすものを増やす）は、理由を PR に書く
+- `.claude/team/bin`・`.claude/team/managed-settings.json` などのインストール先に入るもの（`install.sh` が入れるもの）を変えたら、マージの後に、`docs/developers/claude-code-sandbox.md` の手順（GitHub から取った `install.sh`）でもう一度入れる。入れた版は `/opt/claude-code-team/etc/installed-from` で確かめられる
 
 ## PRの手動確認項目
 
