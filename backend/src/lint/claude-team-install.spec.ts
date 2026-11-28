@@ -54,26 +54,41 @@ describe('install.sh が .claude/team/bin を入れる書き方', () => {
     expect(indexOf(BIN_LIB)).toBeGreaterThanOrEqual(0);
   });
 
+  it('失敗したらそこで止まる（set -e。消すのを入れた後にする意味がなくなるため）', () => {
+    expect(lines).toContain('set -euo pipefail');
+  });
+
+  it('インストール先の bin と bin/lib を、root の持ち物・755 で作る', () => {
+    expect(
+      indexOf(
+        new RegExp(
+          `^install -d -o root -g wheel -m 755 ${literal('"$prefix"')} .*${literal('"$prefix/bin" "$prefix/bin/lib"')}`,
+        ),
+      ),
+    ).toBeGreaterThanOrEqual(0);
+  });
+
   describe('取り出した方にないスクリプトを、インストール先から消す', () => {
     const loop = indexOf(
       /^for old in "\$prefix"\/bin\/\*\.sh "\$prefix"\/bin\/lib\/\* /,
     );
-    const remove = indexOf(
-      new RegExp(
-        `^\\*\\) ${literal('[ -e "$src/bin/$rel" ] || rm -f "$old" ;;')}$`,
-      ),
-    );
+    const done = lines.indexOf('done', loop);
 
     it('インストール先の bin/*.sh と bin/lib/* を順に調べる', () => {
       expect(loop).toBeGreaterThanOrEqual(0);
     });
 
-    it('インストール先からの名前（bin/ の後ろ）を取り出す', () => {
-      expect(lines).toContain('rel=${old#"$prefix"/bin/}');
-    });
-
-    it('取り出した .claude/team/bin に同じ名前がなければ消す', () => {
-      expect(remove).toBeGreaterThan(loop);
+    it('ループの中は、取り出した .claude/team/bin に同じ名前がなければ消すだけ', () => {
+      // 途中に別の腕・continue を足して、消さないようにする書き換えを止める
+      expect(lines.slice(loop + 1, done)).toEqual([
+        '[ -e "$old" ] || continue',
+        'rel=${old#"$prefix"/bin/}',
+        'case "$rel" in',
+        'ci/check-tdd-order.sh | ci/related-tests.mjs) ;;',
+        'ci/*) rm -f "$old" ;;',
+        '*) [ -e "$src/bin/$rel" ] || rm -f "$old" ;;',
+        'esac',
+      ]);
     });
 
     it('消すのは、新しいものを入れた後', () => {
@@ -85,10 +100,14 @@ describe('install.sh が .claude/team/bin を入れる書き方', () => {
 
 describe('.claude/team/bin のファイルが、install.sh の書き方で入る', () => {
   const bin = path.join(TEAM, 'bin');
+  /** . で始まる名前（Finder の .DS_Store など。git archive で取り出す中身には入らない）を除いた中身 */
+  const entries = (dir: string): fs.Dirent[] =>
+    fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => !e.name.startsWith('.'));
 
   it('bin の直下は、.sh のファイルと lib のフォルダだけ（*.sh から漏れるものがない）', () => {
-    const outside = fs
-      .readdirSync(bin, { withFileTypes: true })
+    const outside = entries(bin)
       .filter((e) =>
         e.isDirectory() ? e.name !== 'lib' : !e.name.endsWith('.sh'),
       )
@@ -97,10 +116,22 @@ describe('.claude/team/bin のファイルが、install.sh の書き方で入る
   });
 
   it('bin/lib にフォルダがない（install に lib/* のフォルダを渡すと失敗する）', () => {
-    const dirs = fs
-      .readdirSync(path.join(bin, 'lib'), { withFileTypes: true })
+    const dirs = entries(path.join(bin, 'lib'))
       .filter((e) => !e.isFile())
       .map((e) => e.name);
     expect(dirs).toEqual([]);
+  });
+
+  // 合うファイルがないと、glob がそのまま install に渡り、set -e でインストールが止まる
+  it('bin に .sh のファイルが1つ以上ある', () => {
+    expect(
+      entries(bin).filter((e) => e.isFile() && e.name.endsWith('.sh')).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('bin/lib にファイルが1つ以上ある', () => {
+    expect(
+      entries(path.join(bin, 'lib')).filter((e) => e.isFile()).length,
+    ).toBeGreaterThan(0);
   });
 });
