@@ -1,0 +1,106 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * .claude/team/install.sh が、.claude/team/bin のスクリプトを /opt/claude-code-team/bin に入れる書き方のテスト。
+ * install.sh は sudo で動くインストーラーのため、動かさずに、書き方だけを読んで確かめる
+ * （新しい .claude/team/bin のスクリプトが、install.sh を変えなくても入ることを、レビューから確かめられるようにする）
+ */
+const ROOT = path.resolve(__dirname, '..', '..', '..');
+const TEAM = path.join(ROOT, '.claude', 'team');
+const INSTALL = path.join(TEAM, 'install.sh');
+
+/** コメントと空の行を除いた、install.sh の行 */
+const lines = fs
+  .readFileSync(INSTALL, 'utf-8')
+  .split('\n')
+  .map((line) => line.trim())
+  .filter((line) => line !== '' && !line.startsWith('#'));
+
+/** 書き方が一致する行の位置（ないときは -1） */
+function indexOf(pattern: RegExp): number {
+  return lines.findIndex((line) => pattern.test(line));
+}
+
+/** 正規表現の特別な文字をそのまま比べるための書き換え */
+function literal(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** install -o root -g wheel -m <mode> <src> <dest> の形の行 */
+function installLine(mode: string, src: string, dest: string): RegExp {
+  return new RegExp(
+    `^install -o root -g wheel -m ${mode} ${literal(src)} ${literal(dest)}$`,
+  );
+}
+
+const BIN_SH = installLine('755', '"$src"/bin/*.sh', '"$prefix/bin/"');
+const BIN_LIB = installLine('644', '"$src"/bin/lib/*', '"$prefix/bin/lib/"');
+
+describe('install.sh が .claude/team/bin を入れる書き方', () => {
+  it('インストール先は /opt/claude-code-team', () => {
+    expect(lines).toContain('prefix=/opt/claude-code-team');
+  });
+
+  it('取り出した .claude/team を $src にする', () => {
+    expect(lines).toContain('src="$work/tree/.claude/team"');
+  });
+
+  it('.claude/team/bin/*.sh を、root の持ち物・755 で /opt/claude-code-team/bin/ に入れる', () => {
+    expect(indexOf(BIN_SH)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('.claude/team/bin/lib/* を、root の持ち物・644 で /opt/claude-code-team/bin/lib/ に入れる', () => {
+    expect(indexOf(BIN_LIB)).toBeGreaterThanOrEqual(0);
+  });
+
+  describe('取り出した方にないスクリプトを、インストール先から消す', () => {
+    const loop = indexOf(
+      /^for old in "\$prefix"\/bin\/\*\.sh "\$prefix"\/bin\/lib\/\* /,
+    );
+    const remove = indexOf(
+      new RegExp(
+        `^\\*\\) ${literal('[ -e "$src/bin/$rel" ] || rm -f "$old" ;;')}$`,
+      ),
+    );
+
+    it('インストール先の bin/*.sh と bin/lib/* を順に調べる', () => {
+      expect(loop).toBeGreaterThanOrEqual(0);
+    });
+
+    it('インストール先からの名前（bin/ の後ろ）を取り出す', () => {
+      expect(lines).toContain('rel=${old#"$prefix"/bin/}');
+    });
+
+    it('取り出した .claude/team/bin に同じ名前がなければ消す', () => {
+      expect(remove).toBeGreaterThan(loop);
+    });
+
+    it('消すのは、新しいものを入れた後', () => {
+      expect(loop).toBeGreaterThan(indexOf(BIN_SH));
+      expect(loop).toBeGreaterThan(indexOf(BIN_LIB));
+    });
+  });
+});
+
+describe('.claude/team/bin のファイルが、install.sh の書き方で入る', () => {
+  const bin = path.join(TEAM, 'bin');
+
+  it('bin の直下は、.sh のファイルと lib のフォルダだけ（*.sh から漏れるものがない）', () => {
+    const outside = fs
+      .readdirSync(bin, { withFileTypes: true })
+      .filter((e) =>
+        e.isDirectory() ? e.name !== 'lib' : !e.name.endsWith('.sh'),
+      )
+      .map((e) => e.name);
+    expect(outside).toEqual([]);
+  });
+
+  it('bin/lib にフォルダがない（install に lib/* のフォルダを渡すと失敗する）', () => {
+    const dirs = fs
+      .readdirSync(path.join(bin, 'lib'), { withFileTypes: true })
+      .filter((e) => !e.isFile())
+      .map((e) => e.name);
+    expect(dirs).toEqual([]);
+  });
+});
